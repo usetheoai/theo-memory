@@ -51,11 +51,17 @@ describe('M6 T1.3 — POST /v1/remember/batch per-item failure isolation', () =>
     const body = (await res.json()) as {
       imported: number;
       failed: number;
-      errors?: { index: number; message: string }[];
+      errors?: { index: number; code: string; message: string }[];
     };
     expect(body.imported).toBe(2);
     expect(body.failed).toBe(1);
     expect(body.errors?.[0]?.index).toBe(1);
-    expect(body.errors?.[0]?.message).toContain('poison');
+    // M6-SEC-02: the per-item error is the SANITIZED envelope, never the raw
+    // throw. An unmapped Error maps to 500 INTERNAL_ERROR — the raw 'poison'
+    // detail (which could be a pg internal or a token-bearing message) is NOT
+    // echoed to the client.
+    expect(body.errors?.[0]?.code).toBe('INTERNAL_ERROR');
+    expect(body.errors?.[0]?.message).toBe('Internal server error');
+    expect(body.errors?.[0]?.message).not.toContain('poison');
   });
 });

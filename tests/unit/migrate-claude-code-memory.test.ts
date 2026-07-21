@@ -89,6 +89,33 @@ describe('scrub — fail-closed secret redaction (ADR-4)', () => {
     expect(res.hadPrivateKey).toBe(true);
     expect(res.clean).not.toContain('BEGIN RSA PRIVATE KEY');
   });
+
+  // M6-SEC-03 — negative cases per new deny-list shape (testing.md § 4.1). Each
+  // asserts the specific secret substring is GONE and the precise kind is tagged.
+  it.each([
+    ['slack_token', 'ping xoxb-2345678901-2345678901234-AbCdEfGhIjKlMnOpQrStUvWx now', 'xoxb-'],
+    ['google_api_key', 'key AIzaSyA1234567890abcdefghijklmnopqrstuvw done', 'AIzaSy'],
+    ['db_connection_string', 'db postgres://user:S3cretPass@db.example.com:5432/app ok', 'S3cretPass'],
+  ])('redacts a %s and leaves no raw secret', (kind, text, rawFragment) => {
+    const { clean, kinds } = scrub(text);
+    expect(clean).not.toContain(rawFragment);
+    expect(clean).toContain(`[REDACTED:${kind}]`);
+    expect(kinds).toContain(kind);
+  });
+
+  it('redacts the VALUE of a secret-named env assignment, keeping the key visible', () => {
+    const { clean, kinds } = scrub('export MY_API_KEY=supersecretvalue123');
+    expect(clean).not.toContain('supersecretvalue123');
+    expect(clean).toContain('MY_API_KEY=');
+    expect(kinds).toContain('secret_assignment');
+  });
+
+  it('catches a hyphenated high-entropy token the pure-alnum rule would miss', () => {
+    const token = 'ab12-cd34-ef56-gh78-ij90-kl12-mn34-op56';
+    const { clean, kinds } = scrub(`reference ${token} here`);
+    expect(clean).not.toContain(token);
+    expect(kinds).toContain('high_entropy');
+  });
 });
 
 describe('nodeToBatchItem — MAP shape + provenance', () => {

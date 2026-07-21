@@ -8,13 +8,17 @@
 // Exit 0 regardless — a memory outage never blocks the session (plan T3.1).
 
 import { readInput, projectOf, post } from './theo-lib.mjs';
+import { scrubText } from './theo-scrub.mjs';
 
 const SALIENCE_MIN_CHARS = 40;
 
 async function main() {
   const input = await readInput();
   const project = projectOf(input.cwd);
-  const text = (input.last_assistant_message || '').trim();
+  // M6-SEC-01: scrub secrets BEFORE the write. The server stores infer=false
+  // verbatim, so this client scrub is the only chance to keep a secret (an env
+  // dump, a pasted key, a token in tool output) out of the store.
+  const text = scrubText((input.last_assistant_message || '').trim());
 
   // Salience floor — a short turn is rarely a durable fact worth a write.
   if (text.length < SALIENCE_MIN_CHARS) return;
