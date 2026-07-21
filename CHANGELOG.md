@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+- MCP tool calls ignored the edge-resolved user and always used the per-deployment `THEOMEM_MCP_DEFAULT_USER_ID`, so an agent's memories landed under an identity no consumer queries — the dashboard reads `/v1/scopes/user/{session-subject}/memories` and found nothing (theo-cloud#249)
 
 ### Security
 
