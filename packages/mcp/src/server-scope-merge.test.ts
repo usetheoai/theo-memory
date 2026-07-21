@@ -76,11 +76,42 @@ describe('tools/call scope binding (M7)', () => {
   it('does not invent a workspace when the outer scope has none', async () => {
     process.env['THEOMEM_MCP_DEFAULT_USER_ID'] = 'claude-code';
 
-    const seen = await scopeAtBackend({ session: { userId: 'ignored-outer' } });
+    const seen = await scopeAtBackend({ session: { userId: 'edge-resolved-user' } });
 
-    expect(seen?.session?.userId).toBe('claude-code');
+    // The edge-resolved user is honored (see the precedence suite below); what this
+    // case pins is the WORKSPACE, which must not be conjured from nothing.
+    expect(seen?.session?.userId).toBe('edge-resolved-user');
     // Merging must not fabricate tenancy — an absent workspace stays absent so the
     // downstream guard can fail closed rather than silently binding the wrong tenant.
     expect(seen?.workspaceId).toBeUndefined();
+  });
+});
+
+describe('tools/call user-tier precedence (M7)', () => {
+  it('prefers the edge-resolved user over the deployment default', async () => {
+    // THEOMEM_MCP_DEFAULT_USER_ID is a per-DEPLOYMENT constant. On a shared server it
+    // pins every caller of every tenant to one user tier, so anything the edge
+    // resolved per-request must outrank it. Losing this is why the dashboard listed
+    // nothing: it reads /v1/scopes/user/{session-subject}/memories, while the agent
+    // wrote under the constant.
+    process.env['THEOMEM_MCP_DEFAULT_USER_ID'] = 'claude-code';
+
+    const seen = await scopeAtBackend({
+      workspaceId: OUTER_WORKSPACE,
+      session: { userId: 'de110292-bcba-498a-94bd-631a755ca5e9' },
+    });
+
+    expect(seen?.session?.userId).toBe('de110292-bcba-498a-94bd-631a755ca5e9');
+    expect(seen?.workspaceId).toBe(OUTER_WORKSPACE);
+  });
+
+  it('falls back to the deployment default when the edge resolved no user', async () => {
+    // stdio and local dev have no edge to resolve a user — the constant is the
+    // legitimate last resort there, so it must still apply.
+    process.env['THEOMEM_MCP_DEFAULT_USER_ID'] = 'claude-code';
+
+    const seen = await scopeAtBackend({ workspaceId: OUTER_WORKSPACE });
+
+    expect(seen?.session?.userId).toBe('claude-code');
   });
 });
