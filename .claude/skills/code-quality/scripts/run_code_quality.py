@@ -90,6 +90,34 @@ def _first_existing(paths: Iterable[Path]) -> Path | None:
     return next((p for p in paths if p.is_file()), None)
 
 
+def _audit_output_path(
+    audit_out: str | None, slug: str, repo_root: Path, plan_path: Path | None
+) -> Path:
+    """
+    Where the Markdown audit is written: next to the plan that was audited.
+
+    Deriving it from the plan rather than probing for a knowledge-base root matters
+    because a repo can carry BOTH layouts at once — this one has `.claude/knowledge-base/`
+    (adrs, audits, mini-reviews) and a root `knowledge-base/` (plans, releases,
+    roadmap-runs). Any "first root that exists / that has plans" heuristic picks the
+    wrong one half the time and files the audit away from the plan and from /review.
+    """
+    if audit_out:
+        return Path(audit_out)
+    kb_root = _knowledge_base_of(plan_path) or _knowledge_base_roots(repo_root)[0]
+    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return kb_root / "audits" / f"{slug}-code-quality-{stamp}.md"
+
+
+def _knowledge_base_of(plan_path: Path | None) -> Path | None:
+    """The knowledge-base root containing a resolved plan, or None."""
+    if plan_path is None:
+        return None
+    # plans/{slug}-plan.md sits at depth 2; plans/completed/{slug}-plan.md at depth 3.
+    parent = plan_path.parent
+    return parent.parent if parent.name == "plans" else parent.parent.parent
+
+
 def _plan_not_found(slug: str, roots: list[Path]) -> FileNotFoundError:
     """Discovery plans get a pointed message — they are a different artifact (EC-6)."""
     discovery = _first_existing(
@@ -328,6 +356,14 @@ def _emit_and_exit(
     if plan_path:
         summary["plan_path"] = str(plan_path.relative_to(repo_root))
 
+    # Markdown audit (Mode 2 only, unless --no-audit-write). Runs BEFORE the JSON
+    # is serialized so report_path is actually present in it.
+    if args.slug and not args.no_audit_write:
+        audit_path = _audit_output_path(args.audit_out, args.slug, repo_root, plan_path)
+        audit_path.parent.mkdir(parents=True, exist_ok=True)
+        _write_markdown_report(findings, summary, audit_path, args.slug)
+        summary["report_path"] = str(audit_path.relative_to(repo_root))
+
     # JSON output
     json_text = json.dumps(summary, indent=2, ensure_ascii=False)
     if args.json_out and args.json_out != "-":
@@ -336,19 +372,9 @@ def _emit_and_exit(
     else:
         sys.stdout.write(json_text + "\n")
 
-    # Markdown audit (Mode 2 only, unless --no-audit-write)
-    if args.slug and not args.no_audit_write:
-        audit_path = (
-            Path(args.audit_out)
-            if args.audit_out
-            else repo_root
-            / ".claude"
-            / "knowledge-base"
-            / "audits"
-            / f"{args.slug}-code-quality-{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.md"
-        )
-        _write_markdown_report(findings, summary, audit_path, args.slug)
-        summary["report_path"] = str(audit_path.relative_to(repo_root))
+    # NOTE: report_path is set BEFORE the JSON above is serialized (see the
+    # audit block that now runs earlier) — assigning it here left every emitted
+    # summary with report_path: null, so callers could not find the audit.
 
     # Exit code
     if verdict in ("FAIL_HARD", "INVALID"):
