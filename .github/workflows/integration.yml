@@ -97,6 +97,21 @@ jobs:
           node -e "const{Pool}=require('pg');const p=new Pool({connectionString:process.env.THEOMEM_PG_URI});p.query('CREATE EXTENSION IF NOT EXISTS vector').then(()=>p.end()).catch(e=>{console.error(e);process.exit(1)})"
           node dist/agent-tools/cli.js migrate
 
+      - name: Pre-cache the local embedder model (Xenova/all-MiniLM-L6-v2) with retry
+        # Tests that exercise the shipped LOCAL embedder (LocalTransformerEmbedder)
+        # download a ~22 MB ONNX model from huggingface.co on first use. The HF CDN
+        # is intermittently "Service unavailable" from the runner (same CDN-flakiness
+        # class as the sharp/libvips build). A single unlucky first-caller then fails
+        # (principles-alignment-hardening). Pre-warm the model ONCE with retry so it is
+        # on disk (shared @xenova/transformers cache) before any test — deterministic,
+        # not a per-test race. node-linker=hoisted makes the bare import resolve at root.
+        run: |
+          for i in $(seq 1 6); do
+            node -e "import('@xenova/transformers').then(async (m)=>{const p=await m.pipeline('feature-extraction','Xenova/all-MiniLM-L6-v2');await p('warmup',{pooling:'mean',normalize:true});console.log('xenova model cached');}).then(()=>process.exit(0)).catch((e)=>{console.error('attempt failed:',e.message);process.exit(1);})" && exit 0
+            echo "HF fetch attempt $i failed — retry in 20s"; sleep 20
+          done
+          echo "::error::could not pre-cache the Xenova model after 6 attempts (HF CDN unreachable)"; exit 1
+
       - name: Run integration suite (real Postgres + real OpenAI)
         # THEOMEM_PG_URI set above; OPENAI_API_KEY from the repo secret (real
         # provider — no stubs in the production path). THEOMEM_EMBEDDER=openai keeps
