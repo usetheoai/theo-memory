@@ -66,8 +66,24 @@ export default defineConfig({
     setupFiles: ['tests/integration/_helpers/reset-shared-db.ts'],
     include: ['tests/integration/**/*.test.ts'],
     passWithNoTests: true,
-    testTimeout: 30_000,
-    hookTimeout: 30_000,
+    // 90s (was 30s): the CI runner is materially slower than local dev — CLI tests
+    // spawn subprocesses that boot the Memory factory + call real OpenAI, and a
+    // multi-step round-trip (e.g. verbs-cli remember→recall→forget→recall = 4
+    // subprocess boots) legitimately exceeds 30s under shared-runner + OpenAI
+    // latency. A passing test never consumes its budget; this only widens the
+    // window before a genuinely slow/hung test fails, trading a little
+    // fail-latency for freedom from load-induced timeout flakes.
+    testTimeout: 90_000,
+    hookTimeout: 90_000,
+    // Retry a failed test up to 2× before declaring the run red. This suite is
+    // subprocess- and network-heavy (spawned CLI processes, real OpenAI, a shared
+    // self-hosted runner), which produces ROTATING single-test flakes: across
+    // consecutive CI runs the same 120 files passed while a different one failed
+    // each time (principles-alignment → verbs-cli → cli-consolidated), each passing
+    // on the next run. Retry separates that transient class from real breakage: a
+    // genuinely broken test fails all 3 attempts and still blocks the gate, while a
+    // load-induced flake no longer reds an otherwise-good build.
+    retry: 2,
     globals: false,
     // Integration tests all share the same Postgres + pgvector container.
     // Parallel file execution causes TRUNCATE races and FK constraint violations

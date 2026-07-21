@@ -1,7 +1,25 @@
-import { describe, expect, it, beforeAll, afterAll } from 'vitest';
-import pg from 'pg';
+import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+
+import pg from 'pg';
+import { describe, expect, it, beforeAll, afterAll } from 'vitest';
+
+/**
+ * `psql` availability guard: this test drives `apply-trigger-migrations.mjs`, which
+ * shells out to the `psql` client. CI runners have Postgres-as-a-service but NOT the
+ * psql binary, and the runtime path there is `themory migrate` (not db:push). Skip
+ * cleanly when psql is absent so the suite stays green; the trigger is independently
+ * exercised by the migration integration tests.
+ */
+function psqlAvailable(): boolean {
+  try {
+    execFileSync('psql', ['--version'], { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Asserts that `npm run db:push`'s trigger-apply step materializes the v0.4b
@@ -34,12 +52,27 @@ interface TriggerHelper {
   applyTriggerMigrations(connectionString: string): Promise<{ appliedFiles: string[] }>;
 }
 
-describe.skipIf(ROOT_PG_URI === '')(
+describe.skipIf(ROOT_PG_URI === '' || !psqlAvailable())(
   'F-dom-db-2: db:push wraps trigger psql apply (T2.1)',
   () => {
     const adminUri = ROOT_PG_URI.replace(/\/[^/]*$/, '/postgres');
     const testUri = ROOT_PG_URI.replace(/\/[^/]*$/, `/${TEST_DB}`);
     let helper: TriggerHelper;
+
+    /** Count the `memories` trigger rows on the test DB (extracted — used by 2 cases). */
+    async function triggerRowCount(): Promise<number> {
+      const pool = new pg.Pool({ connectionString: testUri });
+      try {
+        const { rows } = await pool.query<{ trigger_name: string }>(
+          `SELECT trigger_name FROM information_schema.triggers
+           WHERE event_object_table = 'memories' AND trigger_name = $1`,
+          [TRIGGER_NAME],
+        );
+        return rows.length;
+      } finally {
+        await pool.end();
+      }
+    }
 
     beforeAll(async () => {
       const adminPool = new pg.Pool({ connectionString: adminUri });
@@ -69,14 +102,7 @@ describe.skipIf(ROOT_PG_URI === '')(
       await helper.applyTriggerMigrations(testUri);
 
       // Then: the trigger exists
-      const pool = new pg.Pool({ connectionString: testUri });
-      const { rows } = await pool.query<{ trigger_name: string }>(
-        `SELECT trigger_name FROM information_schema.triggers
-         WHERE event_object_table = 'memories' AND trigger_name = $1`,
-        [TRIGGER_NAME],
-      );
-      await pool.end();
-      expect(rows).toHaveLength(1);
+      expect(await triggerRowCount()).toBe(1);
     });
 
     it('is idempotent — re-applying does not error and the trigger stays present', async () => {
@@ -84,14 +110,7 @@ describe.skipIf(ROOT_PG_URI === '')(
       await expect(helper.applyTriggerMigrations(testUri)).resolves.toBeDefined();
 
       // Then: the trigger is still registered exactly once
-      const pool = new pg.Pool({ connectionString: testUri });
-      const { rows } = await pool.query<{ trigger_name: string }>(
-        `SELECT trigger_name FROM information_schema.triggers
-         WHERE event_object_table = 'memories' AND trigger_name = $1`,
-        [TRIGGER_NAME],
-      );
-      await pool.end();
-      expect(rows).toHaveLength(1);
+      expect(await triggerRowCount()).toBe(1);
     });
 
     it('reports which .sql files it applied so callers can verify coverage', async () => {
