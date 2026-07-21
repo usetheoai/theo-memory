@@ -70,7 +70,7 @@ export class McpSessionRegistry {
     res: ServerResponse,
   ): Promise<StreamableHTTPServerTransport | undefined> {
     const sessionId = readSessionId(req);
-    if (sessionId === undefined) return this.open();
+    if (sessionId === undefined) return this.open(res);
 
     const existing = this.sessions.get(sessionId);
     if (existing !== undefined) return existing.transport;
@@ -105,7 +105,21 @@ export class McpSessionRegistry {
    * is the only point where the SDK-minted id and the transport are both known —
    * registering earlier would leave an unroutable entry in the map.
    */
-  private async open(): Promise<StreamableHTTPServerTransport> {
+  /**
+   * Drops a session from `pending` and stops its server at most once.
+   *
+   * `stopping` is what makes this safe from every entry point: `server.stop()` closes
+   * the transport, which fires `onclose`, which calls back here. Without the flag that
+   * recursed until "Maximum call stack size exceeded".
+   */
+  private evict(session: Session): void {
+    this.pending.delete(session);
+    if (session.stopping) return;
+    session.stopping = true;
+    void session.server.stop();
+  }
+
+  private async open(res: ServerResponse): Promise<StreamableHTTPServerTransport> {
     const server = this.createServer();
     const session: Session = {
       transport: undefined as unknown as StreamableHTTPServerTransport,
@@ -120,19 +134,27 @@ export class McpSessionRegistry {
       },
     });
     Object.assign(session, { transport });
-    // Until `initialize` succeeds the session has no id, so it is in no map and
-    // `closeAll()` cannot reach it. Park it in `pending` so an abandoned handshake
-    // — or a header-less request that the SDK rejects outright — is still torn down
-    // instead of pinning an McpServer for the process lifetime.
+    // Until `initialize` succeeds the session has no id, so it is in no map.
     this.pending.add(session);
+    // Evict as soon as THIS response ends without a session having been established.
+    //
+    // Every sessionless request lands here, not just `initialize`: the SDK answers a
+    // sessionless non-initialize with 400 and returns early, without ever closing the
+    // transport, so `onclose` does not fire. Parking in `pending` alone only cleaned
+    // up at shutdown, which left growth unbounded at runtime — any client retry loop
+    // could pin one McpServer per request for the process lifetime.
+    //
+    // `finish` fires for the rejected case AND for an initialize whose connection dies
+    // before completing. When `initialize` succeeded, `transport.sessionId` is set and
+    // the session has already moved into `sessions`, so this is a no-op for it.
+    res.once('finish', () => {
+      if (transport.sessionId === undefined) this.evict(session);
+    });
     // Evict on close: a disconnected client must not pin its server either.
     transport.onclose = (): void => {
       const id = transport.sessionId;
       if (id !== undefined) this.sessions.delete(id);
-      this.pending.delete(session);
-      if (session.stopping) return;
-      session.stopping = true;
-      void server.stop();
+      this.evict(session);
     };
     // The SDK's `onclose` type is `(() => void) | undefined`, which does not
     // satisfy Transport's strict `() => void` under exactOptionalPropertyTypes.

@@ -29,11 +29,16 @@ interface RecordedResponse {
   readonly res: ServerResponse;
   status(): number | undefined;
   body(): string;
+  /** Simulates the HTTP response completing. */
+  finish(): void;
 }
 
 function recordingResponse(): RecordedResponse {
   let status: number | undefined;
   let payload = '';
+  // A real ServerResponse emits 'finish' when the response completes; the registry
+  // hangs its runtime eviction on that, so the double must honor it.
+  const listeners: Array<() => void> = [];
   const res = {
     writeHead: (code: number) => {
       status = code;
@@ -41,8 +46,16 @@ function recordingResponse(): RecordedResponse {
     end: (chunk?: string) => {
       payload = chunk ?? '';
     },
+    once: (event: string, fn: () => void) => {
+      if (event === 'finish') listeners.push(fn);
+    },
   } as unknown as ServerResponse;
-  return { res, status: () => status, body: () => payload };
+  return {
+    res,
+    status: () => status,
+    body: () => payload,
+    finish: () => listeners.splice(0).forEach((fn) => fn()),
+  };
 }
 
 /** A registry plus the servers it built, so tests can assert on their teardown. */
@@ -106,5 +119,37 @@ describe('McpSessionRegistry', () => {
     transport?.onclose?.();
 
     expect(vi.mocked(created[0]!.stop)).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('McpSessionRegistry — runtime eviction (M7)', () => {
+  it('stops a session whose response ended without establishing one', async () => {
+    // The SDK answers a sessionless non-initialize with 400 and returns early without
+    // closing the transport, so `onclose` never fires. Relying on closeAll alone left
+    // one McpServer pinned per such request for the process lifetime — a client retry
+    // loop grew it without bound.
+    const { registry, created } = trackingRegistry();
+    const reply = recordingResponse();
+
+    await registry.resolve(request(), reply.res);
+    expect(registry.size, 'held while the response is in flight').toBe(1);
+
+    reply.finish();
+
+    expect(registry.size, 'released once the response ended with no session').toBe(0);
+    expect(vi.mocked(created[0]!.stop)).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not evict a session that completed its handshake', async () => {
+    const { registry, created } = trackingRegistry();
+    const reply = recordingResponse();
+    const transport = await registry.resolve(request(), reply.res);
+    // Stand in for the SDK minting an id on a successful initialize.
+    Object.defineProperty(transport, 'sessionId', { value: 'sess-1', configurable: true });
+
+    reply.finish();
+
+    expect(vi.mocked(created[0]!.stop), 'a live session must survive its first response')
+      .not.toHaveBeenCalled();
   });
 });
