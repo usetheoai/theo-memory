@@ -96,7 +96,12 @@ async function withTwoClients(
   const handle = await connectStreamableHttp(newServer, { port: 0, host: '127.0.0.1' });
   const port = (handle.address() as AddressInfo).port;
   try {
-    assert(await initialize(port), await initialize(port));
+    // Genuinely concurrent. `assert(await a, await b)` would settle the first
+    // handshake before starting the second — which never exercises two `open()`
+    // calls interleaving before either registers in `onsessioninitialized`, the
+    // race this file is named for.
+    const [first, second] = await Promise.all([initialize(port), initialize(port)]);
+    assert(first, second);
   } finally {
     await handle.close();
   }
@@ -120,5 +125,24 @@ describe('connectStreamableHttp — concurrent sessions (M7)', () => {
       // in-flight responses — distinctness is the isolation boundary.
       expect(second.sessionId).not.toBe(first.sessionId);
     });
+  });
+});
+
+describe('connectStreamableHttp — many concurrent clients (M7)', () => {
+  it('gives ten simultaneous clients ten distinct sessions', async () => {
+    // Two clients prove the singleton is gone; ten prove the registry does not
+    // collide under real fan-out — a gateway reconnects clients freely.
+    const handle = await connectStreamableHttp(newServer, { port: 0, host: '127.0.0.1' });
+    const port = (handle.address() as AddressInfo).port;
+    try {
+      const replies = await Promise.all(
+        Array.from({ length: 10 }, () => initialize(port)),
+      );
+      expect(replies.every((r) => r.status === 200)).toBe(true);
+      const ids = new Set(replies.map((r) => r.sessionId));
+      expect(ids.size, 'every client must get its own session id').toBe(10);
+    } finally {
+      await handle.close();
+    }
   });
 });
