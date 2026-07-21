@@ -50,6 +50,11 @@ export default defineConfig({
       'packages/agent-core/src/**/__tests__/**/*.test.ts',
       'tests/unit/**/*.test.ts',
     ],
+    // Agent worktrees under .claude/worktrees/ are throwaway checkouts that may
+    // hold deliberately reverted code (a verifier proving a test goes RED). Left
+    // unexcluded, vitest globs them and reports those intentional failures as if
+    // they were the main tree's — which happened.
+    exclude: ['**/node_modules/**', '**/dist/**', '.claude/worktrees/**'],
     passWithNoTests: true,
     // T0.1 absorption: npm install of 6 NEW deps (hono + adapters + commander +
     // swagger-parser) grew the contract-suite module-resolution graph; tests

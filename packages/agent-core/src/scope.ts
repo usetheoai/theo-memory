@@ -51,3 +51,17 @@ export function getScope(): ScopedContext {
   }
   return ctx;
 }
+
+/**
+ * The active scope, or `undefined` outside any `withScope` block.
+ *
+ * `withScope` REPLACES the ambient context rather than merging into it, so a caller
+ * that narrows the scope (e.g. adding a `session.userId` to a request that already
+ * carries an auth-trusted `workspaceId`) must read the outer context and merge it in
+ * — dropping `workspaceId` there un-scopes every downstream query and collapses all
+ * tenants onto shared rows. `getScope` cannot be used for that: it throws when there
+ * is no outer scope, which is legitimate for the no-auth local path.
+ */
+export function tryGetScope(): ScopedContext | undefined {
+  return SCOPE_STORE.getStore();
+}

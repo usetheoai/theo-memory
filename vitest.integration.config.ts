@@ -65,6 +65,11 @@ export default defineConfig({
     // destructive test) cannot leak state into the next file.
     setupFiles: ['tests/integration/_helpers/reset-shared-db.ts'],
     include: ['tests/integration/**/*.test.ts'],
+    // Agent worktrees under .claude/worktrees/ are throwaway checkouts that may
+    // hold deliberately reverted code (a verifier proving a test goes RED). Left
+    // unexcluded, vitest globs them and reports those intentional failures as if
+    // they were the main tree's — which happened.
+    exclude: ['**/node_modules/**', '**/dist/**', '.claude/worktrees/**'],
     passWithNoTests: true,
     // 90s (was 30s): the CI runner is materially slower than local dev — CLI tests
     // spawn subprocesses that boot the Memory factory + call real OpenAI, and a
