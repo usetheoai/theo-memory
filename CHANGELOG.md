@@ -5,16 +5,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
-- Claude Code kit can target the Theo gateway via `THEOMEM_MEMORY_PATH_PREFIX`, instead of hardcoding theo-memory's own REST paths (M7)
-- Edge-contract regression suite for the MCP gateway: fail-closed without/with a forged credential, gateway-not-static-file-server, handshake, tools exposure, concurrent clients, unknown-session rejection, body-claimed-tenant, cross-tenant isolation (M7)
-- MCP upstream service (`themory mcp`, streamable-http + TLS + `--auth api-keys`) in the dev deploy, so the Theo MCP Gateway has something to front at `/mcp/memory` (M7)
-- Roadmap amended: added M7 Claude Code ⇄ theo-memory via the Theo MCP Gateway (dev, SOTA-level) (`/roadmap-feature claude-code-mcp-gateway-dev`) — corrects the integration architecture M6 shipped, after M6's own risk #1 ("production edge host unconfirmed → silent 404") materialized: the MCP had been registered as stdio (DB + LLM credentials on every client) and the hooks pointed at an unauthenticated public endpoint.
 
 ### Changed
 
 ### Deprecated
 
 ### Removed
+
+### Fixed
+
+### Security
+
+## [0.38.0] - 2026-07-21
+
+### Added
+- Claude Code kit can target the Theo gateway via `THEOMEM_MEMORY_PATH_PREFIX`, instead of hardcoding theo-memory's own REST paths (M7)
+- Edge-contract regression suite for the MCP gateway: fail-closed without/with a forged credential, gateway-not-static-file-server, handshake, tools exposure, concurrent clients, unknown-session rejection, body-claimed-tenant, cross-tenant isolation (M7)
+- MCP upstream service (`themory mcp`, streamable-http + TLS + `--auth api-keys`) in the dev deploy, so the Theo MCP Gateway has something to front at `/mcp/memory` (M7)
+- Roadmap amended: added M7 Claude Code ⇄ theo-memory via the Theo MCP Gateway (dev, SOTA-level) (`/roadmap-feature claude-code-mcp-gateway-dev`) — corrects the integration architecture M6 shipped, after M6's own risk #1 ("production edge host unconfirmed → silent 404") materialized: the MCP had been registered as stdio (DB + LLM credentials on every client) and the hooks pointed at an unauthenticated public endpoint.
+
 
 ### Fixed
 - `/release` derived the next version with `git describe --tags`, which returns the nearest tag by ancestry; since release tags live on `main`, it read v0.10.0 while the latest release was v0.37.0 and would have cut a version backwards (M7)
@@ -34,6 +43,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - MCP streamable-http accepted only ONE client: a singleton transport made every client after the first fail with `-32600 "Server already initialized"`. Sessions are now per-client (transport + server per `Mcp-Session-Id`), so every Claude Code instance can connect (M7)
 - **M7 Phase 1 — Claude Code ⇄ theo-memory auth + MCP routing unblocked on dev.** Fixed a split-brain credential store (the dashboard minted into the k3d Postgres while the ForwardAuth validator read an empty compose database, so every `theo_live_*` returned 401) and exposed the Theo MCP Gateway at the public edge (`/mcp/*` had no Caddy `handle` block and fell through to the SPA file_server). A valid key now authenticates, and `POST /mcp/memory` without a credential returns a gated `401 application/json` instead of HTML. Remaining: theo-memory's admin API was unmounted (closed since — see Security), so Model B per-tenant minting 404s — deliberately deferred behind closing issue #101 (that service is publicly unauthenticated; mounting key minting on it first would be worse). (claude-code-mcp-gateway-dev)
 - **`flip_milestone_checkbox.py` never flipped a milestone.** Its header regex required `###`, while the format documented in `cycle-release.md` / `cycle-roadmap.md` (and emitted by `/roadmap-init`) is `## M<N> — [ ] <name>`. Every release against a spec-conformant `ROADMAP.md` therefore hit the "milestone not found" WARN path and skipped the flip silently — the checkbox never moved and the roadmap-runs audit file was never written. The pattern now accepts `#{2,3}`. Found while closing M5 + M6 for v0.37.0 (the first release where the flip was actually exercised).
+
 
 ### Security
 - theo-memory accepted unauthenticated reads AND writes from any internet host on the dev deploy; the service now fails closed on a missing credential and the key-lifecycle API is mounted only behind an explicit bootstrap token (#101)
