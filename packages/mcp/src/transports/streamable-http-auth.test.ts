@@ -368,7 +368,7 @@ describe('withBearerAuth — unit-level (node:http handler wrap)', () => {
 describe('connectStreamableHttp — auth + TLS hygiene (T4.1 integration)', () => {
   it('7. wires withBearerAuth when bearerAuth option is supplied (401 without Bearer)', async () => {
     const server = mockMcpServer();
-    const handle = await connectStreamableHttp(server, {
+    const handle = await connectStreamableHttp(() => server, {
       port: 0,
       host: '127.0.0.1',
       bearerAuth: { apiKey: alwaysTrue(), oidc: alwaysTrue() },
@@ -401,7 +401,7 @@ describe('connectStreamableHttp — auth + TLS hygiene (T4.1 integration)', () =
   it('9. REFUSE to start when host is non-localhost AND no TLS config supplied (MCP hygiene per ADR D3 #3)', async () => {
     const server = mockMcpServer();
     await expect(
-      connectStreamableHttp(server, {
+      connectStreamableHttp(() => server, {
         port: 0,
         host: '0.0.0.0', // non-localhost
         bearerAuth: { apiKey: alwaysTrue(), oidc: alwaysTrue() },
@@ -412,7 +412,7 @@ describe('connectStreamableHttp — auth + TLS hygiene (T4.1 integration)', () =
 
   it('10. localhost (127.0.0.1) is allowed WITHOUT TLS — dev-friendly path', async () => {
     const server = mockMcpServer();
-    const handle = await connectStreamableHttp(server, {
+    const handle = await connectStreamableHttp(() => server, {
       port: 0,
       host: '127.0.0.1',
       bearerAuth: { apiKey: alwaysTrue(), oidc: alwaysTrue() },

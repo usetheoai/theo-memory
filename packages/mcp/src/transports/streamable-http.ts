@@ -2,7 +2,7 @@
  * Streamable-HTTP transport adapter — T6.2.
  *
  * Wires `@modelcontextprotocol/sdk/server/streamableHttp.js#StreamableHTTPServerTransport`
- * in STATELESS mode (per discover blueprint Q5 — `sessionIdGenerator: undefined`) behind
+ * in STATEFUL per-session mode (one transport per Mcp-Session-Id) behind
  * a node:http server. Secondary transport per ADR D1 (stdio is primary); used for
  * HTTP-deployed scenarios (TheoCloud v0.5 alignment).
  *
@@ -17,15 +17,12 @@
  *
  * @see ADR D1 — Transport: stdio + streamable-HTTP (skip SSE + fastmcp)
  */
-import { randomUUID } from 'node:crypto';
 import { createServer as createHttpServer } from 'node:http';
 import type { IncomingMessage, Server as HttpServer, ServerResponse } from 'node:http';
 import { createServer as createHttpsServer } from 'node:https';
 import type { Server as HttpsServer } from 'node:https';
 import type { AddressInfo } from 'node:net';
 
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 
 import type { ScopedContext } from '@usetheo/memory/contract';
 import { withScope } from '@usetheo/memory-agent-core';
@@ -33,6 +30,8 @@ import { withScope } from '@usetheo/memory-agent-core';
 import { withBearerAuth, type BearerAuthOptions } from '../auth/with-bearer-auth.js';
 import { workspaceFromRequest } from '../auth/request-workspace.js';
 import type { McpServer } from '../server.js';
+import { McpSessionRegistry } from './mcp-session-registry.js';
+import type { McpServerFactory } from './mcp-session-registry.js';
 
 /** Hosts treated as localhost for the non-localhost-without-TLS guard (ADR-0015 #3). */
 const LOCALHOST_HOSTS = new Set(['127.0.0.1', '::1', 'localhost']);
@@ -131,12 +130,12 @@ export interface StreamableHttpHandle {
 }
 
 /**
- * Boots a node:http server bound to `{host, port}` and connects the McpServer
- * to a stateless StreamableHTTPServerTransport. Returns a handle for graceful
- * shutdown.
+ * Boots a node:http server bound to `{host, port}`. Each MCP client gets its own
+ * session (transport + McpServer built by `createServer`), so many clients can use
+ * one listener concurrently. Returns a handle for graceful shutdown.
  */
 export async function connectStreamableHttp(
-  server: McpServer,
+  createServer: McpServerFactory,
   options: StreamableHttpOptions,
 ): Promise<StreamableHttpHandle> {
   // ADR-0015 #3 — non-localhost host MUST have TLS config or we refuse to start.
@@ -144,37 +143,21 @@ export async function connectStreamableHttp(
   // misconfigurations fail loudly and immediately (Inquebrável Rule 8 fail-fast).
   assertNonLocalhostHasTls(options.host, options.tls !== undefined);
 
-  // STATEFUL session mode — singleton transport + UUID-per-session session id.
-  //
-  // Historical note (themory-issue-3.md, team report 2026-06-08): T6.2 originally
-  // set `sessionIdGenerator: undefined` claiming "stateless mode per discover
-  // blueprint Q5". The SDK contract is incompatible with that choice when paired
-  // with a singleton transport: with `undefined`, the `initialize` response omits
-  // `Mcp-Session-Id`, and every subsequent request (`tools/list`, `tools/call`)
-  // hits 500 from the SDK internals because the singleton's session-tracking
-  // state has nothing to correlate against. Net effect: 100% of standard MCP
-  // clients (Claude Code, Cursor, Cline, MCP Inspector) failed silently — only
-  // `initialize` succeeded; tools were unreachable.
-  //
-  // Fix: emit a UUID session id per `initialize`, which is the SDK-canonical
-  // stateful pattern. Compatible with singleton transport AND with standard
-  // clients. Real stateless mode would require a per-request transport + per-
-  // request McpServer clone (Option B in the report) — non-trivial cost
-  // (~10x CPU from clone overhead) and out-of-scope for v0.3.
-  //
-  // Multi-instance deployments (load-balanced, no sticky session) are NOT
-  // affected by v0.3 (single-instance). When that scenario lands, the session
-  // state needs an external store (Redis-class); tracked as follow-up.
-  const transport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: () => randomUUID(),
-  });
+  // Sessions live in McpSessionRegistry: one transport + one McpServer per client,
+  // routed by Mcp-Session-Id. See that module for the M7 singleton-transport defect
+  // this replaced (second client got -32600 "Server already initialized").
+  const sessions = new McpSessionRegistry(createServer);
 
   // T4.1 — when bearerAuth is supplied, every request is gated through
   // withBearerAuth BEFORE the MCP transport sees it. When omitted, the
   // transport runs without auth (legitimate only for localhost dev loops).
   const baseHandler = (req: IncomingMessage, res: ServerResponse): void => {
-    const dispatch = (): Promise<void> =>
-      transport.handleRequest(req, res).catch((err: unknown) => {
+    const dispatch = async (): Promise<void> =>
+      // resolve() returns undefined when it already answered (unknown session id).
+      sessions
+        .resolve(req, res)
+        .then((transport) => (transport ? transport.handleRequest(req, res) : undefined))
+        .catch((err: unknown) => {
         // T1.5 — sanitize error response (CWE-209 information disclosure).
         // Log the real error for debugging; respond with a generic message.
         const message = err instanceof Error ? err.message : String(err);
@@ -224,11 +207,6 @@ export async function connectStreamableHttp(
     });
   });
 
-  // SDK StreamableHTTPServerTransport.onclose is `() => void | undefined` which
-  // doesn't satisfy Transport's strict `() => void` under exactOptionalPropertyTypes.
-  // Cast at boundary — runtime contract is the SDK's, not the type stub's.
-  await server.start(transport as unknown as Transport);
-
   const addr = httpServer.address();
   const resolvedPort =
     addr !== null && typeof addr === 'object' ? addr.port : options.port;
@@ -243,7 +221,7 @@ export async function connectStreamableHttp(
         else resolve();
       });
     });
-    await server.stop();
+    await sessions.closeAll();
   };
 
   return {
