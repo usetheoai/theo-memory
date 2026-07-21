@@ -52,16 +52,23 @@ done
 # that cannot reach Postgres is reported failed, never silently green. (The playbook's
 # /v1/healthz{,/ready} aliases are a deferred M5 follow-up; /v1/health{,/db} are the
 # shipped equivalents.)
+#
+# themory_mcp is gated too, via its container healthcheck (it speaks MCP over TLS, not
+# HTTP/JSON, so curl is the wrong probe). Gating only the REST API let a crash-looping
+# MCP upstream — the very surface this milestone delivers — pass as a green deploy.
 for _ in $(seq 1 30); do
+  MCP_HEALTH="$(docker inspect themory_mcp --format '{{.State.Health.Status}}' 2>/dev/null || echo missing)"
   if curl -fsS "http://127.0.0.1:${PORT}/v1/health" >/dev/null 2>&1 \
-    && curl -fsS "http://127.0.0.1:${PORT}/v1/health/db" >/dev/null 2>&1; then
-    echo "deploy ok — /v1/health + /v1/health/db green on :${PORT}"
-    "${COMPOSE[@]}" ps themory
+    && curl -fsS "http://127.0.0.1:${PORT}/v1/health/db" >/dev/null 2>&1 \
+    && [ "$MCP_HEALTH" = "healthy" ]; then
+    echo "deploy ok — /v1/health + /v1/health/db green on :${PORT}; themory_mcp healthy"
+    "${COMPOSE[@]}" ps themory themory_mcp
     exit 0
   fi
   sleep 2
 done
 
-echo "deploy FAILED — liveness/readiness not green after 60s" >&2
+echo "deploy FAILED — liveness/readiness not green after 60s (themory_mcp: ${MCP_HEALTH:-unknown})" >&2
 "${COMPOSE[@]}" logs --tail=50 themory || true
+"${COMPOSE[@]}" logs --tail=50 themory_mcp || true
 exit 1

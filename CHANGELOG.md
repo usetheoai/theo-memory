@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- Claude Code kit can target the Theo gateway via `THEOMEM_MEMORY_PATH_PREFIX`, instead of hardcoding theo-memory's own REST paths (M7)
 - Edge-contract regression suite for the MCP gateway: fail-closed without/with a forged credential, gateway-not-static-file-server, handshake, tools exposure, concurrent clients, unknown-session rejection, body-claimed-tenant, cross-tenant isolation (M7)
 - MCP upstream service (`themory mcp`, streamable-http + TLS + `--auth api-keys`) in the dev deploy, so the Theo MCP Gateway has something to front at `/mcp/memory` (M7)
 - Roadmap amended: added M7 Claude Code ⇄ theo-memory via the Theo MCP Gateway (dev, SOTA-level) (`/roadmap-feature claude-code-mcp-gateway-dev`) — corrects the integration architecture M6 shipped, after M6's own risk #1 ("production edge host unconfirmed → silent 404") materialized: the MCP had been registered as stdio (DB + LLM credentials on every client) and the hooks pointed at an unauthenticated public endpoint.
@@ -16,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+- Claude Code kit documented the gateway as a URL suffix, which produced `/v1/memory/v1/recall`; and the dev deploy could report success over a crash-looping MCP upstream (M7)
 - MCP graceful shutdown was a no-op over HTTP: the listener handle was discarded and SIGTERM stopped a detached server, so every container recreate cut in-flight requests (M7)
 - MCP sessions created before `initialize` completed were unreachable by teardown, leaking one server per abandoned handshake (M7)
 - MCP shutdown closed the HTTP listener before its sessions, which could hang forever on a live SSE stream (M7)

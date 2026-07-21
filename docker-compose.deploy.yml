@@ -116,7 +116,22 @@ services:
       THEOMEM_GIT_SHA: ${THEOMEM_GIT_SHA:-unknown}
       THEOMEM_VERSION: ${THEOMEM_VERSION:-dev}
     volumes:
-      - ${THEMORY_MCP_TLS_DIR:-<HOME>/theo-cloud/theo-workspace/dev/tls}:/etc/theo/tls:ro
+      - ${THEMORY_MCP_TLS_DIR:?set THEMORY_MCP_TLS_DIR to the dir holding themory-mcp.crt/.key}:/etc/theo/tls:ro
+    healthcheck:
+      # Without this the deploy could report success over a crash-looping MCP upstream:
+      # the version gate compares image labels, which a container that dies on startup
+      # still satisfies. Probing TLS proves the cert/key actually loaded — the most
+      # likely boot failure here. A 4xx from the auth layer is a HEALTHY answer: it
+      # means the listener is up and fail-closed, which is the contract.
+      test:
+        - CMD
+        - /nodejs/bin/node
+        - -e
+        - "const t=require('node:tls').connect({host:'127.0.0.1',port:18091,rejectUnauthorized:false},()=>process.exit(0));t.on('error',()=>process.exit(1));t.setTimeout(3000,()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
     networks:
       - default
       - theo_edge

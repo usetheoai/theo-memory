@@ -54,15 +54,20 @@ hooks stay fast and dumb.
    single config knob:
 
    ```
-   THEOMEM_MEMORY_URL=http://127.0.0.1:8080        # local dev
-   # THEOMEM_MEMORY_URL=http://<DEV_HOST>:8080 # deployed REST
-   # THEOMEM_MEMORY_URL=https://<edge>/v1/memory    # prod gateway (owner-resolved)
-   # THEOMEM_MEMORY_TOKEN=theo_live_...             # required for deployed/gateway
+   THEOMEM_MEMORY_URL=http://127.0.0.1:8080          # local dev
+   # THEOMEM_MEMORY_URL=https://app-dev.usetheo.dev  # dev, through the gateway
+   # THEOMEM_MEMORY_PATH_PREFIX=/v1/memory           # required with the gateway
+   # THEOMEM_MEMORY_TOKEN=theo_live_...              # required with the gateway
    ```
 
-   The deployed REST (`http://<DEV_HOST>:8080`) is what the M6 build + validation ran
-   against. The production gateway host is owner-gated — swap the URL when it's resolved;
-   no code change needed.
+   **Prefer the gateway.** It authenticates the request, strips your key, and injects a
+   per-tenant credential downstream, so theo-memory never sees the client credential
+   (CWE-441). Talking to a published REST port instead sends your key straight to the
+   service and bypasses that boundary.
+
+   The prefix is a separate knob because the hooks append the verb path themselves —
+   folding `/v1/memory` into the URL yields `/v1/memory/v1/recall`, which is what the
+   previous version of these instructions produced.
 
 3. **Register the MCP complement** (optional, explicit surface) — `install.sh` prints this;
    run it yourself with your endpoint + token:
