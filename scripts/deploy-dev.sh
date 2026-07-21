@@ -13,13 +13,16 @@ COMPOSE=(docker compose -f docker-compose.yaml -f docker-compose.deploy.yml)
 
 cd "$(dirname "$0")/.."
 
-# Pull the just-built app image (themory only — pgvector is the pinned base image,
+# Pull the just-built app image (app services only — pgvector is the pinned base image,
 # already running from the platform local-env; left untouched to not disrupt neighbours).
-"${COMPOSE[@]}" pull themory
-# Bring up pgvector + themory together so they share the compose network and themory
-# resolves the DB by service name (pgvector:5432). The existing themem_pgvector (same
+# themory_mcp is the MCP upstream the Theo MCP Gateway fronts; it runs the SAME image
+# under the `mcp` verb, so it MUST be redeployed in lockstep or the edge keeps serving
+# an older MCP build than the REST API (M7).
+"${COMPOSE[@]}" pull themory themory_mcp
+# Bring up pgvector + both app services together so they share the compose network and
+# resolve the DB by service name (pgvector:5432). The existing themem_pgvector (same
 # compose project) is reused; its named volume preserves data across recreation.
-"${COMPOSE[@]}" up -d pgvector themory
+"${COMPOSE[@]}" up -d pgvector themory themory_mcp
 
 # VERSION GATE — assert the RUNNING image is the exact commit we deployed. The image
 # carries the git sha as an OCI label (org.opencontainers.image.revision, stamped at
@@ -27,15 +30,22 @@ cd "$(dirname "$0")/.."
 # a stale :develop pull or a container that never recreated — the "did the version
 # actually update?" failure this check exists for. EXPECTED_SHA is injected by the deploy
 # job; falls back to HEAD.
+#
+# Both containers are gated: themory_app alone passing would let the MCP surface silently
+# lag behind. A common cause of a mismatch here is benign but important to see — several
+# commits landing in quick succession move the :develop tag ahead of the sha this job was
+# queued for, so the pulled image is NEWER than expected, not stale.
 EXPECTED_SHA="${EXPECTED_SHA:-$(git rev-parse HEAD)}"
-RUNNING_SHA="$(docker inspect themory_app --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' 2>/dev/null || true)"
-if [ "$RUNNING_SHA" != "$EXPECTED_SHA" ]; then
-  echo "deploy FAILED — running themory image revision '${RUNNING_SHA}' != expected '${EXPECTED_SHA}'" >&2
-  echo "  (a stale :develop image was pulled, or the container did not recreate)" >&2
-  "${COMPOSE[@]}" ps themory || true
-  exit 1
-fi
-echo "version verified — themory running image revision ${RUNNING_SHA}"
+for container in themory_app themory_mcp; do
+  RUNNING_SHA="$(docker inspect "$container" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' 2>/dev/null || true)"
+  if [ "$RUNNING_SHA" != "$EXPECTED_SHA" ]; then
+    echo "deploy FAILED — running ${container} image revision '${RUNNING_SHA}' != expected '${EXPECTED_SHA}'" >&2
+    echo "  (a stale :develop image was pulled, the container did not recreate, or a newer commit already moved :develop)" >&2
+    "${COMPOSE[@]}" ps themory themory_mcp || true
+    exit 1
+  fi
+  echo "version verified — ${container} running image revision ${RUNNING_SHA}"
+done
 
 # HEALTH GATE — the deploy only succeeds when the API is alive (liveness, /v1/health)
 # AND its DB is reachable (readiness, /v1/health/db). Gating on readiness means a deploy
