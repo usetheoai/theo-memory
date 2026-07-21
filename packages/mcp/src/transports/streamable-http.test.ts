@@ -97,7 +97,7 @@ describe('connectStreamableHttp (T6.2)', () => {
   it('listens on configured port + returns close() handle', async () => {
     const server = mockServer();
     // Port 0 → OS-assigned free port (avoids EADDRINUSE during tests)
-    const handle = await connectStreamableHttp(server, { port: 0, host: '127.0.0.1' });
+    const handle = await connectStreamableHttp(() => server, { port: 0, host: '127.0.0.1' });
     expect(handle).toBeDefined();
     expect(typeof handle.close).toBe('function');
     expect(typeof handle.address).toBe('function');
@@ -111,40 +111,33 @@ describe('connectStreamableHttp (T6.2)', () => {
     await handle.close();
   });
 
-  it('connects the McpServer to the StreamableHTTPServerTransport (themory-issue-3 — stateful session mode, no unsafe cast)', async () => {
+  it('builds no McpServer until a client connects (one server per session, M7)', async () => {
     const server = mockServer();
-    // Pre-fix this connectStreamableHttp would crash at boot if the SDK's strict
-    // exactOptionalPropertyTypes rejected `sessionIdGenerator: undefined` — the
-    // old code worked around with `as unknown as ...` cast. Post-fix we pass a
-    // genuine `() => randomUUID()` matching the SDK's required type, so the
-    // boot path uses the canonical typed API surface (no cast). If this test
-    // boots without throwing, the SDK accepted the constructor args as typed.
-    // Behavioral verification of session-id emission lives in the team's
-    // /tmp/themory-issue-3.md curl-isolation script (out-of-scope for unit
-    // tests — would require real http server boot + JSON-RPC handshake).
-    const handle = await connectStreamableHttp(server, { port: 0, host: '127.0.0.1' });
-    expect(vi.mocked(server.start)).toHaveBeenCalledTimes(1);
-    const transport = vi.mocked(server.start).mock.calls[0]?.[0];
-    expect(transport).toBeDefined();
-    expect(typeof (transport as { handleRequest?: unknown }).handleRequest).toBe('function');
+    // Servers are now per-session, so booting the listener must NOT construct or
+    // start one. Pre-M7 a singleton transport+server was wired at boot, which is
+    // exactly what limited the process to a single MCP client.
+    const handle = await connectStreamableHttp(() => server, { port: 0, host: '127.0.0.1' });
+    expect(vi.mocked(server.start)).not.toHaveBeenCalled();
     await handle.close();
   });
 
   it('exposes a host + port pair via the returned handle', async () => {
     const server = mockServer();
-    const handle = await connectStreamableHttp(server, { port: 0, host: '127.0.0.1' });
+    const handle = await connectStreamableHttp(() => server, { port: 0, host: '127.0.0.1' });
     expect(handle.host).toBe('127.0.0.1');
     expect(handle.port).toBeGreaterThan(0);
     await handle.close();
   });
 
-  it('close() shuts down the HTTP server and McpServer cleanly', async () => {
+  it('close() shuts down the HTTP listener idempotently', async () => {
     const server = mockServer();
-    const handle = await connectStreamableHttp(server, { port: 0, host: '127.0.0.1' });
+    const handle = await connectStreamableHttp(() => server, { port: 0, host: '127.0.0.1' });
     await handle.close();
     // Calling close() twice MUST NOT throw (idempotent)
     await expect(handle.close()).resolves.not.toThrow();
-    expect(vi.mocked(server.stop)).toHaveBeenCalled();
+    // No session was opened, so no per-session server exists to stop. Session
+    // teardown is covered by streamable-http-multisession.test.ts.
+    expect(vi.mocked(server.stop)).not.toHaveBeenCalled();
   });
 });
 
@@ -180,7 +173,7 @@ describe('connectStreamableHttp TLS plumbing (ADR-0015 #3)', () => {
     // handshake. If the listener were plain node:http, the handshake fails
     // (wrong-version-number / ECONNRESET) and this test goes red.
     const server = mockServer();
-    const handle = await connectStreamableHttp(server, {
+    const handle = await connectStreamableHttp(() => server, {
       port: 0,
       host: '0.0.0.0',
       tls: { cert, key },
@@ -215,7 +208,7 @@ describe('connectStreamableHttp TLS plumbing (ADR-0015 #3)', () => {
   it('refuses a non-localhost host when NO tls is supplied (ADR-0015 #3 fail-fast)', async () => {
     const server = mockServer();
     await expect(
-      connectStreamableHttp(server, { port: 0, host: '0.0.0.0' }),
+      connectStreamableHttp(() => server, { port: 0, host: '0.0.0.0' }),
     ).rejects.toThrow(/non-localhost/i);
   });
 });

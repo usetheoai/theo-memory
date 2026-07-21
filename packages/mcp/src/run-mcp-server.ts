@@ -320,14 +320,23 @@ export async function runMcpServer(options?: RunMcpServerOptions): Promise<void>
     return;
   }
 
-  const server = new McpServer({
-    name: 'themory',
-    version: '0.3.0',
-    memoryFactory: () => memory,
-    // M4 — back explain_recall with the recall-trace store, opt-in under the same
-    // THEOMEM_RECALL_TRACE posture as the SDK write + REST read.
-    ...(resolveRecallTraceEnabled() ? { recallTraceStore: new PgRecallTraceStore(pool) } : {}),
-  });
+  // A FACTORY, not a shared instance: the streamable-http transport builds one
+  // McpServer per MCP session, because an McpServer binds a single transport at a
+  // time. Reusing one instance is the M7 defect (second client rejected with
+  // "Server already initialized"). Cheap to call — the expensive `memory` and
+  // `pool` are captured, not rebuilt.
+  const makeServer = (): McpServer =>
+    new McpServer({
+      name: 'themory',
+      version: '0.3.0',
+      memoryFactory: () => memory,
+      // M4 — back explain_recall with the recall-trace store, opt-in under the same
+      // THEOMEM_RECALL_TRACE posture as the SDK write + REST read.
+      ...(resolveRecallTraceEnabled() ? { recallTraceStore: new PgRecallTraceStore(pool) } : {}),
+    });
+
+  // The stdio transport is single-client by nature, so it keeps one instance.
+  const server = makeServer();
 
   const shutdownHandler = (): void => {
     void (async (): Promise<void> => {
@@ -352,7 +361,7 @@ export async function runMcpServer(options?: RunMcpServerOptions): Promise<void>
       host,
       port,
     });
-    await connectStreamableHttp(server, {
+    await connectStreamableHttp(makeServer, {
       port,
       host,
       ...(bearerAuth !== undefined ? { bearerAuth } : {}),
