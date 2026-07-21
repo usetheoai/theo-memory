@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+- Entity labels could come back half-translated (a Portuguese input yielded `engineer mecânico`), breaking the source-language guarantee; the extraction prompt now forbids mixing languages inside a compound label (#103)
 - The dev deploy only redeployed the REST API, leaving the MCP upstream on an older build of the same image; both are now pulled, recreated, and version-gated together (M7)
 - `/code-quality` wrote its audit to a hardcoded knowledge-base root and reported `report_path: null` (it was set after the JSON was serialized); the audit now lands beside the plan it audited and the path is present in the summary (M7)
 - `/code-quality` could not run on this repo: its languages config was written in a one-per-line format no consumer reads, and plan resolution only looked under `.claude/knowledge-base/` while this repo keeps `knowledge-base/` at the root (M7)
@@ -24,6 +25,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **`flip_milestone_checkbox.py` never flipped a milestone.** Its header regex required `###`, while the format documented in `cycle-release.md` / `cycle-roadmap.md` (and emitted by `/roadmap-init`) is `## M<N> — [ ] <name>`. Every release against a spec-conformant `ROADMAP.md` therefore hit the "milestone not found" WARN path and skipped the flip silently — the checkbox never moved and the roadmap-runs audit file was never written. The pattern now accepts `#{2,3}`. Found while closing M5 + M6 for v0.37.0 (the first release where the flip was actually exercised).
 
 ### Security
+- MCP tool calls dropped the auth-trusted workspace: `withScope` replaces the ambient context, so binding the user tier discarded the `workspaceId` resolved from the Principal. With a default user id configured (as the deployed MCP service has), every tenant's tool calls ran unbound against shared rows (M7)
 
 ## [0.37.0] - 2026-07-21
 
