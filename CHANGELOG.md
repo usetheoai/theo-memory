@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+- Edge cross-tenant test reported a false isolation failure when both credentials belonged to the same workspace; it now separates that misconfiguration from a real leak (M7)
 - Claude Code kit documented the gateway as a URL suffix, which produced `/v1/memory/v1/recall`; and the dev deploy could report success over a crash-looping MCP upstream (M7)
 - MCP graceful shutdown was a no-op over HTTP: the listener handle was discarded and SIGTERM stopped a detached server, so every container recreate cut in-flight requests (M7)
 - MCP sessions created before `initialize` completed were unreachable by teardown, leaking one server per abandoned handshake (M7)

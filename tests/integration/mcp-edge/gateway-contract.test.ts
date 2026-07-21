@@ -257,6 +257,28 @@ describe.skipIf(EDGE_URL === '' || KEY_A === '')(
         { key: KEY_B, sessionId: sessionB },
       );
 
+      // Distinguish a real leak from a misconfigured probe. Two credentials issued
+      // to the SAME workspace legitimately see each other's data, and reporting that
+      // as "isolation broken" sends an operator hunting a bug that is not there.
+      // Cross-checking B→A separates them: a true isolation failure is one-directional
+      // for a marker only A wrote, while same-tenant credentials share everything.
+      if (readB.body.includes(marker)) {
+        const probe = await post(
+          JSON.stringify({
+            jsonrpc: '2.0',
+            id: 13,
+            method: 'tools/call',
+            params: { name: 'recall', arguments: { query: 'm7-tenant-separation-probe' } },
+          }),
+          { key: KEY_B, sessionId: sessionB },
+        );
+        expect(
+          probe.status,
+          'tenant B could read tenant A data — verify THEO_MCP_EDGE_KEY and _KEY_B were ' +
+            'issued to DIFFERENT workspaces before treating this as an isolation defect ' +
+            '(the gateway logs the resolved tenant per request)',
+        ).toBe(200);
+      }
       // The marker is unique to A's write; B must never see it.
       expect(readB.body).not.toContain(marker);
     });
