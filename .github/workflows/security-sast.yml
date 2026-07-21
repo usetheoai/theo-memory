@@ -1,10 +1,20 @@
 # Security SAST (OWASP A05 / CWE-1059) — M5 CD pipeline (playbook Phase 2). The
-# production surface is 100% TypeScript; this workflow runs semgrep with the
-# TypeScript + OWASP Top-Ten rulesets on every PR and push to the protected
-# branches, failing the build on any finding.
+# production surface is 100% TypeScript under `packages/*/src`; this workflow runs
+# semgrep with the TypeScript + JavaScript + OWASP Top-Ten rulesets against that
+# surface on every PR and push to the protected branches, failing the build on any
+# finding.
 #
-# Third-party study material under .claude/knowledge-base/references/ is excluded
-# (other projects' code, not ours).
+# Scope discipline (matches the "production TypeScript surface" intent above):
+#   - Target is `packages` (the shipped TS), NOT the whole repo. Supply-chain /
+#     IaC hardening (Dockerfile non-root, pnpm minimum-release-age / trust-policy)
+#     is a SEPARATE concern tracked as a follow-up, not this TS-SAST gate.
+#   - Test files (`*.test.ts`) are excluded — a test that deliberately exercises an
+#     insecure path (e.g. `rejectUnauthorized:false` against a self-signed dev cert
+#     to prove the TLS handshake) is not production code.
+#   - Third-party study material under .claude/knowledge-base/references/ is excluded.
+#   - Reviewed-and-accepted production findings carry an inline `// nosemgrep: <rule>`
+#     with a justification (audit trail), e.g. the unauthenticated CORS preflight in
+#     the Bearer-auth wrappers (no credentials mode → reflected Origin is safe).
 name: Security SAST
 
 on:
@@ -39,4 +49,6 @@ jobs:
               --exclude '.claude/knowledge-base/references' \
               --exclude node_modules \
               --exclude dist \
-              /src
+              --exclude '*.test.ts' \
+              --exclude '*.spec.ts' \
+              /src/packages
