@@ -9,27 +9,17 @@
 import type { Memory } from '@usetheo/memory/contract';
 import type { Context } from 'hono';
 
-import { RememberBody, resolveScope } from '../schemas.js';
+import { BatchRememberBody, RememberBody, resolveScope } from '../schemas.js';
 
 import {
-  EMPTY_BODY,
-  MALFORMED_BODY,
-  safeJson,
+  readJsonBody,
   scopeOrValidationError,
   workspaceBoundMemory,
 } from './_body-parsing.js';
 
 export async function rememberHandler(c: Context, memory: Memory): Promise<Response> {
-  const json = await safeJson(c);
-  if (json === MALFORMED_BODY) {
-    return c.json({ code: 'BAD_REQUEST', message: 'Malformed JSON body' }, 400);
-  }
-  if (json === EMPTY_BODY) {
-    return c.json(
-      { code: 'INVALID_BODY', message: 'Request body required' },
-      422,
-    );
-  }
+  const json = await readJsonBody(c);
+  if (json instanceof Response) return json;
   const parsed = RememberBody.safeParse(json);
   if (!parsed.success) {
     return scopeOrValidationError(parsed.error, c);
@@ -43,4 +33,56 @@ export async function rememberHandler(c: Context, memory: Memory): Promise<Respo
   // boundary. EC-2 length check fires inside runExtractionPipeline at T3.3.
   const items = await scoped.remember(text, { infer, attributedTo, metadata, category });
   return c.json({ items }, 201);
+}
+
+/**
+ * POST /v1/remember/batch handler (M6 claude-code-memory-integration T1.3).
+ *
+ * One request carries an array of per-item remember payloads (validated by
+ * {@link BatchRememberBody}). The workspace is bound ONCE from the Principal
+ * (never the body); each item carries its own scope tier. Each item reuses the
+ * exact `scoped.remember` path (`infer:false` verbatim store + composite-UPSERT
+ * idempotency), so a re-run bumps `confirmation_count` and reports
+ * `rejectedAsDuplicate` — no double-insert. Per-item failures are caught and
+ * reported in the aggregate (honest partial success per error-handling.md — a
+ * poison item never fails the whole batch, and never a silent 500).
+ */
+export async function batchRememberHandler(c: Context, memory: Memory): Promise<Response> {
+  const json = await readJsonBody(c);
+  if (json instanceof Response) return json;
+  const parsed = BatchRememberBody.safeParse(json);
+  if (!parsed.success) {
+    return scopeOrValidationError(parsed.error, c);
+  }
+  // Bind to the Principal's workspace ONCE (ADR D3) — reused for every item.
+  const bound = workspaceBoundMemory(c, memory);
+  const results: unknown[] = [];
+  const errors: { readonly index: number; readonly message: string }[] = [];
+  let imported = 0;
+  let deduped = 0;
+  for (let i = 0; i < parsed.data.items.length; i++) {
+    const item = parsed.data.items[i]!;
+    try {
+      const scoped = resolveScope(bound, item);
+      // `ScopedMemoryLike.remember` is typed `unknown` at the REST boundary; the
+      // runtime shape is the MemoryItem array (with `rejectedAsDuplicate`).
+      const written = (await scoped.remember(item.text, {
+        infer: item.infer,
+        attributedTo: item.attributedTo,
+        metadata: item.metadata,
+        category: item.category,
+      })) as readonly { readonly rejectedAsDuplicate?: boolean }[];
+      for (const row of written) {
+        results.push(row);
+        if (row.rejectedAsDuplicate === true) deduped += 1;
+        else imported += 1;
+      }
+    } catch (err) {
+      errors.push({ index: i, message: err instanceof Error ? err.message : String(err) });
+    }
+  }
+  return c.json(
+    { items: results, imported, deduped, failed: errors.length, ...(errors.length > 0 ? { errors } : {}) },
+    201,
+  );
 }
