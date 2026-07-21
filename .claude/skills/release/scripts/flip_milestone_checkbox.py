@@ -40,9 +40,15 @@ from pathlib import Path
 
 
 def _header_re(milestone_id: str) -> re.Pattern[str]:
-    """Match the literal header for the given milestone, in either [ ] or [x] state."""
+    """Match the literal header for the given milestone, in either [ ] or [x] state.
+
+    Accepts `##` (the format `cycle-release.md` / `cycle-roadmap.md` document and
+    `/roadmap-init` emits: `## M<N> — [ ] <name>`) as well as `###`. The pattern
+    previously required `###` only, so every flip against a spec-conformant ROADMAP.md
+    silently WARNed "milestone not found" and skipped — the checkbox never moved.
+    """
     return re.compile(
-        rf"^(###\s+{re.escape(milestone_id)}\s+[—\-]{{1,2}}\s+\[)([ x])(\]\s+.+?)$",
+        rf"^(#{{2,3}}\s+{re.escape(milestone_id)}\s+[—\-]{{1,2}}\s+\[)([ x])(\]\s+.+?)$",
         re.MULTILINE,
     )
 
