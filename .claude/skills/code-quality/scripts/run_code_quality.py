@@ -27,6 +27,8 @@ Exit codes:
 """
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 import argparse
 import json
 import sys
@@ -71,27 +73,50 @@ def _find_repo_root(start: Path) -> Path:
     return start.resolve()
 
 
-def _resolve_plan_path(slug: str, repo_root: Path) -> Path:
-    """EC-6 — strict slug resolution. Refuse discovery plans."""
-    candidates = [
-        repo_root / ".claude" / "knowledge-base" / "plans" / f"{slug}-plan.md",
-        repo_root / ".claude" / "knowledge-base" / "plans" / "completed" / f"{slug}-plan.md",
-    ]
-    for p in candidates:
-        if p.is_file():
-            return p
-    discovery_alt = (
-        repo_root / ".claude" / "knowledge-base" / "discoveries" / "plans" / f"{slug}-plan.md"
+def _knowledge_base_roots(repo_root: Path) -> list[Path]:
+    """
+    Both supported layouts, in preference order: the plugin-style
+    `.claude/knowledge-base/` and the repo-root `knowledge-base/`.
+
+    Hardcoding only the first made Mode 2 unusable in every project that keeps
+    knowledge-base at the repo root (this one does — CLAUDE.md and every cycle
+    artifact reference `knowledge-base/...`), so `/code-quality {slug}` always
+    failed with plan_not_found even though the plan existed.
+    """
+    return [repo_root / ".claude" / "knowledge-base", repo_root / "knowledge-base"]
+
+
+def _first_existing(paths: Iterable[Path]) -> Path | None:
+    return next((p for p in paths if p.is_file()), None)
+
+
+def _plan_not_found(slug: str, roots: list[Path]) -> FileNotFoundError:
+    """Discovery plans get a pointed message — they are a different artifact (EC-6)."""
+    discovery = _first_existing(
+        kb / "discoveries" / "plans" / f"{slug}-plan.md" for kb in roots
     )
-    if discovery_alt.is_file():
-        raise FileNotFoundError(
-            f"plan_not_found: slug {slug!r} matches a discovery plan at {discovery_alt}, "
+    if discovery is not None:
+        return FileNotFoundError(
+            f"plan_not_found: slug {slug!r} matches a discovery plan at {discovery}, "
             f"not an implementation plan. /code-quality validates implementation plans only. "
             f"Use /discover-confidence for discovery plans."
         )
-    raise FileNotFoundError(
+    return FileNotFoundError(
         f"plan_not_found: looked in plans/{slug}-plan.md and plans/completed/{slug}-plan.md"
     )
+
+
+def _resolve_plan_path(slug: str, repo_root: Path) -> Path:
+    """EC-6 — strict slug resolution. Refuse discovery plans."""
+    roots = _knowledge_base_roots(repo_root)
+    found = _first_existing(
+        kb / sub / f"{slug}-plan.md"
+        for kb in roots
+        for sub in (Path("plans"), Path("plans") / "completed")
+    )
+    if found is None:
+        raise _plan_not_found(slug, roots)
+    return found
 
 
 def _build_detector(language: str):
