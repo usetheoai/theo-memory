@@ -16,7 +16,7 @@ import {
   type ServerCapabilities,
 } from '@modelcontextprotocol/sdk/types.js';
 
-import { withScope } from '@usetheo/memory-agent-core';
+import { withScope, tryGetScope } from '@usetheo/memory-agent-core';
 import type { McpServerOptions } from '@usetheo/memory-agent-core';
 import { dispatch } from './tools/dispatch.js';
 import { buildToolsListResponse } from './tools/list-handler.js';
@@ -107,7 +107,16 @@ export class McpServer {
       }
       const userId = resolveScopedUserId(req.params._meta);
       if (userId !== undefined) {
-        return withScope({ session: { userId } }, () =>
+        // MERGE, never replace. `withScope` swaps the whole AsyncLocalStorage
+        // context, so `{ session: { userId } }` alone DROPS the auth-trusted
+        // `workspaceId` the transport resolved from the Principal. With
+        // THEOMEM_MCP_DEFAULT_USER_ID set (as the deployed MCP service does),
+        // userId is always defined, so that branch always ran and every tool call
+        // executed against unbound memory keyed by one shared userId — collapsing
+        // all tenants onto the same rows. Violates theo-data/CLAUDE.md invariants
+        // 2 and 3 (workspace_id == tenant_id; scope from the Principal).
+        const outer = tryGetScope();
+        return withScope({ ...outer, session: { userId } }, () =>
           dispatchFn(req.params.name, req.params.arguments, { memoryFactory, ...(recallTraceStore !== undefined ? { recallTraceStore } : {}) }),
         );
       }
