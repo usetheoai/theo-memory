@@ -68,6 +68,7 @@ jobs:
           THEOMEM_VERSION=develop-${SHA:0:7}
           THEOMEM_BUILD_TIME=${BUILT}
           THEMORY_ADMIN_BOOTSTRAP_TOKEN=${{ secrets.THEMORY_ADMIN_BOOTSTRAP_TOKEN }}
+          THEMORY_MCP_TLS_DIR=${{ vars.THEMORY_MCP_TLS_DIR }}
           EOF
 
       - name: Sync the deploy mirror, log into GHCR, and deploy
