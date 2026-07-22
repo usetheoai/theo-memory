@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Roadmap amended: added M11 Routing governance & observability (per-`(workspace,user)` config + audit + dashboard) (`/roadmap-feature intelligent-memory-routing`)
 
 ### Changed
+- Internal: split `scoped-memory.ts` (602 LoC) into `scope-filters.ts` + `row-mapping.ts` + `scoped-retrieval.ts` so no module exceeds the 300-LoC budget and the duplicated row-mapping block is deduped — pure refactor, helpers re-exported for backward compat, behavior byte-identical (M8 T0, unblocks the (workspace, user) isolation work)
 - Claude Code kit `remember`/`precompact` hooks now write in a DETACHED background worker (`postDetached`) instead of a blocking `await`: server-side LLM fact-extraction takes ~8s through the gateway, so the previous 3s-timeout `await` silently dropped every write while still risking an 8s session stall — the hook now returns in ~0.03s and the write lands under the unified user subject once extraction completes (theo-cloud#249)
 - Claude Code kit `recall` hook omits `userId` by default so the gateway's edge-injected `X-Theo-User-Id` drives the tier, reading the account's one unified memory space (the space the dashboard shows) instead of a per-project pseudo-user (theo-cloud#249)
 
