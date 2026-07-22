@@ -42,6 +42,11 @@ import { recallHandler } from '../handlers/recall.js';
 import { reflectHandler } from '../handlers/reflect.js';
 import { batchRememberHandler, rememberHandler } from '../handlers/remember.js';
 import { scopedForgetHandler } from '../handlers/scoped-forget.js';
+import {
+  getRoutingPolicyHandler,
+  putRoutingPolicyHandler,
+  getRoutingAuditHandler,
+} from '../handlers/routing-governance.js';
 import { scopesHandler } from '../handlers/scopes.js';
 import {
   deleteSkillHandler,
@@ -133,7 +138,8 @@ function registerMemberRoutes(app: OpenAPIHono, membersRepo: MembersRepository):
 // #77 — subject-scoped data routes: GET reads require memory:read, DELETE
 // memory:delete. recall-traces is opt-in (mounted only when the store is wired).
 function registerScopeRoutes(app: OpenAPIHono, options: CreateServerOptions): void {
-  const { memory, usageCounterStore, memoryEntityStore, memoryGraphStore, recallTraceStore } = options;
+  const { memory, usageCounterStore, memoryEntityStore, memoryGraphStore, recallTraceStore, routingPolicyStore, routingAuditStore } =
+    options;
   app.get('/v1/scopes/:type/:id/memories', requireScopeOnPrincipal('memory:read'), (c) => scopesHandler(c, memory));
   app.get('/v1/scopes/:type/:id/episodes', requireScopeOnPrincipal('memory:read'), (c) => episodesHandler(c, memory));
   app.delete('/v1/scopes/:type/:id/memories/:memId', requireScopeOnPrincipal('memory:delete'), (c) => scopedForgetHandler(c, memory));
@@ -142,6 +148,15 @@ function registerScopeRoutes(app: OpenAPIHono, options: CreateServerOptions): vo
   app.get('/v1/scopes/:type/:id/graph', requireScopeOnPrincipal('memory:read'), (c) => graphHandler(c, memoryEntityStore, memoryGraphStore));
   if (recallTraceStore !== undefined) {
     app.get('/v1/recall-traces/:recallId', requireScopeOnPrincipal('memory:read'), (c) => recallTracesHandler(c, recallTraceStore));
+  }
+  // M11 T3.1 — routing-governance routes (opt-in when the stores are wired). PUT is admin-scoped
+  // inside the handler; GET is (workspace, user)-scoped (cross-user → 404, ADR D3).
+  if (routingPolicyStore !== undefined) {
+    app.get('/v1/routing-policy/:userId', requireScopeOnPrincipal('memory:read'), (c) => getRoutingPolicyHandler(c, routingPolicyStore));
+    app.put('/v1/routing-policy/:userId', requireScopeOnPrincipal('memory:write'), (c) => putRoutingPolicyHandler(c, routingPolicyStore));
+  }
+  if (routingAuditStore !== undefined) {
+    app.get('/v1/routing-audit/:userId', requireScopeOnPrincipal('memory:read'), (c) => getRoutingAuditHandler(c, routingAuditStore));
   }
 }
 
