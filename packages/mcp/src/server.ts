@@ -29,19 +29,34 @@ import { buildOpenMemoryToolsList, openMemoryDispatch } from './openmemory/tools
  *
  * Fallback chain (first match wins):
  *  1. `request.params._meta['io.usetheo.themory/user_id']` (per-call override)
- *  2. `process.env['THEOMEM_MCP_DEFAULT_USER_ID']` (server-lifetime default)
- *  3. NO scope wrapper — handlers calling `getScope()` throw `MissingScopeError`,
+ *  2. The transport-resolved scope — on streamable-http this is the sanitized
+ *     `X-Theo-User-Id` the edge injects for the authenticated caller.
+ *  3. `process.env['THEOMEM_MCP_DEFAULT_USER_ID']` (server-lifetime default)
+ *  4. NO scope wrapper — handlers calling `getScope()` throw `MissingScopeError`,
  *     surfacing the misconfig loudly per Inquebrável Rule 3.
+ *
+ * Rung 2 is load-bearing and was missing: the env default is a per-DEPLOYMENT
+ * constant, so on a shared server it pins every caller — of every tenant — to one
+ * user tier. Anything the edge resolved per-request MUST outrank it, or the
+ * constant silently wins and the agent's memories land under an identity no
+ * consumer queries (which is why the dashboard listed nothing: it reads
+ * `/v1/scopes/user/{session-subject}/memories`).
  *
  * Added 2026-06-04 to close the dogfood T2.1 architectural gap (MCP stdio
  * transport had no scope binding). See
  */
 const META_USER_ID_KEY = 'io.usetheo.themory/user_id';
 
-function resolveScopedUserId(meta: Record<string, unknown> | undefined): string | undefined {
+function resolveScopedUserId(
+  meta: Record<string, unknown> | undefined,
+  fromTransport: string | undefined,
+): string | undefined {
   const fromMeta = meta?.[META_USER_ID_KEY];
   if (typeof fromMeta === 'string' && fromMeta.length > 0) {
     return fromMeta;
+  }
+  if (fromTransport !== undefined && fromTransport.length > 0) {
+    return fromTransport;
   }
   const fromEnv = process.env['THEOMEM_MCP_DEFAULT_USER_ID'];
   if (typeof fromEnv === 'string' && fromEnv.length > 0) {
@@ -105,7 +120,8 @@ export class McpServer {
           isError: true,
         });
       }
-      const userId = resolveScopedUserId(req.params._meta);
+      const outerScope = tryGetScope();
+      const userId = resolveScopedUserId(req.params._meta, outerScope?.session?.userId);
       if (userId !== undefined) {
         // MERGE, never replace. `withScope` swaps the whole AsyncLocalStorage
         // context, so `{ session: { userId } }` alone DROPS the auth-trusted
@@ -115,8 +131,7 @@ export class McpServer {
         // executed against unbound memory keyed by one shared userId — collapsing
         // all tenants onto the same rows. Violates theo-data/CLAUDE.md invariants
         // 2 and 3 (workspace_id == tenant_id; scope from the Principal).
-        const outer = tryGetScope();
-        return withScope({ ...outer, session: { userId } }, () =>
+        return withScope({ ...outerScope, session: { userId } }, () =>
           dispatchFn(req.params.name, req.params.arguments, { memoryFactory, ...(recallTraceStore !== undefined ? { recallTraceStore } : {}) }),
         );
       }

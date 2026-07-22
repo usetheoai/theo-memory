@@ -27,7 +27,7 @@ import type { GraphExpansionStore } from '../dip/graph-expansion-store.js';
 import type { RecallTraceRow, RecallTraceStore } from '../dip/recall-trace-store.js';
 import type { Reranker } from '../dip/reranker.js';
 import type { VectorStore, VectorStoreResult } from '../dip/vector-store.js';
-import { RerankerConflict } from '../errors.js';
+import { InvalidScope, RerankerConflict } from '../errors.js';
 import { lemmatizeForBm25 } from '../lemmatization.js';
 import { emitEvent } from '../memory-event.js';
 import type { MemoryItemWithScore } from '../memory-item.js';
@@ -36,6 +36,7 @@ import type { Filters, Scope } from '../scope.js';
 import { combineScores, maxPossible, sigmoidBm25 } from '../scoring.js';
 
 import { mmrRerank } from './mmr.js';
+import { scopeAwareReweight } from './scope-reweight.js';
 
 export interface RetrievalDeps {
   readonly vectorStore: VectorStore;
@@ -523,13 +524,21 @@ export async function runRetrievalPipeline(
     // surface Princípio 1 confirmação signal.
     const confirmationCountRaw = row.payload['confirmation_count'];
     const confirmationCount = typeof confirmationCountRaw === 'number' ? confirmationCountRaw : undefined;
+    // M10 T1.1 — hoist the REAL created_at (rowToResult projects it into payload as an ISO
+    // string) so the recency signal is available to the scope-aware reweight; fall back to
+    // `now` only when the projection is absent (legacy/stale-impl rows) — never silently lie.
+    const createdAtRaw = row.payload['created_at'];
+    const parsedCreatedAt =
+      typeof createdAtRaw === 'string' && !Number.isNaN(Date.parse(createdAtRaw))
+        ? new Date(createdAtRaw)
+        : now;
     return {
       id: row.id,
       text: String(row.payload['text'] ?? ''),
       hash: String(row.payload['hash'] ?? row.id),
       scope,
-      createdAt: now,
-      updatedAt: now,
+      createdAt: parsedCreatedAt,
+      updatedAt: parsedCreatedAt,
       metadata: { ...row.payload },
       tValid: now,
       tInvalid: null,
@@ -582,11 +591,48 @@ export async function runRetrievalPipeline(
     ];
   }
 
-  // cross-encoder-reranker T2.2 / ADR D3 — diversify and rerank are mutually
-  // exclusive post-threshold reranks of the same pool. Fail-loud BEFORE any
-  // inference (Princípio 3 + Inquebrável Rule 8).
-  if (options?.rerank !== undefined && options.diversify !== undefined) {
+  // cross-encoder-reranker T2.2 / ADR D3 + M10 T3.1 — diversify, rerank, and the M10
+  // scope-aware reweight are mutually exclusive post-threshold reranks of the same pool.
+  // Fail-loud BEFORE any inference (Princípio 3 + Inquebrável Rule 8).
+  const postThresholdStages = [options?.rerank, options?.diversify, options?.scopes].filter(
+    (s) => s !== undefined,
+  ).length;
+  if (postThresholdStages > 1) {
     throw new RerankerConflict();
+  }
+
+  // Step 8.5c — M10 scope-aware reweight (opt-in via options.scopes). Maps the threshold-
+  // survivors to items (carrying the real created_at / confirmation_count), applies the
+  // deterministic bounded reweight (session recency-boost, global stability-boost), then
+  // takes topK. Isolation is upstream (composeFilters); this only re-orders a safe pool.
+  if (options?.scopes !== undefined) {
+    const sessionRecencyWeight = options.scopes.sessionRecencyWeight ?? 0.3;
+    const globalStabilityWeight = options.scopes.globalStabilityWeight ?? 0.3;
+    for (const [name, w] of [
+      ['sessionRecencyWeight', sessionRecencyWeight],
+      ['globalStabilityWeight', globalStabilityWeight],
+    ] as const) {
+      if (w < 0 || w > 1 || Number.isNaN(w)) {
+        throw new InvalidScope(`RecallOptions.scopes.${name} must be in [0, 1]`);
+      }
+    }
+    // Fail-soft note (plan T3.1 failure scenario): `scopeAwareReweight` is a TOTAL pure function —
+    // arithmetic + a comparator sort, with Date.parse (NaN-guarded → neutral) and a K-offset division
+    // that never divides by zero. It has no throw path over well-formed rows, so a `scope_reweight_failed`
+    // event/try-catch would be unreachable dead code (parsimony-ladder rung 1). Fail-soft is satisfied by
+    // construction; the reweight can never crash recall. Weight validation above is fail-FAST (caller error).
+    const reweighted = scopeAwareReweight(
+      scored.map(rowToItem),
+      { sessionRecencyWeight, globalStabilityWeight },
+      now,
+    );
+    emitEvent(tracer, 'scope_reweight_applied', {
+      scope_tier: scope.kind,
+      reweighted_count: reweighted.length,
+    });
+    const selected = reweighted.slice(0, topK);
+    await writeRecallTrace(deps, recallDrops, new Set(selected.map((r) => r.id)));
+    return selected;
   }
 
   // Step 8.5a — cross-encoder rerank (ADR D3). Opt-in via options.rerank AND a

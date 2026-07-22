@@ -127,6 +127,13 @@ export function rowToResult(row: MemoriesRow): VectorStoreResult {
   if (row.confirmation_count !== undefined && row.confirmation_count !== null) {
     payload['confirmation_count'] = row.confirmation_count;
   }
+  // M10 T1.1 — project created_at into payload (dual-pathway, mirroring confirmation_count)
+  // so recall()'s wrap pipeline can hoist the REAL age into MemoryItemWithScore.createdAt
+  // (the recency signal the scope-aware reweight reads). Stored as an ISO string in the
+  // primitive-only payload contract; the pipeline parses it back to a Date.
+  if (row.created_at != null) {
+    payload['created_at'] = row.created_at.toISOString();
+  }
   const score = row.distance !== undefined ? 1 - row.distance : row.rank;
   // dashboard-memories-tab-standardization T2.1 — null-safe createdAt projection.
   // EC-1: NULL → undefined (NOT new Date(0) which would silently lie 1970-01-01).
@@ -186,8 +193,28 @@ function composeFilters(filters: Filters | undefined, startParamIndex: number): 
     if (value === undefined) {
       continue;
     }
+    // M8: when a hierarchical predicate owns session_id/agent_id (scopeHierarchy set),
+    // skip their plain equality — session_id is kept in the filter for the WRITE column
+    // derivation, but the RECALL predicate is the hierarchy branch below.
+    if (filters.scopeHierarchy !== undefined && (col === 'session_id' || col === 'agent_id')) {
+      continue;
+    }
     parts.push(`${col} = $${idx}`);
     params.push(value);
+    idx += 1;
+  }
+  // M8 hierarchical recall (owner decision 2026-07-22) — the tier's hierarchical scope
+  // predicate (mirrors the in-memory matcher). Set by filtersFromScope for the User tier
+  // ('global') and the user-bound Session tier ({ session }); it OWNS session_id/agent_id
+  // (the equality loop above did NOT emit them). The IS-NULL / OR fragments don't
+  // parameterize the column, but the session id IS a bound parameter (injection-safe).
+  if (filters.scopeHierarchy === 'global') {
+    // GLOBAL: durable user rows only — no session/agent sub-partition leaks in.
+    parts.push(`session_id IS NULL AND agent_id IS NULL`);
+  } else if (filters.scopeHierarchy !== undefined) {
+    // SESSION ∪ GLOBAL: this session's rows OR the user's global rows (no agent rows).
+    parts.push(`agent_id IS NULL AND (session_id = $${idx} OR session_id IS NULL)`);
+    params.push(filters.scopeHierarchy.session);
     idx += 1;
   }
   // v1.1 T2.2: multi-peer attribution filter. EC-7 absorbed: Postgres `=`
@@ -493,7 +520,10 @@ export class PgvectorStore implements VectorStore {
     const filter = composeFilters(filters, temporal.nextParamIndex);
     const cols =
       'id, text, hash, payload, user_id, session_id, agent_id, attributed_to, category, ' +
-      'kind, code, description, code_language, derived_from, superseded_by, confirmation_count';
+      // M10 T1.1: project created_at so the recalled row carries its REAL age (rowToResult maps
+      // it) — the recency signal the scope-aware reweight reads. Without it the pipeline
+      // hardcoded createdAt=now and a recency boost was a no-op.
+      'kind, code, description, code_language, derived_from, superseded_by, confirmation_count, created_at';
     // EG-6 (recall-scoped-exact-search): a SELECTIVE (scope-filtered) recall must
     // NOT be starved by the HNSW global-top-`ef_search`-then-filter behavior of
     // pgvector 0.5.1 (a sparse scope whose rows are not among the global nearest
@@ -978,7 +1008,7 @@ export class PgvectorStore implements VectorStore {
    */
   async recallConsolidationCandidates(
     filters: Filters,
-  ): Promise<readonly { memoryId: string; text: string; createdAt: Date }[]> {
+  ): Promise<readonly { memoryId: string; text: string; createdAt: Date; confirmationCount?: number }[]> {
     // /review v0-7 F-C2: filter `kind = 'extracted'` to preserve the
     // episodic→semantic boundary. Without this guard, v0.6 procedural
     // skill rows (kind='skill') AND already-consolidated rows (kind='derived')
@@ -1020,11 +1050,22 @@ export class PgvectorStore implements VectorStore {
       params.push(filters.agent_id);
       where.push(`agent_id = $${String(params.length)}`);
     }
-    const { rows } = await this.pool.query<{ id: string; text: string; created_at: Date }>(
-      `SELECT id, text, created_at FROM memories WHERE ${where.join(' AND ')}`,
+    const { rows } = await this.pool.query<{
+      id: string;
+      text: string;
+      created_at: Date;
+      confirmation_count: number;
+    }>(
+      // M9: confirmation_count is the durability signal the SessionToGlobalConsolidationPolicy reads.
+      `SELECT id, text, created_at, confirmation_count FROM memories WHERE ${where.join(' AND ')}`,
       params,
     );
-    return rows.map((r) => ({ memoryId: r.id, text: r.text, createdAt: r.created_at }));
+    return rows.map((r) => ({
+      memoryId: r.id,
+      text: r.text,
+      createdAt: r.created_at,
+      confirmationCount: r.confirmation_count,
+    }));
   }
 
   /**
@@ -1038,10 +1079,38 @@ export class PgvectorStore implements VectorStore {
    */
   async persistConsolidations(
     results: readonly ConflictResolutionResult[],
-  ): Promise<void> {
-    if (results.length === 0) return;
+    options?: { readonly promote?: boolean },
+  ): Promise<number> {
+    if (results.length === 0) return 0;
+    const promote = options?.promote === true;
+    let promotedCount = 0;
     await this.withTransaction(async (client) => {
       for (const r of results) {
+        // M9 (T2.1): promote the durable representative to GLOBAL (session_id→NULL,
+        // agent_id→NULL) in the SAME txn as the soft-delete + audit, so promotion +
+        // duplicate-decay + provenance are atomic (EC-8 rollback parity). The
+        // `session_id IS NOT NULL OR agent_id IS NOT NULL` guard makes re-runs idempotent
+        // (a concurrent/duplicate promotion updates 0 rows, never an error). workspace_id
+        // + user_id are UNTOUCHED — the promotion never crosses the (workspace, user)
+        // isolation boundary (M9 hard gate).
+        //
+        // F-arch-3/F-xval-5 (review fix): the audit row + the returned count reflect the
+        // rows ACTUALLY promoted (rowCount > 0), NOT the policy's decision count — so an
+        // idempotent re-run (or a concurrent loser) writes NO duplicate audit row and does
+        // not over-report the promotion (Princípio 3 fidelity). The v0.7 non-promote path
+        // (options omitted) is unchanged: it always audits its soft-delete decision.
+        if (promote) {
+          const res = await client.query(
+            `UPDATE memories SET session_id = NULL, agent_id = NULL
+              WHERE id = $1::uuid AND t_invalid IS NULL
+                AND (session_id IS NOT NULL OR agent_id IS NOT NULL)`,
+            [r.keptMemoryId],
+          );
+          if ((res.rowCount ?? 0) === 0) {
+            continue; // nothing promoted (already global / lost the race) → no audit, no count
+          }
+          promotedCount += 1;
+        }
         if (r.rejectedMemoryIds.length > 0) {
           await client.query(
             `UPDATE memories SET t_invalid = NOW()
@@ -1064,6 +1133,7 @@ export class PgvectorStore implements VectorStore {
         );
       }
     });
+    return promotedCount;
   }
 
   /** Acquire a pool client for transactional persist (EC-6 rollback semantics). */

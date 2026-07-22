@@ -16,6 +16,7 @@ import type { RecallTraceBatch, RecallTraceStore } from '../dip/recall-trace-sto
 import type { VectorStore, VectorStoreResult } from '../dip/vector-store.js';
 import type { Embedder } from '../dip/embedder.js';
 import type { Filters } from '../scope.js';
+import { InvalidScope, RerankerConflict } from '../errors.js';
 
 import { runRetrievalPipeline, type RetrievalDeps } from './pipeline.js';
 
@@ -195,5 +196,78 @@ describe('runRetrievalPipeline recall trace', () => {
     );
     expect(kept.map((k) => k.id)).toEqual(['m0']);
     expect(batches).toHaveLength(0);
+  });
+});
+
+/**
+ * M10 T3.1 — the opt-in scope-aware reweight stage. With `options.scopes`, the post-threshold
+ * pool is re-ordered by scope-of-origin (session recency-boost) before top-K; without it the
+ * order is byte-identical to today. `scopes` + `rerank`/`diversify` throws the mutual-exclusion
+ * guard; an out-of-[0,1] weight throws InvalidScope at the boundary.
+ * @see plan m10-scope-aware-recall § Phase 3 / T3.1
+ */
+describe('runRetrievalPipeline M10 scope-aware reweight', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const oldIso = new Date(Date.now() - 60 * DAY).toISOString();
+  const newIso = new Date(Date.now() - 0 * DAY).toISOString();
+  // Two session-origin candidates; base order is [old(0.75), new(0.70)] by raw score.
+  const twoSession: VectorStoreResult[] = [
+    { id: 'old', score: 0.75, payload: { text: 'old', session_id: 's', created_at: oldIso } },
+    { id: 'new', score: 0.7, payload: { text: 'new', session_id: 's', created_at: newIso } },
+  ];
+
+  test('test_pipeline_applies_scope_reweight_when_scopes_set — newer session row surfaces above older', async () => {
+    const deps: RetrievalDeps = { vectorStore: vectorStoreReturning(twoSession), embedder };
+    const out = await runRetrievalPipeline('q', FILTERS, deps, {
+      threshold: 0.1,
+      topK: 10,
+      scopes: { sessionRecencyWeight: 1, globalStabilityWeight: 0.3 },
+    });
+    // Recency boost flips the base [old, new] order to [new, old].
+    expect(out.map((r) => r.id)).toEqual(['new', 'old']);
+  });
+
+  test('without scopes the order is byte-identical to today (base score order)', async () => {
+    const deps: RetrievalDeps = { vectorStore: vectorStoreReturning(twoSession), embedder };
+    const out = await runRetrievalPipeline('q', FILTERS, deps, { threshold: 0.1, topK: 10 });
+    expect(out.map((r) => r.id)).toEqual(['old', 'new']);
+  });
+
+  test('scopes + rerank throws the mutual-exclusion guard (RerankerConflict)', async () => {
+    const deps: RetrievalDeps = { vectorStore: vectorStoreReturning(twoSession), embedder };
+    await expect(
+      runRetrievalPipeline('q', FILTERS, deps, {
+        threshold: 0.1,
+        topK: 10,
+        scopes: { sessionRecencyWeight: 0.3 },
+        rerank: { pool: 3 },
+      }),
+    ).rejects.toThrow(RerankerConflict);
+  });
+
+  test('out-of-[0,1] weight throws InvalidScope at the boundary', async () => {
+    const deps: RetrievalDeps = { vectorStore: vectorStoreReturning(twoSession), embedder };
+    await expect(
+      runRetrievalPipeline('q', FILTERS, deps, {
+        threshold: 0.1,
+        topK: 10,
+        scopes: { sessionRecencyWeight: 1.5 },
+      }),
+    ).rejects.toThrow(InvalidScope);
+  });
+
+  // T3.2 — the reweight is a `{...item, score}` spread, so every orthogonal field (attributed_to)
+  // survives it. ROADMAP M10 DoD: attribution (user/agent) surfaced on each result.
+  test('test_attribution_survives_scope_reweight — attributedTo is carried through the reweight', async () => {
+    const withAttr: VectorStoreResult[] = [
+      { id: 'a', score: 0.8, payload: { text: 'a', session_id: 's', created_at: newIso, attributed_to: 'agent' } },
+    ];
+    const deps: RetrievalDeps = { vectorStore: vectorStoreReturning(withAttr), embedder };
+    const out = await runRetrievalPipeline('q', FILTERS, deps, {
+      threshold: 0.1,
+      topK: 10,
+      scopes: { sessionRecencyWeight: 0.5 },
+    });
+    expect(out[0]?.attributedTo).toBe('agent');
   });
 });

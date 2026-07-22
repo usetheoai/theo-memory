@@ -14,9 +14,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
 import type { Memory } from '@usetheo/memory/contract';
 import type { RememberOptions } from '@usetheo/memory/contract';
-import { memoryFromCtx } from '@usetheo/memory/theokit';
-import { getScope } from '@usetheo/memory-agent-core';
-import { workspaceScopedMemory } from './workspace-scoped-memory.js';
+import { routeScopedMemory } from './route-scoped-memory.js';
 
 import { INPUT_SCHEMA, TOOL_NAME } from './remember-schema.js';
 
@@ -37,7 +35,10 @@ export async function rememberHandler(
   deps: { memoryFactory: () => Memory },
 ): Promise<CallToolResult> {
   const parsed = INPUT_SCHEMA.parse(args);
-  const scoped = memoryFromCtx(getScope(), workspaceScopedMemory(deps.memoryFactory()));
+  // M8 routing (ADR D6): the agent chose GLOBAL (no sessionId) vs SESSION (sessionId);
+  // the user is always the auth-trusted context user (routeScopedMemory never binds an
+  // agent-supplied user).
+  const scoped = routeScopedMemory(deps.memoryFactory(), parsed.sessionId);
 
   const finalOptions = buildRememberOptions(parsed.metadata, parsed.infer);
 

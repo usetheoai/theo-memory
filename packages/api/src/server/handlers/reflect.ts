@@ -15,6 +15,7 @@ import {
   MALFORMED_BODY,
   safeJson,
   scopeOrValidationError,
+  principalUserId,
   workspaceBoundMemory,
 } from './_body-parsing.js';
 
@@ -35,7 +36,7 @@ export async function reflectHandler(c: Context, memory: Memory): Promise<Respon
   }
   const { maxIterations } = parsed.data;
   // multi-tenant-workspace-isolation T3.1: scope reflect by the Principal's workspace (ADR D3).
-  const scoped = resolveScope(workspaceBoundMemory(c, memory), parsed.data);
+  const scoped = resolveScope(workspaceBoundMemory(c, memory), parsed.data, principalUserId(c));
   const result = await scoped.reflect({ maxIterations });
   return c.json(result, 202);
 }

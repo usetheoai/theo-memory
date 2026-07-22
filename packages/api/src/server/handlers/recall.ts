@@ -11,10 +11,12 @@ import type { Context } from 'hono';
 import { RecallBody, resolveScope } from '../schemas.js';
 
 import {
+  applyHeaderUserScope,
   EMPTY_BODY,
   MALFORMED_BODY,
   safeJson,
   scopeOrValidationError,
+  principalUserId,
   workspaceBoundMemory,
 } from './_body-parsing.js';
 
@@ -29,13 +31,19 @@ export async function recallHandler(c: Context, memory: Memory): Promise<Respons
       422,
     );
   }
-  const parsed = RecallBody.safeParse(json);
+  // MCP parity: no body tier → fall back to the edge-injected X-Theo-User-Id, so a
+  // gateway-fronted recall (the kit hooks) reads the credential's user space.
+  const withScope =
+    typeof json === 'object' && json !== null
+      ? applyHeaderUserScope(c, json as Record<string, unknown>)
+      : json;
+  const parsed = RecallBody.safeParse(withScope);
   if (!parsed.success) {
     return scopeOrValidationError(parsed.error, c);
   }
   const { query, topK, threshold, attributedTo, asOf, graphExpand } = parsed.data;
   // multi-tenant-workspace-isolation T3.1: scope recall by the Principal's workspace (ADR D3).
-  const scoped = resolveScope(workspaceBoundMemory(c, memory), parsed.data);
+  const scoped = resolveScope(workspaceBoundMemory(c, memory), parsed.data, principalUserId(c));
   // explainable-recall S2 (D2) — mint the recall_id HERE so it can be BOTH driven
   // into the accountable-forgetting trace (SDK keys the recall_traces rows with it)
   // AND returned to the caller for the follow-up GET /v1/recall-traces/:recallId.

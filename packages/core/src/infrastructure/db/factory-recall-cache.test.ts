@@ -131,6 +131,18 @@ describe('T2.1 — createLocalMemory({ recallCache })', () => {
     expect(cache.setCalls).toHaveLength(0);
   });
 
+  // M10 F-arch-1 — recall({ scopes }) reorders the pool exactly like rerank/graphExpand, so
+  // it MUST bypass the cache: a HIT would skip the reweight; a MISS would store the reweighted
+  // order under a key that does NOT encode scopes, poisoning a later plain recall (breaking
+  // "default byte-identical"). Regression test for the two-way cache correctness bug.
+  test('M10 F-arch-1 — recall({ scopes }) BYPASSES cache (no get, no set)', async () => {
+    const cache = makeFakeCache();
+    const memory = await createLocalMemory(baseConfig(cache));
+    await memory.user('alice').recall('coffee', { scopes: { sessionRecencyWeight: 0.5 } });
+    expect(cache.getCalls).toHaveLength(0);
+    expect(cache.setCalls).toHaveLength(0);
+  });
+
   test('T2.1-RED-10 (EC-4+EC-5 combined) — both options set → BYPASS', async () => {
     const cache = makeFakeCache();
     const memory = await createLocalMemory(baseConfig(cache));

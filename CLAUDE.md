@@ -323,6 +323,10 @@ The strategic review of 2026-05-21 documented three explicit overrides of the ro
 
 - **ADR-0011 supplementary** — v1.1 LIFTS the ADR-0006 runtime-clause: local `recall({ asOf })` is honored via null-safe predicate `(t_valid IS NULL OR t_valid <= asOf) AND (t_invalid IS NULL OR t_invalid > asOf)`. Schema clause of ADR-0006 (columns since v0.1) is REINFORCED — Apache-2.0 prior art (blueprint Q6) validates the same shape. `BiTemporalNotSupportedLocally` class still exported (cloud retains the option; `@deprecated for local`). CAVEAT: EC-9 skill-scope `asOf` deferred to follow-up cycle.
 
+### M8 — `(workspace, user)` cross-user isolation (2026-07-22, boundary-enforced)
+
+- **[ADR-0021](.claude/knowledge-base/adrs/ADR-0021-m8-boundary-enforced-user-isolation.md)** — the `(workspace, user)` isolation is enforced at the **scope-resolution boundary**, NOT by a type-mandatory scope field (supersedes the M8 plan's ADR D1). `Memory.session(sessionId, userId?)` / `Memory.agent(agentId, userId?)` gain an OPTIONAL `userId` (backward-compatible); the REST/MCP layer binds `Principal.userId` into every session/agent scope so a user-Principal's access is `(workspace, user, session)`, while a workspace-admin credential (`Principal.userId === null`) stays workspace-scoped. The three memory tiers (User/Session/Agent) are UNCHANGED — no new tier was added. PROVEN by the cross-user isolation hard-gate integration test (3/3 vs real `ankane/pgvector:v0.5.1`; user B reads zero of user A's rows) + the composite index `memories_ws_user_session_idx` (migration 0024, EXPLAIN confirms Index Scan). Owner sign-off: the `/goal` directive authorizing the M8 isolation work.
+
 ---
 
 ## Roadmap

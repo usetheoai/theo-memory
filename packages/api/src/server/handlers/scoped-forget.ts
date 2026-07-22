@@ -16,20 +16,22 @@ import { MemoryNotFound, WorkspaceMismatch } from '@usetheo/memory/contract';
 import type { Context } from 'hono';
 import { z } from 'zod';
 
-import { workspaceBoundMemory } from './_body-parsing.js';
+import { principalUserId, workspaceBoundMemory } from './_body-parsing.js';
 
 const SCOPE_TYPES = ['user', 'session', 'agent'] as const;
 const ScopeTypeSchema = z.enum(SCOPE_TYPES);
 type ScopeType = (typeof SCOPE_TYPES)[number];
 
-function pathParamsToScoped(memory: Memory, type: ScopeType, id: string): ScopedMemory {
+function pathParamsToScoped(memory: Memory, type: ScopeType, id: string, userId?: string): ScopedMemory {
   switch (type) {
     case 'user':
-      return memory.user(id);
+      // M8 F-arch-1: bind the user tier to the auth Principal (userId) when present
+      // so a user-Principal can only address its OWN global scope; null (admin) → path id.
+      return memory.user(userId ?? id);
     case 'session':
-      return memory.session(id);
+      return memory.session(id, userId);
     case 'agent':
-      return memory.agent(id);
+      return memory.agent(id, userId);
   }
 }
 
@@ -49,7 +51,7 @@ export async function scopedForgetHandler(c: Context, memory: Memory): Promise<R
   // `?hard=true` EXACTLY → hard delete; anything else (incl. "false") → soft.
   const hard = c.req.query('hard') === 'true';
 
-  const scoped = pathParamsToScoped(workspaceBoundMemory(c, memory), typeParse.data, id);
+  const scoped = pathParamsToScoped(workspaceBoundMemory(c, memory), typeParse.data, id, principalUserId(c));
   try {
     await scoped.forget(memId, hard ? { hard: true } : undefined);
   } catch (err) {

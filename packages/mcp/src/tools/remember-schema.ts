@@ -15,17 +15,26 @@ import { MAX_CONTENT_BYTES } from './constants.js';
 export const TOOL_NAME = 'remember' as const;
 
 export const DESCRIPTION =
-  'Persist a free-form note to scoped memory. The fact will be extracted and stored under the active user/session/agent scope. Use this when the user states a preference, fact, or decision worth recalling later. Pass `infer:false` to store the content verbatim without LLM extraction.';
+  'Persist a free-form note to scoped memory. Use this when the user states a preference, fact, or decision worth recalling later. Choose WHERE it lives: omit `sessionId` to store in the durable GLOBAL memory (remembered across all sessions — preferences, long-lived facts, decisions); pass `sessionId` to store it in that SESSION only (ephemeral working context that should not leak into other conversations). Pass `infer:false` to store the content verbatim without LLM extraction.';
 
 /**
  * Input shape for `tools/call remember`.
  *
- * Scope is NOT a tool argument — it comes from request-context (AsyncLocalStorage, ADR D3).
- * Agents do not need to (and MUST NOT) pass scope explicitly.
+ * The USER identity is NOT a tool argument — it comes from the auth-trusted
+ * request-context (AsyncLocalStorage, ADR D3); the agent can never address another
+ * user. M8 (ADR D6 amendment): the agent MAY pass a `sessionId` to route the write to
+ * a session sub-partition of its OWN user space `(workspace, user, session)`; omitting
+ * it stores globally `(workspace, user)`.
  */
 export const INPUT_SCHEMA = z.object({
   /** The note to remember. Free-form natural language. Capped at MAX_CONTENT_BYTES (EC-2). */
   content: z.string().min(1).max(MAX_CONTENT_BYTES),
+  /**
+   * M8 routing (ADR D6): when present, store this note in the SESSION scope
+   * `(workspace, user, session)` instead of the durable GLOBAL scope `(workspace, user)`.
+   * The user is always the auth-trusted context user — this only picks the sub-partition.
+   */
+  sessionId: z.string().min(1).optional(),
   /** Optional flat key/value metadata payload (primitives only — upstream-pipeline parity). */
   metadata: z.record(z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),
   /**
