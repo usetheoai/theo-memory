@@ -26,7 +26,14 @@
  * @see Plan theo-memory-standalone-p0 § T2.3 + ADR D8 + EC-31/32/33 + EC-47
  */
 import { serve } from '@hono/node-server';
-import { runMigrations, PgMemoryEntityStore, PgMemoryGraphStore, PgUsageCounterStore } from '@usetheo/memory';
+import {
+  runMigrations,
+  PgMemoryEntityStore,
+  PgMemoryGraphStore,
+  PgUsageCounterStore,
+  PgRoutingPolicyStore,
+  PgRoutingAuditStore,
+} from '@usetheo/memory';
 import type { AuthVerifier } from '@usetheo/memory/contract';
 import type { Memory } from '@usetheo/memory/contract';
 import {
@@ -251,6 +258,10 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
     // serves the REAL retrieval_api_usage (same pool as the Memory factory, so the
     // counter recall() increments is the counter metrics reads). Mirrors the above.
     usageCounterStore: new PgUsageCounterStore(pool),
+    // M11 T3.1 — wire the routing-governance ports so GET/PUT /v1/routing-policy +
+    // GET /v1/routing-audit are mounted in production (same pool). Mirrors the above.
+    routingPolicyStore: new PgRoutingPolicyStore(pool),
+    routingAuditStore: new PgRoutingAuditStore(pool),
     // explainable-recall-read S2 (/review F-arch-1) — wire the recall-trace READ
     // port so GET /v1/recall-traces/:recallId is mounted in production, opt-in via
     // the same THEOMEM_RECALL_TRACE flag that enables the write (wireMemoryFromPool).

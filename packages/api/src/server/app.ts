@@ -17,6 +17,7 @@ import type { Memory } from '@usetheo/memory/contract';
 import type { MemoryEntityStore, MemoryGraphStore } from '@usetheo/memory/contract';
 import type { RecallTraceStore } from '@usetheo/memory/contract';
 import type { UsageCounterStore } from '@usetheo/memory/contract';
+import type { RoutingPolicyStore, RoutingAuditStore } from '@usetheo/memory/contract';
 
 import type { AuthPool } from './auth/api-key-verifier.js';
 import { mapDomainErrorToResponse } from './errors.js';
@@ -141,6 +142,19 @@ export interface CreateServerOptions {
    * mirroring the `memoryEntityStore` wiring precedent.
    */
   readonly recallTraceStore?: RecallTraceStore;
+  /**
+   * M11 T3.1 (ADR D1/D3) — optional routing-policy READ/WRITE port. When supplied,
+   * `GET/PUT /v1/routing-policy` are mounted (PUT is admin-scoped); when omitted the routes
+   * are NOT mounted (opt-in; existing deployments unaffected). The composition root
+   * (`themory server`) injects `PgRoutingPolicyStore`, mirroring the `recallTraceStore` precedent.
+   */
+  readonly routingPolicyStore?: RoutingPolicyStore;
+  /**
+   * M11 T3.1 (ADR D2/D3) — optional routing-audit READ port. When supplied,
+   * `GET /v1/routing-audit` serves the `(workspace, user)`-scoped placement-decision audit; when
+   * omitted the route is NOT mounted. The composition root injects `PgRoutingAuditStore`.
+   */
+  readonly routingAuditStore?: RoutingAuditStore;
 }
 
 export function createApp(options: CreateServerOptions): OpenAPIHono {

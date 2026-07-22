@@ -128,6 +128,50 @@ export const workspaceUsers = pgTable(
   ],
 );
 
+/**
+ * M11 — per-`(workspace, user)` routing policy. Keyed by the M8 isolation pair so a policy is that
+ * tenant's own row (never cross-tenant). Absent row → the fail-closed default resolved in code
+ * (`FAILCLOSED_DEFAULT_POLICY`), so a missing config never disables isolation.
+ */
+export const routingPolicies = pgTable(
+  'routing_policies',
+  {
+    workspaceId: text('workspace_id').notNull(),
+    userId: text('user_id').notNull(),
+    defaultScope: text('default_scope').notNull().default('session'),
+    llmRouting: boolean('llm_routing').notNull().default(false),
+    confirmationThreshold: integer('confirmation_threshold').notNull().default(3),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.workspaceId, table.userId] }),
+    check('routing_policies_scope_check', sql`${table.defaultScope} IN ('session', 'global')`),
+  ],
+);
+
+/**
+ * M11 — placement-decision audit (Princípio 3). One row per routing/promotion decision, scoped by the
+ * M8 `(workspace_id, user_id)` pair. Reuses the recall-trace governance SHAPE (ADR D2), not a new engine.
+ */
+export const routingAudit = pgTable(
+  'routing_audit',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    workspaceId: text('workspace_id').notNull(),
+    userId: text('user_id').notNull(),
+    chosenScope: text('chosen_scope').notNull(),
+    attribution: text('attribution').notNull(),
+    decidedBy: text('decided_by').notNull(),
+    why: text('why').notNull(),
+    at: timestamp('at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('routing_audit_ws_user_at_idx').on(table.workspaceId, table.userId, table.at),
+    check('routing_audit_scope_check', sql`${table.chosenScope} IN ('session', 'global')`),
+    check('routing_audit_attribution_check', sql`${table.attribution} IN ('user', 'agent')`),
+  ],
+);
+
 /** Primary memory store — every remember/recall/forget operation touches this. */
 export const memories = pgTable(
   'memories',

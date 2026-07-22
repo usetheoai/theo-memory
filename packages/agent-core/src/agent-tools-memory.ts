@@ -24,7 +24,7 @@
  */
 
 import { createLocalMemory, runMigrations, SandboxedSkillExecutor } from '@usetheo/memory';
-import { PgvectorStore } from '@usetheo/memory';
+import { PgvectorStore, PgRoutingAuditStore } from '@usetheo/memory';
 import type { Embedder, Memory } from '@usetheo/memory/contract';
 // NOTE: `LocalTransformerEmbedder` (@xenova/transformers) and `OpenAILLM` (openai)
 // are backed by OPTIONAL dependencies. They are dynamically imported inside
@@ -210,6 +210,9 @@ export async function wireMemoryFromPool(pool: Pool): Promise<Memory> {
     embedder,
     llm: new OpenAILLM(),
     embeddingDim,
+    // M11 — wire the routing-audit port so a session→global PROMOTION (M9 reflect) emits a
+    // fail-soft placement-decision audit row in the deployed artifact (server + MCP + CLI).
+    routingAuditStore: new PgRoutingAuditStore(pool),
     ...(skillExecutor !== undefined ? { skillExecutor } : {}),
     // explainable-recall-read S2 (/review F-arch-1) — opt-in recall tracing write.
     // M4 governance (FX1 /review M4-R1): thread the operator-set per-workspace
