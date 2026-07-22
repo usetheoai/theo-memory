@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Security
+- Override `sharp` ^0.33.5 → ^0.35.0 (0.35.3): fecha GHSA-f88m-g3jw-g9cj (libvips CVE-2026-33327/33328/35590/35591, HIGH) — o último bloqueio do gate Trivy do publish.
 - Override transitivo `fast-uri` 3.1.2 → ^3.1.4 (via `@apidevtools/swagger-parser`→`ajv`): fecha CVE-2026-13676 + 2 HIGH que reprovavam o gate Trivy do publish (deploy-dev bloqueado).
 
 ### Fixed
