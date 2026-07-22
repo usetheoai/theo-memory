@@ -4,6 +4,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.39.0] - 2026-07-22
+
 ### Added
 - Fast unit test `scope-filters.test.ts` for `filtersFromScope` (7 cases: user/session/agent WITH userId bind the composite key; session/agent WITHOUT userId are workspace-scoped admin path; repo→agent_id; unbound workspace) — the security-critical filter shape now has contract-suite coverage, not only the env-gated integration test (M8 review F-tests-1)
 - Benchmark `benchmarks/m8-isolation-filter.bench.mjs` + results (`docs/benchmarks/m8-isolation-filter.md`): the `(workspace,user,session)` isolation filter is 0.582ms±0.078 WITH the composite index (Index Scan) vs 0.685ms±0.097 WITHOUT (Bitmap Heap Scan), 20k rows / 5 runs on real pgvector — 1.18x, and the composite index avoids the heap recheck that grows with scale (M8 T4.3)
