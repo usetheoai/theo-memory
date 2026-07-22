@@ -1058,10 +1058,27 @@ export class PgvectorStore implements VectorStore {
    */
   async persistConsolidations(
     results: readonly ConflictResolutionResult[],
+    options?: { readonly promote?: boolean },
   ): Promise<void> {
     if (results.length === 0) return;
+    const promote = options?.promote === true;
     await this.withTransaction(async (client) => {
       for (const r of results) {
+        // M9 (T2.1): promote the durable representative to GLOBAL (session_id→NULL,
+        // agent_id→NULL) in the SAME txn as the soft-delete + audit, so promotion +
+        // duplicate-decay + provenance are atomic (EC-8 rollback parity). The
+        // `session_id IS NOT NULL OR agent_id IS NOT NULL` guard makes re-runs idempotent
+        // (a concurrent/duplicate promotion updates 0 rows, never an error). workspace_id
+        // + user_id are UNTOUCHED — the promotion never crosses the (workspace, user)
+        // isolation boundary (M9 hard gate).
+        if (promote) {
+          await client.query(
+            `UPDATE memories SET session_id = NULL, agent_id = NULL
+              WHERE id = $1::uuid AND t_invalid IS NULL
+                AND (session_id IS NOT NULL OR agent_id IS NOT NULL)`,
+            [r.keptMemoryId],
+          );
+        }
         if (r.rejectedMemoryIds.length > 0) {
           await client.query(
             `UPDATE memories SET t_invalid = NOW()

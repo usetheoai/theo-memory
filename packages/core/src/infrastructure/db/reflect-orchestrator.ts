@@ -66,9 +66,10 @@ interface VectorStoreWithDerivedInsert {
 interface VectorStoreWithConsolidation {
   recallConsolidationCandidates?: (
     filters: Filters,
-  ) => Promise<readonly { memoryId: string; text: string; createdAt: Date }[]>;
+  ) => Promise<readonly { memoryId: string; text: string; createdAt: Date; confirmationCount?: number }[]>;
   persistConsolidations?: (
     results: readonly ConflictResolutionResult[],
+    options?: { readonly promote?: boolean },
   ) => Promise<void>;
 }
 
