@@ -113,3 +113,14 @@ node docs/claude-code-kit/test-merge.mjs
 It builds a fake settings.json with pre-existing hooks, runs the same `mergeHooks` the
 installer uses, and asserts: originals survive, theo hooks are added, and a second merge
 does not duplicate. Prints `PASS` / `FAIL`.
+
+## Migrating your existing Claude Code memory (M12)
+
+The kit ships the `/migrate-theo-memory` skill (installed to `~/.claude/skills/` by `install.sh`).
+In any Claude Code session, type `/migrate-theo-memory` — it dry-runs
+`themory import claude-code` (nothing written), shows you the scrub/import report, asks for your
+explicit confirmation, then commits and verifies via a live `recall`. Secrets never leave the
+machine: the same fail-closed scrub the hooks use redacts them before any write. Re-running is safe
+(idempotent — re-imports report `deduped`, never duplicate).
+
+Manual equivalent: `npx --yes @usetheo/memory import claude-code [--commit] [--source <dir>]`.
