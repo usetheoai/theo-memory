@@ -259,6 +259,102 @@ M0 (recall `graphExpand`/`asOf` in the playground) is already done.
 
 ---
 
+## M8 — [ ] Hybrid memory routing across all scopes + `global` tier
+
+> Added 2026-07-21 by `/roadmap-feature` (slug: `intelligent-memory-routing`). Grill: `knowledge-base/grills/intelligent-memory-routing-feature-grill.md`. First of the 4-milestone **agent/policy-driven memory placement & lifecycle** initiative (M8–M11).
+
+**Objective:** introduce a `MemoryRoutingPolicy` DIP that classifies every extracted fact to a target scope tier (`global` / `user` / `session` / `agent` / `repo`) via a **hybrid** decision — deterministic rules first, an LLM durability/scope signal only on ambiguity, and an explicit agent/caller override that always wins — and land a new `GlobalScope` fifth tier for durable cross-project context; the default policy preserves today's all-`user` behavior for backward-compat.
+
+**Definition of done:**
+
+- [ ] `MemoryRoutingPolicy` DIP (within ADR-0008 method-count discipline) + default `UserTierRoutingPolicy` (backward-compat: everything → `user`) + a `HybridRoutingPolicy` (rules → LLM-on-ambiguity → explicit override).
+- [ ] New `GlobalScope` fifth tier landed the way `RepoScope` was (ADR extending ADR-0002/0010); `workspace_id` stays the tenant anchor; **owner sign-off recorded** for the locked "Memory tiers" name change (CLAUDE.md amendment + strategic review).
+- [ ] Claude Code auto-hook writes route to `session` by default; an explicit MCP `remember` durable hint routes to `user`; a global-marked fact routes to `global`.
+- [ ] Every routing decision emits a typed `MEMORY_EVENTS` OTel event (Princípio 3) naming the chosen tier + the deciding signal (rule / LLM / override).
+- [ ] Integration test against real `ankane/pgvector:v0.5.1`: a hook write lands in `session`, an MCP durable write in `user`, a global write in `global` — all one workspace; the default policy still lands everything in `user`.
+
+**Dependencies:** **M6** + **M7** (the Claude Code write paths this routes). Both `[x]`, so M8 is immediately eligible.
+
+**Top risks (new):**
+
+1. **Locked-name / strategic change (HIGH).** Adding a `global` tier mutates the locked "Memory tiers: User·Session·Agent(+Repo)" contract → owner sign-off + CLAUDE.md amendment + strategic review required (same gate ADR-0010 RepoScope passed). Mitigate: land the ADR + owner sign-off BEFORE any schema/column change; ship behind the backward-compat default so nothing breaks pre-sign-off.
+2. **LLM-in-the-write-path cost/latency/nondeterminism (MEDIUM).** An LLM signal per ambiguous write adds cost + a nondeterministic label. Mitigate: rules decide the common case; LLM only on ambiguity; cache by fact-hash; deterministic override always wins; unit tests pin the rule paths.
+
+**Why now:** activating the M6/M7 integration proved every write is dumped into `user` (session/agent/repo tiers empty, their dashboard tabs empty), while `user` fills with raw per-turn blobs. Both the assistant's own native memory (semantic `type` chosen at write) and `akitaonrails/ai-memory` (agent picks `_global`/project/session, hooks auto-route) route by meaning. theo-memory already routes by `category` but never by tier — this closes that gap.
+
+---
+
+## M9 — [ ] Cross-scope consolidation & promotion (session → user → global)
+
+> Added 2026-07-21 by `/roadmap-feature` (slug: `intelligent-memory-routing`). Second of the M8–M11 initiative.
+
+**Objective:** at session boundary / `reflect`, promote scope memories that prove durable up the hierarchy — `session` → `user` when a fact recurs (confirmation_count ≥ N or LLM-judged durable), `user` → `global` when it proves cross-project — carrying provenance, and let the rest decay via the existing forgetting pipeline (no unbounded session growth).
+
+**Definition of done:**
+
+- [ ] A `ConsolidationPolicy` reusing the `reflect` / `ConflictResolutionPolicy` + triadic-eviction machinery (Rule 9) that promotes with `derivedFrom` provenance.
+- [ ] Promotion rule: `session` → `user` on confirmation_count ≥ N (N ≥ 3) OR LLM-judged durable; `user` → `global` on cross-project recurrence.
+- [ ] Non-promoted session memories decay via triadic eviction (bounded session growth, proven).
+- [ ] Integration test against real `ankane/pgvector:v0.5.1`: 3 session mentions of one fact → 1 promoted `user` memory with provenance to the 3 sources; a one-off session fact is NOT promoted and decays.
+
+**Dependencies:** **M8** (routing must place memories in scopes before consolidation can move them).
+
+**Top risks (new):**
+
+1. **Wrong promotion pollutes the durable tier (HIGH).** A false-positive "durable" judgment permanently pollutes `user`/`global`. Mitigate: conservative threshold (confirmation_count ≥ 3) + LLM confirmation + provenance so any promotion is auditable and reversible via `forget`.
+2. **Consolidation cost at scale (MEDIUM).** Scanning session scope per boundary is O(session). Mitigate: workspace-scoped, incremental (only new-since-last-consolidation), reuse the recall-cache SERIALIZABLE-retry helper.
+
+**Why now:** routing (M8) fills the ephemeral `session` tier; without promotion, durable facts captured mid-session would decay with the noise. This is the ai-memory "session observations consolidate at session-end" pattern, grounded in theo-memory Princípio 1 (confirmation_count) + the shipped eviction/reflect machinery.
+
+---
+
+## M10 — [ ] Scope-aware recall (hierarchical union + tier ranking)
+
+> Added 2026-07-21 by `/roadmap-feature` (slug: `intelligent-memory-routing`). Third of the M8–M11 initiative.
+
+**Objective:** recall unions the durable tiers (`global` + `user`) with the current `session` context under a tier-aware ranking (session recency-boosted, user/global stability-boosted), opt-in via `RecallOptions.scopes`, with the default preserving today's single-scope behavior (backward-compat).
+
+**Definition of done:**
+
+- [ ] `RecallOptions.scopes` opt-in that unions `global` + `user` + `session` (agent/repo addable); default keeps today's single-scope recall.
+- [ ] Tier-aware ranking: `session` boosted by recency, `user`/`global` by stability/confirmation — documented and deterministic given inputs.
+- [ ] Integration test against real `ankane/pgvector:v0.5.1`: a `session`-only fact surfaces in the current session's recall; a stale/decayed session fact is deprioritized/absent; a `global` fact surfaces across projects.
+
+**Dependencies:** **M8** (scopes must be populated). Independent of M9 — recall works even without auto-promotion.
+
+**Top risks (new):**
+
+1. **Cross-scope union must not break tenant isolation (HIGH / SECURITY).** Unioning tiers still has to filter by `workspace_id`. Mitigate: every scope query carries the resolved Principal's workspace; a cross-tenant union test is a hard gate.
+2. **Ranking regression hurts recall quality (MEDIUM).** A bad tier weight buries durable facts under session noise. Mitigate: benchmark recall@k before/after on a fixture set; weights configurable per-tenant.
+
+**Why now:** once memories live in distinct tiers (M8), a `user`-only recall would miss the current `session` context and the cross-project `global` context — the union + ranking is what makes multi-tier storage actually useful (ai-memory unions project + global).
+
+---
+
+## M11 — [ ] Routing governance & observability (config + audit + dashboard)
+
+> Added 2026-07-21 by `/roadmap-feature` (slug: `intelligent-memory-routing`). Fourth of the M8–M11 initiative.
+
+**Objective:** make routing operable and auditable — a per-tenant routing policy config, a full audit trail of every routing/promotion decision (Princípio 3), and a dashboard surface showing the per-tier memory distribution and the "why" behind each placement.
+
+**Definition of done:**
+
+- [ ] Per-workspace routing policy config (thresholds, LLM-on/off, default tier) with fail-closed defaults, `admin`-scoped writes.
+- [ ] Every routing + promotion decision is a queryable audit record (reuse the M4 recall-trace / governance machinery, Rule 9) naming the deciding signal.
+- [ ] Dashboard (theo-cloud): per-tier distribution + a per-memory "routed to X because Y" explainer. The cross-repo dashboard piece MAY be split like M4 (does not gate this checkbox if the REST/audit surface ships in theo-memory).
+- [ ] Integration test: a routing decision is retrievable via the audit surface, workspace-scoped (another workspace's decision returns 404 — no cross-tenant read).
+
+**Dependencies:** **M8** (routing decisions to govern) + **M9** (promotion decisions to audit). M10 optional.
+
+**Top risks (new):**
+
+1. **Cross-repo dashboard dependency (MEDIUM).** The UI lives in theo-cloud. Mitigate: ship the self-sufficient REST/audit surface in theo-memory first; the dashboard rides M5 CD (as M3/M4 did); split the checkbox per the M4 precedent.
+2. **Config surface = new misconfig/attack surface (MEDIUM).** A per-tenant policy that can disable routing could force everything into one tier. Mitigate: fail-closed defaults, `admin`-scoped config writes, audit every config change.
+
+**Why now:** routing decisions that nobody can see or tune are unmaintainable — Princípio 3 (auditability) is a core theo-memory contract, and operators need to configure and inspect placement to trust it. This is the M8–M11 initiative's operable-in-production capstone.
+
+---
+
 ## State-of-the-art references
 
 Conceptual comparison peers. `` / `` / `` are already cloned under
@@ -271,6 +367,7 @@ milestone needs line-level study.
 |  | Apache-2.0 | Reference temporal context-graph engine — the source of the 3 deltas | M0, M1, M2 |
 | | (managed) | Productized context-graph infra — validates the "graph as augmentation over a memory substrate" framing | M0, M2 |
 | (cloned) | Apache-2.0 | Our architectural base (vector + LLM extraction + hybrid retrieval) | M0 |
+| `akitaonrails/ai-memory` (not cloned) | MIT | Agent/policy-driven memory placement — explicit `_global`/project/session scopes, agent picks scope on write, hooks auto-route, session consolidation at session-end. The routing model the M8–M11 initiative adapts. | M8, M9, M10, M11 |
 
 ---
 
