@@ -422,6 +422,17 @@ export type { DefaultScope, RoutingPolicy, RoutingPolicyStore } from './dip/rout
 export { InvalidRoutingPolicy } from './errors.js';
 
 /**
+ * M11 — placement-decision audit DIP (Princípio 3) + the fail-soft write primitive.
+ */
+export {
+  InMemoryRoutingAuditStore,
+  recordRoutingDecision,
+  DEFAULT_AUDIT_LIST_LIMIT,
+  MAX_AUDIT_LIST_LIMIT,
+} from './dip/routing-audit-store.js';
+export type { Attribution, ChosenScope, RoutingAuditRecord, RoutingAuditStore } from './dip/routing-audit-store.js';
+
+/**
  * `ConflictResolutionPolicy` 9th DIP — v0.7 distillation conflict
  * resolution shapes for episodic → semantic consolidation.
  *
