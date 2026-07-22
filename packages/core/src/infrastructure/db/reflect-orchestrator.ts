@@ -15,6 +15,7 @@ import type { ConflictResolutionResult } from '../../domain/dip/conflict-resolut
 import type { RecallCacheStore } from '../../domain/dip/recall-cache-store.js';
 import type { ReflectionPolicy } from '../../domain/dip/reflection-policy.js';
 import { ReflectionNotConfigured } from '../../domain/errors.js';
+import { SESSION_TO_GLOBAL_KIND } from '../../domain/consolidation/session-to-global-policy.js';
 import { emitEvent } from '../../domain/memory-event.js';
 import type { MemoryItem } from '../../domain/memory-item.js';
 import type { ReflectOptions } from '../../domain/options.js';
@@ -71,7 +72,7 @@ interface VectorStoreWithConsolidation {
   persistConsolidations?: (
     results: readonly ConflictResolutionResult[],
     options?: { readonly promote?: boolean },
-  ) => Promise<void>;
+  ) => Promise<number>;
 }
 
 /**
@@ -146,7 +147,14 @@ export async function runReflection(
     // executeReflection so LLM-extraction failure paths don't mask the
     // consolidation's own failure modes.
     const conflictPolicy = options?.conflictResolution;
-    if (conflictPolicy !== undefined && sourceMemories.length >= 2) {
+    // F-review fix: the v0.7 distillation MERGE needs ≥2 memories to consolidate a pair, but
+    // M9 promotes each durable memory INDIVIDUALLY — a lone durable session fact (3 exact
+    // mentions dedup to ONE confirmation_count=3 row, the literal DoD scenario) MUST still
+    // promote. So the M9 policy runs with ≥1 source memory; other policies keep the ≥2 gate.
+    const isM9Promotion =
+      conflictPolicy?.kind === SESSION_TO_GLOBAL_KIND && scope.kind === 'session';
+    const minSources = isM9Promotion ? 1 : 2;
+    if (conflictPolicy !== undefined && sourceMemories.length >= minSources) {
       const storeWithConsolidate = config.vectorStore as unknown as VectorStoreWithConsolidation;
       if (
         typeof storeWithConsolidate.recallConsolidationCandidates !== 'function' ||
@@ -168,18 +176,18 @@ export async function runReflection(
       if (consolidationResults.length > 0) {
         // M9 (T3.1): the SessionToGlobalConsolidationPolicy on a session scope PROMOTES the
         // durable representative to global (session_id→NULL). Any other policy (v0.7
-        // distillation) keeps the kept row in place. The promote flag is derived from the
-        // policy kind + scope — never crosses (workspace, user) (the store guards that).
-        const promote = conflictPolicy.kind === 'session-to-global' && scope.kind === 'session';
-        await storeWithConsolidate.persistConsolidations(
+        // distillation) keeps the kept row in place. Never crosses (workspace, user) (the
+        // store's candidate scoping guards that).
+        const promotedCount = await storeWithConsolidate.persistConsolidations(
           consolidationResults,
-          promote ? { promote: true } : undefined,
+          isM9Promotion ? { promote: true } : undefined,
         );
-        if (promote) {
-          // pillar (c) — runtime observability of promotions (Princípio 3 auditability).
+        // pillar (c) — observe only ACTUAL promotions (F-arch-3: persistConsolidations returns
+        // the rows truly flipped, so an idempotent re-run reports 0, never over-counts).
+        if (isM9Promotion && promotedCount > 0) {
           emitEvent(config.tracer, 'consolidation_promoted', {
             scope_tier: scope.kind,
-            promoted_count: consolidationResults.length,
+            promoted_count: promotedCount,
           });
         }
       }

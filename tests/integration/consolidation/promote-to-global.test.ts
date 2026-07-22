@@ -109,16 +109,70 @@ if (PG_URI === undefined || PG_URI === '') {
 
     test('is idempotent — a second promote of the same kept row updates 0 rows, no error', async () => {
       const kept = await insertSessionRow('durable fact', 2, 3);
-      const result = {
-        keptMemoryId: kept,
-        rejectedMemoryIds: [] as string[],
+      const result = promoteResult(kept);
+      await store.persistConsolidations([result], { promote: true });
+      // Second run must not throw and must leave the row global (returns 0 promoted).
+      await expect(store.persistConsolidations([result], { promote: true })).resolves.toBe(0);
+      const row = await pool.query(`SELECT session_id FROM memories WHERE id = $1`, [kept]);
+      expect(row.rows[0].session_id).toBeNull();
+    });
+
+    /** A single-row promotion result (no rejects) for `keptId`. */
+    function promoteResult(keptId: string, rejectedMemoryIds: string[] = []): {
+      keptMemoryId: string;
+      rejectedMemoryIds: string[];
+      reason: string;
+      policyName: string;
+      originalEpisodeIds: string[];
+    } {
+      return {
+        keptMemoryId: keptId,
+        rejectedMemoryIds,
         reason: 'promoted',
         policyName: 'session-to-global',
-        originalEpisodeIds: [kept],
+        originalEpisodeIds: [keptId],
       };
-      await store.persistConsolidations([result], { promote: true });
-      // Second run must not throw and must leave the row global.
-      await expect(store.persistConsolidations([result], { promote: true })).resolves.toBeUndefined();
+    }
+
+    /** Count of consolidation_history audit rows for a kept id. */
+    async function auditCount(keptId: string): Promise<number> {
+      const { rows } = await pool.query<{ n: number }>(
+        `SELECT count(*)::int AS n FROM consolidation_history WHERE kept_memory_id = $1`,
+        [keptId],
+      );
+      return rows[0]!.n;
+    }
+
+    test('F-arch-3: a re-run promotes 0 rows and writes NO duplicate audit row (fidelity)', async () => {
+      const kept = await insertSessionRow('durable', 8, 3);
+      const result = promoteResult(kept);
+      const first = await store.persistConsolidations([result], { promote: true });
+      const second = await store.persistConsolidations([result], { promote: true });
+      expect(first).toBe(1); // one row actually promoted
+      expect(second).toBe(0); // re-run: nothing left to promote (idempotent)
+      expect(await auditCount(kept)).toBe(1); // exactly ONE audit row, not two (no over-report)
+    });
+
+    test('F-tests-1: a failing audit/soft-delete rolls the promotion back (EC-8 atomicity)', async () => {
+      const kept = await insertSessionRow('durable', 9, 3);
+      // An invalid-uuid rejected id makes the `ANY($1::uuid[])` soft-delete cast throw mid-txn.
+      const bad = promoteResult(kept, ['not-a-uuid']);
+      await expect(store.persistConsolidations([bad], { promote: true })).rejects.toThrow();
+      // The whole txn rolled back: the kept row is STILL session-scoped, no audit row.
+      const row = await pool.query(`SELECT session_id FROM memories WHERE id = $1`, [kept]);
+      expect(row.rows[0].session_id).toBe(SESSION);
+      expect(await auditCount(kept)).toBe(0);
+    });
+
+    test('F-tests-3: two CONCURRENT promotions of the same row flip it exactly once', async () => {
+      const kept = await insertSessionRow('durable', 10, 3);
+      const result = promoteResult(kept);
+      // Fire both in parallel; the `session_id IS NOT NULL` guard makes exactly one flip.
+      const [a, b] = await Promise.all([
+        store.persistConsolidations([result], { promote: true }),
+        store.persistConsolidations([result], { promote: true }),
+      ]);
+      expect(a + b).toBe(1); // exactly one promotion effected across the two concurrent txns
       const row = await pool.query(`SELECT session_id FROM memories WHERE id = $1`, [kept]);
       expect(row.rows[0].session_id).toBeNull();
     });

@@ -121,7 +121,24 @@ if (PG_URI === undefined || PG_URI === '') {
       expect(bRows.rows[0].n).toBe(1);
     });
 
-    test('test_non_promoted_one_off_remains_session_scoped', async () => {
+    test('test_lone_durable_fact_promotes_even_as_the_only_session_memory', async () => {
+      // The literal DoD scenario: 3 exact mentions of ONE fact dedup (composite UPSERT) to
+      // ONE row with confirmation_count=3, and it is the ONLY memory in the session. It MUST
+      // still promote — M9 promotes individual durable memories; it is NOT gated on a ≥2
+      // multi-memory cluster (that is the v0.7 distillation assumption, not M9's).
+      const lone = await seed(USER_A, 'the only durable fact', 7, 3);
+      await memory
+        .session(SESSION, USER_A)
+        .reflect({ conflictResolution: new SessionToGlobalConsolidationPolicy(3) });
+      const row = await pool.query(`SELECT session_id FROM memories WHERE id = $1`, [lone]);
+      expect(row.rows[0].session_id).toBeNull(); // promoted to global despite being alone
+    });
+
+    test('test_non_promoted_one_off_stays_session_scoped_and_untouched', async () => {
+      // F-tests-2/F-xval-3 (review — honest scope): this proves NON-INTERFERENCE — a below-
+      // threshold fact is neither promoted nor soft-deleted by M9. It does NOT re-prove the
+      // shipped triadic eviction (no capacity pressure is applied here); decay is the
+      // EvictionPolicy's own tested job, left intact by M9.
       const oneOff = await seed(USER_A, 'transient note', 4, 1);
       await seed(USER_A, 'another transient', 5, 1); // 2 rows so consolidation phase runs
       await memory
@@ -129,7 +146,30 @@ if (PG_URI === undefined || PG_URI === '') {
         .reflect({ conflictResolution: new SessionToGlobalConsolidationPolicy(3) });
       const row = await pool.query(`SELECT session_id, t_invalid FROM memories WHERE id = $1`, [oneOff]);
       expect(row.rows[0].session_id).toBe(SESSION); // NOT promoted (below threshold)
-      expect(row.rows[0].t_invalid).toBeNull(); // NOT soft-deleted — it decays via eviction
+      expect(row.rows[0].t_invalid).toBeNull(); // NOT soft-deleted by M9 (left to eviction)
+    });
+
+    test('test_three_real_remember_mentions_dedup_to_one_row_then_promote', async () => {
+      // F-tests-6 (review) — the LITERAL DoD metric: 3 exact mentions via remember() dedup
+      // (composite UPSERT, Princípio 1) to ONE row with confirmation_count=3, which then
+      // promotes. Exercises the mention→dedup→promote chain, not a pre-seeded count-3 row.
+      const fact = 'alice always uses tabs not spaces';
+      for (let i = 0; i < 3; i += 1) {
+        await memory.session(SESSION, USER_A).remember(fact, { infer: false });
+      }
+      // The 3 mentions dedup to one row at confirmation_count 3.
+      const before = await pool.query<{ id: string; confirmation_count: number }>(
+        `SELECT id, confirmation_count FROM memories WHERE user_id = $1 AND session_id = $2`,
+        [USER_A, SESSION],
+      );
+      expect(before.rowCount).toBe(1);
+      expect(before.rows[0].confirmation_count).toBe(3);
+      // Needs ≥1 source memory (the M9 guard) — the lone durable row must still promote.
+      await memory
+        .session(SESSION, USER_A)
+        .reflect({ conflictResolution: new SessionToGlobalConsolidationPolicy(3) });
+      const after = await pool.query(`SELECT session_id FROM memories WHERE id = $1`, [before.rows[0].id]);
+      expect(after.rows[0].session_id).toBeNull(); // promoted to global
     });
   });
 }
