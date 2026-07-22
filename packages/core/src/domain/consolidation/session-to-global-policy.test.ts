@@ -26,17 +26,26 @@ function candidate(id: string, confirmationCount: number): ConsolidationCandidat
 }
 
 describe('SessionToGlobalConsolidationPolicy — session→global promotion decision', () => {
-  it('test_promotes_when_confirmation_count_at_or_above_threshold', async () => {
+  it('test_promotes_only_the_durable_memory_leaving_distinct_facts_untouched', async () => {
     const policy = new SessionToGlobalConsolidationPolicy(3);
-    // A cluster of 3 cosine-similar session mentions; the representative reached count 3.
-    const cluster = [candidate('m1', 3), candidate('m2', 1), candidate('m3', 1)];
-    const results = await policy.consolidate(cluster, CTX);
+    // The scope holds a durable fact (count 3) + two UNRELATED one-off facts (count 1).
+    // Only the durable one is promoted; the one-offs are NOT rejected (they decay).
+    const scope = [candidate('m1', 3), candidate('m2', 1), candidate('m3', 1)];
+    const results = await policy.consolidate(scope, CTX);
     expect(results).toHaveLength(1);
     const r = results[0]!;
-    expect(r.keptMemoryId).toBe('m1'); // the durable representative (max confirmation_count)
-    expect([...r.rejectedMemoryIds].sort()).toEqual(['m2', 'm3']);
-    expect([...r.originalEpisodeIds].sort()).toEqual(['m1', 'm2', 'm3']);
+    expect(r.keptMemoryId).toBe('m1'); // the durable fact
+    expect(r.rejectedMemoryIds).toEqual([]); // distinct facts are NEVER rejected as duplicates
+    expect(r.originalEpisodeIds).toEqual(['m1']);
     expect(r.policyName).toBe('session-to-global');
+  });
+
+  it('test_promotes_every_durable_memory_independently', async () => {
+    const policy = new SessionToGlobalConsolidationPolicy(3);
+    const scope = [candidate('m1', 3), candidate('m2', 4), candidate('m3', 1)];
+    const results = await policy.consolidate(scope, CTX);
+    expect(results.map((r) => r.keptMemoryId).sort()).toEqual(['m1', 'm2']); // both durable ones
+    expect(results.every((r) => r.rejectedMemoryIds.length === 0)).toBe(true);
   });
 
   it('test_does_not_promote_a_one_off_below_threshold', async () => {

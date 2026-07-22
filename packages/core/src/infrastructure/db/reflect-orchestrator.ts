@@ -15,6 +15,7 @@ import type { ConflictResolutionResult } from '../../domain/dip/conflict-resolut
 import type { RecallCacheStore } from '../../domain/dip/recall-cache-store.js';
 import type { ReflectionPolicy } from '../../domain/dip/reflection-policy.js';
 import { ReflectionNotConfigured } from '../../domain/errors.js';
+import { emitEvent } from '../../domain/memory-event.js';
 import type { MemoryItem } from '../../domain/memory-item.js';
 import type { ReflectOptions } from '../../domain/options.js';
 import { executeReflection } from '../../domain/reflection/execute.js';
@@ -80,7 +81,7 @@ interface VectorStoreWithConsolidation {
  */
 export interface ReflectDeps {
   readonly reflectionPolicy: ReflectionPolicy | undefined;
-  readonly config: Pick<LocalMemoryConfig, 'vectorStore' | 'llm' | 'embedder'>;
+  readonly config: Pick<LocalMemoryConfig, 'vectorStore' | 'llm' | 'embedder' | 'tracer'>;
   readonly filters: Filters;
   readonly scope: Scope;
   readonly recallCacheStore: RecallCacheStore | undefined;
@@ -165,7 +166,22 @@ export async function runReflection(
         { scope, observationDate: new Date() },
       );
       if (consolidationResults.length > 0) {
-        await storeWithConsolidate.persistConsolidations(consolidationResults);
+        // M9 (T3.1): the SessionToGlobalConsolidationPolicy on a session scope PROMOTES the
+        // durable representative to global (session_id→NULL). Any other policy (v0.7
+        // distillation) keeps the kept row in place. The promote flag is derived from the
+        // policy kind + scope — never crosses (workspace, user) (the store guards that).
+        const promote = conflictPolicy.kind === 'session-to-global' && scope.kind === 'session';
+        await storeWithConsolidate.persistConsolidations(
+          consolidationResults,
+          promote ? { promote: true } : undefined,
+        );
+        if (promote) {
+          // pillar (c) — runtime observability of promotions (Princípio 3 auditability).
+          emitEvent(config.tracer, 'consolidation_promoted', {
+            scope_tier: scope.kind,
+            promoted_count: consolidationResults.length,
+          });
+        }
       }
     }
 
