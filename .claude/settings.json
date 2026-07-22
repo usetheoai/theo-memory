@@ -13,6 +13,7 @@
       "Read",
       "Glob",
       "Grep",
+      "Bash",
       "Bash(ls *)",
       "Bash(tree *)",
       "Bash(wc *)",
@@ -42,12 +43,6 @@
       "Bash(git switch *)"
     ],
     "ask": [
-      "Bash(curl *)",
-      "Bash(wget *)",
-      "Bash(npm *)",
-      "Bash(npx *)",
-      "Bash(pnpm *)",
-      "Bash(node *)"
     ],
     "deny": [
       "Bash(rm -rf /)",
@@ -68,9 +63,7 @@
       "Read(**/credentials*)",
       "Read(**/*secret*)",
       "Read(**/*.pem)",
-      "Read(**/*.key)",
-      "Edit(knowledge-base/references/**)",
-      "Edit(knowledge-base/tools/**)"
+      "Read(**/*.key)"
     ]
   },
   "hooks": {
