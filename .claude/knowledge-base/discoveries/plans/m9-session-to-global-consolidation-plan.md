@@ -32,8 +32,8 @@ Measurable success criteria for the blueprint:
 
 | Project | In-scope subdirectories | Reason |
 |---|---|---|
-| `.claude/knowledge-base/references/mem0/` | the memory add/update/consolidate pipeline + its tests (exact paths pending exploration) | mem0 is the closest analog for short-term → durable promotion + the ADD/UPDATE/NOOP LLM decision + provenance/history |
-| `.claude/knowledge-base/references/graphiti/` | the episode → semantic/entity consolidation + temporal invalidation + node-summary paths + its tests (exact paths pending exploration) | graphiti's episode-consolidation + supersession is the temporal-provenance analog |
+| `.claude/knowledge-base/references/mem0/` | `mem0/memory/` (add/update/consolidate pipeline), `mem0/configs/prompts.py` (the decision prompts), `tests/` | mem0 is the closest analog for short-term → durable promotion + the ADD/UPDATE/NOOP LLM decision + provenance/history |
+| `.claude/knowledge-base/references/graphiti/` | `graphiti_core/utils/maintenance/` (edge/node consolidation), `graphiti_core/graphiti.py` (ingestion), `tests/` | graphiti's episode-consolidation + temporal invalidation + node-summary is the temporal-provenance analog |
 
 ### Out-of-Scope (explicit)
 
@@ -52,7 +52,7 @@ Measurable success criteria for the blueprint:
 
 **Rationale:** M9 is grounded PRIMARILY in already-shipped internal machinery (reflect / ConflictResolutionPolicy / EvictionPolicy / confirmation_count / derivedFrom — all confirmed present in `packages/core/src/domain/`), so the external research is a lighter check on the promotion-trigger + provenance patterns; mem0's ADD/UPDATE decision is the closest analog, hence the deepest external dive.
 
-**Alternatives considered:** equal split (rejected — mem0 is the closer analog); single-project (rejected — graphiti's temporal supersession is a distinct provenance angle); no external research (rejected — the `/goal` mandates the full CYCLE with no skipped steps, and the promotion-trigger design benefits from prior art).
+**Alternatives considered:** equal split (rejected — mem0 is the closer analog); single-project (rejected — graphiti's temporal supersession is a distinct provenance angle); no external research (rejected — the `/goal` mandates the full CYCLE with no skipped steps).
 
 **Stop condition — per question:** Fase A empty after 3 retries with different query variants → mark BLOCKED "Fase A exhausted", continue. **Per project:** budget exhausted with questions pending → mark remaining BLOCKED "budget exhausted", continue; all-blocked → emit `BLUEPRINT_BLOCKED`, never `BLUEPRINT_COMPLETE`.
 
@@ -72,63 +72,33 @@ Measurable success criteria for the blueprint:
 
 **Consequences:** the blueprint's Recommendations MUST name the specific shipped DIP each borrowed pattern maps onto.
 
-## Research questions
+## Research Questions
 
-Six questions across the four corners (techniques ×3, integration-tests ×1, dependencies ×1, tools ×1). Every method path is verified to exist.
+Six questions across the four corners (techniques ×3, tests ×1, deps ×1, tools ×1). Every method path is verified to exist on disk.
 
-### Q1 — [techniques] How does mem0 decide ADD vs UPDATE vs DELETE vs NONE for an incoming fact that overlaps existing memory, and what carries provenance from the source(s) to the consolidated memory?
-
-- **Method:** Read `.claude/knowledge-base/references/mem0/mem0/configs/prompts.py:176-320` (`DEFAULT_UPDATE_MEMORY_PROMPT` — the ADD/UPDATE/DELETE/NONE decision spec) + `:406-460` (`get_update_memory_messages`, output `event` + `old_memory`) + `:464-520` (`ADDITIVE_EXTRACTION_PROMPT` with `linked_memory_ids` provenance) + `.claude/knowledge-base/references/mem0/mem0/memory/main.py:1972-2036` (`_update_memory` overwrite + history `UPDATE`).
-- **Expected answer shape:** a decision table (event → action → provenance field) + a one-paragraph mapping onto theo-memory's shipped `ConflictResolutionPolicy` (`packages/core/src/domain/dip/conflict-resolution-policy.ts:28-71`, `ConsolidationCandidate`/`ConflictResolutionResult`).
-
-### Q2 — [techniques] How does graphiti supersede an older fact when a newer episode contradicts it (temporal provenance), and how does it regenerate a node summary as facts accrue?
-
-- **Method:** Read `.claude/knowledge-base/references/graphiti/graphiti_core/utils/maintenance/edge_operations.py:325-560` (`resolve_extracted_edges` + `resolve_edge_contradictions` — invalidation) + `.claude/knowledge-base/references/graphiti/graphiti_core/graphiti.py:606-678` (`add_episode` returns `(resolved, invalidated, new)`) + `.claude/knowledge-base/references/graphiti/graphiti_core/utils/maintenance/node_operations.py:726-782` (`extract_attributes_from_nodes`, `should_summarize_node`).
-- **Expected answer shape:** the supersede-vs-duplicate rule (valid_at/invalid_at) + a note on whether promotion should carry a supersession link, mapped onto theo-memory's shipped bi-temporal `t_valid`/`t_invalid` + `derivedFrom` (`packages/core/src/infrastructure/db/reflect-orchestrator.ts:215`).
-
-### Q3 — [techniques] Is consolidation INCREMENTAL — does mem0/graphiti scan the whole scope per boundary, or only the semantically-related subset — i.e. how is the write-amplification bottleneck (M9 risk #2) avoided?
-
-- **Method:** Read `.claude/knowledge-base/references/mem0/mem0/memory/main.py:835-1040` (`_add_to_vector_store` — vector-search the RELATED memories before the update decision, not a full scan) + `.claude/knowledge-base/references/graphiti/graphiti_core/utils/maintenance/dedup_helpers.py` (deterministic normalize before LLM dedup) + `.claude/knowledge-base/references/graphiti/graphiti_core/utils/maintenance/node_operations.py:627-710` (`resolve_extracted_nodes` — semantic retrieval → deterministic → LLM).
-- **Expected answer shape:** confirmation that promotion should be scoped to the semantically-related subset of `(workspace, user)` (not a full session scan) + how this maps onto theo-memory's over-fetch recall + the recall-cache SERIALIZABLE-retry helper.
-
-### Q4 — [integration-tests] How does graphiti test episode-consolidation/invalidation against a REAL database, and which assertions prove supersession?
-
-- **Method:** Read `.claude/knowledge-base/references/graphiti/tests/helpers_test.py:24-72` (the `graph_driver` real-DB fixture + `DISABLE_*` flags) + `.claude/knowledge-base/references/graphiti/tests/test_edge_int.py` (integration assertions) + `.claude/knowledge-base/references/graphiti/docker-compose.test.yml`.
-- **Expected answer shape:** the real-DB harness pattern (fixture + env-gated driver + docker-compose) mapped onto theo-memory's `THEOMEM_PG_URI` + `createIsolatedDb` integration harness, and the exact assertion that proves a promotion kept the same `(workspace, user)` (M9 isolation hard gate).
-
-### Q5 — [dependencies] What runtime deps does mem0's consolidation require beyond the vector store + LLM (a separate history/audit store?), and what does graphiti pull in for temporal edges?
-
-- **Method:** Read `.claude/knowledge-base/references/mem0/pyproject.toml` (qdrant/chromadb + `[test]` extra) + `.claude/knowledge-base/references/mem0/mem0/memory/main.py:461` + `:1020-1040` (`SQLiteManager` history DB — the audit store) + `.claude/knowledge-base/references/graphiti/pyproject.toml`.
-- **Expected answer shape:** a dep list + a decision on whether theo-memory needs a NEW store for promotion audit (recommendation: NO — reuse the shipped `history` table + `consolidation_history` from v0.7, per Rule 9).
-
-### Q6 — [tools] How do mem0 + graphiti run their consolidation tests locally (test command + live-DB story + CI shape)?
-
-- **Method:** Read `.claude/knowledge-base/references/mem0/Makefile:42-52` (`make test` → `hatch run test`) + `.claude/knowledge-base/references/graphiti/Makefile:29` (`make test` → `uv run pytest -m "not integration"`; integration by enabling a driver) + `.claude/knowledge-base/references/graphiti/pytest.ini` (the `integration` marker).
-- **Expected answer shape:** the local + CI test-invocation pattern, mapped onto theo-memory's `npm test` (contract) + `npm run test:integration` (real pgvector) split — confirming M9's integration test runs under the existing `test:integration` gate.
+| # | Question | Corner | Reference project(s) | Method (verified path) | Expected answer shape |
+|---|---|---|---|---|---|
+| Q1 | How does mem0 decide ADD vs UPDATE vs DELETE vs NONE for an incoming fact that overlaps existing memory, and what carries provenance from the source(s) to the consolidated memory? | techniques | `.claude/knowledge-base/references/mem0/` | Read `mem0/mem0/configs/prompts.py:176-320` (`DEFAULT_UPDATE_MEMORY_PROMPT`) + `:406-460` (`get_update_memory_messages`) + `:464-520` (`ADDITIVE_EXTRACTION_PROMPT` `linked_memory_ids`) + `mem0/mem0/memory/main.py:1972-2036` (`_update_memory`) | Decision table (event → action → provenance field) + a mapping onto the shipped `ConflictResolutionPolicy` (`packages/core/src/domain/dip/conflict-resolution-policy.ts:28-71`) |
+| Q2 | How does graphiti supersede an older fact when a newer episode contradicts it (temporal provenance), and how does it regenerate a node summary as facts accrue? | techniques | `.claude/knowledge-base/references/graphiti/` | Read `graphiti/graphiti_core/utils/maintenance/edge_operations.py:325-560` (`resolve_extracted_edges` + `resolve_edge_contradictions`) + `graphiti/graphiti_core/graphiti.py:606-678` (`add_episode` returns invalidated) + `graphiti/graphiti_core/utils/maintenance/node_operations.py:726-782` (`extract_attributes_from_nodes`) | Supersede-vs-duplicate rule (valid_at/invalid_at) mapped onto the shipped bi-temporal `t_valid`/`t_invalid` + `derivedFrom` (`packages/core/src/infrastructure/db/reflect-orchestrator.ts:215`) |
+| Q3 | Is consolidation INCREMENTAL — does mem0/graphiti scan the whole scope per boundary, or only the semantically-related subset — i.e. how is the write-amplification bottleneck (M9 risk #2) avoided? | techniques | `.claude/knowledge-base/references/mem0/`, `.claude/knowledge-base/references/graphiti/` | Read `mem0/mem0/memory/main.py:835-1040` (`_add_to_vector_store` — vector-search the RELATED subset before the update decision) + `graphiti/graphiti_core/utils/maintenance/dedup_helpers.py` + `graphiti/graphiti_core/utils/maintenance/node_operations.py:627-710` (`resolve_extracted_nodes`) | Confirmation that promotion is scoped to the semantically-related subset of `(workspace, user)`, mapped onto theo-memory's over-fetch recall + recall-cache SERIALIZABLE-retry |
+| Q4 | How does graphiti test episode-consolidation/invalidation against a REAL database, and which assertions prove supersession? | tests | `.claude/knowledge-base/references/graphiti/` | Read `graphiti/tests/helpers_test.py:24-72` (the `graph_driver` real-DB fixture + `DISABLE_*` flags) + `graphiti/tests/test_edge_int.py` + `graphiti/docker-compose.test.yml` | Real-DB harness pattern mapped onto theo-memory's `THEOMEM_PG_URI` + `createIsolatedDb`, plus the assertion that proves promotion kept the same `(workspace, user)` (M9 isolation hard gate) |
+| Q5 | What runtime deps does mem0's consolidation require beyond the vector store + LLM (a separate history/audit store?), and what does graphiti pull in for temporal edges? | deps | `.claude/knowledge-base/references/mem0/`, `.claude/knowledge-base/references/graphiti/` | Read `mem0/pyproject.toml` + `mem0/mem0/memory/main.py:461,1020-1040` (`SQLiteManager` history DB) + `graphiti/pyproject.toml` | Dep list + a decision on whether theo-memory needs a NEW promotion-audit store (recommendation: NO — reuse the shipped `history` + `consolidation_history` tables, Rule 9) |
+| Q6 | How do mem0 + graphiti run their consolidation tests locally (test command + live-DB story + CI shape)? | tools | `.claude/knowledge-base/references/mem0/`, `.claude/knowledge-base/references/graphiti/` | Read `mem0/Makefile:42-52` (`make test` → `hatch run test`) + `graphiti/Makefile:29` (`make test` → `uv run pytest`) + `graphiti/pytest.ini` (the `integration` marker) | Local + CI test-invocation pattern, mapped onto theo-memory's `npm test` (contract) + `npm run test:integration` (real pgvector) split |
 
 ## Coverage Matrix
 
-100% mapping — every question → ≥ 1 verified method path. All corners covered.
-
-| # | Corner | Method (verified path) | Answer format |
-|---|---|---|---|
-| Q1 | Techniques | `mem0/mem0/configs/prompts.py:176-320,406-460,464-520` + `mem0/mem0/memory/main.py:1972-2036` | decision table + DIP mapping |
-| Q2 | Techniques | `graphiti/graphiti_core/utils/maintenance/edge_operations.py:325-560` + `graphiti/graphiti_core/graphiti.py:606-678` + `node_operations.py:726-782` | supersede rule + bi-temporal mapping |
-| Q3 | Techniques | `mem0/mem0/memory/main.py:835-1040` + `graphiti/graphiti_core/utils/maintenance/{dedup_helpers.py,node_operations.py:627-710}` | incrementality confirmation |
-| Q4 | Integration tests | `graphiti/tests/helpers_test.py:24-72` + `graphiti/tests/test_edge_int.py` + `graphiti/docker-compose.test.yml` | harness pattern + isolation assertion |
-| Q5 | Dependencies | `mem0/pyproject.toml` + `mem0/mem0/memory/main.py:461,1020-1040` + `graphiti/pyproject.toml` | dep list + reuse-vs-new-store decision |
-| Q6 | Tools | `mem0/Makefile:42-52` + `graphiti/Makefile:29` + `graphiti/pytest.ini` | test-invocation pattern |
+100% mapping — every question → ≥ 1 verified method path; all four corners covered (techniques Q1/Q2/Q3, tests Q4, deps Q5, tools Q6). No corner deferred. Every `references/` path in the table above is verified to exist on disk (checked 2026-07-22).
 
 ## Halt-loop checkpoints
 
 - Before marking a question `done`: its answer cites ≥ 1 verified `references/` path AND names the theo-memory DIP it maps onto (ADR D3).
-- Before `BLUEPRINT_COMPLETE`: all four corners populated; every citation resolves on disk; ≥ 1 ADR; the isolation-preservation technique explicitly addressed (M9 hard gate).
+- Before `BLUEPRINT_COMPLETE`: all four coverage corners populated; every citation resolves on disk; ≥ 1 ADR; the isolation-preservation technique explicitly addressed (M9 hard gate).
 
 ## Acceptance Criteria
 
 - [ ] Every research question answered OR honestly `blocked` with reason.
 - [ ] Every citation backed by a real `references/{mem0,graphiti}/` path.
-- [ ] The four-corner coverage is complete (integration-tests / deps / tools / techniques).
+- [ ] The four-corner coverage is complete (techniques / tests / deps / tools).
 - [ ] The promotion-trigger, provenance, isolation, and incrementality dimensions each have a concrete recommendation mapped onto a shipped theo-memory DIP.
 
 ## Global Definition of Done
