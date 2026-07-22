@@ -34,6 +34,13 @@ import { scrub } from './theo-scrub.mjs';
 /** Facts per HTTP request. Bounded to stay under the server MAX_BATCH_ITEMS (1000). */
 export const CHUNK_SIZE = 500;
 
+/**
+ * Serialized-body byte budget per HTTP request (issue #109). The REST server enforces a
+ * 1 MB bodyLimit (DOS guard); a count-only chunk of real-world prose exceeds it → 413.
+ * Conservative half-limit leaves headroom for JSON envelope + multi-byte characters.
+ */
+export const CHUNK_MAX_BYTES = 512 * 1024;
+
 /** Above this redacted-content ratio a node is treated as secret-dominated → SKIP (fail-closed). */
 export const SECRET_DOMINATED_RATIO = 0.4;
 
@@ -244,22 +251,60 @@ export function planMigration(sourceDir) {
 // --- BATCH IMPORT (fail-loud on any HTTP failure) --------------------------
 
 /**
- * POST the batch items to `<endpoint>/v1/remember/batch` in chunks of
- * {@link CHUNK_SIZE}. Fails LOUD — throws {@link MigrationHttpError} on an
+ * Split items into chunks bounded BOTH by count ({@link CHUNK_SIZE} / opts.chunkSize)
+ * AND serialized bytes ({@link CHUNK_MAX_BYTES}) — issue #109: a count-only chunk of
+ * real-world prose exceeds the server's 1 MB bodyLimit and the whole import 413s.
+ * A single item that alone exceeds the byte budget fails FAST with a typed error
+ * (the server would reject it anyway; silent skip would hide data loss).
+ *
+ * @param {Array<object>} items
+ * @param {number} chunkSize
+ * @param {number} maxBytes
+ * @returns {Array<Array<object>>}
+ */
+export function chunkByBytes(items, chunkSize, maxBytes) {
+  // JSON envelope: {"items":[...]} + commas between items.
+  const envelope = '{"items":[]}'.length;
+  const chunks = [];
+  let current = [];
+  let currentBytes = envelope;
+  for (const item of items) {
+    const itemBytes = Buffer.byteLength(JSON.stringify(item), 'utf8');
+    if (envelope + itemBytes > maxBytes) {
+      throw new MigrationHttpError(
+        `batch item exceeds the per-request byte budget (${itemBytes} > ${maxBytes - envelope} bytes serialized) — cannot import without server-side 413`,
+      );
+    }
+    if (current.length >= chunkSize || currentBytes + itemBytes + 1 > maxBytes) {
+      chunks.push(current);
+      current = [];
+      currentBytes = envelope;
+    }
+    current.push(item);
+    currentBytes += itemBytes + 1; // +1 for the separating comma
+  }
+  if (current.length > 0) chunks.push(current);
+  return chunks;
+}
+
+/**
+ * POST the batch items to `<endpoint>/v1/remember/batch` in chunks bounded by
+ * count ({@link CHUNK_SIZE}) AND serialized bytes ({@link CHUNK_MAX_BYTES}).
+ * Fails LOUD — throws {@link MigrationHttpError} on an
  * unreachable endpoint or any non-2xx status, never partially claims success.
  *
  * @param {Array<object>} items
- * @param {{ endpoint: string, token?: string, chunkSize?: number, fetchImpl?: typeof fetch }} opts
+ * @param {{ endpoint: string, token?: string, chunkSize?: number, maxBytes?: number, fetchImpl?: typeof fetch }} opts
  */
 export async function importBatch(items, opts) {
   const endpoint = opts.endpoint;
   const chunkSize = opts.chunkSize ?? CHUNK_SIZE;
+  const maxBytes = opts.maxBytes ?? CHUNK_MAX_BYTES;
   const doFetch = opts.fetchImpl ?? fetch;
   const url = `${endpoint.replace(/\/+$/, '')}/v1/remember/batch`;
   const totals = { imported: 0, deduped: 0, failed: 0, requests: 0 };
 
-  for (let i = 0; i < items.length; i += chunkSize) {
-    const chunk = items.slice(i, i + chunkSize);
+  for (const chunk of chunkByBytes(items, chunkSize, maxBytes)) {
     const headers = { 'content-type': 'application/json' };
     if (opts.token) headers.authorization = `Bearer ${opts.token}`;
 

@@ -4,6 +4,8 @@
  * this declaration types the seam `run-import.ts` consumes.
  */
 export declare const CHUNK_SIZE: number;
+export declare const CHUNK_MAX_BYTES: number;
+export declare function chunkByBytes(items: unknown[], chunkSize: number, maxBytes: number): unknown[][];
 export declare const SECRET_DOMINATED_RATIO: number;
 export declare const DEFAULT_ENDPOINT: string;
 export declare class MigrationHttpError extends Error {}
@@ -22,7 +24,7 @@ export declare function planMigration(sourceDir: string): {
 };
 export declare function importBatch(
   items: unknown[],
-  opts: { endpoint: string; token?: string },
+  opts: { endpoint: string; token?: string; chunkSize?: number; maxBytes?: number },
 ): Promise<{ imported: number; deduped: number; failed: number; requests: number }>;
 export declare function parseKitEnvFile(path: string): Record<string, string>;
 export declare function resolveImportEndpoint(
