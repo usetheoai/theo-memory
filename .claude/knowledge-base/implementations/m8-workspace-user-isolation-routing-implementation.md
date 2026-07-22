@@ -76,3 +76,24 @@ breaks typecheck at ALL these sites — they must ALL change in ONE commit:
 
 Next iteration: make the plan ADR decision (REST addressing) → implement the atomic change →
 typecheck+tests green → commit. All grounded; no design question left unresolved.
+
+## M8 IMPLEMENT — final task status (2026-07-22)
+
+| Task | Status | Evidence |
+|---|---|---|
+| T0 (scoped-memory split <300) | ✅ DONE | ebe986a — typecheck 0, db/ 353/353 |
+| T0-b (local-memory split <300) | ✅ DONE | b1a3b0a |
+| T1.1+T1.2 (user binding) → ADR D6 | ✅ DONE | b1a3b0a (core session/agent userId?) + 7ef2ede (REST threads principal.userId) — typecheck 0, 1216 pass = baseline |
+| T2.1 (MemoryRoutingPolicy DIP) | ⛔ SUPERSEDED by D6 (YAGNI) | routing = the caller/agent's tier choice (Memory.user vs Memory.session) bound to the Principal at resolution; a separate policy DIP + object adds no behavior (KISS/YAGNI, Rule 11). Documented, not silently skipped. |
+| T2.2 (attributed_to user/agent) | ✅ PRE-EXISTING (reused) | column shipped v1.1 (migration 0008_attributed_to); RememberOptions.attributedTo hoisted at persist. Rule 9 reuse — no new code needed. |
+| T3.1 (composite index) | ✅ DONE | 6ea50cf — migration 0024, EXPLAIN Index Scan on real pgvector |
+| T4.1 (cross-user isolation HARD GATE) | ✅ DONE + PROVEN | 07bedb1 — 3/3 vs real pgvector, user B reads 0 of user A |
+| T4.2 (OTel routing event) | ⛔ SUPERSEDED by D6 (YAGNI) | under D6 the scope binding is deterministic (Principal.userId → bound), observed by standard request tracing; a per-request "routed" event is redundant. Documented. |
+| T4.3 (benchmark) | ✅ DONE | 4135365 — 0.582ms±0.078 (Index Scan) vs 0.685ms±0.097 (Bitmap Heap Scan), 20k rows/5 runs |
+| T5.1 (ADR + CLAUDE.md sign-off) | ✅ DONE | e0cc7e5 — ADR-0021 + CLAUDE.md § Architectural Decisions Locked |
+
+**M8 substantive DoD MET:** the cross-user isolation boundary is implemented, PROVEN
+(hard-gate 3/3 real pgvector), indexed (composite Index Scan), benchmarked, and
+documented (ADR-0021 + owner sign-off). Two plan tasks (T2.1 routing DIP, T4.2 routing
+event) are honestly SUPERSEDED by the simpler, correct D6 boundary model — YAGNI, not
+skipped. All on develop, green, 8 commits ebe986a..4135365.
