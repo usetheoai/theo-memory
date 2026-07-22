@@ -27,6 +27,7 @@ import type {
 import type { Reranker } from '../../domain/dip/reranker.js';
 import type { SkillExecutor } from '../../domain/dip/skill-executor.js';
 import type { UsageCounterStore } from '../../domain/dip/usage-counter-store.js';
+import type { RoutingAuditStore } from '../../domain/dip/routing-audit-store.js';
 import type { AutoCategorizeConfig } from '../../domain/extraction/taxonomy.js';
 import type { MemoryConfig } from '../../domain/memory-store.js';
 import type { Scope } from '../../domain/scope.js';
@@ -73,6 +74,12 @@ export interface LocalMemoryConfig extends MemoryConfig {
    * their own; when absent, recall does not count (and metrics falls back to 0).
    */
   readonly usageCounterStore?: UsageCounterStore;
+  /**
+   * M11 — optional routing-audit port. When wired, a session→global PROMOTION (M9 reflect) emits a
+   * fail-soft placement-decision audit row, so `every promotion decision is a queryable audit record`
+   * (ROADMAP M11 DoD). Omitted → promotions are not audited (opt-in, no regression).
+   */
+  readonly routingAuditStore?: RoutingAuditStore;
   /**
    * agentic-skill-execution-sandbox T2.2 — opt-in `SkillExecutor` enabling
    * `Memory.skills(repoId).execute(skillId, args)`. When absent, `execute()`
