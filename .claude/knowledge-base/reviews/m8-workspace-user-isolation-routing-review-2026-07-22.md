@@ -3,7 +3,7 @@
 **Date:** 2026-07-22
 **Reviewers (spawned agents):** 6 — architecture, tests, wiring, cross-validation, domain-database, domain-testing
 **Findings:** 15 total (BLOCKER: 0, HIGH: 4, MEDIUM: 6, LOW/INFO: 5)
-**Verdict:** NEEDS_FIXES — 3 of 4 HIGH closed in-cycle; **1 HIGH open (F-xval-1, routing half of the Goal is unmet)** requires an owner decision (see § Handoff).
+**Verdict:** READY_TO_MERGE — all 4 HIGH closed (F-arch-1, F-tests-1, F-tests-2/F-xval-3, F-xval-1); MEDIUM findings fixed or deferred-with-rationale. Re-verified: typecheck 0, lint 0, full suite 1227 pass (28 pre-existing dogfood/examples baseline, zero new), isolation + routing proven on real pgvector.
 
 ## Goal under review
 
@@ -24,11 +24,13 @@ M8 has TWO deliverables: **(1) isolation** — harden `(workspace, user)` into a
 - Found by: tests, cross-validation.
 - Fix: `cross-user-rest-isolation.test.ts` proves the `(workspace,user)` boundary at the HTTP surface (two Principals; a body/path `userId` IDOR is ignored; the admin path keeps the id). Complements the SDK-level `cross-user-isolation.test.ts` (3/3 real pgvector).
 
-### F-xval-1 — the agent-chosen ROUTING half of the Goal is **NOT delivered** — **OPEN**
+### F-xval-1 — the agent-chosen ROUTING half of the Goal — **RESOLVED** (`156755f` + `8777188`)
 - Found by: cross-validation.
-- Evidence: the MCP `remember` handler binds scope via `memoryFromCtx(getScope(), …)`, which resolves **only the user tier** (theokit binding EC-8 ignores sessionId/agentId). The MCP agent therefore writes **always to global (user)** — it has no way to choose session `(workspace,user,session)`. The plan's T2.1 (`MemoryRoutingPolicy` DIP) + T4.2 (routing event) were dropped as YAGNI during implementation, but the milestone **Goal + Coverage Matrix** still list the routing deliverable, and the project owner stated it explicitly (*"o agente escolhe salvar com memória da sessão ou memória global"*).
-- Honest status: claiming "M8 substantive DoD MET" **overstates** it. Isolation is delivered+proven; routing is unmet.
-- Resolution: OWNER DECISION (see § Handoff) — this is a design fork (what identifies a "session" at the agent surface; it overrides ADR D3 "agents MUST NOT pass scope"), not a mechanical fix.
+- Original evidence: the MCP `remember` handler bound scope via `memoryFromCtx(getScope(), …)`, resolving **only the user tier** (theokit binding EC-8 ignores sessionId), so the agent wrote **always to global** — no way to choose session.
+- Resolution (owner-directed, 2 commits):
+  1. **Routing dispatch** (`156755f`) — `routeScopedMemory` + a `sessionId` argument on the MCP `remember`/`recall` tools: omit → global `(workspace,user)`; pass → session `(workspace,user,session)`. The user id is ALWAYS the auth-trusted `ScopedContext` user (never a tool arg), so the agent can only pick a session sub-partition of its OWN space. Narrows ADR D3.
+  2. **Hierarchical recall** (`8777188`, owner decision on the semantics fork) — `Filters.scopeHierarchy` makes the tiers a hierarchy: global recall = global-only (`session_id IS NULL AND agent_id IS NULL`); session recall = session ∪ global (`agent_id IS NULL AND (session_id = :s OR session_id IS NULL)`). System-wide (one contract for REST/hooks/SDK/MCP), per the owner's explicit model.
+- Proof: `tests/integration/mcp/routing.test.ts` (real pgvector — global recall excludes the session fact; session recall includes both) + `route-scoped-memory.test.ts` (3) + `scope-filters.test.ts` (7). Full suite 1227 pass, zero regressions.
 
 ## MEDIUM findings
 
@@ -52,6 +54,6 @@ M8 has TWO deliverables: **(1) isolation** — harden `(workspace, user)` into a
 - Isolation hard-gate: 3/3 real `ankane/pgvector:v0.5.1` (SDK) + 4/4 REST boundary (two Principals).
 - Composite index: EXPLAIN Index Scan on the composite key.
 
-## Handoff decision — NEEDS_FIXES
+## Handoff decision — READY_TO_MERGE
 
-The **isolation** deliverable (the security-critical core) is **DELIVERED + PROVEN** and all its review findings are closed. The **routing** deliverable (F-xval-1) is **NOT delivered** and its resolution is an owner-level design fork. M8 cannot honestly be declared complete until routing is either (b) implemented or (a) formally split into a follow-up milestone with an amended Goal/Coverage Matrix. Surfaced to the owner.
+Both M8 deliverables are DELIVERED + PROVEN: **(1) cross-user isolation** (SDK 3/3 + REST 4/4 on real pgvector; composite index Index Scan; benchmark) and **(2) agent-chosen routing** with the owner-decided **hierarchical recall** semantics (global-only / session ∪ global, system-wide; proven on real pgvector). All 4 HIGH findings closed; MEDIUM findings fixed or deferred-with-rationale (F-dom-db-2 schema.ts push-parity + F-arch-2 CONCURRENTLY, both documented). Ready for `/release` (develop → main PR, human-approved merge per Unbreakable Rule 4).

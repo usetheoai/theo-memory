@@ -39,6 +39,34 @@ Enforce the user binding at the **scope-resolution boundary**, keeping `userId` 
 - The isolation is enforced at the boundary that owns the trust anchor (the Principal), consistent with theo-data invariant 3 ("resolve a Principal, never trust the body").
 - `scope.ts:74-76`'s legacy note ("`user_id` … a partition, NOT the security boundary") is now superseded for the REST/MCP surface: the boundary binds the user, so `(workspace, user)` IS enforced for authenticated user access.
 
+## Amendment 2026-07-22 — agent-chosen routing + hierarchical scope recall (owner decision)
+
+The M8 Goal's routing half is delivered under two owner-directed decisions:
+
+1. **Agent-chosen routing (narrows ADR D3).** The MCP `remember`/`recall` tools accept an
+   optional `sessionId` argument: omit → GLOBAL `(workspace, user)`; pass → SESSION
+   `(workspace, user, session)`. The `userId`/`workspaceId` isolation anchors STAY
+   transport-bound (from the auth-trusted `ScopedContext`); only the session sub-partition
+   of the caller's OWN user space is agent-selectable. So ADR D3 ("agents MUST NOT pass
+   scope") is narrowed — a `sessionId` is now allowed, a `userId`/`workspaceId` is never.
+   Helper: `routeScopedMemory` (`packages/mcp/src/tools/route-scoped-memory.ts`).
+
+2. **Hierarchical scope recall (system-wide tier semantics).** The three tiers form a
+   HIERARCHY, via `Filters.scopeHierarchy`:
+   - User (global) recall = `session_id IS NULL AND agent_id IS NULL` (durable rows only).
+   - user-bound Session recall = `agent_id IS NULL AND (session_id = :s OR session_id IS NULL)`
+     (the session's rows UNION the user's global rows).
+   This is the owner's model (2026-07-22): inside a session the agent recalls its durable
+   global knowledge PLUS the session context, while a global recall never sees ephemeral
+   session/agent memory. Applied SYSTEM-WIDE (one contract for REST/hooks/SDK/MCP). The
+   workspace-admin path (no acting user) and the Agent/Repo tiers are unchanged.
+   Implementation note: `session_id` stays in the filter for the WRITE column derivation;
+   `scopeHierarchy` drives only the RECALL predicate (both stores skip the plain
+   session_id/agent_id equality when it is present). Proven on real pgvector
+   (`tests/integration/mcp/routing.test.ts`); full suite 1227 pass, zero regressions.
+   This interacts with the locked "Memory tiers" names — the tiers are unchanged; their
+   RECALL relationship is now hierarchical rather than disjoint (owner sign-off recorded).
+
 ## Related
 
 - Plan: `.claude/knowledge-base/plans/m8-workspace-user-isolation-routing-plan.md` (ADR D1 superseded here; D5 public-API note folded in)
