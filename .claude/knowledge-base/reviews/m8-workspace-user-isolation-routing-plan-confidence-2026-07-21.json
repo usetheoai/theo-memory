@@ -2,17 +2,17 @@
   "plan_slug": "m8-workspace-user-isolation-routing",
   "plan_path": ".claude/knowledge-base/plans/m8-workspace-user-isolation-routing-plan.md",
   "plan_version": "unknown",
-  "scored_at": "2026-07-22T02:24:11+00:00",
+  "scored_at": "2026-07-22T02:27:34+00:00",
   "completude_score": 100.0,
-  "risco_estrutural_score": 98.0,
+  "risco_estrutural_score": 96.0,
   "active_dimensions": [
     "completeness",
     "structural_risk"
   ],
   "weight_normalization_factor": 2.0,
-  "weighted_avg": 99.2,
+  "weighted_avg": 98.4,
   "hard_caps_triggered": [],
-  "final_score_after_caps": 99.2,
+  "final_score_after_caps": 98.4,
   "verdict": "SHIPPABLE",
   "reasons": {
     "completeness": [
@@ -23,7 +23,7 @@
       },
       {
         "sign": "positive",
-        "label": "ADR alternatives (4/4)",
+        "label": "ADR alternatives (5/5)",
         "weight": 20.0
       },
       {
@@ -35,8 +35,8 @@
     "evidence": [
       {
         "sign": "positive",
-        "label": "20 citations resolved",
-        "weight": 20.0
+        "label": "25 citations resolved",
+        "weight": 25.0
       }
     ],
     "calibration": [],
@@ -44,6 +44,11 @@
       {
         "sign": "negative",
         "label": "1 subjective_adjectives hits",
+        "weight": -1.0
+      },
+      {
+        "sign": "negative",
+        "label": "1 vague_pronouns hits",
         "weight": -1.0
       }
     ]
@@ -58,8 +63,8 @@
       "unmapped_gaps": []
     },
     "adr_completeness": {
-      "total_adrs": 4,
-      "with_alternatives": 4,
+      "total_adrs": 5,
+      "with_alternatives": 5,
       "completeness_ratio": 1.0,
       "missing_alternatives": []
     },
@@ -70,11 +75,12 @@
       "missing_tdd": []
     },
     "spec_smells": {
-      "total_hits": 1,
+      "total_hits": 2,
       "by_category": {
-        "subjective_adjectives": 1
+        "subjective_adjectives": 1,
+        "vague_pronouns": 1
       },
-      "total_penalty": -2
+      "total_penalty": -4
     },
     "architecture_compliance": {
       "compliance_score": 1.0,
@@ -98,18 +104,18 @@
       ]
     },
     "evidence": {
-      "total_citations": 20,
+      "total_citations": 25,
       "unresolved_citations": []
     },
     "criterion_executability": {
-      "total_criteria": 21,
+      "total_criteria": 24,
       "vague_count": 0,
       "weak_count": 2,
       "acceptable_count": 0,
-      "executable_count": 19,
+      "executable_count": 22,
       "vague_ratio": 0.0,
-      "acceptable_ratio": 0.905,
-      "executable_ratio": 0.905,
+      "acceptable_ratio": 0.917,
+      "executable_ratio": 0.917,
       "soft_cap_triggered": false,
       "vague_criteria_sample": []
     },
@@ -141,8 +147,8 @@
         "non-blocking",
         "Concurrency"
       ],
-      "tasks_with_concurrency_subsection": 8,
-      "tasks_with_acceptable_test_or_escape": 8,
+      "tasks_with_concurrency_subsection": 9,
+      "tasks_with_acceptable_test_or_escape": 9,
       "tasks_failing": [],
       "is_complete": true,
       "reasons": []

@@ -82,6 +82,14 @@ Ship the `(workspace, user)` isolation boundary + agent-chosen routing with back
 
 **Rationale:** Rule 9 (don't reinvent — the column exists) + blueprint D2 (attribution orthogonal, mem0 `main.py:308-311`). **Rejected alternative:** a new `authored_by` column (rejected — redundant).
 
+### D5 — Public `Memory.session(id)` / `Memory.agent(id)` API migration (surfaced at implement-time)
+
+**Decision:** `Memory.session(sessionId)` and `Memory.agent(agentId)` (`local-memory.ts:108,121`) gain a required `userId` — the public shape becomes `Memory.session(userId, sessionId)` / `Memory.agent(userId, agentId)` (pre-release breaking change, acceptable while Status is `Pre-release`). Internal scope-reconstruction sites that rebuild a scope from a stored row/filters (`pipeline-helpers.ts:117,120`, `scope-candidate.ts:55,57`, `retrieval/pipeline.ts:94,97`, `scoped-memory.ts:174,177`) carry the row's `user_id` into the reconstructed scope.
+
+**Rationale:** making `userId` mandatory (D1) is not a mechanical typecheck fix — it changes the PUBLIC API surface (`Memory.session(id)` takes only an id today, with no user binding). Discovered when enumerating callers at implement-start (cycle-implement: return-to-plan on a plan gap, do NOT pivot mid-implement). A session/agent that belongs to no user contradicts the `(workspace, user)` isolation model. **Rejected alternative:** keep `Memory.session(id)` and inject the workspace's single user (rejected — there is no single user in a multi-user tenant; that IS the leak).
+
+**Consequences:** T1.2 (new) migrates the public API + the 6 reconstruction sites; the scope-reconstruction sites depend on the row carrying `user_id` (it does — the column exists).
+
 ### D4 — Pre-M8 NULL-user session rows: honest no-backfill, forward-only
 
 **Decision:** existing `session_id`-only rows with NULL `user_id` are NOT retroactively rewritten; the composite filter treats them as unreachable by a `(workspace, user, session)` query (they are legacy, pre-multi-user). Documented, not silently dropped.
@@ -144,6 +152,44 @@ The 5 SessionScope/AgentScope consumers (Baseline § Current callers) must pass 
 - `toFilters({kind:'session',userId:'u',sessionId:'s'},'w')` returns exactly `{workspace_id:'w',user_id:'u',session_id:'s'}` (assert deep-equal in `scope.test.ts`).
 - `grep -c 'user_id' scoped-memory.ts toFilters` shows `user_id` present in 100% of session/agent branches (0 branches omit it).
 - `npm run typecheck` exits 0 with all 5 SessionScope/AgentScope callers updated (0 type errors).
+
+#### DoD
+`npm run test` green; `npm run typecheck` clean.
+
+### T1.2 — Migrate the public `Memory.session`/`Memory.agent` API + the 6 scope-reconstruction sites
+
+#### Objective
+`Memory.session(userId, sessionId)` / `Memory.agent(userId, agentId)` require a `userId`; every internal site that rebuilds a scope from a row/filters carries the row's `user_id`.
+
+#### Why this step (action + reasoning)
+Action: change `local-memory.ts:108,121` signatures to take `userId` first; update `pipeline-helpers.ts:117,120`, `scope-candidate.ts:55,57`, `retrieval/pipeline.ts:94,97`, `scoped-memory.ts:174,177` to read `user_id` from the row/filters into the reconstructed scope.
+Reasoning: per ADR D5 — D1's mandatory `userId` is a public-API break, not a mechanical fix; a session/agent must belong to a user in the `(workspace, user)` model.
+
+#### Evidence
+`local-memory.ts:108` `{ kind: 'session', sessionId }` (no userId — the public API gap); 6 reconstruction sites enumerated in D5.
+
+#### Files to edit
+- `packages/core/src/infrastructure/db/local-memory.ts` — public `session`/`agent` signatures
+- `packages/core/src/domain/extraction/pipeline-helpers.ts` — carry `filters.user_id`
+- `packages/core/src/infrastructure/db/eviction/scope-candidate.ts` — carry `row.user_id`
+- `packages/core/src/domain/retrieval/pipeline.ts` — carry `filters.user_id`
+- `packages/core/src/infrastructure/db/scoped-memory.ts` — carry `user_id` in reconstruction (`:174,177`)
+
+#### Deep file dependency analysis
+The reconstruction sites already receive a row/filters that carries `user_id` (the column exists); they currently DROP it when rebuilding the scope. This task threads it through.
+
+#### TDD
+- RED: `local-memory-scope-api.test.ts` — `test_memory_session_requires_user_id`: `Memory.session('u','s')` produces a scope whose `filtersFromScope` yields `{workspace_id, user_id:'u', session_id:'s'}`; calling `Memory.session('s')` (old 1-arg form) is a type error.
+- GREEN: add the required `userId` parameter + thread it in the 6 sites.
+- REFACTOR: none.
+
+#### Concurrency tests
+(none — single-threaded)
+
+#### Acceptance Criteria
+- `Memory.session('u','s')` yields a scope that `filtersFromScope` maps to `{workspace_id,user_id:'u',session_id:'s'}` (assert deep-equal).
+- `grep -c "kind: 'session', sessionId }" packages/core/src` returns 0 (no reconstruction site drops `user_id`) — assert count 0.
+- `npm run typecheck` exits 0 (all `Memory.session`/`Memory.agent` call sites migrated).
 
 #### DoD
 `npm run test` green; `npm run typecheck` clean.
@@ -379,6 +425,7 @@ Reasoning: the locked "Memory tiers" name + optional-userId contract require own
 | Requirement (from Goal + M8 DoD) | Task(s) |
 |---|---|
 | `user_id` mandatory in Session/Agent; filter by full composite key | T1.1 |
+| Public `Memory.session`/`Memory.agent` API migration + 6 reconstruction sites (D5) | T1.2 |
 | MemoryRoutingPolicy DIP; agent chooses global vs session | T2.1 |
 | `attributed_to` = user\|agent orthogonal | T2.2 |
 | Composite `(workspace_id, user_id, session_id)` index | T3.1 |
