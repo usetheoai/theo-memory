@@ -311,6 +311,12 @@ export interface GetAllOptions {
   /** Default `100`. Upper bound on listed memories. */
   readonly topK?: number;
 
+  /**
+   * SQL-level page offset under the deterministic `created_at DESC, id ASC`
+   * order (dashboard pager 2026-07-22). Default `0`.
+   */
+  readonly offset?: number;
+
   /** Raw filter access for advanced consumers (admin paths, debugging). Most consumers use ScopedMemory.getAll which derives Filters from the scope. */
   readonly filters?: Filters;
 

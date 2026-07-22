@@ -267,6 +267,7 @@ export class InMemoryVectorStore implements VectorStore {
     filters?: Filters,
     topK = 100,
     _includeSoftDeleted = false,
+    offset = 0,
   ): Promise<readonly [readonly VectorStoreResult[], number]> {
     // InMemoryVectorStore hard-deletes (delete() removes the row), so it holds no
     // soft-deleted state — `includeSoftDeleted` is a no-op here. The param exists
@@ -301,7 +302,7 @@ export class InMemoryVectorStore implements VectorStore {
       return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
     });
     await Promise.resolve();
-    return [matching.slice(0, topK), matching.length];
+    return [matching.slice(offset, offset + topK), matching.length];
   }
 
   /**
