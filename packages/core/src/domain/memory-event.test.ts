@@ -8,8 +8,8 @@ import { MEMORY_EVENTS, emitEvent } from './memory-event.js';
 import type { MemoryEvent } from './memory-event.js';
 
 describe('MEMORY_EVENTS', () => {
-  test('has 42 values (41 prior + consolidation_promoted, M9 T3.1)', () => {
-    expect(MEMORY_EVENTS).toHaveLength(44);
+  test('has 45 values (44 prior + entity_gc_collected, #110)', () => {
+    expect(MEMORY_EVENTS).toHaveLength(45);
   });
 
   test('includes category_auto_assigned + category_auto_dropped (auto-categorization, Princípio 3)', () => {
