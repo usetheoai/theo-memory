@@ -4,6 +4,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-07-22
+
+### Fixed
+- M12 review fix-cycle (from the 2-agent `/review` of the M12 diff):
+  - **F-arch-1 (BLOCKER) — the documented invocation was unreachable for kit users.** SKILL.md/README/RUNBOOK prescribed `npx --yes @usetheo/memory import claude-code`, but the package ships NO npm bin (Docker-only topology, ADR D2-a of `complete-workspace-publish-topology`) — the skill's primary path would fail on every kit machine. Fixed structurally: `install.sh` now SHIPS the migrator engine to `~/.claude/hooks/migrate-claude-code.mjs` (same channel as the hooks; 7 files copied) and the primary invocation everywhere is `node ~/.claude/hooks/migrate-claude-code.mjs` (checkout `dist/agent-tools/cli.js import claude-code` and Docker `-v ~/.claude:/root/.claude` as alternatives). A THIRD byte-parity sentinel (engine canonical ↔ kit copy) joins the scrub pair so the shipped copy can never diverge silently.
+  - **F-arch-2/F-arch-5 — D2 resolution moved INSIDE the engine** (`parseKitEnvFile` + `resolveImportEndpoint` exported): the kit-shipped standalone path is zero-config (reads `~/.claude/theo-memory.env` itself, strips surrounding quotes — theo-lib parity), and `run-import.ts` becomes a pure flag→argv mapper that mutates no global state.
+  - **SEC-05 — `metadata.type`/`file` now pass through the scrub** in `nodeToBatchItem` (body was scrubbed; frontmatter-derived fields were not).
+  - **F-tests-1/F-arch-4 — dist-boot sentinel** (`tests/integration/import/cli-dist-import-boot.test.ts`): env-free `node dist/agent-tools/cli.js import claude-code --help` exits 0 + a dist dry-run against a temp `--source` reports without dialing — pins the `postbuild:copy-import` step.
+  - **F-tests-3 — THE GOAL TEST now drives the shipped CLI layer**: both commits route through `main(['--commit','--source',…])` (endpoint via `THEOMEM_MIGRATE_URL`), not the engine internals.
+  - Locked-names sentinel extended (+`import`, `claude-code`); installer test asserts the engine copy lands.
+
+### Added
+- M12 (T2.1+T3.1+T3.2): `/migrate-theo-memory` kit skill (orchestrates the CLI: dry-run → report → explicit confirmation → `--commit` → recall verification; NEVER re-implements the pipeline) + `install.sh` now copies kit `skills/` to `~/.claude/skills/`. THE GOAL TEST on real `ankane/pgvector`: a 3-node Claude-Code-shaped source imports with the secret-bearing node stored REDACTED (the secret never reaches the DB) and a re-run is fully idempotent (`deduped==3`, `imported==0`, row count unchanged). `themory` CLI locked names amended (+`import claude-code`); RUNBOOK + kit README document the flow.
+
+
+- M12 (T1.1+T1.2): `themory import claude-code` — the Claude-Code-memory migrator is now a SHIPPED CLI subcommand (engine moved to `packages/cli/src/import/migrate-claude-code.mjs`; `scripts/migrate-claude-code-memory.mjs` stays as a back-compat re-export shim). Dry-run default, `--commit`, `--source`; endpoint/token resolved `THEOMEM_MIGRATE_*` → `THEOMEM_MEMORY_*` env → `~/.claude/theo-memory.env` (the kit file — zero-config on kit machines) → default. The scrub is now CANONICAL in the package (`packages/cli/src/import/theo-scrub.mjs`) with a byte-parity sentinel test failing CI on any divergence from the kit copy (M6-SEC-01). Build ships the `.mjs` engine into `dist/agent-tools/import/`. Unit: 24 green (env precedence 5, parity+behavior 2, migrator suite 17 via the shim).
+
+
+- Roadmap amended: added M12 `themory import claude-code` — productize the Claude Code memory migration as a CLI subcommand + `/migrate-theo-memory` kit skill (`/roadmap-feature themory-import-cli`)
+
 ## [0.40.0] - 2026-07-22
 
 ### Fixed
