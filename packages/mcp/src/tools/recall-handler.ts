@@ -13,9 +13,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
 import type { MemoryItemWithScore } from '@usetheo/memory/contract';
 import type { Memory } from '@usetheo/memory/contract';
-import { memoryFromCtx } from '@usetheo/memory/theokit';
-import { getScope } from '@usetheo/memory-agent-core';
-import { workspaceScopedMemory } from './workspace-scoped-memory.js';
+import { routeScopedMemory } from './route-scoped-memory.js';
 
 import { INPUT_SCHEMA, TOOL_NAME } from './recall-schema.js';
 
@@ -37,7 +35,9 @@ export async function recallHandler(
   deps: { memoryFactory: () => Memory },
 ): Promise<CallToolResult> {
   const parsed = INPUT_SCHEMA.parse(args);
-  const scoped = memoryFromCtx(getScope(), workspaceScopedMemory(deps.memoryFactory()));
+  // M8 routing (ADR D6): search GLOBAL (no sessionId) vs SESSION (sessionId), always
+  // under the auth-trusted context user.
+  const scoped = routeScopedMemory(deps.memoryFactory(), parsed.sessionId);
   // M0 — parity with REST: graph-aware + point-in-time. Reconstruct graphExpand with
   // per-key conditional spread so no `| undefined` leaks (exactOptionalPropertyTypes);
   // spread-when-present keeps the call byte-unchanged when omitted. The temporal
