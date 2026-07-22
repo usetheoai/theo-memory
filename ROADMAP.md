@@ -343,7 +343,7 @@ M0 (recall `graphExpand`/`asOf` in the playground) is already done.
 
 ---
 
-## M11 — [ ] Routing governance & observability (per-`(workspace,user)` config + audit + dashboard)
+## M11 — [x] Routing governance & observability (per-`(workspace,user)` config + audit + dashboard)
 
 > Added 2026-07-21 by `/roadmap-feature` (slug: `intelligent-memory-routing`). Fourth of the M8–M11 initiative. Uses the § shared isolation model in M8.
 
