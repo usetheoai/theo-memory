@@ -4,6 +4,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- M9 (session→global consolidation, T1.1): `SessionToGlobalConsolidationPolicy` — a `ConflictResolutionPolicy` impl (reuses the shipped DIP) that decides promotion of a durable session cluster (representative's `confirmation_count ≥ threshold`, default 3, grounded in Princípio 1 — NOT a copied reference pattern) to the user's global scope. Pure decision (no I/O); keeps the durable representative, rejects the cluster duplicates, carries `originalEpisodeIds` lineage. Exported from `@usetheo/memory/contract`. `ConsolidationCandidate` gains an OPTIONAL `confirmationCount` (backward-compatible; the v0.7 distillation policies ignore it). Persistence (`session_id→NULL`) + reflect-boundary wiring land in T2/T3.
+
 ## [0.39.0] - 2026-07-22
 
 ### Added
