@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Changed
+- **Graph entity extraction — global-grade redesign, Phase A (blueprint `multilingual-entity-extraction`, #111).** Deep research (mem0 clone `9383e9a` + graphiti/Zep + web SOTA: Zep arXiv:2501.13956, mem0 arXiv:2504.19413, GraphRAG, GLiNER) estabeleceu: (a) a extração LLM-primary multilingual já existe (Phase 2 emite `entities+relations` no idioma do input); (b) o mem0 upstream NÃO roda extração de entidades em `infer=False` — a divergência de 2026-06-20 ligou o heurístico English-only no caminho verbatim e causou os 83% de ruído. **D1: `runInferFalsePath` não faz mais extração inline de entidades** (paridade mem0; RED-GREEN em `pipeline-helpers.test.ts`); o grafo de memórias verbatim/importadas virá do backfill LLM em batch (blueprint D2, próximo milestone). **D6: `CompromiseEntityExtractor` rebaixado a fallback EN-only endurecido** — strip de marcadores de scrub, QUOTED ≤6 palavras, gate de idioma via `eld` (texto não-EN pula os caminhos `nouns()`; capital solitário inicial descartado por POSIÇÃO, zero listas por idioma). Splits pelo budget de 300 linhas: `english-word-lists.ts`, `infer-false-path.ts`.
+
+### Changed
 - CI: `concurrency` groups on `publish.yml` (group per ref; develop pushes supersede the in-flight run — a cancelled predecessor always has a successor deploy; tag runs never auto-cancelled) and `security-sast.yml` (mirrors `integration.yml`). Single self-hosted runner stops piling up redundant runs.
 
 ### Fixed
