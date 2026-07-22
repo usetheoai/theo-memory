@@ -10,10 +10,16 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest'
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 
-import { PgRoutingPolicyStore, PgRoutingAuditStore, FAILCLOSED_DEFAULT_POLICY } from '@usetheo/memory';
-import type { RoutingAuditRecord } from '@usetheo/memory/contract';
+import { PgRoutingPolicyStore, PgRoutingAuditStore, FAILCLOSED_DEFAULT_POLICY, createLocalMemory, PgvectorStore, StubEmbedder } from '@usetheo/memory';
+import type { LLM, Message, RoutingAuditRecord } from '@usetheo/memory/contract';
+import { createServer } from '@usetheo/memory-api';
 
 import { createIsolatedDb } from '../_helpers/isolated-db.js';
+
+const emptyLlm: LLM = {
+  generateResponse: () => Promise.resolve([]),
+  generateChat: (_m: readonly Message[]) => Promise.resolve({ role: 'assistant' as const, content: '[]' }),
+};
 
 const PG_URI = process.env['THEOMEM_PG_URI'];
 
@@ -90,6 +96,30 @@ if (PG_URI === undefined || PG_URI === '') {
       const USER_C = `carol-${randomUUID()}`;
       await expect(policies.get(WS, USER_C)).resolves.toEqual(FAILCLOSED_DEFAULT_POLICY);
       await expect(audit.list(WS, USER_C)).resolves.toEqual([]);
+    });
+
+    test('test_rest_remember_audits_its_routing_decision', async () => {
+      // Wiring pillar (b): a real POST /v1/remember records a routing-decision audit row (fail-soft,
+      // opt-in). A `userId`-tier write → chosenScope 'global'; retrievable via the audit surface.
+      const memory = await createLocalMemory({
+        vectorStore: new PgvectorStore(pool),
+        embedder: new StubEmbedder(),
+        llm: emptyLlm,
+      });
+      const app = createServer({ memory, routingAuditStore: audit });
+      const user = `dave-${randomUUID()}`;
+      const res = await app.fetch(
+        new Request('http://localhost/v1/remember', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ userId: user, text: 'dave fact', infer: false }),
+        }),
+      );
+      expect(res.status).toBe(201);
+      const rows = await audit.list(WS, user);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ chosenScope: 'global', userId: user });
+      await memory.dispose();
     });
   });
 }
