@@ -781,6 +781,7 @@ export class PgvectorStore implements VectorStore {
     filters?: Filters,
     topK = 100,
     includeSoftDeleted = false,
+    offset = 0,
   ): Promise<readonly [readonly VectorStoreResult[], number]> {
     const filter = composeFilters(filters, 1);
     // Live-only by default: exclude soft-deleted rows (t_invalid IS NOT NULL),
@@ -806,9 +807,9 @@ export class PgvectorStore implements VectorStore {
       FROM memories
       WHERE ${liveClause}${filter.sql}
       ORDER BY created_at DESC, id ASC
-      LIMIT $${filter.nextParamIndex}
+      LIMIT $${filter.nextParamIndex} OFFSET $${filter.nextParamIndex + 1}
     `;
-    const pageResult = await this.pool.query<MemoriesRow>(pageSql, [...filter.params, topK]);
+    const pageResult = await this.pool.query<MemoriesRow>(pageSql, [...filter.params, topK, offset]);
     return [pageResult.rows.map(rowToResult), total];
   }
 
