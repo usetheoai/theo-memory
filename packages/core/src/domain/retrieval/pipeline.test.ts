@@ -255,4 +255,19 @@ describe('runRetrievalPipeline M10 scope-aware reweight', () => {
       }),
     ).rejects.toThrow(InvalidScope);
   });
+
+  // T3.2 — the reweight is a `{...item, score}` spread, so every orthogonal field (attributed_to)
+  // survives it. ROADMAP M10 DoD: attribution (user/agent) surfaced on each result.
+  test('test_attribution_survives_scope_reweight — attributedTo is carried through the reweight', async () => {
+    const withAttr: VectorStoreResult[] = [
+      { id: 'a', score: 0.8, payload: { text: 'a', session_id: 's', created_at: newIso, attributed_to: 'agent' } },
+    ];
+    const deps: RetrievalDeps = { vectorStore: vectorStoreReturning(withAttr), embedder };
+    const out = await runRetrievalPipeline('q', FILTERS, deps, {
+      threshold: 0.1,
+      topK: 10,
+      scopes: { sessionRecencyWeight: 0.5 },
+    });
+    expect(out[0]?.attributedTo).toBe('agent');
+  });
 });
