@@ -29,6 +29,15 @@ export interface ConsolidationCandidate {
   readonly memoryId: string;
   readonly text: string;
   readonly createdAt: Date;
+  /**
+   * M9 (session→global consolidation): the memory's `confirmation_count` — the
+   * durability signal (Princípio 1) the `SessionToGlobalConsolidationPolicy` reads to
+   * decide promotion. OPTIONAL + backward-compatible: the v0.7 distillation policies
+   * (Noop / LastWriteWins / LlmJudgedMerge) do not read it, so existing callers that
+   * omit it are unaffected. Populated by the reflect-orchestrator from the row's
+   * `confirmationCount` when building the M9 candidate cluster.
+   */
+  readonly confirmationCount?: number;
 }
 
 /**
