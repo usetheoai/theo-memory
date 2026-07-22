@@ -9,9 +9,12 @@
  * Valid-JSON-empty-array success path (EC-13): when LLM returns `[]`, treated
  * as success — "no consolidation possible". NOT an error.
  *
- * Context-window overflow (EC-18): NOT handled in v0.4a; see
- * F-reflect-context-window-fallback in the plan Followups table.
- *
+ * Context-window overflow (EC-18) — CLOSED by #112: sourceMemories are BATCHED
+ * (count + serialized chars, the same discipline as the #109 import chunking),
+ * one LLM call per batch, drafts concatenated. A 441-memory live scope built ONE
+ * prompt and the response truncated → "response is not valid JSON" → dashboard 502.
+ * Cross-batch consolidation opportunities are deliberately forfeited per batch —
+ * per-batch consolidation is still valid, and repeated reflect runs converge.
  */
 import { ReflectionLLMResponseError } from '../errors.js';
 import type { Role } from '../message.js';
@@ -22,6 +25,51 @@ import type {
   ReflectionExecuteContext,
 } from './types.js';
 
+/**
+ * Max source memories per reflection LLM call (#112). Bounds BOTH the prompt size
+ * and — critically — the RESPONSE size (drafts scale with input; a truncated
+ * response is unparseable). 40 keeps a worst-case call well inside 4o-mini-class
+ * context and response limits.
+ */
+export const REFLECTION_BATCH_MAX_ITEMS = 40;
+
+/**
+ * Serialized-char budget for the memory lines of one reflection prompt (#112).
+ * ~48K chars ≈ 12-16K tokens of input — conservative for 4o-mini-class models,
+ * leaving ample headroom for the instruction header and the JSON response.
+ */
+export const REFLECTION_BATCH_MAX_CHARS = 48_000;
+
+/** Split source memories into batches bounded by count AND serialized chars. */
+function batchSourceMemories(
+  source: ReflectionExecuteContext['sourceMemories'],
+): ReflectionExecuteContext['sourceMemories'][] {
+  const batches: ReflectionExecuteContext['sourceMemories'][] = [];
+  let current: (typeof source)[number][] = [];
+  let chars = 0;
+  for (const mem of source) {
+    const memChars = mem.text.length + mem.id.length + 8; // id + separators per prompt line
+    if (current.length > 0 && (current.length >= REFLECTION_BATCH_MAX_ITEMS || chars + memChars > REFLECTION_BATCH_MAX_CHARS)) {
+      batches.push(current);
+      current = [];
+      chars = 0;
+    }
+    current.push(mem);
+    chars += memChars;
+  }
+  if (current.length > 0) batches.push(current);
+  return batches;
+}
+
+/**
+ * Strip a single wrapping markdown code fence (```json ... ``` or ``` ... ```).
+ * Models routinely fence JSON output; the content inside is what parses (#112).
+ */
+function stripCodeFence(raw: string): string {
+  const m = /^\s*```(?:json)?\s*\n?([\s\S]*?)\n?\s*```\s*$/.exec(raw);
+  return m?.[1] ?? raw;
+}
+
 interface RawDraftCandidate {
   text?: unknown;
   derived_from?: unknown;
@@ -30,7 +78,7 @@ interface RawDraftCandidate {
 function parseDraftsResponse(raw: string): DerivedMemoryDraft[] {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(raw);
+    parsed = JSON.parse(stripCodeFence(raw));
   } catch (err) {
     throw new ReflectionLLMResponseError(raw, 'response is not valid JSON', { cause: err });
   }
@@ -83,12 +131,16 @@ export async function executeReflection(
     return [];
   }
 
-  const promptText = buildReflectionPrompt(ctx.scope, ctx.sourceMemories);
   const SYSTEM_ROLE: Role = 'system';
-  const response = await ctx.llm.generateChat([
-    { role: SYSTEM_ROLE, content: promptText },
-  ]);
-
-  // EC-13: LLM returning '[]' is success (no consolidation possible)
-  return parseDraftsResponse(response.content);
+  const drafts: DerivedMemoryDraft[] = [];
+  // #112: one LLM call per bounded batch — never one prompt for the whole scope.
+  for (const batch of batchSourceMemories(ctx.sourceMemories)) {
+    const promptText = buildReflectionPrompt(ctx.scope, batch);
+    const response = await ctx.llm.generateChat([
+      { role: SYSTEM_ROLE, content: promptText },
+    ]);
+    // EC-13: LLM returning '[]' is success (no consolidation possible)
+    drafts.push(...parseDraftsResponse(response.content));
+  }
+  return drafts;
 }
