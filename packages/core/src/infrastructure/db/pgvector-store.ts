@@ -127,6 +127,13 @@ export function rowToResult(row: MemoriesRow): VectorStoreResult {
   if (row.confirmation_count !== undefined && row.confirmation_count !== null) {
     payload['confirmation_count'] = row.confirmation_count;
   }
+  // M10 T1.1 — project created_at into payload (dual-pathway, mirroring confirmation_count)
+  // so recall()'s wrap pipeline can hoist the REAL age into MemoryItemWithScore.createdAt
+  // (the recency signal the scope-aware reweight reads). Stored as an ISO string in the
+  // primitive-only payload contract; the pipeline parses it back to a Date.
+  if (row.created_at != null) {
+    payload['created_at'] = row.created_at.toISOString();
+  }
   const score = row.distance !== undefined ? 1 - row.distance : row.rank;
   // dashboard-memories-tab-standardization T2.1 — null-safe createdAt projection.
   // EC-1: NULL → undefined (NOT new Date(0) which would silently lie 1970-01-01).
@@ -513,7 +520,10 @@ export class PgvectorStore implements VectorStore {
     const filter = composeFilters(filters, temporal.nextParamIndex);
     const cols =
       'id, text, hash, payload, user_id, session_id, agent_id, attributed_to, category, ' +
-      'kind, code, description, code_language, derived_from, superseded_by, confirmation_count';
+      // M10 T1.1: project created_at so the recalled row carries its REAL age (rowToResult maps
+      // it) — the recency signal the scope-aware reweight reads. Without it the pipeline
+      // hardcoded createdAt=now and a recency boost was a no-op.
+      'kind, code, description, code_language, derived_from, superseded_by, confirmation_count, created_at';
     // EG-6 (recall-scoped-exact-search): a SELECTIVE (scope-filtered) recall must
     // NOT be starved by the HNSW global-top-`ef_search`-then-filter behavior of
     // pgvector 0.5.1 (a sparse scope whose rows are not among the global nearest

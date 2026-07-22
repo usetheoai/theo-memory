@@ -523,13 +523,21 @@ export async function runRetrievalPipeline(
     // surface Princípio 1 confirmação signal.
     const confirmationCountRaw = row.payload['confirmation_count'];
     const confirmationCount = typeof confirmationCountRaw === 'number' ? confirmationCountRaw : undefined;
+    // M10 T1.1 — hoist the REAL created_at (rowToResult projects it into payload as an ISO
+    // string) so the recency signal is available to the scope-aware reweight; fall back to
+    // `now` only when the projection is absent (legacy/stale-impl rows) — never silently lie.
+    const createdAtRaw = row.payload['created_at'];
+    const parsedCreatedAt =
+      typeof createdAtRaw === 'string' && !Number.isNaN(Date.parse(createdAtRaw))
+        ? new Date(createdAtRaw)
+        : now;
     return {
       id: row.id,
       text: String(row.payload['text'] ?? ''),
       hash: String(row.payload['hash'] ?? row.id),
       scope,
-      createdAt: now,
-      updatedAt: now,
+      createdAt: parsedCreatedAt,
+      updatedAt: parsedCreatedAt,
       metadata: { ...row.payload },
       tValid: now,
       tInvalid: null,
