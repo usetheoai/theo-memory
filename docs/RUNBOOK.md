@@ -260,3 +260,18 @@ The `kept_memory_id ON DELETE SET NULL` FK (EC-3) was designed precisely so `for
 - Edge cases: `.claude/knowledge-base/reviews/v0-7-distillation-pipeline-edge-cases-2026-06-01.md § EC-3 + EC-9`
 - Repair script: `scripts/db-repair-v0-7-partial-state.mjs`
 - Precedent: v0.4b-fixes `T11.1a` rollback runbook + `T11.1b` repair script
+
+## Importing Claude Code file-based memory (M12)
+
+```bash
+# dry-run (default — writes nothing; prints scanned/would-import/redacted/skipped)
+node ~/.claude/hooks/migrate-claude-code.mjs   # kit machines (installer ships the engine)
+# commit (endpoint/token resolve from THEOMEM_MIGRATE_* / THEOMEM_MEMORY_* env or ~/.claude/theo-memory.env)
+node ~/.claude/hooks/migrate-claude-code.mjs --commit [--source <dir>]   # kit machines
+# from a checkout: node dist/agent-tools/cli.js import claude-code --commit
+```
+
+Idempotent (re-runs report `deduped`); secrets are scrubbed fail-closed BEFORE any write (the same
+deny-list as the kit hooks — byte-parity-guarded). Agent-native flow: the kit skill
+`/migrate-theo-memory` orchestrates dry-run → report → confirmation → commit → recall verification.
+Back-compat: `node scripts/migrate-claude-code-memory.mjs` still works (re-export shim).

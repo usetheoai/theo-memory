@@ -251,6 +251,23 @@ export function buildProgram(): Command {
     .description('Apply pending Drizzle migrations against THEOMEM_PG_URI.')
     .action(runMigrate);
 
+  // M12 — data-import namespace (ships ONLY claude-code; future sources by demand, YAGNI).
+  // `migrate` = SCHEMA; `import` = DATA (blueprint D1 — never conflate the verbs).
+  const importCmd = program
+    .command('import')
+    .description('Import external memory data into theo-memory (dry-run by default).');
+  importCmd
+    .command('claude-code')
+    .description(
+      "Import Claude Code's file-based memory (~/.claude/projects/*/memory) — dry-run unless --commit; secrets scrubbed fail-closed.",
+    )
+    .option('--commit', 'actually POST to /v1/remember/batch (default: dry-run report only)')
+    .option('--source <dir>', 'root of Claude Code projects (default: ~/.claude/projects)')
+    .action(async (opts: { commit?: boolean; source?: string }) => {
+      const { runImportClaudeCode } = await import('./run-import.js');
+      await runImportClaudeCode(opts);
+    });
+
   program
     .command('health')
     .description('Probe DI graph + DB readiness; exit 0 only when both green.')
