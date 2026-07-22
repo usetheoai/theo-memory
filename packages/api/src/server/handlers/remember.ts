@@ -92,7 +92,22 @@ export async function rememberHandler(c: Context, memory: Memory, routingAuditSt
 export async function batchRememberHandler(c: Context, memory: Memory, routingAuditStore?: RoutingAuditStore): Promise<Response> {
   const json = await readJsonBody(c);
   if (json instanceof Response) return json;
-  const parsed = BatchRememberBody.safeParse(json);
+  // Single-remember parity (#109 live E2E): apply the auth-trusted X-Theo-User-Id fallback
+  // PER ITEM, exactly like rememberHandler does for its one body — a tier-less batch item
+  // from a gateway-fronted caller (the migrator, the kit) binds to the credential's user
+  // instead of 422-ing the whole batch. No header → items must name their tier (fail-closed).
+  const withScope =
+    typeof json === 'object' && json !== null && Array.isArray((json as { items?: unknown }).items)
+      ? {
+          ...(json as Record<string, unknown>),
+          items: ((json as { items: unknown[] }).items).map((item) =>
+            typeof item === 'object' && item !== null
+              ? applyHeaderUserScope(c, item as Record<string, unknown>)
+              : item,
+          ),
+        }
+      : json;
+  const parsed = BatchRememberBody.safeParse(withScope);
   if (!parsed.success) {
     return scopeOrValidationError(parsed.error, c);
   }
