@@ -180,15 +180,16 @@ export interface RecallOptions {
    * upstream by `composeFilters`, never by this reweight).
    *
    * Default (undefined) is byte-identical to today — no reweight (opt-in per ADR D1).
-   * MUTUALLY EXCLUSIVE with `rerank` (the cross-encoder) — like `diversify`, both occupy the
-   * same post-threshold seam; setting both throws `InvalidScope`. The weights are bounded
-   * multipliers on the base score (they nudge, never invert a large base-score gap).
+   * MUTUALLY EXCLUSIVE with `rerank` (the cross-encoder) and `diversify` — all three occupy the
+   * same post-threshold seam; setting more than one throws `RerankerConflict`. The weights are
+   * bounded multipliers on the base score (they nudge, never invert a large base-score gap).
    *
    * - `sessionRecencyWeight` ∈ [0, 1]: session recency-boost strength (default 0.3).
    * - `globalStabilityWeight` ∈ [0, 1]: global stability-boost strength (default 0.3).
    *
    * @see CLAUDE.md § IMPORTANTE Princípio 1
-   * @throws InvalidScope — when a weight is outside [0, 1], or when combined with `rerank`.
+   * @throws RerankerConflict — when combined with `rerank` or `diversify`.
+   * @throws InvalidScope — when a weight is outside [0, 1].
    */
   readonly scopes?: {
     readonly sessionRecencyWeight?: number;
