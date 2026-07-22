@@ -183,6 +183,13 @@
       "when": 1784728485389,
       "tag": "0025_good_the_order",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1784728688047,
+      "tag": "0026_equal_bucky",
+      "breakpoints": true
     }
   ]
 }

@@ -185,6 +185,11 @@ export const MEMORY_EVENTS = [
   // global stability-boost) before top-K. Attributes `{scope_tier, reweighted_count}`.
   // Princípio 3 — the reweight (a governed ranking decision) is observable.
   'scope_reweight_applied',
+  // M11 (routing governance, T2.1) — a best-effort placement-decision audit write to the
+  // RoutingAuditStore FAILED; the routing/promotion decision itself still succeeded (fail-soft,
+  // Rule 8). Attributes `{workspace_tier, error}`. Princípio 3 — even the audit's own failure is
+  // observable, never a silent swallow.
+  'routing_audit_write_failed',
 ] as const;
 
 export type MemoryEvent = (typeof MEMORY_EVENTS)[number];
