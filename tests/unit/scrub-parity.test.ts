@@ -11,6 +11,10 @@ import { describe, expect, it } from 'vitest';
 
 const CANONICAL = 'packages/cli/src/import/theo-scrub.mjs';
 const KIT_COPY = 'docs/claude-code-kit/hooks/theo-scrub.mjs';
+// F-arch-1: the kit also ships the ENGINE (so kit machines can run the import without npm/Docker —
+// the same standalone-.mjs channel as the hooks). Same parity discipline.
+const ENGINE_CANONICAL = 'packages/cli/src/import/migrate-claude-code.mjs';
+const ENGINE_KIT_COPY = 'docs/claude-code-kit/hooks/migrate-claude-code.mjs';
 
 describe('M12 scrub parity sentinel (M6-SEC-01)', () => {
   it('test_scrub_parity_kit_copy_is_byte_identical_to_canonical', () => {
@@ -18,6 +22,10 @@ describe('M12 scrub parity sentinel (M6-SEC-01)', () => {
     const kit = readFileSync(KIT_COPY, 'utf8');
     // Byte equality — a drift in EITHER file fails CI until both are re-synced deliberately.
     expect(kit).toBe(canonical);
+  });
+
+  it('test_engine_parity_kit_copy_is_byte_identical_to_canonical', () => {
+    expect(readFileSync(ENGINE_KIT_COPY, 'utf8')).toBe(readFileSync(ENGINE_CANONICAL, 'utf8'));
   });
 
   it('test_scrub_exports_unchanged_behavior_lock', async () => {

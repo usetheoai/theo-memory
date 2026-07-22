@@ -19,7 +19,7 @@ import type { LLM, Memory, Message } from '@usetheo/memory/contract';
 import { createServer } from '@usetheo/memory-api';
 import { serve } from '@hono/node-server';
 
-import { planMigration, importBatch } from '../../../packages/cli/src/import/migrate-claude-code.mjs';
+import { planMigration, importBatch, main } from '../../../packages/cli/src/import/migrate-claude-code.mjs';
 import { createIsolatedDb } from '../_helpers/isolated-db.js';
 
 const PG_URI = process.env['THEOMEM_PG_URI'];
@@ -89,24 +89,35 @@ if (PG_URI === undefined || PG_URI === '') {
       expect(plan.report.redacted).toBe(1); // the secret-bearing node
       const items = plan.items;
 
-      // First commit: 3 imported.
-      const first = await importBatch(items, { endpoint });
-      expect(first.imported).toBe(3);
-      expect(first.failed).toBe(0);
+      // First commit — through the SHIPPED CLI layer (F-tests-3: main() with injected argv), the
+      // exact surface `themory import claude-code --commit` drives.
+      const prevUrl = process.env['THEOMEM_MIGRATE_URL'];
+      process.env['THEOMEM_MIGRATE_URL'] = endpoint;
+      try {
+        await main(['--commit', '--source', sourceRoot]);
 
-      // The secret NEVER reached the DB — stored text carries the redaction marker.
-      const { rows } = await pool.query<{ text: string }>(`SELECT text FROM memories`);
-      expect(rows).toHaveLength(3);
-      const stored = rows.map((r) => r.text).join('\n');
-      expect(stored).not.toContain(SECRET);
-      expect(stored).toContain('[REDACTED:');
+        // The secret NEVER reached the DB — stored text carries the redaction marker.
+        const { rows } = await pool.query<{ text: string }>(`SELECT text FROM memories`);
+        expect(rows).toHaveLength(3);
+        const stored = rows.map((r) => r.text).join('\n');
+        expect(stored).not.toContain(SECRET);
+        expect(stored).toContain('[REDACTED:');
 
-      // Second commit of the SAME items: idempotent — all deduped, zero new rows.
-      const second = await importBatch(items, { endpoint });
-      expect(second.imported).toBe(0);
-      expect(second.deduped).toBe(3);
-      const { rows: after } = await pool.query(`SELECT count(*)::int AS n FROM memories`);
-      expect((after[0] as { n: number }).n).toBe(3);
+        // Second commit via the SAME CLI layer: idempotent — zero new rows.
+        await main(['--commit', '--source', sourceRoot]);
+        const { rows: after } = await pool.query(`SELECT count(*)::int AS n FROM memories`);
+        expect((after[0] as { n: number }).n).toBe(3);
+      } finally {
+        if (prevUrl === undefined) delete process.env['THEOMEM_MIGRATE_URL'];
+        else process.env['THEOMEM_MIGRATE_URL'] = prevUrl;
+      }
+
+      // Engine-level counts (third pass, still idempotent): server reports all deduped.
+      const third = await importBatch(items, { endpoint });
+      expect(third.imported).toBe(0);
+      expect(third.deduped).toBe(3);
+      const { rows: final } = await pool.query(`SELECT count(*)::int AS n FROM memories`);
+      expect((final[0] as { n: number }).n).toBe(3);
     });
   });
 }

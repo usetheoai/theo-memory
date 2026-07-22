@@ -11,12 +11,12 @@
  * module.
  *
  */
+import { SESSION_TO_GLOBAL_KIND } from '../../domain/consolidation/session-to-global-policy.js';
 import type { ConflictResolutionResult } from '../../domain/dip/conflict-resolution-policy.js';
 import type { RecallCacheStore } from '../../domain/dip/recall-cache-store.js';
-import { recordRoutingDecision, type RoutingAuditStore } from '../../domain/dip/routing-audit-store.js';
 import type { ReflectionPolicy } from '../../domain/dip/reflection-policy.js';
+import { recordRoutingDecision, type RoutingAuditStore } from '../../domain/dip/routing-audit-store.js';
 import { ReflectionNotConfigured } from '../../domain/errors.js';
-import { SESSION_TO_GLOBAL_KIND } from '../../domain/consolidation/session-to-global-policy.js';
 import { emitEvent } from '../../domain/memory-event.js';
 import type { MemoryItem } from '../../domain/memory-item.js';
 import type { ReflectOptions } from '../../domain/options.js';
