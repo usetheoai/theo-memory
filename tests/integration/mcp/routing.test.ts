@@ -2,19 +2,16 @@
  * Integration GOAL TEST — M8 agent-chosen routing (F-xval-1), against real
  * ankane/pgvector via the FULL MCP dispatch path.
  *
- * Proves the routing half of the M8 Goal is functional end-to-end: the SAME user, in ONE
- * workspace, writes one fact GLOBALLY (no sessionId → (workspace, user)) and one fact to a
- * SESSION (sessionId → (workspace, user, session)), then a SESSION-scoped recall returns
- * ONLY that session's fact — NOT the global one — so the agent's per-call scope choice
- * actually routes and session memory is a narrow, isolated sub-partition. The user identity
- * is always the auth-trusted ScopedContext user (routeScopedMemory never binds an
- * agent-supplied user).
- *
- * KNOWN SEMANTIC (documented, NOT asserted here): a GLOBAL (user-tier) recall is currently
- * a SUPERSET — it also returns the session-tagged rows, because M8 binds `user_id` into the
- * session scope so those rows now share the user filter. Whether "global" should EXCLUDE
- * session rows (`session_id IS NULL AND agent_id IS NULL`) is a core tier-semantics decision
- * with system-wide impact — surfaced to the owner as an open fork, not decided unilaterally.
+ * Proves the routing half of the M8 Goal is functional end-to-end under the HIERARCHICAL
+ * recall model (owner decision 2026-07-22): the SAME user, in ONE workspace, writes one fact
+ * GLOBALLY (no sessionId → (workspace, user)) and one fact to a SESSION (sessionId →
+ * (workspace, user, session)), then:
+ *   - a GLOBAL recall returns ONLY the global fact (global-only — session working memory
+ *     never leaks into the durable space), and
+ *   - a SESSION recall returns BOTH the session fact AND the global fact (session ∪ global —
+ *     inside a session the agent recalls its durable knowledge plus the session context).
+ * The user identity is always the auth-trusted ScopedContext user (routeScopedMemory never
+ * binds an agent-supplied user).
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { randomUUID } from 'node:crypto';
@@ -80,7 +77,7 @@ if (PG_URI === undefined || PG_URI === '') {
       await pool.query(`DELETE FROM memories`);
     });
 
-    test('the agent routes writes to global vs session; session recall is a narrow, isolated sub-partition', async () => {
+    test('the agent routes writes to global vs session; global is global-only, session is global ∪ session', async () => {
       // GLOBAL write (no sessionId) → (workspace, user).
       await withScope(ctx, () =>
         dispatch('remember', { content: GLOBAL_FACT, infer: false }, { memoryFactory: () => base }),
@@ -94,20 +91,21 @@ if (PG_URI === undefined || PG_URI === '') {
         ),
       );
 
-      // The routing landed the global write: a global recall sees it.
+      // GLOBAL recall is GLOBAL-ONLY: it sees the durable global fact and NOT the session
+      // working memory (session_id IS NULL AND agent_id IS NULL).
       const globalRecall = await withScope(ctx, () =>
         dispatch('recall', { query: GLOBAL_FACT }, { memoryFactory: () => base }),
       );
       expect(textsOf(globalRecall)).toContain(GLOBAL_FACT);
+      expect(textsOf(globalRecall)).not.toContain(SESSION_FACT);
 
-      // SESSION recall is narrow: it sees ONLY that session's fact, NOT the global one —
-      // proving the agent's session choice routed to an isolated (workspace,user,session)
-      // sub-partition (the global fact, session_id NULL, is excluded).
+      // SESSION recall is SESSION ∪ GLOBAL: inside the session the agent recalls BOTH the
+      // session context AND its durable global knowledge.
       const sessionRecall = await withScope(ctx, () =>
         dispatch('recall', { query: SESSION_FACT, sessionId: SESSION }, { memoryFactory: () => base }),
       );
       expect(textsOf(sessionRecall)).toContain(SESSION_FACT);
-      expect(textsOf(sessionRecall)).not.toContain(GLOBAL_FACT);
+      expect(textsOf(sessionRecall)).toContain(GLOBAL_FACT);
     });
   });
 }

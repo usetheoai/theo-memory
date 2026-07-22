@@ -176,6 +176,24 @@ export interface Filters {
    *
    */
   readonly workspace_id?: string;
+  /**
+   * M8 hierarchical scope recall (owner decision 2026-07-22). Overrides the plain
+   * session_id/agent_id equality with the tier's hierarchical predicate, so the
+   * three tiers form a hierarchy instead of disjoint partitions:
+   *
+   * - `'global'` (User tier) → `session_id IS NULL AND agent_id IS NULL`. A global
+   *   recall sees ONLY durable user rows — session/agent working memory never leaks in.
+   * - `{ session }` (user-bound Session tier) → `agent_id IS NULL AND (session_id =
+   *   :session OR session_id IS NULL)`. A session recall sees its own rows UNION the
+   *   user's global rows — inside a session the agent recalls both.
+   *
+   * Set by {@link filtersFromScope} for the User tier and the user-bound Session tier.
+   * When present, it OWNS the session_id/agent_id columns — those keys are NOT also
+   * emitted as plain equalities. The workspace-admin path (Session/Agent scope with no
+   * userId) does NOT use it (no acting user → no hierarchy; exact workspace-tier filter).
+   * Agent/Repo tiers are distinct and keep plain equality.
+   */
+  readonly scopeHierarchy?: 'global' | { readonly session: string };
 }
 
 /**
