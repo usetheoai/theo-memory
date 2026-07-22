@@ -10,7 +10,15 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest'
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 
-import { PgRoutingPolicyStore, PgRoutingAuditStore, FAILCLOSED_DEFAULT_POLICY, createLocalMemory, PgvectorStore, StubEmbedder } from '@usetheo/memory';
+import {
+  PgRoutingPolicyStore,
+  PgRoutingAuditStore,
+  FAILCLOSED_DEFAULT_POLICY,
+  createLocalMemory,
+  PgvectorStore,
+  StubEmbedder,
+  SessionToGlobalConsolidationPolicy,
+} from '@usetheo/memory';
 import type { LLM, Message, RoutingAuditRecord } from '@usetheo/memory/contract';
 import { createServer } from '@usetheo/memory-api';
 
@@ -119,6 +127,73 @@ if (PG_URI === undefined || PG_URI === '') {
       const rows = await audit.list(WS, user);
       expect(rows).toHaveLength(1);
       expect(rows[0]).toMatchObject({ chosenScope: 'global', userId: user });
+      await memory.dispose();
+    });
+
+    test('test_m9_promotion_is_audited', async () => {
+      // F-tests-1: a session→global PROMOTION (M9 reflect) emits a queryable audit row.
+      const user = `erin-${randomUUID()}`;
+      const session = `s-${randomUUID()}`;
+      const embedding = new Array<number>(1536).fill(0);
+      embedding[0] = 0.1;
+      // Seed a DURABLE session fact (confirmation_count >= 3) — the M9 promotion candidate.
+      await pool.query(
+        `INSERT INTO memories (text, hash, embedding, payload, workspace_id, user_id, session_id, confirmation_count, kind)
+         VALUES ($1,$2,$3::vector,'{}'::jsonb,$4,$5,$6,3,'extracted')`,
+        ['erin durable fact', `h-${randomUUID()}`, `[${embedding.join(',')}]`, WS, user, session],
+      );
+      const memory = await createLocalMemory({
+        vectorStore: new PgvectorStore(pool),
+        embedder: new StubEmbedder(),
+        llm: emptyLlm,
+        reflectionPolicy: { kind: 'manual' },
+        routingAuditStore: audit,
+      });
+      await memory.session(session, user).reflect({ conflictResolution: new SessionToGlobalConsolidationPolicy(3) });
+      // The promotion decision is retrievable via the audit surface for (WS, user).
+      const rows = await audit.list(WS, user);
+      expect(rows.some((r) => r.why === 'promotion-confirmation-threshold' && r.chosenScope === 'global')).toBe(true);
+      expect(rows.every((r) => r.userId === user)).toBe(true); // isolation held
+      await memory.dispose();
+    });
+
+    test('test_rest_routing_policy_roundtrips_through_the_stack', async () => {
+      // F-tests-4: the routing-policy routes are MOUNTED + functional end-to-end on real pg (the
+      // default owner Principal PUTs + GETs its own policy). The member cross-user 404 branch is
+      // proven at the handler level (tests/unit/routing-governance-handler).
+      const memory = await createLocalMemory({ vectorStore: new PgvectorStore(pool), embedder: new StubEmbedder(), llm: emptyLlm });
+      const app = createServer({ memory, routingPolicyStore: policies, routingAuditStore: audit });
+      const user = `frank-${randomUUID()}`;
+      const put = await app.fetch(
+        new Request(`http://localhost/v1/routing-policy/${user}`, {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ defaultScope: 'global', llmRouting: true, confirmationThreshold: 4 }),
+        }),
+      );
+      expect(put.status).toBe(200);
+      const get = await app.fetch(new Request(`http://localhost/v1/routing-policy/${user}`));
+      expect(get.status).toBe(200);
+      expect(await get.json()).toMatchObject({ defaultScope: 'global', confirmationThreshold: 4 });
+      await memory.dispose();
+    });
+
+    test('test_rest_remember_survives_a_failing_audit_store', async () => {
+      // F-tests-5: a THROWING routingAuditStore must NOT fail the remember (wired fail-soft, Rule 8).
+      const throwingAudit = {
+        record: () => Promise.reject(new Error('audit db down')),
+        list: () => Promise.resolve([]),
+      };
+      const memory = await createLocalMemory({ vectorStore: new PgvectorStore(pool), embedder: new StubEmbedder(), llm: emptyLlm });
+      const app = createServer({ memory, routingAuditStore: throwingAudit });
+      const res = await app.fetch(
+        new Request('http://localhost/v1/remember', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ userId: `gail-${randomUUID()}`, text: 'gail fact', infer: false }),
+        }),
+      );
+      expect(res.status).toBe(201); // remember succeeded despite the audit write failing
       await memory.dispose();
     });
   });

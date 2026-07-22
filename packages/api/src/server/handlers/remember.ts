@@ -89,7 +89,7 @@ export async function rememberHandler(c: Context, memory: Memory, routingAuditSt
  * reported in the aggregate (honest partial success per error-handling.md — a
  * poison item never fails the whole batch, and never a silent 500).
  */
-export async function batchRememberHandler(c: Context, memory: Memory): Promise<Response> {
+export async function batchRememberHandler(c: Context, memory: Memory, routingAuditStore?: RoutingAuditStore): Promise<Response> {
   const json = await readJsonBody(c);
   if (json instanceof Response) return json;
   const parsed = BatchRememberBody.safeParse(json);
@@ -118,6 +118,10 @@ export async function batchRememberHandler(c: Context, memory: Memory): Promise<
         results.push(row);
         if (row.rejectedAsDuplicate === true) deduped += 1;
         else imported += 1;
+      }
+      // M11 F-tests-2 — audit this batched routing decision (best-effort, fail-soft, opt-in).
+      if (routingAuditStore !== undefined) {
+        await auditRememberRouting(c, routingAuditStore, item, item.attributedTo);
       }
     } catch (err) {
       // M6-SEC-02: route the per-item failure through the SAME sanitizer every

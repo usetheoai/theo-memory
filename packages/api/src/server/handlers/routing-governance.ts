@@ -9,19 +9,22 @@
  * a MEMBER may only address its OWN `userId` — a cross-user path resolves to 404 (no existence leak),
  * mirroring `scoped-forget.ts`. An admin/owner manages any user in its workspace.
  */
-import type { Principal, RoutingAuditStore, RoutingPolicyStore } from '@usetheo/memory/contract';
-import { DEFAULT_WORKSPACE_ID, InvalidRoutingPolicy, roleSatisfies } from '@usetheo/memory/contract';
+import type { RoutingAuditStore, RoutingPolicyStore } from '@usetheo/memory/contract';
+import { InvalidRoutingPolicy, roleSatisfies } from '@usetheo/memory/contract';
 import type { Context } from 'hono';
+
+import { getPrincipal } from '../auth/middleware.js';
 
 /** Resolve the target `(workspace, userId)` a caller may address, or `null` when isolation forbids it. */
 function resolveTarget(c: Context, targetUserId: string): { workspaceId: string; userId: string } | null {
-  const p = c.get('principal') as Principal | undefined;
-  const workspaceId = p?.workspaceId ?? DEFAULT_WORKSPACE_ID;
+  // F-arch-2: resolve via getPrincipal so an absent Principal defaults to DEFAULT_PRINCIPAL (owner)
+  // and passes the SAME role/isolation branch — no special-case grant.
+  const p = getPrincipal(c);
   // A member is confined to its own userId; a cross-user address → 404 (ADR D3). Admin/owner: any user.
-  if (p !== undefined && !roleSatisfies(p.role, 'admin') && p.userId !== targetUserId) {
+  if (!roleSatisfies(p.role, 'admin') && p.userId !== targetUserId) {
     return null;
   }
-  return { workspaceId, userId: targetUserId };
+  return { workspaceId: p.workspaceId, userId: targetUserId };
 }
 
 export async function getRoutingPolicyHandler(c: Context, store: RoutingPolicyStore): Promise<Response> {
@@ -36,12 +39,13 @@ export async function getRoutingPolicyHandler(c: Context, store: RoutingPolicySt
 export async function putRoutingPolicyHandler(c: Context, store: RoutingPolicyStore): Promise<Response> {
   const userId = c.req.param('userId');
   if (userId === undefined || userId.length === 0) return c.notFound();
-  // ADMIN-scoped write (ADR D1): a member cannot set a routing policy.
-  const p = c.get('principal') as Principal | undefined;
-  if (p !== undefined && !roleSatisfies(p.role, 'admin')) {
+  // ADMIN-scoped write (ADR D1): a member cannot set a routing policy. getPrincipal so an absent
+  // Principal defaults to owner (honored) rather than bypassing the role check (F-arch-3).
+  const p = getPrincipal(c);
+  if (!roleSatisfies(p.role, 'admin')) {
     return c.json({ code: 'FORBIDDEN', message: 'admin role required to set a routing policy' }, 403);
   }
-  const workspaceId = p?.workspaceId ?? DEFAULT_WORKSPACE_ID;
+  const workspaceId = p.workspaceId;
   let body: unknown;
   try {
     body = await c.req.json();

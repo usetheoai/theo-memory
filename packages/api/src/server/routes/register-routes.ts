@@ -175,7 +175,7 @@ function registerVerbRoutes(app: OpenAPIHono, options: CreateServerOptions): voi
   app.post('/v1/remember', requireScopeOnPrincipal('memory:write'), (c) => rememberHandler(c, memory, routingAuditStore));
   // M6 T1.3 — batch remember (array body → per-item scoped.remember; one request,
   // N facts, one write-limiter slot). Same memory:write scope as /v1/remember.
-  app.post('/v1/remember/batch', requireScopeOnPrincipal('memory:write'), (c) => batchRememberHandler(c, memory));
+  app.post('/v1/remember/batch', requireScopeOnPrincipal('memory:write'), (c) => batchRememberHandler(c, memory, routingAuditStore));
   app.post('/v1/recall', requireScopeOnPrincipal('memory:read'), (c) => recallHandler(c, memory));
   app.post('/v1/forget', requireScopeOnPrincipal('memory:delete'), (c) => forgetHandler(c, memory));
   app.post('/v1/reflect', requireScopeOnPrincipal('memory:write'), (c) => reflectHandler(c, memory));
