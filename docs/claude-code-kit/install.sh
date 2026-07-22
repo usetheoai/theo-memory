@@ -36,6 +36,17 @@ done
 chmod +x "${HOOKS_DIR}/theo-recall.mjs" "${HOOKS_DIR}/theo-remember.mjs" "${HOOKS_DIR}/theo-precompact.mjs"
 echo "  copied 6 hook files → ${HOOKS_DIR}"
 
+# --- 1b. copy the kit skills (M12) -------------------------------------------
+# /migrate-theo-memory — orchestrates `themory import claude-code` (dry-run →
+# report → confirm → commit → recall verification). Mirrors the hooks copy
+# semantics; user-level skills dir is Claude Code's standard discovery path.
+if [[ -d "${KIT_DIR}/skills" ]]; then
+  SKILLS_DIR="${CLAUDE_DIR}/skills"
+  mkdir -p "${SKILLS_DIR}"
+  cp -R "${KIT_DIR}/skills/." "${SKILLS_DIR}/"
+  echo "  copied kit skills → ${SKILLS_DIR}"
+fi
+
 # --- 2. seed the env file if absent ------------------------------------------
 if [[ -f "${ENV_FILE}" ]]; then
   echo "  env exists — left untouched: ${ENV_FILE}"
