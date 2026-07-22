@@ -40,7 +40,7 @@ export interface RetrievalContext {
  * per recall; resolves the tenant `workspaceId`/`scopeKey` HERE (EC-2 — never from
  * the pipeline) and threads `maxRows` (Finding A).
  */
-export function recallTraceDeps(
+function recallTraceDeps(
   ctx: RetrievalContext,
   options?: RecallOptions,
 ): {
