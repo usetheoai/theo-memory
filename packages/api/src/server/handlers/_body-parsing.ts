@@ -11,7 +11,7 @@
  * @see Plan theo-memory-standalone-p0-fixes-cycle-1 § T1.2 + ADR D2
  */
 import type { Memory, Principal } from '@usetheo/memory/contract';
-import { DEFAULT_WORKSPACE_ID } from '@usetheo/memory/contract';
+import { DEFAULT_WORKSPACE_ID, roleSatisfies } from '@usetheo/memory/contract';
 import type { Context } from 'hono';
 import type { z } from 'zod';
 
@@ -39,9 +39,23 @@ export function workspaceBoundMemory(c: Context, memory: Memory): Memory {
  * user) → the caller omits the bind and the scope stays workspace-scoped. Returns
  * `undefined` (not `null`) so it maps directly onto the optional `userId?` param.
  */
+/**
+ * The user id a scoped (member) Principal is CONFINED to — used by every path/body
+ * user-tier binding (`memory.user(principalUserId ?? id)`) so a member credential can
+ * only address its OWN scope (M8 F-arch-1 IDOR closure).
+ *
+ * Role-aware (M8 ADR D6 "null (admin) → path id"): an `admin`/`owner` Principal — INCLUDING
+ * the single-tenant no-credential `DEFAULT_PRINCIPAL` (role `owner`, userId `DEFAULT_OWNER_USER_ID`)
+ * — MANAGES the whole workspace and must address ANY user BY PATH, so it returns `undefined` and the
+ * path/body id is honored. Only a `member` returns its own userId (the IDOR override). Without this
+ * the DEFAULT_PRINCIPAL's non-null owner userId hijacked every user-tier path (e.g. a plain
+ * `DELETE /v1/scopes/user/alice/...` resolved to the owner's scope → 404 on alice's own row).
+ */
 export function principalUserId(c: Context): string | undefined {
   const principal = c.get('principal') as Principal | undefined;
-  return principal?.userId ?? undefined;
+  if (principal === undefined) return undefined;
+  if (roleSatisfies(principal.role, 'admin')) return undefined; // admin/owner → path id honored
+  return principal.userId ?? undefined; // member → confined to its own userId
 }
 
 /** MCP-parity user-scope header the edge injects (mirrors the streamable-http transport). */
