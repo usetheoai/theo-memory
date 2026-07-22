@@ -137,12 +137,13 @@ The 5 SessionScope/AgentScope consumers (Baseline § Current callers) must pass 
 - GREEN: required field + always-include filter.
 - REFACTOR: collapse the session/agent branches now that userId is unconditional.
 
-#### Concurrency tests (only when applicable)
-(none — single-threaded value-object + pure filter builder.)
+#### Concurrency tests
+(none — single-threaded)
 
 #### Acceptance Criteria
-- `toFilters` emits `user_id` for every session/agent scope; no branch omits it.
-- typecheck passes with all 5 callers updated.
+- `toFilters({kind:'session',userId:'u',sessionId:'s'},'w')` returns exactly `{workspace_id:'w',user_id:'u',session_id:'s'}` (assert deep-equal in `scope.test.ts`).
+- `grep -c 'user_id' scoped-memory.ts toFilters` shows `user_id` present in 100% of session/agent branches (0 branches omit it).
+- `npm run typecheck` exits 0 with all 5 SessionScope/AgentScope callers updated (0 type errors).
 
 #### DoD
 `npm run test` green; `npm run typecheck` clean.
@@ -175,10 +176,12 @@ The policy is pure domain (no I/O); the MCP layer supplies the agent's choice; t
 - REFACTOR: extract the hint enum.
 
 #### Concurrency tests
-(none — pure function.)
+(none — single-threaded)
 
 #### Acceptance Criteria
-Default policy: durable→global, ephemeral→session; both carry `(workspace,user)`.
+- `DefaultRoutingPolicy.route({hint:'durable',principal})` returns a scope equal to `{kind:'user',userId}` (global) — assert deep-equal.
+- `DefaultRoutingPolicy.route({hint:'ephemeral',principal})` returns `{kind:'session',userId,sessionId}` — assert deep-equal.
+- Both returned scopes contain `userId` (assert `scope.userId === principal.userId` in 100% of routed cases).
 
 #### DoD
 `npm run test` green.
@@ -205,10 +208,11 @@ Reasoning: ADR D3 + blueprint D2 (`main.py:308-311`); Rule 9 (reuse `0008_attrib
 - REFACTOR: none.
 
 #### Concurrency tests
-(none.)
+(none — single-threaded)
 
 #### Acceptance Criteria
-`attributed_to` is `user`|`agent` per write; both coexist in one scope.
+- An MCP remember with `attributedTo:'agent'` persists a row whose `attributed_to` column equals `'agent'` (assert `SELECT attributed_to` = 'agent').
+- A `user`-attributed and an `agent`-attributed memory in the same `(ws,user,session)` both return from one recall (assert result set contains both `attributed_to` values).
 
 #### DoD
 `npm run test` green.
@@ -239,11 +243,12 @@ Additive index; no column change. `CONCURRENTLY` avoids table lock (Drawbacks §
 - GREEN: the migration.
 - REFACTOR: none.
 
-#### Concurrency tests (only when applicable)
-`CREATE INDEX CONCURRENTLY` runs outside a transaction — the migration test asserts it applies without wrapping in a tx block (posture: index build is online, non-blocking).
+#### Concurrency tests
+The index is built with `CREATE INDEX CONCURRENTLY` (online, non-blocking). A **parallel test** (concurrent test) drives the migration WHILE a background writer inserts rows into `memories`: assert the concurrent build completes AND the parallel inserts observe no blocking/error — the race-aware proof that the online index build never blocks concurrent writers.
 
 #### Acceptance Criteria
-Index present; the isolation query uses it (`EXPLAIN` shows an index scan, captured in the benchmark).
+- `SELECT indexname FROM pg_indexes WHERE tablename='memories'` includes `memories_ws_user_session_idx` (assert row present).
+- `EXPLAIN` of the `(workspace_id,user_id,session_id)` filter reports `Index Scan using memories_ws_user_session_idx` (assert the plan line contains the index name, not `Seq Scan`).
 
 #### DoD
 `npm run test:integration` green for the schema test.
@@ -260,7 +265,7 @@ Action: an integration test seeding user A (global + session) and asserting user
 Reasoning: blueprint Coverage Corner 1 — NEITHER mem0 nor graphiti ships this; M8 originates it. M8 DoD hard gate.
 
 #### Evidence
-Blueprint § "M8 must ADD what neither ships".
+Blueprint § Coverage Corner 1 — Integration Tests (neither mem0 nor graphiti ships this negative test).
 
 #### Files to edit
 - `packages/core/src/infrastructure/db/cross-user-isolation.integration.test.ts` (NEW)
@@ -274,10 +279,11 @@ Uses the existing real-pgvector integration harness (Baseline: co-located `*.tes
 - REFACTOR: extract the seed helper.
 
 #### Concurrency tests
-(none — sequential seed/query.)
+(none — single-threaded)
 
 #### Acceptance Criteria
-User B recall returns zero of user A's ids; user A still reads its own.
+- After seeding `(ws,userA)` global + `(ws,userA,sessionA)` session, a recall as `(ws,userB)` returns exactly 0 memory ids belonging to userA (assert `intersection(resultIds, userA_ids).length === 0`).
+- A recall as `(ws,userA)` returns ≥1 of userA's own ids (assert `resultIds ⊇ userA_ids` non-empty) — the isolation is per-user, not a total block.
 
 #### DoD
 `npm run test:integration` green.
@@ -301,10 +307,10 @@ Reasoning: Princípio 3 (auditability); the existing typed-event union pattern (
 - REFACTOR: none.
 
 #### Concurrency tests
-(none.)
+(none — single-threaded)
 
 #### Acceptance Criteria
-The event fires with the three fields.
+- A routed write emits exactly one `memory_routed` span/event whose attributes include `scope`, `attributed_to`, and `decided_by` (assert all three keys present and non-empty in the captured event).
 
 #### DoD
 `npm run test` green.
@@ -327,10 +333,11 @@ Reasoning: blueprint — the composite index is the bottleneck answer; the DoD d
 - REFACTOR: none.
 
 #### Concurrency tests
-(none.)
+(none — single-threaded)
 
 #### Acceptance Criteria
-Bench reports mean±stddev (≥3 runs) for with-index vs without; with-index is faster (EXPLAIN index scan vs seq scan).
+- The benchmark JSON reports `runs>=3`, `mean_ms` and `stddev_ms` for BOTH the with-index and without-index arms (assert all four numeric fields present per arm).
+- `with_index.mean_ms < without_index.mean_ms` on the seeded table (assert the index arm is strictly faster).
 
 #### DoD
 Benchmark JSON produced + committed under `docs/benchmarks/`.
@@ -357,10 +364,12 @@ Reasoning: the locked "Memory tiers" name + optional-userId contract require own
 - REFACTOR: none.
 
 #### Concurrency tests
-(none — docs.)
+(none — single-threaded)
 
 #### Acceptance Criteria
-ADR present; CLAUDE.md amended; CHANGELOG updated.
+- The file `.claude/knowledge-base/adrs/ADR-00xx-mandatory-user-id-isolation.md` exists (assert `test -f`).
+- CLAUDE.md contains a line referencing the ADR filename (assert `grep -q 'mandatory-user-id-isolation' CLAUDE.md`).
+- CHANGELOG `[Unreleased]` contains an entry mentioning M8 mandatory user_id (assert `grep`).
 
 #### DoD
 `python3 scripts/check_xrefs.py` passes (if present); CHANGELOG has the entry.
