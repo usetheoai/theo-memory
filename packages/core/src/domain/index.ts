@@ -410,6 +410,18 @@ export {
 export { InvalidCacheConfig } from './errors.js';
 
 /**
+ * M11 — routing-policy DIP (per-`(workspace, user)` config, fail-closed default) + its typed error.
+ */
+export {
+  FAILCLOSED_DEFAULT_POLICY,
+  RoutingPolicySchema,
+  parseRoutingPolicy,
+  InMemoryRoutingPolicyStore,
+} from './dip/routing-policy-store.js';
+export type { DefaultScope, RoutingPolicy, RoutingPolicyStore } from './dip/routing-policy-store.js';
+export { InvalidRoutingPolicy } from './errors.js';
+
+/**
  * `ConflictResolutionPolicy` 9th DIP — v0.7 distillation conflict
  * resolution shapes for episodic → semantic consolidation.
  *
