@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- M12 (T1.1+T1.2): `themory import claude-code` — the Claude-Code-memory migrator is now a SHIPPED CLI subcommand (engine moved to `packages/cli/src/import/migrate-claude-code.mjs`; `scripts/migrate-claude-code-memory.mjs` stays as a back-compat re-export shim). Dry-run default, `--commit`, `--source`; endpoint/token resolved `THEOMEM_MIGRATE_*` → `THEOMEM_MEMORY_*` env → `~/.claude/theo-memory.env` (the kit file — zero-config on kit machines) → default. The scrub is now CANONICAL in the package (`packages/cli/src/import/theo-scrub.mjs`) with a byte-parity sentinel test failing CI on any divergence from the kit copy (M6-SEC-01). Build ships the `.mjs` engine into `dist/agent-tools/import/`. Unit: 24 green (env precedence 5, parity+behavior 2, migrator suite 17 via the shim).
+
+### Added
 - Roadmap amended: added M12 `themory import claude-code` — productize the Claude Code memory migration as a CLI subcommand + `/migrate-theo-memory` kit skill (`/roadmap-feature themory-import-cli`)
 
 ## [0.40.0] - 2026-07-22
