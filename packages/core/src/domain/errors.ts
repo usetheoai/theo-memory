@@ -25,6 +25,20 @@ export class InvalidScope extends Error {
 }
 
 /**
+ * InvalidRoutingPolicy — thrown when a `RoutingPolicyStore.put` payload fails the
+ * `RoutingPolicySchema` (M11 T1.1). Fail-fast at the boundary (Rule 8): a bad
+ * `defaultScope` / non-integer threshold is a caller error, never silently stored.
+ */
+export class InvalidRoutingPolicy extends Error {
+  override readonly name = 'InvalidRoutingPolicy' as const;
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(`Invalid routing policy: ${message}`, options);
+    Object.setPrototypeOf(this, InvalidRoutingPolicy.prototype);
+  }
+}
+
+/**
  * RerankerConflict — thrown when `recall()` is called with BOTH
  * `options.diversify` AND `options.rerank` set. Both are post-threshold reranks
  * of the same candidate pool; stacking them is a double-rerank with undefined

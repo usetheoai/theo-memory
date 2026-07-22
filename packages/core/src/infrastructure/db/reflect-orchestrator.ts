@@ -13,6 +13,7 @@
  */
 import type { ConflictResolutionResult } from '../../domain/dip/conflict-resolution-policy.js';
 import type { RecallCacheStore } from '../../domain/dip/recall-cache-store.js';
+import { recordRoutingDecision, type RoutingAuditStore } from '../../domain/dip/routing-audit-store.js';
 import type { ReflectionPolicy } from '../../domain/dip/reflection-policy.js';
 import { ReflectionNotConfigured } from '../../domain/errors.js';
 import { SESSION_TO_GLOBAL_KIND } from '../../domain/consolidation/session-to-global-policy.js';
@@ -86,6 +87,8 @@ export interface ReflectDeps {
   readonly filters: Filters;
   readonly scope: Scope;
   readonly recallCacheStore: RecallCacheStore | undefined;
+  /** M11 — optional audit port; when wired, a session→global PROMOTION emits a fail-soft audit row. */
+  readonly routingAuditStore?: RoutingAuditStore;
 }
 
 /**
@@ -189,6 +192,24 @@ export async function runReflection(
             scope_tier: scope.kind,
             promoted_count: promotedCount,
           });
+          // M11 F-tests-1 — audit the PROMOTION decision (session→global). Best-effort/fail-soft
+          // (Rule 8): a failed audit never fails the promotion. Keyed by the same (workspace, user)
+          // the promoted rows live under, so it is retrievable via the same audit surface as routing.
+          if (deps.routingAuditStore !== undefined) {
+            await recordRoutingDecision(
+              deps.routingAuditStore,
+              {
+                workspaceId: filters.workspace_id ?? 'default',
+                userId: filters.user_id ?? (scope.kind === 'session' ? scope.userId ?? 'system' : 'system'),
+                chosenScope: 'global',
+                attribution: 'agent',
+                decidedBy: 'm9-promotion',
+                why: 'promotion-confirmation-threshold',
+                at: new Date(),
+              },
+              config.tracer,
+            );
+          }
         }
       }
     }

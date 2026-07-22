@@ -410,6 +410,29 @@ export {
 export { InvalidCacheConfig } from './errors.js';
 
 /**
+ * M11 — routing-policy DIP (per-`(workspace, user)` config, fail-closed default) + its typed error.
+ */
+export {
+  FAILCLOSED_DEFAULT_POLICY,
+  RoutingPolicySchema,
+  parseRoutingPolicy,
+  InMemoryRoutingPolicyStore,
+} from './dip/routing-policy-store.js';
+export type { DefaultScope, RoutingPolicy, RoutingPolicyStore } from './dip/routing-policy-store.js';
+export { InvalidRoutingPolicy } from './errors.js';
+
+/**
+ * M11 — placement-decision audit DIP (Princípio 3) + the fail-soft write primitive.
+ */
+export {
+  InMemoryRoutingAuditStore,
+  recordRoutingDecision,
+  DEFAULT_AUDIT_LIST_LIMIT,
+  MAX_AUDIT_LIST_LIMIT,
+} from './dip/routing-audit-store.js';
+export type { Attribution, ChosenScope, RoutingAuditRecord, RoutingAuditStore } from './dip/routing-audit-store.js';
+
+/**
  * `ConflictResolutionPolicy` 9th DIP — v0.7 distillation conflict
  * resolution shapes for episodic → semantic consolidation.
  *

@@ -259,7 +259,7 @@ M0 (recall `graphExpand`/`asOf` in the playground) is already done.
 
 ---
 
-## M8 — [ ] `(workspace, user)` isolation model + agent-chosen session↔global routing
+## M8 — [x] `(workspace, user)` isolation model + agent-chosen session↔global routing
 
 > Added 2026-07-21 by `/roadmap-feature` (slug: `intelligent-memory-routing`). Grill: `knowledge-base/grills/intelligent-memory-routing-feature-grill.md`. First of the 4-milestone **agent-driven memory placement & lifecycle** initiative (M8–M11). Revised 2026-07-21 to the owner-corrected isolation model (see § shared model below).
 
@@ -294,7 +294,7 @@ M0 (recall `graphExpand`/`asOf` in the playground) is already done.
 
 ---
 
-## M9 — [ ] Session → global consolidation (within the same `(workspace, user)`)
+## M9 — [x] Session → global consolidation (within the same `(workspace, user)`)
 
 > Added 2026-07-21 by `/roadmap-feature` (slug: `intelligent-memory-routing`). Second of the M8–M11 initiative. Uses the § shared isolation model in M8.
 
@@ -319,7 +319,7 @@ M0 (recall `graphExpand`/`asOf` in the playground) is already done.
 
 ---
 
-## M10 — [ ] Scope-aware recall (global + current session union, filtered by `(workspace, user)`)
+## M10 — [x] Scope-aware recall (global + current session union, filtered by `(workspace, user)`)
 
 > Added 2026-07-21 by `/roadmap-feature` (slug: `intelligent-memory-routing`). Third of the M8–M11 initiative. Uses the § shared isolation model in M8.
 
