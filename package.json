@@ -94,7 +94,7 @@
       "isolated-vm"
     ],
     "overrides": {
-      "sharp": "^0.33.5",
+      "sharp": "^0.35.0",
       "protobufjs": "7.6.1",
       "form-data": "4.0.6",
       "linkify-it": "5.0.1",
