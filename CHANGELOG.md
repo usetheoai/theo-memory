@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 - REST `remember`/`recall` now resolve the user tier from the edge-injected `X-Theo-User-Id` when the body names none, matching the MCP surface — so gateway-fronted callers (the Claude Code kit hooks) land under the credential's user, unifying REST and MCP memory in the space the dashboard reads (theo-cloud#249)
+- Roadmap amended: added M8 Hybrid memory routing across all scopes + `global` tier (`/roadmap-feature intelligent-memory-routing`)
+- Roadmap amended: added M9 Cross-scope consolidation & promotion (session → user → global) (`/roadmap-feature intelligent-memory-routing`)
+- Roadmap amended: added M10 Scope-aware recall (hierarchical union + tier ranking) (`/roadmap-feature intelligent-memory-routing`)
+- Roadmap amended: added M11 Routing governance & observability (config + audit + dashboard) (`/roadmap-feature intelligent-memory-routing`)
 
 ### Changed
 - Claude Code kit `remember`/`precompact` hooks now write in a DETACHED background worker (`postDetached`) instead of a blocking `await`: server-side LLM fact-extraction takes ~8s through the gateway, so the previous 3s-timeout `await` silently dropped every write while still risking an 8s session stall — the hook now returns in ~0.03s and the write lands under the unified user subject once extraction completes (theo-cloud#249)
