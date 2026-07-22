@@ -170,8 +170,9 @@ function registerSkillRoutes(app: OpenAPIHono, memory: Memory): void {
 }
 
 // #77 — the 4 verbs: each requires its matching scope on the resolved Principal.
-function registerVerbRoutes(app: OpenAPIHono, memory: Memory): void {
-  app.post('/v1/remember', requireScopeOnPrincipal('memory:write'), (c) => rememberHandler(c, memory));
+function registerVerbRoutes(app: OpenAPIHono, options: CreateServerOptions): void {
+  const { memory, routingAuditStore } = options;
+  app.post('/v1/remember', requireScopeOnPrincipal('memory:write'), (c) => rememberHandler(c, memory, routingAuditStore));
   // M6 T1.3 — batch remember (array body → per-item scoped.remember; one request,
   // N facts, one write-limiter slot). Same memory:write scope as /v1/remember.
   app.post('/v1/remember/batch', requireScopeOnPrincipal('memory:write'), (c) => batchRememberHandler(c, memory));
@@ -202,5 +203,5 @@ export function registerRoutes(app: OpenAPIHono, options: CreateServerOptions): 
   }
   registerScopeRoutes(app, options);
   registerSkillRoutes(app, options.memory);
-  registerVerbRoutes(app, options.memory);
+  registerVerbRoutes(app, options);
 }

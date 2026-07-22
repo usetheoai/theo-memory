@@ -6,7 +6,8 @@
  * @see Plan theo-memory-standalone-p0-fixes-cycle-1 § T1.2 (shared body-parsing
  *      utilities extracted to ./_body-parsing.js per SRP discipline)
  */
-import type { Memory } from '@usetheo/memory/contract';
+import type { ChosenScope, Memory, Principal, RoutingAuditStore } from '@usetheo/memory/contract';
+import { DEFAULT_WORKSPACE_ID, recordRoutingDecision } from '@usetheo/memory/contract';
 import type { Context } from 'hono';
 
 import { mapDomainErrorToResponse } from '../errors.js';
@@ -20,7 +21,34 @@ import {
   workspaceBoundMemory,
 } from './_body-parsing.js';
 
-export async function rememberHandler(c: Context, memory: Memory): Promise<Response> {
+/**
+ * M11 T3.1 wiring — audit the routing decision a successful remember made: the `user` tier lands in the
+ * `(workspace, user)` GLOBAL scope, `session`/`agent` in the ephemeral SESSION scope. Best-effort +
+ * opt-in (only when a `RoutingAuditStore` is wired) via the fail-soft `recordRoutingDecision` primitive
+ * — a failed audit NEVER fails the remember (Rule 8).
+ */
+async function auditRememberRouting(
+  c: Context,
+  store: RoutingAuditStore,
+  body: RememberBody,
+  attributedTo: string | undefined,
+): Promise<void> {
+  const p = c.get('principal') as Principal | undefined;
+  const workspaceId = p?.workspaceId ?? DEFAULT_WORKSPACE_ID;
+  const chosenScope: ChosenScope = body.userId !== undefined ? 'global' : 'session';
+  const auditUserId = principalUserId(c) ?? body.userId ?? body.sessionId ?? body.agentId ?? 'system';
+  await recordRoutingDecision(store, {
+    workspaceId,
+    userId: auditUserId,
+    chosenScope,
+    attribution: attributedTo === 'agent' ? 'agent' : 'user',
+    decidedBy: principalUserId(c) ?? 'system',
+    why: `remember:${chosenScope === 'global' ? 'user-tier' : 'ephemeral-tier'}`,
+    at: new Date(),
+  });
+}
+
+export async function rememberHandler(c: Context, memory: Memory, routingAuditStore?: RoutingAuditStore): Promise<Response> {
   const json = await readJsonBody(c);
   if (json instanceof Response) return json;
   // MCP parity: when the body names no tier, fall back to the auth-trusted
@@ -42,6 +70,10 @@ export async function rememberHandler(c: Context, memory: Memory): Promise<Respo
   // themory-category-filter-server-side T4.2 — pass category through the SDK
   // boundary. EC-2 length check fires inside runExtractionPipeline at T3.3.
   const items = await scoped.remember(text, { infer, attributedTo, metadata, category });
+  // M11 — audit the routing decision (best-effort, fail-soft, opt-in).
+  if (routingAuditStore !== undefined) {
+    await auditRememberRouting(c, routingAuditStore, parsed.data, attributedTo);
+  }
   return c.json({ items }, 201);
 }
 
