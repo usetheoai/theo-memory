@@ -7,6 +7,14 @@ goal: Promote durable session (workspace,user,session) memories to global (works
 
 # Plan: M9 — Session → Global Consolidation (within `(workspace, user)`)
 
+> **Review reconciliation (2026-07-22)** — after `/review` (3 agents), these plan claims were corrected to the SHIPPED design (commit `2155e31` + fix `7653f8d`); read the tasks below with these overrides:
+> - **Individual promotion, NOT cluster-merge (F-xval-1).** The policy promotes EACH durable memory individually — `rejectedMemoryIds` is ALWAYS `[]`, `originalEpisodeIds` is `[self]`. Task T1.1/T4.1 prose describing "reject the other 2 / originalEpisodeIds = all 3" is superseded: 3 exact mentions dedup (composite UPSERT, Princípio 1) to ONE `confirmation_count=3` row, so there are never 3 source rows.
+> - **Provenance = `consolidation_history` (id-preserving), NOT a `derivedFrom` field (F-dom-2).** In-place promotion keeps the row's id, so a `derivedFrom` self-reference is meaningless; provenance + reversibility come from the audit row + the preserved id (`forget` undoes it).
+> - **Promotion rule v1 = `confirmation_count` only (F-dom-1, PARTIAL).** LLM-judged / agent-marked triggers are declared but ship as future hooks (honest deferral).
+> - **Runtime metric is the typed OTel event `consolidation_promoted`, not a counter `theo.memory.promotions` (F-xval-5).** The event carries `{scope_tier, promoted_count}` and reports only ACTUAL promotions (F-arch-3).
+> - **`recallConsolidationCandidates` is a full session-scan (O(session)) in v1 (F-xval-4)** — the blueprint's "never a full session scan / incremental" is deferred; not a correctness bug (scoped to one `(workspace, user)`).
+
+
 ## Goal
 
 Promote durable `session (workspace, user, session)` memories UP to `global (workspace, user)` at the `reflect` boundary — carrying `derivedFrom` provenance and one `consolidation_history` audit row per promotion, with non-promoted session memories left to the shipped triadic eviction — proven by a hard-gate integration test on real `ankane/pgvector:v0.5.1` (3 session mentions of one fact by user A → 1 promoted `global` row under `(workspace, userA)`; a one-off session fact is NOT promoted; user B sees none of it).
