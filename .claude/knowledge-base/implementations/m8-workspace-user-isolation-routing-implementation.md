@@ -19,3 +19,24 @@ Driver: `halt-loop-prompts/implement-m8-workspace-user-isolation-routing.md`
 
 ## Dependency order
 Phase 1 (T1.1→T1.2) → Phase 2 (T2.1,T2.2) + Phase 3 (T3.1) → Phase 4 (T4.1,T4.2,T4.3) → Phase 5 (T5.1) → Integration Validation
+
+## BLOCKER surfaced at implement iteration 1 (2026-07-21) — PREREQUISITE T0
+
+**T1.1 RED confirmed, GREEN blocked.** Making `SessionScope.userId`/`AgentScope.userId`
+required (scope.ts) + removing the `filtersFromScope` leak-branch is correct AND the RED
+test proved it (TS2578 "Unused @ts-expect-error" → satisfied after the change). BUT:
+
+1. The change is ATOMIC with T1.2 — a required `userId` breaks typecheck on every caller
+   that builds a bare session/agent scope (local-memory public API + 6 reconstruction sites).
+2. The `check_quality.py` PostToolUse hook BLOCKS every edit to `scoped-memory.ts`
+   (602 LoC > 300 limit, pre-existing duplicates at :521-539) — and T1.2's reconstruction
+   fixes (`deriveScopeFromPayload:168`) live in that file.
+
+**PREREQUISITE T0 (must run BEFORE T1.1 in a future iteration):** refactor
+`packages/core/src/infrastructure/db/scoped-memory.ts` (602 → <300 LoC) by extracting the
+pure helpers (`applySkillFilters`, `filtersFromScope`, `assertScopeIsNonEmpty`,
+`deriveScopeFromPayload`, and the duplicated row→MemoryItem mapping) into a sibling
+`scope-filters.ts` + `row-mapping.ts`, and split the `LocalScopedMemory` class body so no
+file exceeds 300 LoC. This is legitimate debt (the file is 2x the guideline with real
+duplication) — NOT scope-creep. Once done, T1.1+T1.2 (atomic) proceed on files the hook
+allows editing. WIP for T1.1 was reverted (git restore) to keep develop green.
