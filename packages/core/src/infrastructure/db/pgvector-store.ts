@@ -1070,9 +1070,10 @@ export class PgvectorStore implements VectorStore {
   async persistConsolidations(
     results: readonly ConflictResolutionResult[],
     options?: { readonly promote?: boolean },
-  ): Promise<void> {
-    if (results.length === 0) return;
+  ): Promise<number> {
+    if (results.length === 0) return 0;
     const promote = options?.promote === true;
+    let promotedCount = 0;
     await this.withTransaction(async (client) => {
       for (const r of results) {
         // M9 (T2.1): promote the durable representative to GLOBAL (session_id→NULL,
@@ -1082,13 +1083,23 @@ export class PgvectorStore implements VectorStore {
         // (a concurrent/duplicate promotion updates 0 rows, never an error). workspace_id
         // + user_id are UNTOUCHED — the promotion never crosses the (workspace, user)
         // isolation boundary (M9 hard gate).
+        //
+        // F-arch-3/F-xval-5 (review fix): the audit row + the returned count reflect the
+        // rows ACTUALLY promoted (rowCount > 0), NOT the policy's decision count — so an
+        // idempotent re-run (or a concurrent loser) writes NO duplicate audit row and does
+        // not over-report the promotion (Princípio 3 fidelity). The v0.7 non-promote path
+        // (options omitted) is unchanged: it always audits its soft-delete decision.
         if (promote) {
-          await client.query(
+          const res = await client.query(
             `UPDATE memories SET session_id = NULL, agent_id = NULL
               WHERE id = $1::uuid AND t_invalid IS NULL
                 AND (session_id IS NOT NULL OR agent_id IS NOT NULL)`,
             [r.keptMemoryId],
           );
+          if ((res.rowCount ?? 0) === 0) {
+            continue; // nothing promoted (already global / lost the race) → no audit, no count
+          }
+          promotedCount += 1;
         }
         if (r.rejectedMemoryIds.length > 0) {
           await client.query(
@@ -1112,6 +1123,7 @@ export class PgvectorStore implements VectorStore {
         );
       }
     });
+    return promotedCount;
   }
 
   /** Acquire a pool client for transactional persist (EC-6 rollback semantics). */
