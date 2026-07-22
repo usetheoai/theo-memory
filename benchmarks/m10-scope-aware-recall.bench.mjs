@@ -115,8 +115,10 @@ async function measureRecall() {
 async function measureProjectionCost() {
   const emb = `[${Array.from({ length: DIM }, (_, i) => (i === 0 ? 1 : 0)).join(',')}]`;
   const filter = `WHERE workspace_id=$2 AND user_id=$3 AND t_invalid IS NULL ORDER BY embedding <=> $1::vector LIMIT 20`;
-  const withCols = `SELECT id, text, created_at, confirmation_count FROM memories ${filter}`;
-  const withoutCols = `SELECT id, text FROM memories ${filter}`;
+  // M10 added ONLY created_at to the projection (confirmation_count was already projected pre-M10),
+  // so the marginal cost is created_at vs no-created_at — confirmation_count stays in BOTH arms.
+  const withCols = `SELECT id, text, confirmation_count, created_at FROM memories ${filter}`;
+  const withoutCols = `SELECT id, text, confirmation_count FROM memories ${filter}`;
   const args = [emb, WS, USER];
   const time = async (sql) => {
     await pool.query(sql, args); // warm
@@ -143,15 +145,21 @@ async function main() {
   const report = {
     benchmark: 'm10-scope-aware-recall',
     k: K,
-    relevant_set: 'recent-session ∪ durable-global',
+    // HONEST framing (F-tests-5): the "relevant" set IS the scope-preferred set the reweight boosts,
+    // so this measures how well the weights SURFACE the intended rows into top-k — NOT a general
+    // recall@k win vs an independent ground truth. The safety property (a large base-score gap is NOT
+    // inverted → durable facts are not buried) is proven in the unit suite; the real-pipeline ranking
+    // is proven in tests/integration/recall/scope-aware-ranking.test.ts. The formula here MIRRORS
+    // scope-reweight.ts (documented drift risk), so this bench gauges the ranking, not the wiring.
+    relevant_set: 'scope-preferred (recent-session ∪ durable-global) — same set the reweight targets',
     runs: RUNS,
     recall_at_k: recall,
     recall_delta: +(recall.scope_aware_recall_at_k - recall.baseline_recall_at_k).toFixed(3),
-    projection_cost: { ...projection, delta_ms: deltaMs },
+    projection_cost: { ...projection, delta_ms: deltaMs, note: 'created_at only (confirmation_count in both arms)' },
     verdict:
       recall.scope_aware_recall_at_k >= recall.baseline_recall_at_k
-        ? `PASS: scope-aware recall@${K} does not regress (>= baseline)`
-        : `REGRESSION: scope-aware recall@${K} < baseline`,
+        ? `PASS: the reweight surfaces the scope-preferred set into top-${K} (no regression vs base order)`
+        : `REGRESSION: scope-aware surfaces fewer preferred rows than base order`,
   };
   console.log(JSON.stringify(report, null, 2));
   await pool.end();
