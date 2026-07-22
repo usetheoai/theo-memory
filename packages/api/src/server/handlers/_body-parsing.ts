@@ -46,7 +46,6 @@ export function principalUserId(c: Context): string | undefined {
 
 /** MCP-parity user-scope header the edge injects (mirrors the streamable-http transport). */
 const USER_SCOPE_HEADER = 'X-Theo-User-Id';
-const SCOPE_TIER_KEYS = ['userId', 'sessionId', 'agentId'] as const;
 
 /**
  * Resolve the user tier the SAME way the MCP transport does: when the body names
@@ -55,18 +54,28 @@ const SCOPE_TIER_KEYS = ['userId', 'sessionId', 'agentId'] as const;
  * Why: the REST surface took the tier ONLY from the body, so the Claude Code kit
  * hooks (which post no tier) landed under a project-name id invisible to the
  * dashboard, while the MCP tools landed under the credential's subject. This unifies
- * both onto one user space the dashboard reads. Body-supplied tiers still win — the
- * header is a fallback, never an override — and an absent identity stays absent so
- * the schema's single-tier refine still fails closed. Returns a NEW object; never
- * mutates the input.
+ * both onto one user space the dashboard reads. A body SESSION/AGENT tier keeps its
+ * id (its user binding is added at resolveScope via principalUserId); for the user
+ * tier (or a body with no tier) the auth-trusted header OVERRIDES a body `userId`
+ * (M8 F-arch-1 — defense in depth alongside the Principal bind in resolveScope, so a
+ * client-supplied userId can never address another user's global memory). An absent
+ * identity stays absent so the schema's single-tier refine still fails closed.
+ * Returns a NEW object; never mutates the input.
  */
 export function applyHeaderUserScope<T extends Record<string, unknown>>(c: Context, body: T): T {
-  const alreadyTiered = SCOPE_TIER_KEYS.some(
-    (k) => body[k] !== undefined && body[k] !== null,
-  );
-  if (alreadyTiered) return body;
   const headerUser = c.req.header(USER_SCOPE_HEADER)?.trim();
+  // No auth-injected identity (SDK/dev/no-auth) → trust the body verbatim.
   if (headerUser === undefined || headerUser === '') return body;
+  // M8 review F-arch-1 (cross-user IDOR fix): the edge-injected X-Theo-User-Id is the
+  // AUTH-TRUSTED acting user (from the credential, never the client). A session/agent
+  // body keeps its tier id; its user binding is added at resolveScope via
+  // principalUserId. For the user tier (or a body with no tier), the trusted header
+  // identity OVERRIDES any body-supplied `userId` — so a user-Principal can NEVER
+  // read/write another user's global memory by putting `{userId:'victim'}` in the body.
+  const hasSessionOrAgent =
+    (body['sessionId'] !== undefined && body['sessionId'] !== null) ||
+    (body['agentId'] !== undefined && body['agentId'] !== null);
+  if (hasSessionOrAgent) return body;
   return { ...body, userId: headerUser };
 }
 

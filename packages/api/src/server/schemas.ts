@@ -144,7 +144,12 @@ export function resolveScope<T extends Record<string, unknown>>(
   body: T,
   userId?: string,
 ): ScopedMemoryLike {
-  if (typeof body['userId'] === 'string') return memory.user(body['userId']);
+  // M8 review F-arch-1 (cross-user IDOR fix): the user tier binds to the AUTH-TRUSTED
+  // Principal userId when present — a body-supplied userId can NEVER address another
+  // user's global scope. `userId` is undefined only for a workspace-admin credential
+  // (no acting user) OR an unauthenticated harness, where the body userId is the sole
+  // signal. Mirrors the read-path bind in pathParamsToScoped (`userId ?? id`).
+  if (typeof body['userId'] === 'string') return memory.user(userId ?? body['userId']);
   // M8 (ADR D6): a body-named session/agent write is bound to the acting user
   // (the Principal's userId) → scope (workspace, user, session). Omitted for a
   // workspace-admin credential (userId null) → workspace-scoped.

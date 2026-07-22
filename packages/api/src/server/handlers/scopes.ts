@@ -65,7 +65,9 @@ function pathParamsToScoped(
 ): ScopedMemory {
   switch (type) {
     case 'user':
-      return memory.user(id);
+      // M8 F-arch-1: bind the user tier to the auth Principal (userId) when present
+      // so a user-Principal can only address its OWN global scope; null (admin) → path id.
+      return memory.user(userId ?? id);
     case 'session':
       // M8 (ADR D6): bind the acting user so the scope is (workspace, user, session).
       return memory.session(id, userId);
