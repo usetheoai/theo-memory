@@ -457,6 +457,14 @@ export {
 } from './conflict-resolution/prompts.js';
 
 /**
+ * M9 — `SessionToGlobalConsolidationPolicy` — promotes a durable session cluster
+ * (confirmation_count ≥ threshold, Princípio 1) to the user's global scope. A
+ * `ConflictResolutionPolicy` impl reused at the reflect boundary; persistence
+ * (session_id→NULL) is the store's `promoteToGlobal`.
+ */
+export { SessionToGlobalConsolidationPolicy } from './consolidation/session-to-global-policy.js';
+
+/**
  * 12th DIP — `AuthVerifier` — pluggable REST-server bearer-auth contract.
  * Default: BearerAuthVerifier from theo-memory-standalone-p0 cycle.
  *
