@@ -119,3 +119,42 @@ describe('CompromiseEntityExtractor (T1.2)', () => {
     expect(out).not.toContain('user');
   });
 });
+
+describe('#111 — corpus PT/técnico quality gates (graph noise post-M12 import)', () => {
+  const extractor = new CompromiseEntityExtractor();
+  const names = (text: string): string[] => extractor.extract(text).map((e) => e.name.toLowerCase());
+
+  test('never extracts scrub redaction markers as entities', () => {
+    const out = names('o deploy usa o token [REDACTED:high_entropy] e o arquivo [REDACTED:high_entropy].md no fluxo');
+    expect(out.some((n) => n.includes('redacted'))).toBe(false);
+  });
+
+  test('non-English text skips the noun-phrase paths (no PT fragment compounds)', () => {
+    const out = names(
+      'O sistema produz balbucio quando o seam está errado e as informações sobre desenvolvimento se perdem, mantendo acurácia baixa em toda a extração do pipeline.',
+    );
+    expect(out).not.toContain('produz balbucio');
+    expect(out).not.toContain('o seam');
+    expect(out).not.toContain('informações sobre desenvolvimento');
+  });
+
+  test('keeps multi-word proper names from Portuguese text (Claude Code survives the gate)', () => {
+    const out = names('Depois do deploy, o Claude Code grava a memória no theo-memory usando o Ralph Wiggum Loop em produção.');
+    expect(out).toContain('claude code');
+    expect(out).toContain('ralph wiggum loop');
+  });
+
+  test('drops lone sentence-initial Portuguese starters (Não/Isso/etc.)', () => {
+    const out = names('Não funciona no ambiente novo. Isso quebra o fluxo inteiro do produto em staging.');
+    expect(out).not.toContain('não');
+    expect(out).not.toContain('isso');
+  });
+
+  test('drops whole-sentence QUOTED spans (keeps short quoted titles)', () => {
+    const out = names(
+      'Definimos "sistema de sanitization para as customtools dos usuários finais" e também o "Módulo Guardrails" no plano.',
+    );
+    expect(out).not.toContain('sistema de sanitization para as customtools dos usuários finais');
+    expect(out).toContain('módulo guardrails');
+  });
+});
