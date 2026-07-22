@@ -38,6 +38,14 @@ const QuerySchema = z.object({
   cursor: z.string().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   /**
+   * Dashboard pager (2026-07-22) — SQL-level page offset. Previously NOT parsed:
+   * the gateway forwarded `offset` and every page silently returned the same
+   * first items. Applied at the store (`created_at DESC, id ASC` deterministic
+   * order); combines with `category` (store-level) — when `cursor`/`from`/`to`
+   * (in-memory filters) are present the offset applies to the FILTERED set.
+   */
+  offset: z.coerce.number().int().min(0).default(0),
+  /**
    * themory-category-filter-server-side T4.1 / ADR D3 — operator-supplied
    * category filter (1-64 chars). Empty string is rejected at the boundary
    * (zod min(1)) per ADR D3; lengths > 64 are rejected per the same ADR.
@@ -130,6 +138,7 @@ export async function scopesHandler(c: Context, memory: Memory): Promise<Respons
   const queryParse = QuerySchema.safeParse({
     cursor: c.req.query('cursor'),
     limit: c.req.query('limit'),
+    offset: c.req.query('offset'),
     category: c.req.query('category'),
     from: c.req.query('from'),
     to: c.req.query('to'),
@@ -143,7 +152,7 @@ export async function scopesHandler(c: Context, memory: Memory): Promise<Respons
       422,
     );
   }
-  const { cursor: rawCursor, limit, category, from, to } = queryParse.data;
+  const { cursor: rawCursor, limit, offset, category, from, to } = queryParse.data;
 
   let cursor: z.infer<typeof CursorSchema> | null = null;
   if (rawCursor !== undefined) {
@@ -158,6 +167,30 @@ export async function scopesHandler(c: Context, memory: Memory): Promise<Respons
 
   // multi-tenant-workspace-isolation T3.1: list ONLY the Principal's workspace (ADR D3).
   const scoped = pathParamsToScoped(workspaceBoundMemory(c, memory), typeParse.data, id, principalUserId(c));
+
+  // Dashboard pager fast path (2026-07-22): no cursor and no in-memory date
+  // filters → REAL SQL pagination (store-level offset + limit) and the true
+  // scope total. Fixes both live defects: `offset` silently ignored end-to-end,
+  // AND the 100-row getAll cap that made items 101+ unreachable even via cursor.
+  const hasInMemoryFilters = rawCursor !== undefined || from !== undefined || to !== undefined;
+  if (!hasInMemoryFilters) {
+    // limit+1 probe: exact hasMore without a second query (and a defensive
+    // slice so a store over-returning beyond topK never leaks past the limit).
+    const raw = await scoped.getAll({
+      topK: limit + 1,
+      offset,
+      ...(category !== undefined ? { category } : {}),
+    });
+    const page = raw.slice(0, limit);
+    const hasMore = raw.length > limit;
+    const total = typeof scoped.count === 'function' ? await scoped.count() : undefined;
+    const nextCursor =
+      hasMore && page.length > 0 ? encodeCursor(page[page.length - 1]!) : undefined;
+    return c.json({ items: page, nextCursor, ...(total !== undefined ? { total } : {}) }, 200);
+  }
+
+  // Legacy path — cursor / date-range filters applied in-memory over the getAll
+  // page (pre-existing O(scope≤topK) honesty note); `offset` slices the FILTERED set.
   // themory-category-filter-server-side T4.1 — thread category into getAll
   // when supplied. zod min(1) already rejected empty string; LocalScopedMemory.getAll
   // performs EC-3 defense-in-depth normalization for direct SDK callers.
@@ -185,8 +218,8 @@ export async function scopesHandler(c: Context, memory: Memory): Promise<Respons
     });
   }
 
-  const page = filtered.slice(0, limit);
-  const hasMore = filtered.length > limit;
+  const page = filtered.slice(offset, offset + limit);
+  const hasMore = filtered.length > offset + limit;
   const nextCursor = hasMore && page.length > 0 ? encodeCursor(page[page.length - 1]!) : undefined;
 
   return c.json({ items: page, nextCursor }, 200);

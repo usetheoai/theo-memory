@@ -223,7 +223,12 @@ export class LocalScopedMemory implements ScopedMemory {
 
   async getAll(options?: GetAllOptions): Promise<readonly MemoryItem[]> {
     const limit = options?.topK ?? 100;
-    const [results] = await this.config.vectorStore.list(applySkillFilters(this.filters, options), limit);
+    const [results] = await this.config.vectorStore.list(
+      applySkillFilters(this.filters, options),
+      limit,
+      false,
+      options?.offset ?? 0,
+    );
     const { items, fallbackCount } = rowsToMemoryItems(results, this.scope);
     if (fallbackCount > 0) {
       emitEvent(this.config.tracer, 'getall_temporal_fallback', { count: fallbackCount });
