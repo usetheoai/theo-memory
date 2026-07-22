@@ -4,6 +4,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- M11 (routing governance, T1.1): per-`(workspace, user)` routing-policy config. A `RoutingPolicyStore` DIP (`get`/`put`) with a **fail-closed default** (`FAILCLOSED_DEFAULT_POLICY` — LLM routing OFF, `session` default scope, `confirmation_threshold` 3) so an absent/invalid config never disables isolation (blueprint ADR D1). Validated by the shipped `zod` (`RoutingPolicySchema`, strict) throwing a typed `InvalidRoutingPolicy` on a bad payload (Rule 9 — no new dep). Backed by the `routing_policies` table (migration `0025`) keyed by the M8 `(workspace_id, user_id)` isolation pair; `InMemoryRoutingPolicyStore` + `PgRoutingPolicyStore` impls. Unit: `routing-policy-store.test.ts` 4/4 (fail-closed default, put→get roundtrip, per-(workspace,user) isolation, zod rejection).
+
 ## [0.39.0] - 2026-07-22
 
 ### Fixed
