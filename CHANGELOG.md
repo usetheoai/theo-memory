@@ -4,6 +4,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.40.0] - 2026-07-22
+
 ### Fixed
 - M11 review fix-cycle (from the 2-agent `/review` of the M11 diff):
   - **F-tests-1 (HIGH) — promotion decisions now audited.** The ROADMAP M11 DoD requires "every routing AND promotion decision" be a queryable audit record; only the routing (remember) path was wired. A session→global PROMOTION (M9 reflect) now emits a fail-soft audit row (`why: 'promotion-confirmation-threshold'`, `chosenScope: 'global'`) via `LocalMemoryConfig.routingAuditStore` threaded through `runReflection`; `wireMemoryFromPool` injects `PgRoutingAuditStore` so it fires in the deployed server/MCP/CLI. Integration (real pgvector): a durable-session-fact reflect promotes AND records a retrievable audit row.
