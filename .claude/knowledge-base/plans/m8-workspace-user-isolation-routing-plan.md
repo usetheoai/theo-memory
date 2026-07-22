@@ -141,7 +141,7 @@ Reasoning: per ADR D1 + blueprint (mem0 mirrors the mandatory id into the query 
 The 5 SessionScope/AgentScope consumers (Baseline § Current callers) must pass `userId`; typecheck enforces it.
 
 #### TDD
-- RED: `scope.test.ts` — `test_session_scope_requires_user_id`: constructing a `SessionScope` without `userId` is a type error (compile-time) AND `toFilters(sessionScope)` ALWAYS contains `user_id` (runtime assertion). Assertion: `expect(toFilters({kind:'session',userId:'u',sessionId:'s'}, 'w')).toEqual({workspace_id:'w',user_id:'u',session_id:'s'})`.
+- RED: test_session_scope_requires_user_id — constructing a `SessionScope` without `userId` is a type error (compile-time) AND `toFilters(sessionScope)` ALWAYS contains `user_id` (runtime assertion). Assertion: `expect(toFilters({kind:'session',userId:'u',sessionId:'s'}, 'w')).toEqual({workspace_id:'w',user_id:'u',session_id:'s'})`.
 - GREEN: required field + always-include filter.
 - REFACTOR: collapse the session/agent branches now that userId is unconditional.
 
@@ -179,7 +179,7 @@ Reasoning: per ADR D5 — D1's mandatory `userId` is a public-API break, not a m
 The reconstruction sites already receive a row/filters that carries `user_id` (the column exists); they currently DROP it when rebuilding the scope. This task threads it through.
 
 #### TDD
-- RED: `local-memory-scope-api.test.ts` — `test_memory_session_requires_user_id`: `Memory.session('u','s')` produces a scope whose `filtersFromScope` yields `{workspace_id, user_id:'u', session_id:'s'}`; calling `Memory.session('s')` (old 1-arg form) is a type error.
+- RED: test_memory_session_requires_user_id — `Memory.session('u','s')` produces a scope whose `filtersFromScope` yields `{workspace_id, user_id:'u', session_id:'s'}`; calling `Memory.session('s')` (old 1-arg form) is a type error.
 - GREEN: add the required `userId` parameter + thread it in the 6 sites.
 - REFACTOR: none.
 
@@ -217,7 +217,7 @@ Blueprint Recommendations → "the agent chooses scope on write (add() kwargs pa
 The policy is pure domain (no I/O); the MCP layer supplies the agent's choice; the store consumes the resolved scope.
 
 #### TDD
-- RED: `routing-policy.test.ts` — `test_default_policy_routes_hook_to_session_and_durable_to_global`: `DefaultRoutingPolicy.route({hint:'ephemeral', principal})` → session scope `(ws,user,session)`; `{hint:'durable'}` → global `(ws,user)`.
+- RED: test_default_policy_routes_hook_to_session_and_durable_to_global — `DefaultRoutingPolicy.route({hint:'ephemeral', principal})` → session scope `(ws,user,session)`; `{hint:'durable'}` → global `(ws,user)`.
 - GREEN: implement the mapping.
 - REFACTOR: extract the hint enum.
 
@@ -249,7 +249,7 @@ Reasoning: ADR D3 + blueprint D2 (`main.py:308-311`); Rule 9 (reuse `0008_attrib
 `attributed_to` already persists via `options.ts:26`; this only sets it on the Claude Code paths.
 
 #### TDD
-- RED: `attribution.test.ts` — `test_agent_write_sets_attributed_to_agent`: an MCP remember with `attributedTo:'agent'` persists `attributed_to='agent'`; coexists in the same scope as a `user` memory.
+- RED: test_agent_write_sets_attributed_to_agent — an MCP remember with `attributedTo:'agent'` persists `attributed_to='agent'`; coexists in the same scope as a `user` memory.
 - GREEN: thread the field.
 - REFACTOR: none.
 
@@ -285,7 +285,7 @@ Reasoning: graphiti puts the partition key in EVERY index (`graph_queries.py:32-
 Additive index; no column change. `CONCURRENTLY` avoids table lock (Drawbacks § MEDIUM).
 
 #### TDD
-- RED: `schema-m8-index.test.ts` (integration, real pgvector) — `test_composite_scope_index_exists`: after migrations, `pg_indexes` contains `memories_ws_user_session_idx`.
+- RED: test_composite_scope_index_exists — after migrations, `pg_indexes` contains `memories_ws_user_session_idx`.
 - GREEN: the migration.
 - REFACTOR: none.
 
@@ -320,7 +320,7 @@ Blueprint § Coverage Corner 1 — Integration Tests (neither mem0 nor graphiti 
 Uses the existing real-pgvector integration harness (Baseline: co-located `*.test.ts`, `vitest.integration.config.ts`).
 
 #### TDD
-- RED: `test_user_b_reads_zero_of_user_a_rows`: seed `(ws, userA)` global + `(ws, userA, sessionA)` session; recall as `(ws, userB)` and as `(ws, userB, sessionB)` → both return 0 of A's memory ids.
+- RED: test_user_b_reads_zero_of_user_a_rows — seed `(ws, userA)` global + `(ws, userA, sessionA)` session; recall as `(ws, userB)` and as `(ws, userB, sessionB)` → both return 0 of A's memory ids.
 - GREEN: passes once T1.1 filter is in place.
 - REFACTOR: extract the seed helper.
 
@@ -348,7 +348,7 @@ Reasoning: Princípio 3 (auditability); the existing typed-event union pattern (
 - the routing path — `emitEvent(tracer, 'memory_routed', …)`
 
 #### TDD
-- RED: `routing-event.test.ts` — `test_routing_emits_typed_event`: a routed write emits `memory_routed` with `{scope, attributed_to, decided_by}`.
+- RED: test_routing_emits_typed_event — a routed write emits `memory_routed` with `{scope, attributed_to, decided_by}`.
 - GREEN: emit it.
 - REFACTOR: none.
 
@@ -374,7 +374,7 @@ Reasoning: blueprint — the composite index is the bottleneck answer; the DoD d
 - `benchmarks/m8-isolation-filter.bench.ts` (NEW)
 
 #### TDD
-- RED: `test_benchmark_reports_mean_stddev`: the bench emits a JSON with mean±stddev over ≥3 runs for both arms.
+- RED: test_benchmark_reports_mean_stddev — the bench emits a JSON with mean±stddev over ≥3 runs for both arms.
 - GREEN: implement.
 - REFACTOR: none.
 
@@ -405,7 +405,7 @@ Reasoning: the locked "Memory tiers" name + optional-userId contract require own
 - `CHANGELOG.md` `[Unreleased]`
 
 #### TDD
-- RED: `test_e2e_smoke`-style xref — the ADR file exists and CLAUDE.md references it (a grep assertion in the plan's validation; non-code doc gate).
+- RED: test_e2e_smoke — style xref — the ADR file exists and CLAUDE.md references it (a grep assertion in the plan's validation; non-code doc gate).
 - GREEN: write the files.
 - REFACTOR: none.
 
