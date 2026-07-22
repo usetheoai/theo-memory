@@ -4,6 +4,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-07-22
+
 ### Fixed
 - M12 review fix-cycle (from the 2-agent `/review` of the M12 diff):
   - **F-arch-1 (BLOCKER) — the documented invocation was unreachable for kit users.** SKILL.md/README/RUNBOOK prescribed `npx --yes @usetheo/memory import claude-code`, but the package ships NO npm bin (Docker-only topology, ADR D2-a of `complete-workspace-publish-topology`) — the skill's primary path would fail on every kit machine. Fixed structurally: `install.sh` now SHIPS the migrator engine to `~/.claude/hooks/migrate-claude-code.mjs` (same channel as the hooks; 7 files copied) and the primary invocation everywhere is `node ~/.claude/hooks/migrate-claude-code.mjs` (checkout `dist/agent-tools/cli.js import claude-code` and Docker `-v ~/.claude:/root/.claude` as alternatives). A THIRD byte-parity sentinel (engine canonical ↔ kit copy) joins the scrub pair so the shipped copy can never diverge silently.
