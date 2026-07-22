@@ -180,6 +180,11 @@ export const MEMORY_EVENTS = [
   // boundary. Attributes `{scope_tier, promoted_count}`. Princípio 3 — every promotion
   // (a governed placement decision) is observable. @see CLAUDE.md § IMPORTANTE Princípio 3
   'consolidation_promoted',
+  // M10 (scope-aware recall reweight, T3.1) — the opt-in scopeAwareReweight stage
+  // re-ordered the threshold-survivor pool by scope-of-origin (session recency-boost,
+  // global stability-boost) before top-K. Attributes `{scope_tier, reweighted_count}`.
+  // Princípio 3 — the reweight (a governed ranking decision) is observable.
+  'scope_reweight_applied',
 ] as const;
 
 export type MemoryEvent = (typeof MEMORY_EVENTS)[number];
