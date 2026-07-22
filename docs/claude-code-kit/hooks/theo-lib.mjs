@@ -10,10 +10,17 @@
 import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 const DEFAULT_URL = 'http://127.0.0.1:8080';
 const ENV_PATH = join(homedir(), '.claude', 'theo-memory.env');
 const DEFAULT_TIMEOUT_MS = 3000;
+// A write (remember/precompact) runs server-side LLM fact-extraction through the
+// gateway edge and legitimately takes ~8s. A blocking hook must NOT hold the session
+// that long, so writes are DETACHED (postDetached) into a background worker that
+// carries a generous timeout of its own — the parent hook exits 0 immediately.
+const DETACHED_WRITE_TIMEOUT_MS = 20000;
 
 /**
  * Read ~/.claude/theo-memory.env → { THEOMEM_MEMORY_URL, THEOMEM_MEMORY_TOKEN }.
@@ -58,11 +65,19 @@ export function loadEnv() {
   // REST path and failed soft (post() returns null on any error).
   const pathPrefix =
     process.env.THEOMEM_MEMORY_PATH_PREFIX || parsed.THEOMEM_MEMORY_PATH_PREFIX || '';
+  // Optional explicit user id. Leave it unset for the gateway path (the default):
+  // the gateway injects an auth-trusted X-Theo-User-Id from the credential, and the
+  // server binds the user tier to it, so every instance of the same account lands in
+  // ONE unified memory space the dashboard reads. Set it only to pin a fixed user
+  // when talking to a raw REST endpoint that does NOT inject the header.
+  const userId =
+    process.env.THEOMEM_MEMORY_USER_ID || parsed.THEOMEM_MEMORY_USER_ID || '';
 
   return {
     url: url.replace(/\/+$/, ''),
     token: token || null,
     pathPrefix: pathPrefix.replace(/\/+$/, ''),
+    userId: userId.trim(),
   };
 }
 
@@ -137,4 +152,49 @@ export async function post(path, body, opts = {}) {
   } catch {
     return null;
   }
+}
+
+/**
+ * Fire a POST in a DETACHED background process and return immediately — the write
+ * outlives the calling hook. This is the ONLY correct shape for a Stop / PreCompact
+ * hook write: server-side LLM fact-extraction takes ~8s through the gateway, but the
+ * session must never block on it (blueprint ADR-5 "a memory outage never blocks the
+ * session" — an 8s stall is the same failure). The child re-invokes THIS file in
+ * `--write-worker` mode with the payload base64-encoded on argv, does the POST with a
+ * generous timeout, then exits. Errors are swallowed (fire-and-forget). Never throws.
+ *
+ * @param {string} path  verb path, e.g. '/v1/remember'
+ * @param {object} body  JSON request body
+ */
+export function postDetached(path, body) {
+  try {
+    const self = fileURLToPath(import.meta.url);
+    const encoded = Buffer.from(JSON.stringify(body), 'utf8').toString('base64');
+    const child = spawn(process.execPath, [self, '--write-worker', path, encoded], {
+      detached: true,
+      stdio: 'ignore',
+    });
+    child.unref();
+  } catch {
+    // Spawn failed (no node? sandbox?) — degrade to a no-op, never break the session.
+  }
+}
+
+// Worker entry: `node theo-lib.mjs --write-worker <path> <base64-json-body>`. Runs the
+// POST with a long timeout so extraction completes after the parent hook has exited.
+// Guarded on argv so a normal `import` of this module (recall/remember/precompact) never
+// triggers it — only the explicit detached spawn does.
+if (process.argv[1] &&
+    fileURLToPath(import.meta.url) === process.argv[1] &&
+    process.argv[2] === '--write-worker') {
+  const path = process.argv[3];
+  let body = {};
+  try {
+    body = JSON.parse(Buffer.from(process.argv[4] || '', 'base64').toString('utf8'));
+  } catch {
+    process.exit(0);
+  }
+  post(path, body, { timeoutMs: DETACHED_WRITE_TIMEOUT_MS }).finally(() =>
+    process.exit(0)
+  );
 }
