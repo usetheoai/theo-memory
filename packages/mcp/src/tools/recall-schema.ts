@@ -16,7 +16,7 @@ import { MAX_QUERY_BYTES } from './constants.js';
 export const TOOL_NAME = 'recall' as const;
 
 export const DESCRIPTION =
-  'Search scoped memory and return the top-K matches for the query. Use this when the user references past work, asks "how should we..." style questions, or hits an error worth grounding in prior context.';
+  'Search scoped memory and return the top-K matches for the query. Use this when the user references past work, asks "how should we..." style questions, or hits an error worth grounding in prior context. Omit `sessionId` to search the durable GLOBAL memory; pass `sessionId` to search that SESSION\'s working context instead.';
 
 /**
  * Input shape for `tools/call recall`.
@@ -28,6 +28,12 @@ export const DESCRIPTION =
 export const INPUT_SCHEMA = z.object({
   /** The search query. Free-form natural language (nouns + entities work best). Capped at MAX_QUERY_BYTES (EC-2). */
   query: z.string().min(1).max(MAX_QUERY_BYTES),
+  /**
+   * M8 routing (ADR D6): when present, search the SESSION scope
+   * `(workspace, user, session)` instead of the durable GLOBAL scope `(workspace, user)`.
+   * The user is always the auth-trusted context user.
+   */
+  sessionId: z.string().min(1).optional(),
   /** Maximum results to return. Default 20 per v0.0 contract. */
   topK: z.number().int().min(1).max(100).default(20),
   /** Minimum composite score to include (additive composite, [0, 1] range per EC-10). */

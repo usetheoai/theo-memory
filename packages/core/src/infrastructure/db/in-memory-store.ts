@@ -99,13 +99,34 @@ function matchesFilters(payload: Payload, filters: Filters | undefined): boolean
       return false;
     }
   }
+  // M8 hierarchical recall — overrides plain session_id/agent_id equality with the tier's
+  // hierarchical predicate (mirrors composeFilters in pgvector-store). When set, it OWNS
+  // session_id/agent_id (filtersFromScope does not also emit them as plain equalities).
+  if (filters.scopeHierarchy !== undefined) {
+    const isNull = (v: unknown): boolean => v === undefined || v === null;
+    const sessionId = payload['session_id'];
+    const agentId = payload['agent_id'];
+    if (filters.scopeHierarchy === 'global') {
+      // GLOBAL: durable user rows only.
+      if (!isNull(sessionId) || !isNull(agentId)) return false;
+    } else {
+      // SESSION ∪ GLOBAL: this session's rows OR the user's global rows (no agent rows).
+      if (!isNull(agentId)) return false;
+      if (!isNull(sessionId) && sessionId !== filters.scopeHierarchy.session) return false;
+    }
+  }
   // Generic equality loop for the scope keys (user_id / session_id / agent_id). Skip the
   // v0.6 + category fields handled above so they don't get mis-evaluated as payload-equality checks.
   for (const [key, value] of Object.entries(filters)) {
     if (value === undefined) {
       continue;
     }
-    if (key === 'kind' || key === 'excludeSuperseded' || key === 'category') {
+    if (key === 'kind' || key === 'excludeSuperseded' || key === 'category' || key === 'scopeHierarchy') {
+      continue;
+    }
+    // M8: when scopeHierarchy owns session_id/agent_id, skip their plain equality (kept in
+    // the filter for the WRITE column derivation; the hierarchy branch above is the recall).
+    if (filters.scopeHierarchy !== undefined && (key === 'session_id' || key === 'agent_id')) {
       continue;
     }
     if (payload[key] !== value) {

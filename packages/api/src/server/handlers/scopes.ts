@@ -21,7 +21,7 @@ import type { Memory, ScopedMemory } from '@usetheo/memory/contract';
 import type { Context } from 'hono';
 import { z } from 'zod';
 
-import { workspaceBoundMemory } from './_body-parsing.js';
+import { principalUserId, workspaceBoundMemory } from './_body-parsing.js';
 
 
 const SCOPE_TYPES = ['user', 'session', 'agent', 'skill'] as const;
@@ -57,14 +57,22 @@ const QuerySchema = z.object({
   to: z.string().datetime().optional(),
 });
 
-function pathParamsToScoped(memory: Memory, type: Exclude<ScopeType, 'skill'>, id: string): ScopedMemory {
+function pathParamsToScoped(
+  memory: Memory,
+  type: Exclude<ScopeType, 'skill'>,
+  id: string,
+  userId?: string,
+): ScopedMemory {
   switch (type) {
     case 'user':
-      return memory.user(id);
+      // M8 F-arch-1: bind the user tier to the auth Principal (userId) when present
+      // so a user-Principal can only address its OWN global scope; null (admin) → path id.
+      return memory.user(userId ?? id);
     case 'session':
-      return memory.session(id);
+      // M8 (ADR D6): bind the acting user so the scope is (workspace, user, session).
+      return memory.session(id, userId);
     case 'agent':
-      return memory.agent(id);
+      return memory.agent(id, userId);
   }
 }
 
@@ -149,7 +157,7 @@ export async function scopesHandler(c: Context, memory: Memory): Promise<Respons
   }
 
   // multi-tenant-workspace-isolation T3.1: list ONLY the Principal's workspace (ADR D3).
-  const scoped = pathParamsToScoped(workspaceBoundMemory(c, memory), typeParse.data, id);
+  const scoped = pathParamsToScoped(workspaceBoundMemory(c, memory), typeParse.data, id, principalUserId(c));
   // themory-category-filter-server-side T4.1 — thread category into getAll
   // when supplied. zod min(1) already rejected empty string; LocalScopedMemory.getAll
   // performs EC-3 defense-in-depth normalization for direct SDK callers.

@@ -170,6 +170,33 @@ export interface RecallOptions {
   };
 
   /**
+   * M10 (scope-aware recall) — Princípio 1 (relevance is a continuous score over orthogonal
+   * signals). When set, retrieval applies a DETERMINISTIC scope-aware reweight AFTER score
+   * combine + threshold + BEFORE topK: a SESSION-origin row (`session_id` set) is boosted by
+   * RECENCY (newer `created_at` → higher) and a GLOBAL-origin row (`session_id` NULL) by
+   * STABILITY (higher `confirmation_count` → higher) — so a durable global fact is not buried
+   * under fresh session noise, and the current conversation surfaces. Operates on the M8
+   * `session ∪ global` union pool, always inside `(workspace, user)` (isolation is enforced
+   * upstream by `composeFilters`, never by this reweight).
+   *
+   * Default (undefined) is byte-identical to today — no reweight (opt-in per ADR D1).
+   * MUTUALLY EXCLUSIVE with `rerank` (the cross-encoder) and `diversify` — all three occupy the
+   * same post-threshold seam; setting more than one throws `RerankerConflict`. The weights are
+   * bounded multipliers on the base score (they nudge, never invert a large base-score gap).
+   *
+   * - `sessionRecencyWeight` ∈ [0, 1]: session recency-boost strength (default 0.3).
+   * - `globalStabilityWeight` ∈ [0, 1]: global stability-boost strength (default 0.3).
+   *
+   * @see CLAUDE.md § IMPORTANTE Princípio 1
+   * @throws RerankerConflict — when combined with `rerank` or `diversify`.
+   * @throws InvalidScope — when a weight is outside [0, 1].
+   */
+  readonly scopes?: {
+    readonly sessionRecencyWeight?: number;
+    readonly globalStabilityWeight?: number;
+  };
+
+  /**
    * cross-encoder-reranker (Roadmap Item 23) — Princípio 2 (priorização >
    * volume). When set, retrieval applies a cross-encoder rerank AFTER the
    * threshold filter and BEFORE topK truncation (the same Step 8.5 seam as

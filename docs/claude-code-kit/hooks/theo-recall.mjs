@@ -7,14 +7,18 @@
 // HARD REQUIREMENT (blueprint ADR-5, plan T3.1 failure scenario): on ANY failure or empty
 // result, emit NOTHING and exit 0. A memory outage must never block a Claude Code session.
 
-import { readInput, projectOf, post } from './theo-lib.mjs';
+import { readInput, projectOf, post, loadEnv } from './theo-lib.mjs';
 
 async function main() {
   const input = await readInput();
   const project = projectOf(input.cwd);
+  const { userId } = loadEnv();
 
+  // Omit userId by default → the gateway's X-Theo-User-Id drives the tier, so recall
+  // reads the account's ONE unified space (what the dashboard shows). Query stays the
+  // project name so the injected context is relevant to where you are.
   const result = await post('/v1/recall', {
-    userId: project,
+    ...(userId ? { userId } : {}),
     query: project,
     topK: 5,
   });

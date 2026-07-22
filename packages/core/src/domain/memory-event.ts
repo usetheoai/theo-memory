@@ -175,6 +175,16 @@ export const MEMORY_EVENTS = [
   // maxRowsPerRecall cap so the trace was truncated (EC-4: no silent truncation).
   // Attributes `{dropped_total, persisted}`. @see CLAUDE.md § IMPORTANTE Princípio 3
   'recall_trace_truncated',
+  // M9 (session→global consolidation, T3.1) — the SessionToGlobalConsolidationPolicy
+  // promoted N durable session clusters to the user's global scope at the reflect
+  // boundary. Attributes `{scope_tier, promoted_count}`. Princípio 3 — every promotion
+  // (a governed placement decision) is observable. @see CLAUDE.md § IMPORTANTE Princípio 3
+  'consolidation_promoted',
+  // M10 (scope-aware recall reweight, T3.1) — the opt-in scopeAwareReweight stage
+  // re-ordered the threshold-survivor pool by scope-of-origin (session recency-boost,
+  // global stability-boost) before top-K. Attributes `{scope_tier, reweighted_count}`.
+  // Princípio 3 — the reweight (a governed ranking decision) is observable.
+  'scope_reweight_applied',
 ] as const;
 
 export type MemoryEvent = (typeof MEMORY_EVENTS)[number];
