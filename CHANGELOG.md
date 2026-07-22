@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- Composite btree index `memories_ws_user_session_idx` on `(workspace_id, user_id, session_id) WHERE t_invalid IS NULL` (migration 0024) — backs the M8 `(workspace, user[, session])` isolation filter; EXPLAIN confirms an Index Scan on the composite key (was single-column-only, the at-scale bottleneck per the blueprint) (M8 T3.1)
 - REST `remember`/`recall` now resolve the user tier from the edge-injected `X-Theo-User-Id` when the body names none, matching the MCP surface — so gateway-fronted callers (the Claude Code kit hooks) land under the credential's user, unifying REST and MCP memory in the space the dashboard reads (theo-cloud#249)
 - Roadmap amended: added M8 `(workspace, user)` isolation model + agent-chosen session↔global routing (`/roadmap-feature intelligent-memory-routing`)
 - Roadmap amended: added M9 Session → global consolidation (within the same `(workspace, user)`) (`/roadmap-feature intelligent-memory-routing`)

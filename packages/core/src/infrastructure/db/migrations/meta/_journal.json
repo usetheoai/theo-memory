@@ -169,6 +169,13 @@
       "when": 1784000000000,
       "tag": "0023_recall_traces",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1784100000000,
+      "tag": "0024_m8_composite_scope_index",
+      "breakpoints": true
     }
   ]
 }
