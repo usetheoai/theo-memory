@@ -27,3 +27,16 @@ describe('OpenAIEmbedder', () => {
     expect(typeof embedder.embedBatch).toBe('function');
   });
 });
+
+describe('clampEmbedInput (#109 live E2E — 8192-token model context)', () => {
+  it('passes short input through verbatim and truncates beyond the char budget', async () => {
+    // A 47K-char imported memory node 400'd the embedder ("maximum context length is
+    // 8192 tokens") and the whole remember failed. The verbatim text is STORED in full;
+    // only the embedding input is clamped (head-truncation, standard practice).
+    const { clampEmbedInput, EMBED_INPUT_MAX_CHARS } = await import('./openai.js');
+    expect(clampEmbedInput('short')).toBe('short');
+    const long = 'x'.repeat(EMBED_INPUT_MAX_CHARS + 5000);
+    expect(clampEmbedInput(long)).toHaveLength(EMBED_INPUT_MAX_CHARS);
+    expect(EMBED_INPUT_MAX_CHARS).toBeLessThanOrEqual(16000); // ~5-6K tokens, safe under 8192
+  });
+});
