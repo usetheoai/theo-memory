@@ -368,7 +368,7 @@ M0 (recall `graphExpand`/`asOf` in the playground) is already done.
 
 ---
 
-## M12 — [ ] `themory import claude-code` — productize the Claude Code memory migration (CLI + kit skill)
+## M12 — [x] `themory import claude-code` — productize the Claude Code memory migration (CLI + kit skill)
 
 > Added 2026-07-22 by `/roadmap-feature` (slug: `themory-import-cli`). Grill: `knowledge-base/grills/themory-import-cli-feature-grill.md`. Productizes the M6 T2.1 script; the deterministic CLI is the engine, the kit skill is the UX (LLM-driven migration REJECTED: fail-closed scrub is a security control, verbatim fidelity, 1 batch request vs 432 MCP calls, deterministic idempotency/reporting).
 
