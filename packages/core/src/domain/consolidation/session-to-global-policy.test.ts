@@ -72,6 +72,20 @@ describe('SessionToGlobalConsolidationPolicy — session→global promotion deci
     expect(results[0]!.originalEpisodeIds).toEqual(['m1']);
   });
 
+  it('test_undefined_confirmation_count_is_not_promoted', async () => {
+    // A candidate with no confirmationCount (optional field absent) is treated as 0 — a
+    // stale-impl candidate must NEVER be silently promoted (negative case, testing.md §4.1).
+    const policy = new SessionToGlobalConsolidationPolicy(3);
+    const noCount: ConsolidationCandidate = { memoryId: 'm1', text: 'x', createdAt: new Date('2026-07-22T00:00:00Z') };
+    expect(await policy.consolidate([noCount], CTX)).toEqual([]);
+  });
+
+  it('test_count_one_below_threshold_is_not_promoted', async () => {
+    // The first invalid value below the boundary (threshold 3 → count 2) must NOT promote.
+    const policy = new SessionToGlobalConsolidationPolicy(3);
+    expect(await policy.consolidate([candidate('m1', 2)], CTX)).toEqual([]);
+  });
+
   it('test_empty_cluster_abstains', async () => {
     const policy = new SessionToGlobalConsolidationPolicy(3);
     expect(await policy.consolidate([], CTX)).toEqual([]);

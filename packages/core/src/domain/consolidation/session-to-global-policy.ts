@@ -17,7 +17,10 @@ import type {
   ConsolidationContext,
 } from '../dip/conflict-resolution-policy.js';
 
-const POLICY_NAME = 'session-to-global';
+/** The `kind`/`policyName` of the M9 promotion policy — shared so the reflect-orchestrator's
+ * promote-gate and the policy cannot drift (F-arch-5: a silent mismatch would disable promotion). */
+export const SESSION_TO_GLOBAL_KIND = 'session-to-global';
+const POLICY_NAME = SESSION_TO_GLOBAL_KIND;
 
 export class SessionToGlobalConsolidationPolicy implements ConflictResolutionPolicy {
   readonly kind = POLICY_NAME;
