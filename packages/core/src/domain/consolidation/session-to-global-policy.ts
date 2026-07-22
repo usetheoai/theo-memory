@@ -29,29 +29,26 @@ export class SessionToGlobalConsolidationPolicy implements ConflictResolutionPol
     candidates: readonly ConsolidationCandidate[],
     _context: ConsolidationContext,
   ): Promise<readonly ConflictResolutionResult[]> {
-    if (candidates.length === 0) {
-      return Promise.resolve([]);
-    }
-    // The representative = the highest-confirmation candidate (the durable mention).
-    const representative = candidates.reduce((best, c) =>
-      (c.confirmationCount ?? 0) > (best.confirmationCount ?? 0) ? c : best,
-    );
-    const maxCount = representative.confirmationCount ?? 0;
-    if (maxCount < this.threshold) {
-      // One-off / below threshold → abstain; it decays via the shipped triadic eviction.
-      return Promise.resolve([]);
-    }
-    const rejectedMemoryIds = candidates
-      .filter((c) => c.memoryId !== representative.memoryId)
-      .map((c) => c.memoryId);
-    return Promise.resolve([
-      {
-        keptMemoryId: representative.memoryId,
-        rejectedMemoryIds,
-        reason: `promoted: confirmation_count ${maxCount} >= ${this.threshold} (Princípio 1)`,
+    // `candidates` is the session scope's extracted rows (NOT a pre-clustered set), so M9
+    // promotes EACH durable memory INDIVIDUALLY — it never rejects a distinct fact as a
+    // "duplicate". The "3 mentions → 1 promoted row" case works because 3 exact mentions
+    // already dedup to ONE row with confirmation_count = 3 (Princípio 1 composite UPSERT).
+    // A memory below threshold is left untouched — it decays via the shipped triadic
+    // eviction. `rejectedMemoryIds` stays empty: promotion is additive, not a merge.
+    const results: ConflictResolutionResult[] = [];
+    for (const c of candidates) {
+      const count = c.confirmationCount ?? 0;
+      if (count < this.threshold) {
+        continue;
+      }
+      results.push({
+        keptMemoryId: c.memoryId,
+        rejectedMemoryIds: [],
+        reason: `promoted: confirmation_count ${count} >= ${this.threshold} (Princípio 1)`,
         policyName: POLICY_NAME,
-        originalEpisodeIds: candidates.map((c) => c.memoryId),
-      },
-    ]);
+        originalEpisodeIds: [c.memoryId],
+      });
+    }
+    return Promise.resolve(results);
   }
 }
