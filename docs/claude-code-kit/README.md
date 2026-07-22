@@ -123,4 +123,4 @@ explicit confirmation, then commits and verifies via a live `recall`. Secrets ne
 machine: the same fail-closed scrub the hooks use redacts them before any write. Re-running is safe
 (idempotent — re-imports report `deduped`, never duplicate).
 
-Manual equivalent: `npx --yes @usetheo/memory import claude-code [--commit] [--source <dir>]`.
+Manual equivalent: `node ~/.claude/hooks/migrate-claude-code.mjs   # kit machines (installer ships the engine) [--commit] [--source <dir>]`.

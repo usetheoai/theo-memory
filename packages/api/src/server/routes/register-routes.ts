@@ -41,12 +41,12 @@ import { recallTracesHandler } from '../handlers/recall-traces.js';
 import { recallHandler } from '../handlers/recall.js';
 import { reflectHandler } from '../handlers/reflect.js';
 import { batchRememberHandler, rememberHandler } from '../handlers/remember.js';
-import { scopedForgetHandler } from '../handlers/scoped-forget.js';
 import {
   getRoutingPolicyHandler,
   putRoutingPolicyHandler,
   getRoutingAuditHandler,
 } from '../handlers/routing-governance.js';
+import { scopedForgetHandler } from '../handlers/scoped-forget.js';
 import { scopesHandler } from '../handlers/scopes.js';
 import {
   deleteSkillHandler,

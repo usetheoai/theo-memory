@@ -265,9 +265,10 @@ The `kept_memory_id ON DELETE SET NULL` FK (EC-3) was designed precisely so `for
 
 ```bash
 # dry-run (default — writes nothing; prints scanned/would-import/redacted/skipped)
-npx --yes @usetheo/memory import claude-code
+node ~/.claude/hooks/migrate-claude-code.mjs   # kit machines (installer ships the engine)
 # commit (endpoint/token resolve from THEOMEM_MIGRATE_* / THEOMEM_MEMORY_* env or ~/.claude/theo-memory.env)
-npx --yes @usetheo/memory import claude-code --commit [--source <dir>]
+node ~/.claude/hooks/migrate-claude-code.mjs --commit [--source <dir>]   # kit machines
+# from a checkout: node dist/agent-tools/cli.js import claude-code --commit
 ```
 
 Idempotent (re-runs report `deduped`); secrets are scrubbed fail-closed BEFORE any write (the same
