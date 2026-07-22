@@ -70,9 +70,7 @@
       "Read(**/*.pem)",
       "Read(**/*.key)",
       "Edit(knowledge-base/references/**)",
-      "Write(knowledge-base/references/**)",
-      "Edit(knowledge-base/tools/**)",
-      "Write(knowledge-base/tools/**)"
+      "Edit(knowledge-base/tools/**)"
     ]
   },
   "hooks": {
