@@ -4,6 +4,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.39.0] - 2026-07-22
+
 ### Fixed
 - **M8 regression (BLOCKER, pre-merge CI) — user-tier path binding hijacked by the default owner Principal.** `principalUserId()` returned the Principal's userId unconditionally, so the single-tenant no-credential `DEFAULT_PRINCIPAL` (role `owner`, userId `DEFAULT_OWNER_USER_ID`) — set on every unauthenticated `createServer({ memory })` request — overrode the path/body user id on every user-tier route. A plain `DELETE /v1/scopes/user/alice/memories/:id` (and the matching list/metrics/entities/episodes/recall/reflect/remember paths) resolved to the owner's scope instead of `alice`, returning 404 on alice's own row and an empty list. Made `principalUserId()` **role-aware** (M8 ADR D6 "admin → path id"): an `admin`/`owner` Principal returns `undefined` so the path/body id is honored (workspace management + SDK-written-data compat), while a `member` returns its own userId (the F-arch-1 IDOR override stays closed). Fixes the 5 failing `scoped-forget` + `scope-usage-counter` integration tests that blocked PR #106; cross-user + workspace isolation suites stay green.
 - M10 review fix-cycle (from the 2-agent `/review` of the M10 diff):
