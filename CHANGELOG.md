@@ -4,6 +4,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+- **`themory import claude-code` — byte-aware chunking (#109).** The live E2E of the M12 migrator on a real-size dataset (433 nodes) failed with `413 Request Entity Too Large`: `importBatch` chunked by COUNT only (`CHUNK_SIZE=500` → one request) while the REST server enforces a 1 MB bodyLimit. Chunks are now bounded by count AND serialized bytes (`CHUNK_MAX_BYTES` 512 KB — conservative half-limit for envelope/multi-byte headroom, `chunkByBytes`); a single item that alone exceeds the budget fails FAST with a typed `MigrationHttpError` before dialing (no silent skip). Regression tests: multi-chunk split under the count cap + oversized-single-item rejection; kit engine copy re-synced (byte-parity sentinel). (#109)
+
 ## [0.41.0] - 2026-07-22
 
 ### Fixed
