@@ -4,6 +4,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+- M9 (session→global consolidation) `/review` fixes: (1) a lone durable session fact (3 exact mentions dedup to ONE `confirmation_count=3` row — the literal DoD scenario) now promotes — the reflect consolidation phase runs with ≥1 source memory for the M9 policy (individual promotion), not the v0.7 ≥2 pair-merge gate; (2) `persistConsolidations` returns the count of rows ACTUALLY promoted and writes NO audit row / emits NO `consolidation_promoted` metric for an idempotent re-run or a concurrency-loser (Princípio 3 fidelity — no over-report); (3) EC-8 atomicity (rollback), true concurrency (exactly-one-flip), undefined/boundary confirmation_count, and the real `remember()`×3 dedup→promote chain are now proven on real pgvector; (4) `SESSION_TO_GLOBAL_KIND` shared const so the orchestrator gate and policy cannot drift. Plan/blueprint/ROADMAP reconciled to the shipped individual-promotion + dedup-to-one + `consolidation_history`-provenance reality (no overclaim). Verdict READY_TO_MERGE.
+
 ### Changed
 - Internal (cycle tooling): the `/code-quality` D2 symbol-fabrication detector (`.claude/skills/code-quality/scripts/detectors/typescript.py`) now recognizes ALL pnpm-workspace members (root + `packages/*`), not just the outermost package name — a sibling import (`@usetheo/memory-api`, `-mcp`, `-agent-core`, resolved via the `workspace:` protocol, not on the public npm registry) is treated as LOCAL, not a fabricated npm package. Fixes a repo-wide false-positive `FAIL_HARD` that flagged every integration-test slice importing a sibling package. No product-code change.
 

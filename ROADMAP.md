@@ -306,7 +306,7 @@ M0 (recall `graphExpand`/`asOf` in the playground) is already done.
 - [ ] Promotion rule: `session` → `global` on confirmation_count ≥ N (N ≥ 3) OR LLM-judged durable OR agent-marked-durable. No `global` → anything (global is already the user's top durable scope).
 - [ ] Non-promoted session memories decay via triadic eviction (bounded session growth, proven).
 - [ ] **Isolation preserved (hard gate):** promotion never moves a memory out of its `(workspace, user)` — a test asserts a promoted memory keeps the same `workspace_id` + `user_id` and is invisible to any other user.
-- [ ] Integration test (real pgvector): 3 session mentions of one fact by user A → 1 promoted `global` memory under `(workspace, userA)` with provenance to the 3 sources; a one-off session fact is NOT promoted and decays; user B in the same workspace sees none of it.
+- [ ] Integration test (real pgvector): 3 exact mentions of one fact by user A dedup (composite UPSERT, Princípio 1) to ONE row with `confirmation_count = 3`, which is then promoted to a `global` memory under `(workspace, userA)`; provenance is that row's id + a `consolidation_history` audit row (id-preserving, reversible via `forget`) — NOT 3 distinct source rows (the exact mentions dedup, so provenance resolves to the single promoted row). A one-off session fact is NOT promoted (stays session-scoped, left to the shipped eviction — M9 does not re-prove decay). User B in the same workspace sees none of it. Proven by `tests/integration/consolidation/session-to-global.test.ts` (dedup-chain + isolation) — review-reconciled 2026-07-22.
 
 **Dependencies:** **M8** (routing must place memories in `global`/`session` under `(workspace, user)` before consolidation can move them).
 
