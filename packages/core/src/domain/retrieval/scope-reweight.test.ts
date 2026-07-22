@@ -2,7 +2,7 @@
  * M10 T2.1 — `scopeAwareReweight`: the deterministic, bounded, PURE scope-aware reweight.
  * A SESSION-origin row (session_id set) is boosted by recency (newer created_at → higher);
  * a GLOBAL-origin row (session_id NULL) by stability (higher confirmation_count → higher).
- * Order-correctness pattern from REDACTED's tests/utils/test_scoring.py.
+ * Order-correctness pattern from the reference scoring test.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -20,6 +20,9 @@ function item(
 ): MemoryItemWithScore {
   const metadata: Record<string, string | number | boolean | null> = {};
   if (opts.sessionId !== undefined) metadata['session_id'] = opts.sessionId;
+  // Mirror the pipeline: created_at is PROJECTED into the payload (T1.1). The reweight reads recency
+  // from metadata['created_at'], so only set it when a timestamp is provided (absent → neutral).
+  if (opts.createdAt !== undefined) metadata['created_at'] = opts.createdAt.toISOString();
   return {
     id,
     text: `t-${id}`,
@@ -67,6 +70,16 @@ describe('scopeAwareReweight — session recency-boost + global stability-boost'
     const a = scopeAwareReweight(items, WEIGHTS, NOW).map((i) => `${i.id}:${i.score}`);
     const b = scopeAwareReweight(items, WEIGHTS, NOW).map((i) => `${i.id}:${i.score}`);
     expect(a).toEqual(b);
+  });
+
+  it('test_absent_created_at_is_neutral_not_max_recency', () => {
+    // A session-origin row with NO projected created_at (legacy/stale-impl row) must be NEUTRAL —
+    // recency 0, NOT the max boost the `now`-fallback would give it (plan T2.1 AC; Risk #1). A real
+    // fresh session row (recency 1.0) must therefore rank ABOVE the timestamp-less legacy row.
+    const legacy = item('legacy', 0.5, { sessionId: 's' }); // no createdAt → no metadata.created_at
+    const fresh = item('fresh', 0.5, { sessionId: 's', createdAt: NOW });
+    const out = scopeAwareReweight([legacy, fresh], WEIGHTS, NOW);
+    expect(out.map((i) => i.id)).toEqual(['fresh', 'legacy']);
   });
 
   it('test_zero_weights_preserve_base_order', () => {

@@ -616,6 +616,11 @@ export async function runRetrievalPipeline(
         throw new InvalidScope(`RecallOptions.scopes.${name} must be in [0, 1]`);
       }
     }
+    // Fail-soft note (plan T3.1 failure scenario): `scopeAwareReweight` is a TOTAL pure function —
+    // arithmetic + a comparator sort, with Date.parse (NaN-guarded → neutral) and a K-offset division
+    // that never divides by zero. It has no throw path over well-formed rows, so a `scope_reweight_failed`
+    // event/try-catch would be unreachable dead code (parsimony-ladder rung 1). Fail-soft is satisfied by
+    // construction; the reweight can never crash recall. Weight validation above is fail-FAST (caller error).
     const reweighted = scopeAwareReweight(
       scored.map(rowToItem),
       { sessionRecencyWeight, globalStabilityWeight },

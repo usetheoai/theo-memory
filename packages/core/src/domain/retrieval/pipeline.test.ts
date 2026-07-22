@@ -240,7 +240,7 @@ describe('runRetrievalPipeline M10 scope-aware reweight', () => {
         threshold: 0.1,
         topK: 10,
         scopes: { sessionRecencyWeight: 0.3 },
-        rerank: { topPool: 3 },
+        rerank: { pool: 3 },
       }),
     ).rejects.toThrow(RerankerConflict);
   });

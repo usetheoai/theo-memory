@@ -33,9 +33,19 @@ function isSessionOrigin(item: MemoryItemWithScore): boolean {
   return typeof sid === 'string' && sid.length > 0;
 }
 
-/** Recency signal ∈ (0, 1]: newer (age 0) → 1, older → →0. Deterministic given `now`. */
-function recencySignal(createdAt: Date, now: Date): number {
-  const ageDays = Math.max(0, (now.getTime() - createdAt.getTime()) / MS_PER_DAY);
+/**
+ * Recency signal ∈ [0, 1]. Reads the PROJECTED `created_at` from the row payload (T1.1) — NOT the
+ * `MemoryItem.createdAt` DTO field, which the pipeline back-fills with `now` when the projection is
+ * absent. An absent/unparseable timestamp (legacy / stale-impl rows) is therefore NEUTRAL (0), never
+ * a spurious MAX-recency boost that would bury genuinely fresh facts (plan T2.1 AC; Risk #1). A present
+ * timestamp decays `1/(1+ageDays)`: newer → higher. Deterministic given `now`.
+ */
+function recencySignal(item: MemoryItemWithScore, now: Date): number {
+  const raw = item.metadata['created_at'];
+  if (typeof raw !== 'string') return 0; // absent projection → neutral, not max
+  const t = Date.parse(raw);
+  if (Number.isNaN(t)) return 0; // unparseable → neutral
+  const ageDays = Math.max(0, (now.getTime() - t) / MS_PER_DAY);
   return 1 / (1 + ageDays);
 }
 
@@ -52,7 +62,7 @@ export function scopeAwareReweight(
 ): MemoryItemWithScore[] {
   const reweighted = items.map((item) => {
     const boost = isSessionOrigin(item)
-      ? weights.sessionRecencyWeight * recencySignal(item.createdAt, now)
+      ? weights.sessionRecencyWeight * recencySignal(item, now)
       : weights.globalStabilityWeight * stabilitySignal(item.confirmationCount);
     return { ...item, score: item.score * (1 + boost) };
   });

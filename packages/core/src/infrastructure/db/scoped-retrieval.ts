@@ -106,8 +106,11 @@ export async function retrieveResults(
 
   // semantic-recall-cache-v1-5 T2.1 — cache applicability boundary (ADR D8).
   // The v1.5 cache key is (scope_key, query_embedding) — it does NOT encode asOf /
-  // attributedTo / rerank / graphExpand / adaptive outcome, so ANY of those set
+  // attributedTo / rerank / graphExpand / scopes / adaptive outcome, so ANY of those set
   // BYPASSES the cache (serving a cached plain result would be a correctness bug).
+  // M10 F-arch-1: `scopes` reorders the pool exactly like rerank/graphExpand — a HIT would
+  // skip the reweight and a MISS would store the reweighted order under a scopes-blind key,
+  // poisoning a later plain recall (breaking "default byte-identical"). It MUST bypass too.
   const cache = ctx.recallCacheStore;
   const cacheApplicable =
     cache !== undefined &&
@@ -115,6 +118,7 @@ export async function retrieveResults(
     options?.attributedTo === undefined &&
     options?.rerank === undefined &&
     options?.graphExpand === undefined &&
+    options?.scopes === undefined &&
     ctx.config.retrievalPolicy === undefined;
 
   if (!cacheApplicable || cache === undefined) {
