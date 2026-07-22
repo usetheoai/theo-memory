@@ -126,8 +126,14 @@ export interface ScopedMemory {
  */
 export interface Memory {
   user(userId: string): ScopedMemory;
-  session(sessionId: string): ScopedMemory;
-  agent(agentId: string): ScopedMemory;
+  /**
+   * M8 (ADR D6) — optional `userId` binds the session to a user, making its scope
+   * `(workspace, user, session)`. Callers with an authenticated Principal pass
+   * `principal.userId`; SDK/workspace-admin callers omit it (workspace-scoped).
+   * Backward-compatible: the 1-arg form is unchanged.
+   */
+  session(sessionId: string, userId?: string): ScopedMemory;
+  agent(agentId: string, userId?: string): ScopedMemory;
 
   /**
    * multi-tenant-workspace-isolation T3.1 (ADR D1/D3): return a view of this
