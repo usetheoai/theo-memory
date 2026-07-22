@@ -4,6 +4,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+- **`GET /v1/scopes/:type/:id/memories` — paginação por `offset` real (achado live do pager do dashboard).** O `offset` enviado pelo gateway nunca era parseado (o zod nem o conhecia) e o `getAll()` interno capava em 100 — toda página repetia os primeiros itens e nada além do item 100 era alcançável nem via cursor. Agora: `offset` no schema (coerce int ≥ 0, 422 em negativo), threading `GetAllOptions.offset` → `ScopedMemory.getAll` → `VectorStore.list(..., offset)` com `OFFSET` SQL sob a ordem determinística `created_at DESC, id ASC`; fast path (sem cursor/from/to) usa probe `limit+1` para `nextCursor` exato e devolve `total` real (`count()`); caminho legado fatia o conjunto filtrado com o offset. RED-GREEN: integração pgvector real + unit do handler. Surface-locks de `VectorStore.list` atualizados.
+
 ### Security
 - Override `sharp` ^0.33.5 → ^0.35.0 (0.35.3): fecha GHSA-f88m-g3jw-g9cj (libvips CVE-2026-33327/33328/35590/35591, HIGH) — o último bloqueio do gate Trivy do publish.
 - Override transitivo `fast-uri` 3.1.2 → ^3.1.4 (via `@apidevtools/swagger-parser`→`ajv`): fecha CVE-2026-13676 + 2 HIGH que reprovavam o gate Trivy do publish (deploy-dev bloqueado).
