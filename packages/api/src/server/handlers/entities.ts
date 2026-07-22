@@ -21,20 +21,20 @@ import type { Context } from 'hono';
 import { z } from 'zod';
 
 import { attributedPeerOf } from './_attributed-peer.js';
-import { workspaceBoundMemory } from './_body-parsing.js';
+import { principalUserId, workspaceBoundMemory } from './_body-parsing.js';
 
 const SCOPE_TYPES = ['user', 'session', 'agent'] as const;
 const ScopeTypeSchema = z.enum(SCOPE_TYPES);
 type ScopeType = (typeof SCOPE_TYPES)[number];
 
-function pathParamsToScoped(memory: Memory, type: ScopeType, id: string): ScopedMemory {
+function pathParamsToScoped(memory: Memory, type: ScopeType, id: string, userId?: string): ScopedMemory {
   switch (type) {
     case 'user':
       return memory.user(id);
     case 'session':
-      return memory.session(id);
+      return memory.session(id, userId);
     case 'agent':
-      return memory.agent(id);
+      return memory.agent(id, userId);
   }
 }
 
@@ -91,7 +91,7 @@ export async function entitiesHandler(
     return c.json({ entities }, 200);
   }
 
-  const scoped = pathParamsToScoped(workspaceBoundMemory(c, memory), typeParse.data, id);
+  const scoped = pathParamsToScoped(workspaceBoundMemory(c, memory), typeParse.data, id, principalUserId(c));
   const items = await scoped.getAll();
 
   const acc = new Map<string, EntityAccumulator>();
