@@ -16,7 +16,10 @@ export declare function scrub(text: string): {
 };
 export declare function parseNode(raw: string, filename: string): unknown;
 export declare function nodeToBatchItem(node: unknown, opts: unknown): unknown;
-export declare function planMigration(sourceDir: string): unknown;
+export declare function planMigration(sourceDir: string): {
+  items: unknown[];
+  report: { scanned: number; wouldImport: number; redacted: number; skipped: unknown[]; nodes: unknown[] };
+};
 export declare function importBatch(
   items: unknown[],
   opts: { endpoint: string; token?: string },
