@@ -32,6 +32,18 @@ export function workspaceBoundMemory(c: Context, memory: Memory): Memory {
   return memory.withWorkspace !== undefined ? memory.withWorkspace(workspaceId) : memory;
 }
 
+/**
+ * M8 (ADR D6): the authenticated Principal's `userId`, threaded into `memory.session`
+ * / `memory.agent` so a path-addressed session/agent scope is bound to the acting
+ * user — `(workspace, user, session)`. `null` for a workspace-admin credential (no
+ * user) → the caller omits the bind and the scope stays workspace-scoped. Returns
+ * `undefined` (not `null`) so it maps directly onto the optional `userId?` param.
+ */
+export function principalUserId(c: Context): string | undefined {
+  const principal = c.get('principal') as Principal | undefined;
+  return principal?.userId ?? undefined;
+}
+
 /** MCP-parity user-scope header the edge injects (mirrors the streamable-http transport). */
 const USER_SCOPE_HEADER = 'X-Theo-User-Id';
 const SCOPE_TIER_KEYS = ['userId', 'sessionId', 'agentId'] as const;

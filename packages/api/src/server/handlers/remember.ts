@@ -16,6 +16,7 @@ import {
   applyHeaderUserScope,
   readJsonBody,
   scopeOrValidationError,
+  principalUserId,
   workspaceBoundMemory,
 } from './_body-parsing.js';
 
@@ -37,7 +38,7 @@ export async function rememberHandler(c: Context, memory: Memory): Promise<Respo
   // multi-tenant-workspace-isolation T3.1: bind to the Principal's workspace
   // (ADR D3) BEFORE resolving the body's tier — the workspace comes from the
   // credential, the tier from the body.
-  const scoped = resolveScope(workspaceBoundMemory(c, memory), parsed.data);
+  const scoped = resolveScope(workspaceBoundMemory(c, memory), parsed.data, principalUserId(c));
   // themory-category-filter-server-side T4.2 — pass category through the SDK
   // boundary. EC-2 length check fires inside runExtractionPipeline at T3.3.
   const items = await scoped.remember(text, { infer, attributedTo, metadata, category });
@@ -72,7 +73,7 @@ export async function batchRememberHandler(c: Context, memory: Memory): Promise<
   for (let i = 0; i < parsed.data.items.length; i++) {
     const item = parsed.data.items[i]!;
     try {
-      const scoped = resolveScope(bound, item);
+      const scoped = resolveScope(bound, item, principalUserId(c));
       // `ScopedMemoryLike.remember` is typed `unknown` at the REST boundary; the
       // runtime shape is the MemoryItem array (with `rejectedAsDuplicate`).
       const written = (await scoped.remember(item.text, {

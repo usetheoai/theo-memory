@@ -135,17 +135,21 @@ export interface ScopedMemoryLike {
 
 export interface MemoryLike {
   user: (userId: string) => ScopedMemoryLike;
-  session: (sessionId: string) => ScopedMemoryLike;
-  agent: (agentId: string) => ScopedMemoryLike;
+  session: (sessionId: string, userId?: string) => ScopedMemoryLike;
+  agent: (agentId: string, userId?: string) => ScopedMemoryLike;
 }
 
 export function resolveScope<T extends Record<string, unknown>>(
   memory: MemoryLike,
   body: T,
+  userId?: string,
 ): ScopedMemoryLike {
   if (typeof body['userId'] === 'string') return memory.user(body['userId']);
-  if (typeof body['sessionId'] === 'string') return memory.session(body['sessionId']);
-  if (typeof body['agentId'] === 'string') return memory.agent(body['agentId']);
+  // M8 (ADR D6): a body-named session/agent write is bound to the acting user
+  // (the Principal's userId) → scope (workspace, user, session). Omitted for a
+  // workspace-admin credential (userId null) → workspace-scoped.
+  if (typeof body['sessionId'] === 'string') return memory.session(body['sessionId'], userId);
+  if (typeof body['agentId'] === 'string') return memory.agent(body['agentId'], userId);
   throw new Error('resolveScope: no scope tier present; should be filtered by superRefine');
 }
 
