@@ -4,6 +4,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- Roadmap amended: added M12 `themory import claude-code` — productize the Claude Code memory migration as a CLI subcommand + `/migrate-theo-memory` kit skill (`/roadmap-feature themory-import-cli`)
+
 ## [0.40.0] - 2026-07-22
 
 ### Fixed

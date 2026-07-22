@@ -368,6 +368,33 @@ M0 (recall `graphExpand`/`asOf` in the playground) is already done.
 
 ---
 
+## M12 — [ ] `themory import claude-code` — productize the Claude Code memory migration (CLI + kit skill)
+
+> Added 2026-07-22 by `/roadmap-feature` (slug: `themory-import-cli`). Grill: `knowledge-base/grills/themory-import-cli-feature-grill.md`. Productizes the M6 T2.1 script; the deterministic CLI is the engine, the kit skill is the UX (LLM-driven migration REJECTED: fail-closed scrub is a security control, verbatim fidelity, 1 batch request vs 432 MCP calls, deterministic idempotency/reporting).
+
+**Objective:** ship the Claude-Code-memory → theo-memory migration as a first-class surface — a `themory import claude-code` CLI subcommand (dry-run default) + a thin `/migrate-theo-memory` kit skill that orchestrates it — so any kit adopter can import their file-based memories safely (scrubbed, idempotent, zero-config with the kit env).
+
+**Definition of done:**
+
+- [ ] `themory import claude-code` shipped: dry-run default, `--commit`, `--source <dir>`, endpoint/token via `THEOMEM_*` env with `~/.claude/theo-memory.env` fallback; existing unit tests ported and green.
+- [ ] Scrub canonical in the shipped package — single source with the kit hooks (M6-SEC-01) — with a sentinel parity test on the deny-list.
+- [ ] Kit skill `/migrate-theo-memory` (dry-run → report → confirm → `--commit` → recall verification) + docs (kit README + RUNBOOK).
+- [ ] Integration test (real pgvector): import round-trip idempotent (re-run → deduped, zero duplicates).
+- [ ] `themory` CLI locked-names amended in CLAUDE.md (+ CHANGELOG): `import` verb added; ships ONLY `import claude-code` (namespace future-extensible, YAGNI).
+
+**Dependencies:** **M6** (migration script + kit hooks + scrub) + **M7** (MCP-gateway path for the skill's recall verification). Both `[x]` — M12 immediately eligible.
+
+**Top risks (new — pre-existing risks documented elsewhere in roadmap):**
+
+1. **Diverged scrub copy in the CLI leaks secrets (HIGH).** Mitigate: ONE canonical scrub module in the shipped package; the kit copies from it; sentinel parity test on the deny-list.
+2. **`import` namespace invites scope creep (MEDIUM)** — openmemory/REDACTED/... importers. Mitigate: ship ONLY `import claude-code`; document the namespace as future-extensible; add other sources only on real demand.
+
+**Why now (from grill Q1):**
+
+The 2026-07-22 live test proved the demand: 432 file-based memory nodes across local projects, 292 carrying secrets that only the fail-closed deterministic scrub kept off the server. The script is repo-internal today — kit adopters have no safe, zero-config migration path. Productizing it (CLI engine + skill UX) closes the last onboarding gap of the Claude Code ⇄ theo-memory integration (M6/M7).
+
+---
+
 ## State-of-the-art references
 
 Conceptual comparison peers. `` / `` / `` are already cloned under
