@@ -51,7 +51,7 @@ export type { LocalMemoryConfig, DisposableMemory } from './infrastructure/db/in
  *   table (Princípio 3 § auditability).
  *
  */
-export { InMemoryVectorStore, PgvectorStore, DrizzleHistoryManager } from './infrastructure/db/index.js';
+export { InMemoryVectorStore, PgvectorStore, DrizzleHistoryManager, PgRoutingPolicyStore } from './infrastructure/db/index.js';
 
 /**
  * entity-extraction-nodes-slice1 — default entity-NODE-linking adapter. The

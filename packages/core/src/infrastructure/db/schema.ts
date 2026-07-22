@@ -128,6 +128,27 @@ export const workspaceUsers = pgTable(
   ],
 );
 
+/**
+ * M11 — per-`(workspace, user)` routing policy. Keyed by the M8 isolation pair so a policy is that
+ * tenant's own row (never cross-tenant). Absent row → the fail-closed default resolved in code
+ * (`FAILCLOSED_DEFAULT_POLICY`), so a missing config never disables isolation.
+ */
+export const routingPolicies = pgTable(
+  'routing_policies',
+  {
+    workspaceId: text('workspace_id').notNull(),
+    userId: text('user_id').notNull(),
+    defaultScope: text('default_scope').notNull().default('session'),
+    llmRouting: boolean('llm_routing').notNull().default(false),
+    confirmationThreshold: integer('confirmation_threshold').notNull().default(3),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.workspaceId, table.userId] }),
+    check('routing_policies_scope_check', sql`${table.defaultScope} IN ('session', 'global')`),
+  ],
+);
+
 /** Primary memory store — every remember/recall/forget operation touches this. */
 export const memories = pgTable(
   'memories',
