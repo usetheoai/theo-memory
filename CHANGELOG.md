@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- M12 (T2.1+T3.1+T3.2): `/migrate-theo-memory` kit skill (orchestrates the CLI: dry-run → report → explicit confirmation → `--commit` → recall verification; NEVER re-implements the pipeline) + `install.sh` now copies kit `skills/` to `~/.claude/skills/`. THE GOAL TEST on real `ankane/pgvector`: a 3-node Claude-Code-shaped source imports with the secret-bearing node stored REDACTED (the secret never reaches the DB) and a re-run is fully idempotent (`deduped==3`, `imported==0`, row count unchanged). `themory` CLI locked names amended (+`import claude-code`); RUNBOOK + kit README document the flow.
+
+### Added
 - M12 (T1.1+T1.2): `themory import claude-code` — the Claude-Code-memory migrator is now a SHIPPED CLI subcommand (engine moved to `packages/cli/src/import/migrate-claude-code.mjs`; `scripts/migrate-claude-code-memory.mjs` stays as a back-compat re-export shim). Dry-run default, `--commit`, `--source`; endpoint/token resolved `THEOMEM_MIGRATE_*` → `THEOMEM_MEMORY_*` env → `~/.claude/theo-memory.env` (the kit file — zero-config on kit machines) → default. The scrub is now CANONICAL in the package (`packages/cli/src/import/theo-scrub.mjs`) with a byte-parity sentinel test failing CI on any divergence from the kit copy (M6-SEC-01). Build ships the `.mjs` engine into `dist/agent-tools/import/`. Unit: 24 green (env precedence 5, parity+behavior 2, migrator suite 17 via the shim).
 
 ### Added
