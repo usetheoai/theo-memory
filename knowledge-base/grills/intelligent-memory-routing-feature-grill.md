@@ -36,8 +36,27 @@ o que você acha? COMO SUA MEMORIA FUNCIONA?"* and pointed at
 | Fork | Options | Decision |
 |---|---|---|
 | Routing authority | hybrid / pure-agent / pure-rules | **Hybrid** — deterministic rules first, LLM durability/scope signal on ambiguity, explicit agent/caller override wins. Mirrors ai-memory + native memory. |
-| Scope reach | user↔session / +project / all-4+global | **All 4 tiers + a new `global` tier** — maximum reach; `global` = durable cross-project context (ai-memory `_global` analog). |
+| Scope reach | user↔session / +project / all-4+global | **CORRECTED by owner (2026-07-21)** — the initial "new global tier = cross-project" was WRONG. The real model: `global` = `(workspace, user)` (the user's durable memory across sessions), `session` = `(workspace, user, session)`. Every key includes `user_id`; **NO `(workspace)`-only shared scope** (cross-user leak forbidden). Attribution (`user`/`agent`) is orthogonal to scope. The agent (Claude Code) chooses session-vs-global. See § Owner isolation-model correction. |
 | Milestone set | full M8–M11 / core M8+M10 / just M8 | **Full M8–M11** — user directive: "da forma mais FAANG possível, não importa o esforço". |
+
+## Owner isolation-model correction (2026-07-21 — supersedes the initial grill framing)
+
+The system is **multi-tenant AND multi-user per tenant**. Memory is managed by the composite
+`(workspace, user)`. Two distinct concepts must not be conflated:
+
+- **Isolamento do sistema por usuário** (security): the composite keys that scope everything —
+  `global = (workspace, user)`, `session = (workspace, user, session)`. `workspace_id == tenant_id`
+  is the tenant boundary; `user_id` (made a REAL boundary in M8) isolates users within a tenant.
+  **No `(workspace)`-only scope** — a user must never read another user's memory (`scope.ts:74-76`
+  today calls `user_id` "a partition, not the security boundary" — M8 hardens that).
+- **Memória do usuário / do agente** (attribution): who authored the fact — `attributed_to` =
+  `user` | `agent`. Both coexist in the same session and in global.
+- **Routing authority:** the agent (Claude Code) chooses `session` (ephemeral) vs `global`
+  (durable) per fact — like the assistant's own memory. The earlier "5th global tier / cross-project"
+  was dropped (parsimony): `global` is the existing `(workspace, user)` scope, correctly understood.
+
+The AS-IS → TO-BE system design that grounds the M8–M11 rewrite was presented in chat and
+accepted by the owner on 2026-07-21.
 
 ## Standard grill (Q1–Q4), answered under the delegation
 
