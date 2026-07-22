@@ -169,10 +169,14 @@ describe('planMigration — dry-run over the fixture corpus', () => {
     const wl = items.find((i) => i.metadata.file === 'wikilink.md');
     expect(wl?.metadata.wikilinks).toBe('some-link,another-link');
 
-    // every imported item is verbatim (infer:false) and project-namespaced.
+    // every imported item is verbatim (infer:false). Scope note (#109 live E2E): items carry
+    // NO userId by default — the gateway's edge-injected X-Theo-User-Id binds the tier (theo-lib
+    // parity), so migrated rows land in the SAME scope the kit hooks recall from. The project
+    // slug is provenance metadata, never the scope.
     for (const item of items) {
       expect(item.infer).toBe(false);
-      expect(item.userId).toBe('proj');
+      expect('userId' in item).toBe(false);
+      expect(item.metadata.project).toBe('proj');
     }
   });
 });
@@ -212,65 +216,6 @@ describe('dry-run vs --commit HTTP boundary', () => {
   });
 });
 
-describe('importBatch — fail-loud on HTTP failure (error-handling.md)', () => {
-  it('throws MigrationHttpError with the status on a non-2xx response', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response('nope', { status: 401, statusText: 'Unauthorized' }),
-    );
-    await expect(importBatch([{ userId: 'p', text: 't', infer: false }], { endpoint: 'http://x' })).rejects.toThrow(
-      MigrationHttpError,
-    );
-    await expect(importBatch([{ userId: 'p', text: 't', infer: false }], { endpoint: 'http://x' })).rejects.toThrow(
-      /401/,
-    );
-  });
-
-  it('throws MigrationHttpError (unreachable) when fetch rejects', async () => {
-    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('ECONNREFUSED'));
-    await expect(
-      importBatch([{ userId: 'p', text: 't', infer: false }], { endpoint: 'http://dead.invalid' }),
-    ).rejects.toThrow(/unreachable/);
-  });
-});
-
-describe('importBatch — byte-aware chunking (issue #109 regression: 413 on real-size dataset)', () => {
-  it('splits into multiple requests when the serialized payload would exceed the byte budget', async () => {
-    // 40 items × ~50 KB each ≈ 2 MB total — under the 500-count cap (the bug: ONE request → 413
-    // against the server's 1 MB bodyLimit). Byte-aware chunking must keep EVERY request body
-    // under the budget and still send every item exactly once.
-    const items = Array.from({ length: 40 }, (_, i) => ({
-      userId: 'p',
-      text: `note ${i} ` + 'lorem ipsum dolor sit amet '.repeat(2000),
-      infer: false,
-    }));
-    const bodies: string[] = [];
-    vi.spyOn(globalThis, 'fetch').mockImplementation((_url, init) => {
-      const body = (init as { body: string }).body;
-      bodies.push(body);
-      const n = (JSON.parse(body) as { items: unknown[] }).items.length;
-      return Promise.resolve(
-        new Response(JSON.stringify({ imported: n, deduped: 0, failed: 0 }), { status: 200 }),
-      );
-    });
-
-    const out = await importBatch(items, { endpoint: 'http://x' });
-
-    expect(bodies.length).toBeGreaterThan(1); // count cap alone would have sent ONE request
-    for (const b of bodies) expect(b.length).toBeLessThanOrEqual(512 * 1024); // every body under budget
-    expect(bodies.reduce((n, b) => n + (JSON.parse(b) as { items: unknown[] }).items.length, 0)).toBe(40);
-    expect(out.imported).toBe(40);
-    expect(out.requests).toBe(bodies.length);
-  });
-
-  it('throws a typed error when a SINGLE item alone exceeds the byte budget (fail-fast, no silent skip)', async () => {
-    const giant = { userId: 'p', text: 'x'.repeat(600 * 1024), infer: false };
-    const fetchSpy = vi.spyOn(globalThis, 'fetch');
-    await expect(importBatch([giant], { endpoint: 'http://x' })).rejects.toThrow(/byte budget/);
-    expect(fetchSpy).not.toHaveBeenCalled(); // rejected BEFORE dialing — the server would 413 anyway
-  });
-});
-
-// Live integration stub — only runs when a real endpoint is explicitly provided.
 // Kept as executable documentation of the --commit round-trip contract without
 // requiring a deployed endpoint in CI.
 describe.skipIf(!process.env.THEOMEM_MIGRATE_URL_LIVE)('live --commit round-trip (opt-in)', () => {

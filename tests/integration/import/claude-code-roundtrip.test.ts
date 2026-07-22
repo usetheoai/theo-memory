@@ -83,7 +83,9 @@ if (PG_URI === undefined || PG_URI === '') {
     });
 
     test('test_import_roundtrip_idempotent_and_scrubbed', async () => {
-      const plan = planMigration(sourceRoot) as { items: unknown[]; report: { scanned: number; redacted: number } };
+      // Bare-REST path (no gateway → no edge-injected user): pin the scope explicitly, the same
+      // THEOMEM_MEMORY_USER_ID override the kit hooks honor (#109 scope-semantics fix).
+      const plan = planMigration(sourceRoot, { userId: 'proj' }) as { items: unknown[]; report: { scanned: number; redacted: number } };
       expect(plan.report.scanned).toBe(3);
       expect(plan.items).toHaveLength(3);
       expect(plan.report.redacted).toBe(1); // the secret-bearing node
@@ -92,7 +94,9 @@ if (PG_URI === undefined || PG_URI === '') {
       // First commit — through the SHIPPED CLI layer (F-tests-3: main() with injected argv), the
       // exact surface `themory import claude-code --commit` drives.
       const prevUrl = process.env['THEOMEM_MIGRATE_URL'];
+      const prevUser = process.env['THEOMEM_MIGRATE_USER_ID'];
       process.env['THEOMEM_MIGRATE_URL'] = endpoint;
+      process.env['THEOMEM_MIGRATE_USER_ID'] = 'proj';
       try {
         await main(['--commit', '--source', sourceRoot]);
 
@@ -110,6 +114,8 @@ if (PG_URI === undefined || PG_URI === '') {
       } finally {
         if (prevUrl === undefined) delete process.env['THEOMEM_MIGRATE_URL'];
         else process.env['THEOMEM_MIGRATE_URL'] = prevUrl;
+        if (prevUser === undefined) delete process.env['THEOMEM_MIGRATE_USER_ID'];
+        else process.env['THEOMEM_MIGRATE_USER_ID'] = prevUser;
       }
 
       // Engine-level counts (third pass, still idempotent): server reports all deduped.
