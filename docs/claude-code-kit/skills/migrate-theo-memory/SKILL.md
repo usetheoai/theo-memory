@@ -15,12 +15,16 @@ cannot guarantee. Your job is: run it, show the report, get consent, verify.
 1. **Dry-run (writes nothing):**
 
    ```bash
-   npx --yes @usetheo/memory import claude-code
-   # or, from a theo-memory checkout: node dist/agent-tools/cli.js import claude-code
+   node ~/.claude/hooks/migrate-claude-code.mjs
    ```
 
-   Endpoint/token resolve automatically from `~/.claude/theo-memory.env` (the kit config). To target a
-   different deployment, set `THEOMEM_MIGRATE_URL` / `THEOMEM_MIGRATE_TOKEN` for the command.
+   The kit installer ships the engine to `~/.claude/hooks/` (same channel as the hooks — no npm or
+   Docker needed on a kit machine), and the engine resolves endpoint/token AUTOMATICALLY from
+   `~/.claude/theo-memory.env` (or `THEOMEM_MIGRATE_URL`/`_TOKEN` env overrides) — zero-config.
+
+   Alternatives: from a theo-memory checkout, `node dist/agent-tools/cli.js import claude-code`; or
+   the Docker image with your `~/.claude` mounted
+   (`docker run -v ~/.claude:/root/.claude ghcr.io/usetheo/themory import claude-code`).
 
 2. **Show the user the dry-run report verbatim** (scanned / would-import / redacted-in / skipped) and
    note: "redacted-in" nodes are imported WITH their secrets already scrubbed — no secret leaves the
@@ -32,7 +36,7 @@ cannot guarantee. Your job is: run it, show the report, get consent, verify.
 4. **Commit:**
 
    ```bash
-   npx --yes @usetheo/memory import claude-code --commit
+   node ~/.claude/hooks/migrate-claude-code.mjs --commit
    ```
 
    Report the summary line (`imported= deduped= failed= requests=`). Re-running is safe — idempotent

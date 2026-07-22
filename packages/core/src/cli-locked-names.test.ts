@@ -40,6 +40,9 @@ const LOCKED_VERBS: readonly VerbExpectation[] = [
   { name: "'recall <query>'", pattern: /\.command\(\s*['"]recall <query>['"]/ },
   { name: "'forget <id>'", pattern: /\.command\(\s*['"]forget <id>['"]/ },
   { name: "'reflect'", pattern: /\.command\(\s*['"]reflect['"]/ },
+  // M12 (2026-07-22) — data-import namespace, locked per CLAUDE.md § Locked names amendment.
+  { name: "'import'", pattern: /\.command\(\s*['"]import['"]/ },
+  { name: "'claude-code'", pattern: /\.command\(\s*['"]claude-code['"]/ },
 ];
 
 // Flags MUST be the FIRST argument of `.option()` calls. The boundary char
@@ -62,7 +65,7 @@ const LOCKED_FLAGS: readonly FlagExpectation[] = [
 ];
 
 describe('Locked CLI surface — CLAUDE.md § Locked names sentinel (regex-pinned per ADR D6)', () => {
-  test('cli.ts contains the 4 locked verb-command names INSIDE .command() calls', () => {
+  test('cli.ts contains the locked verb-command names INSIDE .command() calls', () => {
     const src = readFileSync(CLI_SRC_PATH, 'utf8');
     for (const verb of LOCKED_VERBS) {
       expect(

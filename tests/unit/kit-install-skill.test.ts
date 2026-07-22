@@ -26,5 +26,8 @@ describe('M12 kit install.sh — skills copy', () => {
     expect(body).toMatch(/[Nn]ever/);
     // The hooks + scrub copy still happens (pre-existing behavior intact).
     expect(existsSync(join(fakeHome, '.claude', 'hooks', 'theo-scrub.mjs'))).toBe(true);
+    // Review F-arch-1: the installer SHIPS the migrator engine — the skill's primary invocation
+    // (`node ~/.claude/hooks/migrate-claude-code.mjs`) must resolve on a kit machine.
+    expect(existsSync(join(fakeHome, '.claude', 'hooks', 'migrate-claude-code.mjs'))).toBe(true);
   });
 });

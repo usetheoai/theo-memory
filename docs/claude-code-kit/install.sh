@@ -30,11 +30,11 @@ echo "  target     : ${CLAUDE_DIR}"
 mkdir -p "${HOOKS_DIR}"
 # theo-scrub.mjs is REQUIRED — theo-remember/theo-precompact import it for the
 # pre-write secret scrub (M6-SEC-01). Omitting it breaks the hooks at runtime.
-for f in theo-lib.mjs theo-scrub.mjs merge-settings.mjs theo-recall.mjs theo-remember.mjs theo-precompact.mjs; do
+for f in theo-lib.mjs theo-scrub.mjs migrate-claude-code.mjs merge-settings.mjs theo-recall.mjs theo-remember.mjs theo-precompact.mjs; do
   cp "${KIT_DIR}/hooks/${f}" "${HOOKS_DIR}/${f}"
 done
 chmod +x "${HOOKS_DIR}/theo-recall.mjs" "${HOOKS_DIR}/theo-remember.mjs" "${HOOKS_DIR}/theo-precompact.mjs"
-echo "  copied 6 hook files → ${HOOKS_DIR}"
+echo "  copied 7 hook files → ${HOOKS_DIR}"
 
 # --- 1b. copy the kit skills (M12) -------------------------------------------
 # /migrate-theo-memory — orchestrates `themory import claude-code` (dry-run →

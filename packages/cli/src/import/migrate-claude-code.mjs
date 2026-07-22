@@ -159,11 +159,14 @@ function combinedText(node) {
  */
 export function nodeToBatchItem(node, opts) {
   const { clean } = scrub(combinedText(node));
-  const type = node.type;
+  // SEC-05 (M12 review F-arch-3): EVERY source-derived field is scrubbed before it can ride into
+  // the batch item — including the frontmatter `type` and the filename. "Scrub before any network
+  // write on every path" means every path, not just the body text.
+  const type = node.type ? scrub(String(node.type)).clean : node.type;
   const metadata = {
     source: 'claude-code',
     project: opts.project,
-    file: node.file,
+    file: scrub(String(node.file)).clean,
     // SEC-04: scrub the wikilinks too — they ride into metadata, so a secret
     // embedded in a `[[...]]` link must be redacted like the body text is.
     wikilinks: scrub(node.wikilinks.join(',')).clean,
@@ -348,14 +351,62 @@ export function parseArgs(argv) {
   return args;
 }
 
+/** Parse the kit env file (`KEY=VALUE` lines; `#` comments ignored; surrounding quotes stripped —
+ * mirrors the kit's `theo-lib.mjs` parser so a quoted token works identically). Missing file → {}. */
+export function parseKitEnvFile(path) {
+  let raw;
+  try {
+    raw = readFileSync(path, 'utf8');
+  } catch {
+    return {};
+  }
+  const out = {};
+  for (const line of raw.split('\n')) {
+    const t = line.trim();
+    if (t === '' || t.startsWith('#')) continue;
+    const eq = t.indexOf('=');
+    if (eq <= 0) continue;
+    let v = t.slice(eq + 1).trim();
+    // F-arch-2: strip ONE pair of surrounding quotes (theo-lib.mjs parity).
+    if (v.length >= 2 && ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'")))) {
+      v = v.slice(1, -1);
+    }
+    out[t.slice(0, eq).trim()] = v;
+  }
+  return out;
+}
+
+/**
+ * Resolve `{ url, token }` (blueprint D2 precedence): `THEOMEM_MIGRATE_*` explicit override →
+ * `THEOMEM_MEMORY_*` env (+PATH_PREFIX) → the same keys from `~/.claude/theo-memory.env` (the kit
+ * file — ZERO-CONFIG on kit machines, incl. the standalone `node ~/.claude/hooks/...` path) →
+ * undefined (caller falls back to DEFAULT_ENDPOINT). Deliberate: an explicit MIGRATE_URL override
+ * does NOT inherit the kit token (fail-closed against cross-endpoint token leakage).
+ */
+export function resolveImportEndpoint(env, fileVars) {
+  if (env.THEOMEM_MIGRATE_URL !== undefined && env.THEOMEM_MIGRATE_URL !== '') {
+    return { url: env.THEOMEM_MIGRATE_URL, token: env.THEOMEM_MIGRATE_TOKEN || undefined };
+  }
+  const base = env.THEOMEM_MEMORY_URL || fileVars.THEOMEM_MEMORY_URL || '';
+  const prefix = env.THEOMEM_MEMORY_PATH_PREFIX || fileVars.THEOMEM_MEMORY_PATH_PREFIX || '';
+  const token = env.THEOMEM_MEMORY_TOKEN || fileVars.THEOMEM_MEMORY_TOKEN || undefined;
+  if (base !== '') {
+    return { url: `${base.replace(/\/+$/, '')}${prefix}`, token };
+  }
+  return { url: undefined, token };
+}
+
 export async function main(argvOverride) {
   const args = parseArgs(argvOverride ?? process.argv.slice(2));
   if (args.help) {
     process.stdout.write(`${USAGE}\n`);
     return;
   }
-  const endpoint = process.env.THEOMEM_MIGRATE_URL || DEFAULT_ENDPOINT;
-  const token = process.env.THEOMEM_MIGRATE_TOKEN || undefined;
+  // D2 resolution lives IN the engine so the kit-shipped standalone path is zero-config too.
+  const fileVars = parseKitEnvFile(join(homedir(), '.claude', 'theo-memory.env'));
+  const resolved = resolveImportEndpoint(process.env, fileVars);
+  const endpoint = resolved.url || DEFAULT_ENDPOINT;
+  const token = process.env.THEOMEM_MIGRATE_TOKEN || resolved.token || undefined;
 
   const { report, items } = planMigration(args.source);
   const log = (s) => process.stdout.write(`${s}\n`);

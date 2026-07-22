@@ -25,9 +25,9 @@ import type {
   RecallTraceStoreConfig,
 } from '../../domain/dip/recall-trace-store.js';
 import type { Reranker } from '../../domain/dip/reranker.js';
+import type { RoutingAuditStore } from '../../domain/dip/routing-audit-store.js';
 import type { SkillExecutor } from '../../domain/dip/skill-executor.js';
 import type { UsageCounterStore } from '../../domain/dip/usage-counter-store.js';
-import type { RoutingAuditStore } from '../../domain/dip/routing-audit-store.js';
 import type { AutoCategorizeConfig } from '../../domain/extraction/taxonomy.js';
 import type { MemoryConfig } from '../../domain/memory-store.js';
 import type { Scope } from '../../domain/scope.js';
