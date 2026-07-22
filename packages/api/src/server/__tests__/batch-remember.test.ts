@@ -65,3 +65,52 @@ describe('M6 T1.3 — POST /v1/remember/batch per-item failure isolation', () =>
     expect(body.errors?.[0]?.message).not.toContain('poison');
   });
 });
+
+describe('#109 live E2E — batch items inherit the edge-injected user scope (single-remember parity)', () => {
+  test('tier-less items bind to X-Theo-User-Id instead of 422 INVALID_SCOPE', async () => {
+    // The kit hooks post tier-less bodies and /v1/remember binds them to the auth-trusted
+    // X-Theo-User-Id (applyHeaderUserScope). The batch surface rejected the same shape with
+    // 422 — the live import through the gateway could never succeed. Batch must mirror single.
+    const userIds: string[] = [];
+    const scoped = { remember: vi.fn(async (text: string) => [{ id: `id-${text}`, rejectedAsDuplicate: false }]) };
+    const memory = {
+      withWorkspace: vi.fn(() => ({
+        user: vi.fn((id: string) => {
+          userIds.push(id);
+          return scoped;
+        }),
+      })),
+    } as unknown as Memory;
+    const app = createServer({ memory });
+    const res = await app.fetch(
+      new Request('http://localhost/v1/remember/batch', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'X-Theo-User-Id': 'edge-user-1' },
+        body: JSON.stringify({
+          items: [
+            { text: 'no-tier-a', infer: false }, // ← tier-less: previously 422'd the WHOLE batch
+            { text: 'no-tier-b', infer: false },
+          ],
+        }),
+      }),
+    );
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { imported: number; failed: number };
+    expect(body.imported).toBe(2);
+    expect(body.failed).toBe(0);
+    expect(userIds).toEqual(['edge-user-1', 'edge-user-1']); // bound to the trusted header, per item
+  });
+
+  test('without an edge header a tier-less item still fails closed (422 INVALID_SCOPE)', async () => {
+    const app = createServer({ memory: memoryThatFailsOn('never') });
+    const res = await app.fetch(
+      new Request('http://localhost/v1/remember/batch', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ items: [{ text: 'no-tier', infer: false }] }),
+      }),
+    );
+    expect(res.status).toBe(422);
+    expect(((await res.json()) as { code: string }).code).toBe('INVALID_SCOPE');
+  });
+});
