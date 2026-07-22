@@ -5,9 +5,9 @@
  * Behavior is byte-identical to the former `LocalMemory.skills` /
  * `LocalMemory.listSkillsBySubject` methods.
  */
+import type { VectorStore } from '../../domain/dip/vector-store.js';
 import { InvalidScope } from '../../domain/errors.js';
 import type { MemoryItem } from '../../domain/memory-item.js';
-import type { VectorStore } from '../../domain/dip/vector-store.js';
 import type { RepoScope } from '../../domain/scope.js';
 import type {
   ScopedSkillMemory,
