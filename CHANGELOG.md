@@ -4,6 +4,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Security
+- Override transitivo `fast-uri` 3.1.2 → ^3.1.4 (via `@apidevtools/swagger-parser`→`ajv`): fecha CVE-2026-13676 + 2 HIGH que reprovavam o gate Trivy do publish (deploy-dev bloqueado).
+
 ### Fixed
 - **Reflect em escopo real (#112).** `executeReflection` construía UM prompt para o escopo inteiro; com 441 memórias a resposta truncava → `ReflectionLLMResponseError: response is not valid JSON` → 502 no dashboard (o followup EC-18 materializado). Agora o escopo é fatiado em batches (contagem `REFLECTION_BATCH_MAX_ITEMS=40` E chars `REFLECTION_BATCH_MAX_CHARS=48K` — a disciplina do #109), uma chamada LLM por batch, drafts concatenados; respostas cercadas por ```json``` são toleradas (fence-strip antes do parse). RED-GREEN em `execute.test.ts` (3 casos: split por contagem, split por bytes, fence).
 - **GC de entidades no hard-forget (#110).** `PgvectorStore.deleteInScope(hard)` agora coleta, NA MESMA transação (via o `withTransaction` existente), as entidades que perderam seu ÚLTIMO link em `memory_entities` + edges tocando endpoint coletado — direcionado (O(k) sobre as entidades da memória deletada, nunca full-sweep). Novo evento `entity_gc_collected {entities_collected, edges_collected}` (Princípio 3; union 44 → 45). Integration RED-GREEN em `scoped-forget.test.ts` (entidade solo coletada, compartilhada sobrevive, edge órfã coletada).
