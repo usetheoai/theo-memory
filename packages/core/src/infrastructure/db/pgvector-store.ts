@@ -186,8 +186,28 @@ function composeFilters(filters: Filters | undefined, startParamIndex: number): 
     if (value === undefined) {
       continue;
     }
+    // M8: when a hierarchical predicate owns session_id/agent_id (scopeHierarchy set),
+    // skip their plain equality — session_id is kept in the filter for the WRITE column
+    // derivation, but the RECALL predicate is the hierarchy branch below.
+    if (filters.scopeHierarchy !== undefined && (col === 'session_id' || col === 'agent_id')) {
+      continue;
+    }
     parts.push(`${col} = $${idx}`);
     params.push(value);
+    idx += 1;
+  }
+  // M8 hierarchical recall (owner decision 2026-07-22) — the tier's hierarchical scope
+  // predicate (mirrors the in-memory matcher). Set by filtersFromScope for the User tier
+  // ('global') and the user-bound Session tier ({ session }); it OWNS session_id/agent_id
+  // (the equality loop above did NOT emit them). The IS-NULL / OR fragments don't
+  // parameterize the column, but the session id IS a bound parameter (injection-safe).
+  if (filters.scopeHierarchy === 'global') {
+    // GLOBAL: durable user rows only — no session/agent sub-partition leaks in.
+    parts.push(`session_id IS NULL AND agent_id IS NULL`);
+  } else if (filters.scopeHierarchy !== undefined) {
+    // SESSION ∪ GLOBAL: this session's rows OR the user's global rows (no agent rows).
+    parts.push(`agent_id IS NULL AND (session_id = $${idx} OR session_id IS NULL)`);
+    params.push(filters.scopeHierarchy.session);
     idx += 1;
   }
   // v1.1 T2.2: multi-peer attribution filter. EC-7 absorbed: Postgres `=`

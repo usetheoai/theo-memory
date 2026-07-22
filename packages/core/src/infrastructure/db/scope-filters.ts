@@ -69,10 +69,17 @@ export function filtersFromScope(scope: Scope, workspaceId?: string): Filters {
   const ws: Pick<Filters, 'workspace_id'> = workspaceId !== undefined ? { workspace_id: workspaceId } : {};
   switch (scope.kind) {
     case 'user':
-      return { ...ws, user_id: scope.userId };
+      // M8 hierarchical recall: the User tier is GLOBAL-ONLY — durable rows with no
+      // session/agent sub-partition (scopeHierarchy owns the session_id/agent_id predicate).
+      return { ...ws, user_id: scope.userId, scopeHierarchy: 'global' };
     case 'session':
+      // M8 hierarchical recall: a user-bound session sees its OWN rows UNION the user's
+      // global rows. `session_id` STAYS in the filter — the WRITE path derives the row's
+      // session_id column from it — while `scopeHierarchy` drives the RECALL predicate
+      // (the matchers skip the plain session_id equality when scopeHierarchy is present).
+      // The admin path (no acting user) stays an exact workspace-session filter.
       return scope.userId !== undefined
-        ? { ...ws, user_id: scope.userId, session_id: scope.sessionId }
+        ? { ...ws, user_id: scope.userId, session_id: scope.sessionId, scopeHierarchy: { session: scope.sessionId } }
         : { ...ws, session_id: scope.sessionId };
     case 'agent':
       return scope.userId !== undefined
