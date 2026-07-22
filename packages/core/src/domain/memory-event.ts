@@ -78,6 +78,11 @@ export const MEMORY_EVENTS = [
   // filtered_count = 0 (mirrors recall_threshold_filtered). Makes the IGNORE
   // decision observable. @see CLAUDE.md § IMPORTANTE Princípio 3
   'entity_noise_filtered',
+  // #110 — a hard forget garbage-collected entity rows that lost their LAST
+  // memory link (targeted refcount GC in the same transaction as the delete).
+  // Attributes `entities_collected` + `edges_collected`. Makes graph shrinkage
+  // observable (Princípio 3) — orphan entities were 48% of the dev graph before.
+  'entity_gc_collected',
   // themory-scoped-forget-and-retrieval-counter T2.3 — the per-scope recall
   // counter increment failed (non-fatal; fail-soft per Princípio 3 — a recall()
   // MUST NEVER fail because `retrieval_api_usage` could not be bumped). Mirrors

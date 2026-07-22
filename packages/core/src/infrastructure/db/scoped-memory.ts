@@ -215,6 +215,12 @@ export class LocalScopedMemory implements ScopedMemory {
     }
   }
 
+  /** #113 — real scope total from the store's COUNT (list() already computes it). */
+  async count(): Promise<number> {
+    const [, total] = await this.config.vectorStore.list(this.filters, 1);
+    return total;
+  }
+
   async getAll(options?: GetAllOptions): Promise<readonly MemoryItem[]> {
     const limit = options?.topK ?? 100;
     const [results] = await this.config.vectorStore.list(applySkillFilters(this.filters, options), limit);

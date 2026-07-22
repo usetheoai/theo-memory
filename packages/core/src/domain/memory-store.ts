@@ -92,6 +92,14 @@ export interface ScopedMemory {
   getAll(options?: GetAllOptions): Promise<readonly MemoryItem[]>;
 
   /**
+   * REAL total of active (live) memories in this scope — a store-level COUNT,
+   * never the length of a paginated `getAll()` page (#113: the dashboard showed
+   * "TOTAL MEMORIES = 100" for a 440-memory scope because the page cap leaked
+   * into the metric). Cheap: single SQL COUNT under the scope filter.
+   */
+  count(): Promise<number>;
+
+  /**
    * Episodic / message-log read surface (M2 / gap G3): list this scope's
    * memories as a cursor-paginated, bi-temporal-aware TEMPORAL log. The episode
    * boundary is the Session tier (`session_id`), generalizing to user/agent as

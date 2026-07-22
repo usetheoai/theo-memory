@@ -705,6 +705,12 @@ export class PgvectorStore implements VectorStore {
    * migrations 0018/0019 — no children-first logic, EC-1). Returns whether a row
    * matched.
    *
+   * #110 — hard delete also garbage-collects the graph, TARGETED (O(k), never a
+   * full-table sweep): the entities this memory linked are re-checked after the
+   * cascade; any that lost their LAST `memory_entities` link is deleted, along
+   * with edges touching a collected endpoint. Same transaction as the delete —
+   * a crash never leaves half-collected state. Emits `entity_gc_collected`
+   * (Princípio 3) when anything was collected.
    */
   async deleteInScope(vectorId: string, filters: Filters, hard: boolean): Promise<boolean> {
     // workspace param matches what rows carry: unbound rows store 'default'.
@@ -718,11 +724,53 @@ export class PgvectorStore implements VectorStore {
         where += ` AND ${col} = $${String(params.length)}`;
       }
     }
-    const sql = hard
-      ? `DELETE FROM memories WHERE ${where}`
-      : `UPDATE memories SET t_invalid = NOW() WHERE ${where} AND t_invalid IS NULL`;
-    const result = await this.pool.query(sql, params);
-    return (result.rowCount ?? 0) > 0;
+    if (!hard) {
+      const result = await this.pool.query(
+        `UPDATE memories SET t_invalid = NOW() WHERE ${where} AND t_invalid IS NULL`,
+        params,
+      );
+      return (result.rowCount ?? 0) > 0;
+    }
+    const { matched, entitiesCollected, edgesCollected } = await this.withTransaction(async (client) => {
+      // Capture the linked entity ids BEFORE the delete cascades the links away.
+      const { rows: linked } = await client.query<{ entity_id: string }>(
+        'SELECT entity_id FROM memory_entities WHERE memory_id = $1',
+        [vectorId],
+      );
+      const result = await client.query(`DELETE FROM memories WHERE ${where}`, params);
+      const hit = (result.rowCount ?? 0) > 0;
+      let ents = 0;
+      let edges = 0;
+      if (hit && linked.length > 0) {
+        const ids = linked.map((r) => r.entity_id);
+        // Edges first (they reference entities): drop edges whose endpoint is about
+        // to be collected (endpoint in `ids` AND endpoint now has zero links).
+        const edgeRes = await client.query(
+          `DELETE FROM entity_edges ee
+           WHERE (ee.source_entity_id = ANY($1::uuid[]) AND NOT EXISTS (
+                    SELECT 1 FROM memory_entities me WHERE me.entity_id = ee.source_entity_id))
+              OR (ee.target_entity_id = ANY($1::uuid[]) AND NOT EXISTS (
+                    SELECT 1 FROM memory_entities me WHERE me.entity_id = ee.target_entity_id))`,
+          [ids],
+        );
+        edges = edgeRes.rowCount ?? 0;
+        const entRes = await client.query(
+          `DELETE FROM entities e
+           WHERE e.id = ANY($1::uuid[])
+             AND NOT EXISTS (SELECT 1 FROM memory_entities me WHERE me.entity_id = e.id)`,
+          [ids],
+        );
+        ents = entRes.rowCount ?? 0;
+      }
+      return { matched: hit, entitiesCollected: ents, edgesCollected: edges };
+    });
+    if (entitiesCollected > 0 || edgesCollected > 0) {
+      emitEvent(this.tracer, 'entity_gc_collected', {
+        entities_collected: entitiesCollected,
+        edges_collected: edgesCollected,
+      });
+    }
+    return matched;
   }
 
   async deleteCol(): Promise<void> {
