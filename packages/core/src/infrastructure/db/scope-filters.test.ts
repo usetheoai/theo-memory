@@ -11,7 +11,7 @@ import type { Scope } from '../../domain/scope.js';
 
 describe('M8 filtersFromScope — (workspace, user[, session|agent]) filter shape', () => {
   // Each row: scope → the EXACT filter object the store composes into its WHERE clause.
-  const cases: Array<{ name: string; scope: Scope; ws?: string; expected: Record<string, string> }> = [
+  const cases: { name: string; scope: Scope; ws?: string; expected: Record<string, string> }[] = [
     { name: 'user scope binds workspace + user', scope: { kind: 'user', userId: 'u' }, ws: 'w', expected: { workspace_id: 'w', user_id: 'u' } },
     // A user-Principal's session/agent is (workspace, user, tier) — user_id IS in the filter.
     { name: 'session scope WITH userId binds full composite key', scope: { kind: 'session', userId: 'u', sessionId: 's' }, ws: 'w', expected: { workspace_id: 'w', user_id: 'u', session_id: 's' } },

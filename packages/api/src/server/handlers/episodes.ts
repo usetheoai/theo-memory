@@ -49,7 +49,9 @@ const QuerySchema = z
 function pathParamsToScoped(memory: Memory, type: ScopeType, id: string, userId?: string): ScopedMemory {
   switch (type) {
     case 'user':
-      return memory.user(id);
+      // M8 F-arch-1: bind the user tier to the auth Principal (userId) when present
+      // so a user-Principal can only address its OWN global scope; null (admin) → path id.
+      return memory.user(userId ?? id);
     case 'session':
       return memory.session(id, userId);
     case 'agent':
