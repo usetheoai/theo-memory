@@ -113,15 +113,62 @@ class TypescriptDetector(BaseDetector):
         return self._cached_self_name
 
     @staticmethod
+    def _read_pkg_name(pkg_json: Path) -> str | None:
+        """The `name` field of a package.json, or None on any read/parse failure."""
+        try:
+            name = json.loads(pkg_json.read_text(encoding="utf-8")).get("name")
+        except (json.JSONDecodeError, OSError):
+            return None
+        return name if isinstance(name, str) and name else None
+
+    @staticmethod
+    def _repo_roots(changed_files: list[Path]) -> set[Path]:
+        """Dirs that hold a pnpm-workspace.yaml (monorepo roots), plus the cwd."""
+        roots: set[Path] = {Path.cwd()}
+        for src_file in changed_files:
+            try:
+                cur = src_file.resolve().parent if src_file.exists() else Path.cwd()
+            except OSError:
+                continue
+            roots.update(p for p in [cur, *cur.parents] if (p / "pnpm-workspace.yaml").is_file())
+        return roots
+
+    def _workspace_package_names(self, changed_files: list[Path]) -> set[str]:
+        """All local pnpm-workspace member package names (root + packages/*).
+
+        Monorepo test/source files legitimately import SIBLING workspace packages
+        (`@usetheo/memory-api`, …) via the `workspace:` protocol — they resolve locally and
+        are NOT on the public npm registry, so a registry 404 false-flags them as fabricated.
+        `_find_self_package_name` captures only the ONE outermost name; this collects EVERY
+        member so a sibling import is recognized as local. Cached on the instance.
+        """
+        if hasattr(self, "_cached_ws_names"):
+            return self._cached_ws_names
+        names: set[str] = set()
+        for root in self._repo_roots(changed_files):
+            for pkg_json in [root / "package.json", *root.glob("packages/*/package.json")]:
+                name = self._read_pkg_name(pkg_json)
+                if name is not None:
+                    names.add(name)
+        self._cached_ws_names = names
+        return names
+
+    @staticmethod
     def _is_self_reference(module: str, self_name: str | None) -> bool:
         if not self_name:
             return False
         return module == self_name or module.startswith(self_name + "/")
 
+    @staticmethod
+    def _is_workspace_reference(module: str, ws_names: set[str]) -> bool:
+        """True iff `module` is (or is a subpath of) any local workspace package name."""
+        return any(module == n or module.startswith(n + "/") for n in ws_names)
+
     def detect_symbol_fabrication(self, changed_files: list[Path]) -> list[Finding]:
         """T2.3 — Validate imports against npm. Skip relative + node: builtins + monorepo subpath (EC-16) + self-references (patch 2026-05-30)."""
         findings: list[Finding] = []
         self_name = self._find_self_package_name(changed_files)
+        ws_names = self._workspace_package_names(changed_files)
         for src_file in changed_files:
             if not src_file.exists():
                 continue
@@ -143,6 +190,10 @@ class TypescriptDetector(BaseDetector):
                     continue
                 # Patch 2026-05-30 — Self-reference (the workspace IS the package being imported)
                 if self._is_self_reference(module, self_name):
+                    continue
+                # M9 fix — a SIBLING pnpm-workspace member (workspace: protocol, not on the
+                # public npm registry) is local, not fabricated.
+                if self._is_workspace_reference(module, ws_names):
                     continue
                 # Package name for npm lookup
                 pkg = module if module.startswith("@") else module.split("/")[0]
