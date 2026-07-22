@@ -10,7 +10,7 @@
 
 import { readFileSync } from 'node:fs';
 
-import { readInput, projectOf, post } from './theo-lib.mjs';
+import { readInput, projectOf, postDetached, loadEnv } from './theo-lib.mjs';
 import { scrubText } from './theo-scrub.mjs';
 
 const SALIENCE_MIN_CHARS = 40;
@@ -35,6 +35,7 @@ function transcriptTail(input) {
 async function main() {
   const input = await readInput();
   const project = projectOf(input.cwd);
+  const { userId } = loadEnv();
   // M6-SEC-01: the transcript tail is the highest-risk source — it routinely
   // carries tool_result blocks (env dumps, .env reads, API responses) with live
   // secrets. Scrub BEFORE the write (server stores infer=false verbatim).
@@ -42,8 +43,11 @@ async function main() {
 
   if (text.length < SALIENCE_MIN_CHARS) return;
 
-  await post('/v1/remember', {
-    userId: project,
+  // Omit userId by default so the gateway drives the tier (unified per-account space).
+  // DETACHED so the ~8s server-side extraction never stalls compaction (see theo-lib
+  // postDetached) and never aborts under the 3s timeout.
+  postDetached('/v1/remember', {
+    ...(userId ? { userId } : {}),
     text,
     metadata: { source: 'claude-code', project, phase: 'precompact' },
   });
