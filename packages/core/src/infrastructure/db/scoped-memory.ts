@@ -186,6 +186,8 @@ export class LocalScopedMemory implements ScopedMemory {
         filters: this.filters,
         scope: this.scope,
         recallCacheStore: this.recallCacheStore,
+        // M11 — thread the audit port so a session→global promotion emits a fail-soft audit row.
+        ...(this.config.routingAuditStore !== undefined ? { routingAuditStore: this.config.routingAuditStore } : {}),
       },
       options,
     );
