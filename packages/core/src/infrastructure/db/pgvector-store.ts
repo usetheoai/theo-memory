@@ -998,7 +998,7 @@ export class PgvectorStore implements VectorStore {
    */
   async recallConsolidationCandidates(
     filters: Filters,
-  ): Promise<readonly { memoryId: string; text: string; createdAt: Date }[]> {
+  ): Promise<readonly { memoryId: string; text: string; createdAt: Date; confirmationCount?: number }[]> {
     // /review v0-7 F-C2: filter `kind = 'extracted'` to preserve the
     // episodic→semantic boundary. Without this guard, v0.6 procedural
     // skill rows (kind='skill') AND already-consolidated rows (kind='derived')
@@ -1040,11 +1040,22 @@ export class PgvectorStore implements VectorStore {
       params.push(filters.agent_id);
       where.push(`agent_id = $${String(params.length)}`);
     }
-    const { rows } = await this.pool.query<{ id: string; text: string; created_at: Date }>(
-      `SELECT id, text, created_at FROM memories WHERE ${where.join(' AND ')}`,
+    const { rows } = await this.pool.query<{
+      id: string;
+      text: string;
+      created_at: Date;
+      confirmation_count: number;
+    }>(
+      // M9: confirmation_count is the durability signal the SessionToGlobalConsolidationPolicy reads.
+      `SELECT id, text, created_at, confirmation_count FROM memories WHERE ${where.join(' AND ')}`,
       params,
     );
-    return rows.map((r) => ({ memoryId: r.id, text: r.text, createdAt: r.created_at }));
+    return rows.map((r) => ({
+      memoryId: r.id,
+      text: r.text,
+      createdAt: r.created_at,
+      confirmationCount: r.confirmation_count,
+    }));
   }
 
   /**
