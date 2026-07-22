@@ -9,7 +9,7 @@ import type { MemoryEvent } from './memory-event.js';
 
 describe('MEMORY_EVENTS', () => {
   test('has 42 values (41 prior + consolidation_promoted, M9 T3.1)', () => {
-    expect(MEMORY_EVENTS).toHaveLength(42);
+    expect(MEMORY_EVENTS).toHaveLength(43);
   });
 
   test('includes category_auto_assigned + category_auto_dropped (auto-categorization, Princípio 3)', () => {
