@@ -225,8 +225,13 @@ export async function wireMemoryFromPool(pool: Pool): Promise<Memory> {
   });
 }
 
-/** Lazily construct the selected embedder (imports only the chosen backend). */
-async function buildEmbedder(kind: EmbedderKind): Promise<Embedder> {
+/**
+ * @internal Lazily construct the selected embedder (imports only the chosen
+ * backend). Exported (M13 T3.2) so `themory reextract` composes the SAME
+ * provider tuple as server/MCP without duplicating the lazy-import logic —
+ * NOT part of the public `@usetheo/memory/agent-tools` API surface.
+ */
+export async function buildEmbedder(kind: EmbedderKind): Promise<Embedder> {
   if (kind === 'openai') {
     const { OpenAIEmbedder } = await import('@usetheo/memory/embedders/openai');
     return new OpenAIEmbedder();

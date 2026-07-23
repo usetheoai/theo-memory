@@ -268,6 +268,24 @@ export function buildProgram(): Command {
       await runImportClaudeCode(opts);
     });
 
+  // M13 (#111) — semantic entity backfill (blueprint ADR D3). Dry-run needs only
+  // THEOMEM_PG_URI; the real run additionally requires OPENAI_API_KEY.
+  program
+    .command('reextract')
+    .description(
+      'Re-extract entities with semantic types over the existing base (LLM backfill; supersedes mechanism-labeled rows).',
+    )
+    .option('--dry-run', 'estimate targets + token cost; ZERO LLM calls, ZERO writes')
+    .option('--resume', 'skip memories already recorded in .reextract-checkpoint.json')
+    .option('--restart', 'delete the checkpoint and start over')
+    .option('--limit <n>', 'process at most N target memories')
+    .option('--concurrency <n>', 'max in-flight LLM calls (default 5)')
+    .option('--json', 'machine-readable report on stdout')
+    .action(async (opts: { dryRun?: boolean; resume?: boolean; restart?: boolean; limit?: string; concurrency?: string; json?: boolean }) => {
+      const { runReextractCli } = await import('./reextract/run-reextract.js');
+      process.exit(await runReextractCli(opts));
+    });
+
   program
     .command('health')
     .description('Probe DI graph + DB readiness; exit 0 only when both green.')
