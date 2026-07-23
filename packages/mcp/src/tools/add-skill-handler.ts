@@ -12,6 +12,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
 import type { Memory } from '@usetheo/memory/contract';
 import { SkillAlreadyExists } from '@usetheo/memory/contract';
+import { namespacedRepoId } from './namespaced-repo-id.js';
 import { workspaceScopedMemory } from './workspace-scoped-memory.js';
 
 import { INPUT_SCHEMA, TOOL_NAME } from './add-skill-schema.js';
@@ -23,7 +24,7 @@ export async function addSkillHandler(
   deps: { memoryFactory: () => Memory },
 ): Promise<CallToolResult> {
   const parsed = INPUT_SCHEMA.parse(args);
-  const scoped = workspaceScopedMemory(deps.memoryFactory()).skills(parsed.repoId);
+  const scoped = workspaceScopedMemory(deps.memoryFactory()).skills(namespacedRepoId(parsed.repoId));
 
   try {
     const skill = await scoped.add({
