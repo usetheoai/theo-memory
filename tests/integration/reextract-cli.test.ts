@@ -86,6 +86,19 @@ if (PG_URI === undefined || PG_URI === '' || !DIST_EXISTS) {
       expect(res.stderr).toContain('THEOMEM_PG_URI');
     });
 
+    test('test_cli_retire_requires_explicit_commit', () => {
+      // --commit without --retire-mechanism → usage error, exit 2 (#252 discipline)
+      const stray = runCli(['reextract', '--commit'], { PATH: process.env['PATH'], THEOMEM_PG_URI: PG_URI });
+      expect(stray.status).toBe(2);
+      expect(stray.stderr).toContain('--retire-mechanism');
+      // --retire-mechanism without --commit → DRY-RUN report, zero writes
+      const dry = runCli(['reextract', '--retire-mechanism', '--json'], { PATH: process.env['PATH'], THEOMEM_PG_URI: PG_URI });
+      expect(dry.status).toBe(0);
+      const parsed = JSON.parse(dry.stdout) as { dryRun: boolean; retired: number };
+      expect(parsed.dryRun).toBe(true);
+      expect(parsed.retired).toBe(0);
+    });
+
     test('test_cli_reextract_help_lists_flags', () => {
       const res = runCli(['reextract', '--help'], { PATH: process.env['PATH'] });
       expect(res.status).toBe(0);

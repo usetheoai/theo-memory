@@ -187,6 +187,42 @@ describe('runReextract (unit, stubs)', () => {
   });
 });
 
+describe('retireMechanism (T1.1 noise retirement)', () => {
+  test('test_retire_emits_typed_event', async () => {
+    // Stub tracer captures the reextract_noise_retired event with counts.
+    const events: { name: string; attrs: Record<string, unknown> }[] = [];
+    const tracer = {
+      startActiveSpan: (name: string, optsOrFn: unknown, maybeFn?: unknown) => {
+        const attrs: Record<string, unknown> = {};
+        events.push({ name, attrs });
+        const span = {
+          end: () => undefined,
+          setAttribute: (k: string, v: unknown) => {
+            attrs[k] = v;
+          },
+        };
+        const fn = (typeof maybeFn === 'function' ? maybeFn : optsOrFn) as (s: typeof span) => void;
+        fn(span);
+      },
+    } as never;
+    const pool: ReextractPool = {
+      query: async <R extends Record<string, unknown>>(sql: string): Promise<{ rows: R[]; rowCount?: number | null }> => {
+        if (sql.includes('retire:select')) {
+          return { rows: [{ id: 'a' }, { id: 'b' }] as unknown as R[] };
+        }
+        return { rows: [{ edges: '1', links: '2', ents: '2' }] as unknown as R[] };
+      },
+    };
+    const { retireMechanism } = await import('./retire.js');
+    const report = await retireMechanism({ pool, tracer }, { commit: true });
+    expect(report.retired).toBe(2);
+    const ev = events.find((e) => e.name === 'reextract_noise_retired');
+    expect(ev).toBeDefined();
+    expect(ev?.attrs['retired']).toBe(2);
+    expect(ev?.attrs['candidates']).toBe(2);
+  });
+});
+
 describe('concurrency (semaphore)', () => {
   test('test_semaphore_bounds_inflight_llm_calls', async () => {
     // Atomic-counter invariant: with concurrency 5 and 20 targets, the async-gated
