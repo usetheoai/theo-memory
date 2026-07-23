@@ -42,6 +42,27 @@ const summaries: EntityNodeSummary[] = [
 ];
 
 describe('T4.2 — entitiesHandler via injected read port', () => {
+  test('session scope threads the acting user into the read-port filters (#118-session)', async () => {
+    // RED: the SESSION tab renders empty because filtersFor() builds
+    // { session_id } WITHOUT user_id — but entities carry BOTH columns (M8
+    // isolation), so the COALESCE(user_id,'')='' predicate matches nothing.
+    const listSpy = vi.fn().mockResolvedValue(summaries);
+    const app = createServer({
+      memory: stubMemory(),
+      memoryEntityStore: { upsertAndLink: vi.fn(), supersedeEntity: vi.fn(async () => false), list: listSpy },
+    });
+    const res = await app.fetch(
+      new Request('http://localhost/v1/scopes/session/sess-1/entities', {
+        headers: { 'X-Theo-User-Id': 'alice' },
+      }),
+    );
+    expect(res.status).toBe(200);
+    const call = listSpy.mock.calls[0] as [{ filters: Record<string, unknown> }] | undefined;
+    const filters = call?.[0].filters ?? {};
+    expect(filters['session_id']).toBe('sess-1');
+    expect(filters['user_id']).toBe('alice'); // ← currently undefined = the bug
+  });
+
   test('returns entities from the read port with memory_count, sorted desc', async () => {
     const app = createServer({
       memory: stubMemory(),
