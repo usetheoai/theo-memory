@@ -395,7 +395,7 @@ The 2026-07-22 live test proved the demand: 432 file-based memory nodes across l
 
 ---
 
-## M13 — [ ] Re-extração LLM de entidades com types semânticos (corrige #111)
+## M13 — [x] Re-extração LLM de entidades com types semânticos (corrige #111)
 
 > Added 2026-07-23 by `/roadmap-feature` (slug: `llm-entity-reextraction`). See CHANGELOG `[Unreleased] § Added`.
 
