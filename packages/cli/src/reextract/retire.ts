@@ -11,10 +11,10 @@
  * Destructive by design → `commit: false` (dry-run) is the default at the CLI;
  * lesson theo-cloud#252: no silent bulk deletes.
  */
-import { emitEvent } from '@usetheo/memory';
 import type { Tracer } from '@opentelemetry/api';
+import { emitEvent } from '@usetheo/memory';
 
-import { MECHANISM_TYPES, type ReextractPool } from './engine.js';
+import { MECHANISM_SQL, type ReextractPool } from './engine.js';
 
 export interface RetireReport {
   candidates: number;
@@ -29,8 +29,6 @@ export interface RetireDeps {
   readonly pool: ReextractPool;
   readonly tracer?: Tracer;
 }
-
-const MECHANISM_SQL = MECHANISM_TYPES.map((t) => `'${t}'`).join(',');
 
 /** Target set: live mechanism rows that are not supersede anchors (ADR D2). */
 const SELECT_TARGETS = `/* retire:select */
@@ -68,14 +66,25 @@ export async function retireMechanism(
       const ids = candidates.slice(i, i + batchSize).map((r) => r.id);
       const { rows } = await deps.pool.query<{ edges: string; links: string; ents: string }>(
         `/* retire:collect */
-         WITH del_edges AS (
+         -- /review F-arch-2/F-dom-db-2: the guard is re-asserted INSIDE the
+         -- deleting statement (not just the up-front SELECT) so a concurrent
+         -- supersede that turns a candidate into an anchor pointee between
+         -- selection and delete cannot destroy an audit pointer (TOCTOU-safe).
+         WITH targets AS (
+           SELECT e.id FROM entities e
+            WHERE e.id = ANY($1::uuid[])
+              AND e.superseded_by IS NULL
+              AND e.type IN (${MECHANISM_SQL})
+              AND NOT EXISTS (SELECT 1 FROM entities o WHERE o.superseded_by = e.id)),
+         del_edges AS (
            DELETE FROM entity_edges ee
-            WHERE ee.source_entity_id = ANY($1::uuid[]) OR ee.target_entity_id = ANY($1::uuid[])
+            WHERE ee.source_entity_id IN (SELECT id FROM targets)
+               OR ee.target_entity_id IN (SELECT id FROM targets)
             RETURNING 1),
          del_links AS (
-           DELETE FROM memory_entities WHERE entity_id = ANY($1::uuid[]) RETURNING 1),
+           DELETE FROM memory_entities WHERE entity_id IN (SELECT id FROM targets) RETURNING 1),
          del_ents AS (
-           DELETE FROM entities WHERE id = ANY($1::uuid[]) RETURNING 1)
+           DELETE FROM entities WHERE id IN (SELECT id FROM targets) RETURNING 1)
          SELECT (SELECT count(*) FROM del_edges) AS edges,
                 (SELECT count(*) FROM del_links) AS links,
                 (SELECT count(*) FROM del_ents) AS ents`,

@@ -242,7 +242,7 @@ export { BUILTIN_ONTOLOGIES, ONTOLOGY_FALLBACK_TYPE, resolveOntology, validateOn
  *
  */
 export { DEFAULT_ENTITY_TAXONOMY } from './ontology.js';
-export { linkEntities, normalizeEntityKey } from './extraction/entity-linking.js';
+export { linkEntities } from './extraction/entity-linking.js';
 export type { EntityLinkingDeps, LinkableItem } from './extraction/entity-linking.js';
 export { applyOntologyToEntities } from './extraction/pipeline-helpers.js';
 

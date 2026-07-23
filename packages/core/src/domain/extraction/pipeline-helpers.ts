@@ -49,6 +49,13 @@ export function applyOntologyToEntities(
     if (e.type === undefined || allowed.has(e.type)) {
       return e;
     }
+    // M13 /review F-tests-1 (plan T1.1 Deep Dive): LLMs occasionally emit the
+    // vocabulary in lowercase ('person') — a case variant of an ALLOWED type is
+    // normalized, never coerced to OTHER (no coercion event: intent matched).
+    const upper = e.type.toUpperCase();
+    if (allowed.has(upper)) {
+      return { ...e, type: upper };
+    }
     emitEvent(tracer, 'ontology_type_coerced', {
       ontology: ontology.name,
       from: e.type,

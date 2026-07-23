@@ -33,6 +33,7 @@ import type {
 import {
   chunkTargets,
   loadCheckpoint,
+  MECHANISM_SQL,
   MECHANISM_TYPES,
   mapWithConcurrency,
   REEXTRACT_INPUT_MAX_CHARS,
@@ -42,6 +43,7 @@ import {
 
 export {
   chunkTargets,
+  MECHANISM_SQL,
   MECHANISM_TYPES,
   REEXTRACT_INPUT_MAX_CHARS,
   ReextractCheckpointCorrupted,
@@ -88,8 +90,6 @@ export interface ReextractReport {
   entitiesCreated: number;
   entitiesSuperseded: number;
 }
-
-const MECHANISM_SQL = MECHANISM_TYPES.map((t) => `'${t}'`).join(',');
 
 interface PreLinkRow extends Record<string, unknown> {
   id: string;
@@ -153,11 +153,15 @@ async function processTarget(
       ],
       { type: 'json' },
     );
-    parsed = AdditiveExtractionSchema.parse(typeof raw === 'string' ? JSON.parse(raw) : raw);
-  } catch {
-    // Recoverable (timeout/429/bad JSON): typed skip, NOT added to the checkpoint
-    // so a resume retries it. The batch never aborts on one memory.
-    bumpSkip(report.skipped, 'target_failed_llm');
+    const obj: unknown = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    parsed = AdditiveExtractionSchema.parse(obj);
+  } catch (err) {
+    // /review F-arch-6/F-dom-cli-2: distinguish transport (timeout/429 — retry
+    // as-is) from schema/JSON parse (model/prompt problem). Both are typed skips
+    // NOT added to the checkpoint so a resume retries them; the batch never
+    // aborts on one memory. The exit-1 predicate sums every target_failed_*.
+    const isParse = err instanceof SyntaxError || (err as { name?: string }).name === 'ZodError';
+    bumpSkip(report.skipped, isParse ? 'target_failed_parse' : 'target_failed_llm');
     return;
   }
 
@@ -175,14 +179,32 @@ async function processTarget(
       embedder: deps.embedder,
       memoryEntityStore: deps.memoryEntityStore,
       // exactOptionalPropertyTypes: only present keys, never explicit undefined.
+      // deps.ontology is consumed by the COERCION step (applyOntologyToEntities)
+      // above, not by linkEntities (the gated member was removed — /review F-arch-3).
       ...(deps.memoryGraphStore !== undefined ? { memoryGraphStore: deps.memoryGraphStore } : {}),
-      ...(deps.ontology !== undefined ? { ontology: deps.ontology } : {}),
       ...(deps.tracer !== undefined ? { tracer: deps.tracer } : {}),
     },
     deps.tracer,
     parsed.relations,
     coerced,
   );
+
+  // /review F-dom-db-3: linkEntities is fail-soft (swallows persist errors — e.g.
+  // an embedder-dim mismatch). Detect a silent link failure BEFORE the supersede
+  // step (which legitimately removes the old link): the memory must gain ≥1 NEW
+  // live link when the LLM produced entities. Otherwise typed-skip + no checkpoint,
+  // so a later --retire-mechanism (which presumes a COMPLETE backfill) never
+  // deletes a memory whose graph silently failed to persist.
+  if (coerced.length > 0) {
+    const { rows: linked } = await deps.pool.query<{ entity_id: string }>(
+      `/* reextract:link-check */ SELECT entity_id FROM memory_entities WHERE memory_id = $1`,
+      [t.id],
+    );
+    if (linked.every((r) => preIds.has(r.entity_id))) {
+      bumpSkip(report.skipped, 'target_failed_link');
+      return;
+    }
+  }
 
   // ADR D2 + EC-3: OLD (mechanism) → NEW = the LIVE semantic row with the SAME
   // normalized_key in the SAME scope (the linking upsert either created it or
