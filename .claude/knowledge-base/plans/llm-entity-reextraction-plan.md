@@ -300,8 +300,16 @@ NOTHING.
 
 #### Files to edit
 - `packages/core/src/infrastructure/db/migrations/0027_entities_superseded_by.sql`
+- `packages/core/src/infrastructure/db/migrations/meta/_journal.json`
+- `packages/core/src/infrastructure/db/migrations/meta/0027_snapshot.json`
 - `packages/core/src/domain/dip/memory-entity-store.ts`
 - `packages/core/src/infrastructure/db/pg-memory-entity-store.ts`
+- `packages/core/src/domain/extraction/entity-linking.test.ts`
+- `packages/core/src/domain/extraction/pipeline-helpers.test.ts`
+- `packages/core/src/domain/extraction-phase7.test.ts`
+- `packages/api/src/server/__tests__/metrics-entities.test.ts`
+- `packages/api/src/server/__tests__/graph-handler.test.ts`
+- `packages/api/src/server/__tests__/entities-readport.test.ts`
 - `tests/integration/entities/supersede.test.ts`
 - `CHANGELOG.md`
 
@@ -375,7 +383,14 @@ o dashboard mostraria dobrado durante/pós backfill; espelha o precedente `t_inv
 #### Files to edit
 - `packages/core/src/infrastructure/db/pg-memory-entity-store.ts`
 - `packages/core/src/infrastructure/db/pg-graph-expansion-store.ts`
+- `packages/core/src/infrastructure/db/pg-memory-graph-store.ts`
+- `packages/core/src/infrastructure/db/pgvector-store.ts`
+- `packages/core/src/domain/extraction-pipeline.test.ts`
+- `tests/integration/scoped-forget.test.ts`
 - `tests/integration/entities/supersede.test.ts`
+- `packages/api/src/server/handlers/reflect.ts`
+- `packages/core/src/domain/extraction/pipeline.ts`
+- `packages/core/src/infrastructure/extraction/compromise-entity-extractor.ts`
 - `CHANGELOG.md`
 
 #### Deep file dependency analysis
