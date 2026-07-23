@@ -34,7 +34,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 # Matches `### M<N> — [<status>] <name>` (em-dash is U+2014, also accept ASCII --)
-HEADER_RE = re.compile(r"^###\s+M(\d+)\s+[—\-]{1,2}\s+\[([x\s\-])\]\s+(.+?)\s*$", re.MULTILINE)
+# Accepts both `## M<N>` (roadmap-feature amendments / current ROADMAP.md) and
+# the original `### M<N>` (roadmap-init template) header depths.
+HEADER_RE = re.compile(r"^#{2,3}\s+M(\d+)\s+[—\-]{1,2}\s+\[([x\s\-])\]\s+(.+?)\s*$", re.MULTILINE)
 
 OBJECTIVE_RE = re.compile(r"^\*\*Objective:\*\*\s*(.+?)\s*$", re.MULTILINE)
 DOD_BLOCK_RE = re.compile(r"\*\*Definition of done[^*]*\*\*\s*\n((?:- \[[ x]\] .+\n?)+)", re.MULTILINE)
