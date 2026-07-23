@@ -40,6 +40,10 @@ vi.mock('@usetheo/memory', () => ({
   StubEmbedder: class MockStubEmbedder {},
   StubLLM: class MockStubLLM {},
   PgvectorStore: class MockPgvectorStore {},
+  // Full-suite fix (M13 gate): mirror agent-tools-memory.ts's static import list —
+  // a missing name fails the whole file at load.
+  SandboxedSkillExecutor: class MockSandboxedSkillExecutor {},
+  PgRoutingAuditStore: class MockPgRoutingAuditStore {},
 }));
 
 vi.mock('pg', () => ({

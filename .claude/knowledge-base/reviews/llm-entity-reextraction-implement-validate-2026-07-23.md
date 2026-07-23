@@ -16,16 +16,16 @@
 
 
 ```
-ver/routes/memory/recall.ts' imported from /home/paulo/Projetos/usetheo/theo-data/theo-memory/tests/unit/examples/server-routes-contract.test.ts
- ❯ tests/unit/examples/server-routes-contract.test.ts:187:21
-    185|
-    186|   it("GET /api/memory/recall returns 400 when userId is missing", asyn…
-    187|     const { GET } = await import(
-       |                     ^
-    188|       "../../../examples/chat-with-memory/server/routes/memory/recall.…
-    189|     );
+ession→global PROMOTION…
+    214|     // fail-soft placement-decision audit row in the deployed artifact…
+    215|     routingAuditStore: new PgRoutingAuditStore(pool),
+       |                            ^
+    216|     ...(skillExecutor !== undefined ? { skillExecutor } : {}),
+    217|     // explainable-recall-read S2 (/review F-arch-1) — opt-in recall t…
+ ❯ runMcpServer packages/mcp/src/run-mcp-server.ts:311:18
+ ❯ packages/mcp/src/run-mcp-server.test.ts:172:5
 
-⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[40/40]⎯
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
 
 
 ```

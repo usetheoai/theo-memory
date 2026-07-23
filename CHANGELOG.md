@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Fixed
+- Mock de `@usetheo/memory` em `run-mcp-server.test.ts` sem `PgRoutingAuditStore`/`SandboxedSkillExecutor` (espelho MCP do mesmo bug do run-server; 5 falhas latentes da suite completa). Suite completa agora 1287/1287 verde. (#111)
 - **Gate Step 5 do M13 — suite completa vermelha em `run-server.test.ts` (pré-existente) + lint dos módulos reextract.** O mock de `@usetheo/memory` do teste não espelhava os imports `PgRoutingPolicyStore`/`PgRoutingAuditStore` que `run-server.ts` ganhou no M11/explainable-recall (vitest falhava o arquivo inteiro no load — só visível na suite completa); asserções desnecessárias + ordem de import nos módulos reextract corrigidas via `--fix`. (#111)
 
 ### Removed
