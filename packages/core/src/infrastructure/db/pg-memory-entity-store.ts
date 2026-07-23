@@ -109,7 +109,11 @@ export class PgMemoryEntityStore implements MemoryEntityStore {
               COALESCE(s.summary, '') AS summary
          FROM entities e
          JOIN memory_entities me ON me.entity_id = e.id
-         JOIN memories m ON m.id = me.memory_id
+         -- #115: LIVE memories only. Counting soft-deleted links made the
+         -- dashboard offer "Forget N memories" for entities whose links were
+         -- already forgotten (cascade then honestly deleted 0 — confusing).
+         -- An entity with zero live links drops out of the listing entirely.
+         JOIN memories m ON m.id = me.memory_id AND m.t_invalid IS NULL
          LEFT JOIN LATERAL (
            SELECT string_agg(rel, '; ' ORDER BY rel) AS summary
              FROM (
