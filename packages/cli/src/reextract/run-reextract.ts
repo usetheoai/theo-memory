@@ -32,6 +32,8 @@ export interface ReextractCliOptions {
   readonly limit?: string;
   readonly concurrency?: string;
   readonly json?: boolean;
+  readonly retireMechanism?: boolean;
+  readonly commit?: boolean;
 }
 
 const CHECKPOINT_PATH = '.reextract-checkpoint.json';
@@ -76,6 +78,29 @@ function renderHuman(report: ReextractReport): string {
 
 export async function runReextractCli(opts: ReextractCliOptions): Promise<number> {
   assertEnvOrExit([PG_URI_ENV_SPEC]);
+  // m13-noise-retirement T1.1: `--commit` only means something under
+  // `--retire-mechanism` — reject the stray flag loudly (#252 discipline).
+  if (opts.commit === true && opts.retireMechanism !== true) {
+    process.stderr.write('Error: --commit requires --retire-mechanism.\n');
+    process.exit(2);
+  }
+  if (opts.retireMechanism === true) {
+    const retirePool = new Pool({ connectionString: process.env['THEOMEM_PG_URI'] });
+    try {
+      const { retireMechanism } = await import('./retire.js');
+      const report = await retireMechanism({ pool: retirePool }, { commit: opts.commit === true });
+      process.stdout.write(
+        opts.json === true
+          ? `${JSON.stringify(report)}\n`
+          : `themory reextract --retire-mechanism — ${report.dryRun ? 'DRY-RUN' : 'COMMIT'}\n` +
+            `  candidates: ${String(report.candidates)}\n  retired: ${String(report.retired)}\n` +
+            `  links removed: ${String(report.linksRemoved)}\n  edges removed: ${String(report.edgesRemoved)}\n`,
+      );
+      return 0;
+    } finally {
+      await retirePool.end();
+    }
+  }
   const dryRun = opts.dryRun === true;
   if (!dryRun) assertEnvOrExit([OPENAI_API_KEY_ENV_SPEC]);
 
