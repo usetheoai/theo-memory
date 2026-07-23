@@ -306,6 +306,23 @@ export class InMemoryVectorStore implements VectorStore {
   }
 
   /**
+   * Entity-filtered listing (theo-cloud#252) — the in-memory store tracks NO
+   * entity links (`memory_entities` is a Pg-only structure), so the honest
+   * answer is an empty page, never the scope fallback (returning the whole
+   * scope here is exactly the bug the filter exists to close). Duck-typed
+   * extension mirroring PgvectorStore.listByEntity.
+   */
+  async listByEntity(
+    _filters?: Filters,
+    _entityName?: string,
+    _topK = 100,
+    _offset = 0,
+  ): Promise<readonly [readonly VectorStoreResult[], number]> {
+    await Promise.resolve();
+    return [[], 0];
+  }
+
+  /**
    * Session enumeration (session-separation fix 2026-07-23) — distinct
    * `session_id` values under the `(workspace, user)` anchor in `filters`,
    * with live counts + newest activity, ordered by lastActivityAt DESC.

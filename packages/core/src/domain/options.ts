@@ -312,6 +312,15 @@ export interface GetAllOptions {
   readonly topK?: number;
 
   /**
+   * Entity filter (theo-cloud#252): when set, only memories LINKED to this
+   * entity (surface name, normalized server-side via `normalizeEntityKey`)
+   * through `memory_entities` are returned — the server-side filter the
+   * dashboard's per-entity cascade-forget requires. Stores without entity
+   * links (in-memory) honestly return an empty page.
+   */
+  readonly entity?: string;
+
+  /**
    * SQL-level page offset under the deterministic `created_at DESC, id ASC`
    * order (dashboard pager 2026-07-22). Default `0`.
    */

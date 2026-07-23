@@ -18,6 +18,7 @@ import {
   resolveEpisodeLimit,
 } from '../../domain/episode.js';
 import { EmbeddingMismatch } from '../../domain/errors.js';
+import { normalizeEntityKey } from '../../domain/extraction/entity-linking.js';
 import { emitEvent } from '../../domain/memory-event.js';
 import type { Filters } from '../../domain/scope.js';
 
@@ -810,6 +811,51 @@ export class PgvectorStore implements VectorStore {
       LIMIT $${filter.nextParamIndex} OFFSET $${filter.nextParamIndex + 1}
     `;
     const pageResult = await this.pool.query<MemoriesRow>(pageSql, [...filter.params, topK, offset]);
+    return [pageResult.rows.map(rowToResult), total];
+  }
+
+  /**
+   * Entity-filtered listing (theo-cloud#252) — the live memories LINKED to one
+   * entity via `memory_entities`, under the scope `filters`, newest first.
+   * `entityName` is the SURFACE name (what `/entities` returns as `id`);
+   * normalization to `entities.normalized_key` happens here (same
+   * `normalizeEntityKey` the write-path linking uses), workspace-bound so a
+   * same-named entity in another workspace never leaks. Duck-typed store
+   * extension (skills precedent — off the VectorStore DIP); consumed by
+   * `LocalScopedMemory.getAll({ entity })` → `?entity=` on the scope listing.
+   */
+  async listByEntity(
+    filters: Filters | undefined,
+    entityName: string,
+    topK = 100,
+    offset = 0,
+  ): Promise<readonly [readonly VectorStoreResult[], number]> {
+    const filter = composeFilters(filters, 3);
+    const normalizedKey = normalizeEntityKey(entityName);
+    const workspaceId = filters?.workspace_id ?? 'default';
+    const entityClause = `t_invalid IS NULL${filter.sql}
+       AND EXISTS (
+         SELECT 1 FROM memory_entities me
+         JOIN entities e ON e.id = me.entity_id
+         WHERE me.memory_id = memories.id
+           AND e.workspace_id = $1 AND e.normalized_key = $2
+       )`;
+    const baseParams = [workspaceId, normalizedKey, ...filter.params];
+    const countResult = await this.pool.query<{ total: number }>(
+      `SELECT COUNT(*)::int AS total FROM memories WHERE ${entityClause}`,
+      baseParams,
+    );
+    const total = countResult.rows[0]?.total ?? 0;
+    const pageResult = await this.pool.query<MemoriesRow>(
+      `SELECT id, text, hash, payload, user_id, session_id, agent_id, attributed_to, category,
+              kind, code, description, code_language, derived_from, superseded_by, confirmation_count,
+              created_at
+       FROM memories
+       WHERE ${entityClause}
+       ORDER BY created_at DESC, id ASC
+       LIMIT $${filter.nextParamIndex} OFFSET $${filter.nextParamIndex + 1}`,
+      [...baseParams, topK, offset],
+    );
     return [pageResult.rows.map(rowToResult), total];
   }
 
