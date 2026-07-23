@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- M13 cycle-plan COMPLETO: plano `llm-entity-reextraction` v1.1 SHIPPABLE 98/100 (zero caps; edge-case review com 3 MUST FIX absorvidos; deps-audit PASS — zero dependência nova, 0 HIGH/CRITICAL). Attested `8aabb4d4`. (#111)
 - M13 cycle-discover COMPLETO: blueprint `llm-entity-reextraction` (SHIPPABLE_WITH_CAVEATS 89; 8/8 questões com citações path:line; achado central: o prompt já emite types semânticos e o linking os descarta no gate de ontology — entity-linking.ts:150) + ADRs D1 (destravar gate), D2 (supersede por identidade com `entities.superseded_by`), D3 (chunks+checkpoint+dry-run). (#111)
 - M13 cycle-discover em andamento: plano de discovery `llm-entity-reextraction` v1.1 (SHIPPABLE_WITH_CAVEATS 89) + edge-case review + baseline de ruído de entidades persistido em `knowledge-base/audits/m13-entity-noise-baseline-2026-07-23.md` (1658 entidades, 129 ALL-CAPS, 106 ≤3 chars, 1029 memórias sem grafo — queries canônicas do DoD). Tooling: `select_next_milestone.py` aceita headers `##` e `###` (seleção do M13 falhava com 'no milestone headers found'). (#111)
 - Roadmap amended: added M13 Re-extração LLM de entidades com types semânticos (`/roadmap-feature llm-entity-reextraction`) — corrige theo-memory#111 (Fase B do blueprint `multilingual-entity-extraction`)
