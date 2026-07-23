@@ -2,29 +2,38 @@
 
 **Date:** 2026-07-23
 **Overall:** FAIL
-**Total checks:** 11 (PASS: 5, FAIL: 3, SKIP: 1)
+**Total checks:** 11 (PASS: 7, FAIL: 1, SKIP: 1)
 
 ## Checks
 
 ### progress_schema — `PASS`
 
 
-### checkpoint_consistency — `FAIL`
+### checkpoint_consistency — `PASS`
 
-- [HIGH] task_committed_in_git_not_in_progress: Task T4.1 is referenced by a real commit in git but has NO entry in the checkpoint. A finished task was committed without updating .progress — the checkpoint is out of sync with reality.
 
 ### npm test — `FAIL`
 
 
 ```
-  |                            ^
-    216|     ...(skillExecutor !== undefined ? { skillExecutor } : {}),
-    217|     // explainable-recall-read S2 (/review F-arch-1) — opt-in recall t…
- ❯ processTicksAndRejections node:internal/process/task_queues:103:5
- ❯ packages/cli/src/run-server.ts:166:14
+45 values (44 prior + entity_gc_collected, #110)
+AssertionError: expected [ 'extraction_started', …(46) ] to have a length of 45 but got 47
 
-This error originated in "packages/cli/src/__tests__/run-server.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
-⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+- Expected
++ Received
+
+- 45
++ 47
+
+ ❯ packages/core/src/domain/memory-event.test.ts:12:27
+     10| describe('MEMORY_EVENTS', () => {
+     11|   test('has 45 values (44 prior + entity_gc_collected, #110)', () => {
+     12|     expect(MEMORY_EVENTS).toHaveLength(45);
+       |                           ^
+     13|   });
+     14|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[41/41]⎯
 
 
 ```
@@ -32,12 +41,8 @@ This error originated in "packages/cli/src/__tests__/run-server.test.ts" test fi
 ### npm run typecheck — `PASS`
 
 
-### npm run lint — `FAIL`
+### npm run lint — `PASS`
 
-
-```
-
-```
 
 ### coverage — `SKIP`
 
@@ -45,7 +50,7 @@ This error originated in "packages/cli/src/__tests__/run-server.test.ts" test fi
 
 ### wiring_triad — `PASS`
 
-- Total tasks: 5
+- Total tasks: 6
 - Verification: independent recheck of `check_wiring.py`
 - Symbols derived from diff: 128
 - Symbols independently resolved: 101
