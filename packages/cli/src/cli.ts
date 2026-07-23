@@ -280,8 +280,10 @@ export function buildProgram(): Command {
     .option('--restart', 'delete the checkpoint and start over')
     .option('--limit <n>', 'process at most N target memories')
     .option('--concurrency <n>', 'max in-flight LLM calls (default 5)')
+    .option('--retire-mechanism', 'retire mechanism-labeled noise entities left after a full backfill (dry-run unless --commit)')
+    .option('--commit', 'actually delete the retirement set (requires --retire-mechanism)')
     .option('--json', 'machine-readable report on stdout')
-    .action(async (opts: { dryRun?: boolean; resume?: boolean; restart?: boolean; limit?: string; concurrency?: string; json?: boolean }) => {
+    .action(async (opts: { dryRun?: boolean; resume?: boolean; restart?: boolean; limit?: string; concurrency?: string; json?: boolean; retireMechanism?: boolean; commit?: boolean }) => {
       const { runReextractCli } = await import('./reextract/run-reextract.js');
       process.exit(await runReextractCli(opts));
     });

@@ -41,6 +41,10 @@ export const MEMORY_EVENTS = [
   // with processed/skipped counters so the operator can watch backfill progress
   // (Princípio 3 — the job's IGNORE decisions are visible, never silent).
   'reextract_chunk_done',
+  // m13-noise-retirement T1.1 (#111) — fires once per `--retire-mechanism` run
+  // with candidates/retired/links/edges counts (dry-run included). Princípio 3:
+  // the bulk forget decision is observable, never silent.
+  'reextract_noise_retired',
   // principles-alignment-hardening T4.1 — Princípio 3 IGNORE auditability per
   // ADR D2: fires when retrieval pipeline's threshold-filter step drops N
   // sub-threshold candidates. Attributes include filtered_count so consumers

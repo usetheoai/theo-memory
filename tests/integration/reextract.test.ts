@@ -19,6 +19,7 @@ import { runMigrations, PgMemoryEntityStore, PgMemoryGraphStore } from '@usetheo
 import type { LLM } from '@usetheo/memory';
 
 import { runReextract, type ReextractOptions } from '../../packages/cli/src/reextract/engine.js';
+import { retireMechanism } from '../../packages/cli/src/reextract/retire.js';
 
 const PG_URI = process.env['THEOMEM_PG_URI'];
 const DIM = 1536;
@@ -152,6 +153,63 @@ if (PG_URI === undefined || PG_URI === '') {
       const { rows: oldRow } = await pool.query<{ superseded_by: string | null }>(
         `SELECT superseded_by FROM entities WHERE id = $1`, [oldId]);
       expect(oldRow[0]?.superseded_by).toBe(existingSemantic);
+    });
+
+    test('test_retire_dry_run_counts_without_writes', async () => {
+      // Given 2 mechanism rows + 1 semantic + 1 anchor pair (old→new)
+      const m1 = await seedMemory({ user: 'alice' }, 'memory backing the mechanism noise rows here');
+      await seedLinkedEntity(m1, 'HIGH', 'PROPER', 'alice');
+      await seedLinkedEntity(m1, 'OK', 'PROPER', 'alice');
+      await seedLinkedEntity(m1, 'ArangoDB', 'PRODUCT', 'alice');
+      const anchorOld = await seedLinkedEntity(m1, 'codex', 'PROPER', 'alice');
+      const anchorNew = await seedLinkedEntity(m1, 'Codex', 'PRODUCT', 'alice');
+      await pool.query(`UPDATE entities SET superseded_by = $1 WHERE id = $2`, [anchorNew, anchorOld]);
+
+      const before = await pool.query<{ n: string }>(`SELECT count(*) AS n FROM entities`);
+      const report = await retireMechanism({ pool }, { commit: false });
+
+      expect(report.dryRun).toBe(true);
+      expect(report.candidates).toBe(2); // HIGH + OK — anchor pair and semantic excluded
+      expect(report.retired).toBe(0);
+      const after = await pool.query<{ n: string }>(`SELECT count(*) AS n FROM entities`);
+      expect(after.rows[0]?.n).toBe(before.rows[0]?.n); // zero writes
+    });
+
+    test('test_retire_commit_removes_mechanism_keeps_semantic_and_anchors', async () => {
+      const m1 = await seedMemory({ user: 'alice' }, 'memory backing the retirement commit scenario');
+      const noiseId = await seedLinkedEntity(m1, 'READYTOMERGE', 'PROPER', 'alice');
+      const semanticId = await seedLinkedEntity(m1, 'Hightouch', 'ORG', 'alice');
+      const anchorOld = await seedLinkedEntity(m1, 'codex', 'PROPER', 'alice');
+      const anchorNew = await seedLinkedEntity(m1, 'Codex', 'PRODUCT', 'alice');
+      await pool.query(`UPDATE entities SET superseded_by = $1 WHERE id = $2`, [anchorNew, anchorOld]);
+      // an edge touching the noise row must go with it
+      await pool.query(
+        `INSERT INTO entity_edges (workspace_id, user_id, source_entity_id, target_entity_id, relation, normalized_relation, source_memory_id)
+         VALUES ('ws1','alice',$1,$2,'noise_rel','noise_rel',$3)`,
+        [noiseId, semanticId, m1],
+      );
+
+      const report = await retireMechanism({ pool }, { commit: true });
+
+      expect(report.retired).toBe(1);
+      expect(report.linksRemoved).toBeGreaterThanOrEqual(1);
+      expect(report.edgesRemoved).toBe(1);
+      const { rows: kept } = await pool.query<{ id: string }>(`SELECT id FROM entities`);
+      const keptIds = kept.map((r) => r.id);
+      expect(keptIds).not.toContain(noiseId);
+      expect(keptIds).toContain(semanticId);
+      expect(keptIds).toContain(anchorOld); // pointer carrier survives
+      expect(keptIds).toContain(anchorNew); // pointee survives
+      const { rows: orphanLinks } = await pool.query(
+        `SELECT 1 FROM memory_entities me WHERE NOT EXISTS (SELECT 1 FROM entities e WHERE e.id = me.entity_id)`);
+      expect(orphanLinks).toHaveLength(0);
+    });
+
+    test('test_retire_is_idempotent', async () => {
+      const m1 = await seedMemory({ user: 'alice' }, 'memory for the idempotency retirement case');
+      await seedLinkedEntity(m1, 'PASS', 'PROPER', 'alice');
+      expect((await retireMechanism({ pool }, { commit: true })).retired).toBe(1);
+      expect((await retireMechanism({ pool }, { commit: true })).retired).toBe(0);
     });
 
     test('test_dry_run_writes_nothing_to_db', async () => {

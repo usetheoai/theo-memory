@@ -53,7 +53,7 @@ export interface ReextractPool {
   query<R extends Record<string, unknown> = Record<string, unknown>>(
     sql: string,
     params?: unknown[],
-  ): Promise<{ rows: R[] }>;
+  ): Promise<{ rows: R[]; rowCount?: number | null }>;
 }
 
 export interface ReextractDeps {
