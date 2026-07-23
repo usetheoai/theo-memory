@@ -12,6 +12,7 @@
  * `Memory` facade is unnecessary — linking needs the embedder + stores explicitly
  * (DIP), so they are injected (unit tests stub them; the CLI verb wires Pg impls).
  */
+import type { Tracer } from '@opentelemetry/api';
 import {
   AdditiveExtractionSchema,
   applyOntologyToEntities,
@@ -28,7 +29,6 @@ import type {
   MemoryGraphStore,
   Ontology,
 } from '@usetheo/memory';
-import type { Tracer } from '@opentelemetry/api';
 
 import {
   chunkTargets,

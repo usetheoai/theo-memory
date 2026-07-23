@@ -12,6 +12,8 @@
  */
 import { rmSync } from 'node:fs';
 
+import { PgMemoryEntityStore, PgMemoryGraphStore } from '@usetheo/memory';
+import type { Embedder, LLM } from '@usetheo/memory';
 import {
   assertEnvOrExit,
   buildEmbedder,
@@ -19,8 +21,6 @@ import {
   PG_URI_ENV_SPEC,
   resolveEmbedderKind,
 } from '@usetheo/memory-agent-core';
-import { PgMemoryEntityStore, PgMemoryGraphStore } from '@usetheo/memory';
-import type { Embedder, LLM } from '@usetheo/memory';
 import { Pool } from 'pg';
 
 import { runReextract, type ReextractReport } from './engine.js';
@@ -43,8 +43,8 @@ function throwingProviders(): { llm: LLM; embedder: Embedder } {
     throw new Error('reextract dry-run must never call a provider');
   };
   return {
-    llm: { generateResponse: boom, generateChat: boom } as unknown as LLM,
-    embedder: { embed: boom, embedBatch: boom } as unknown as Embedder,
+    llm: { generateResponse: boom, generateChat: boom },
+    embedder: { embed: boom, embedBatch: boom },
   };
 }
 
@@ -90,7 +90,7 @@ export async function runReextractCli(opts: ReextractCliOptions): Promise<number
       ? throwingProviders()
       : {
           embedder: await buildEmbedder(resolveEmbedderKind()),
-          llm: new (await import('@usetheo/memory/llms/openai')).OpenAILLM() as LLM,
+          llm: new (await import('@usetheo/memory/llms/openai')).OpenAILLM(),
         };
 
     const limit = opts.limit !== undefined ? parsePositiveInt(opts.limit, '--limit', 0) : undefined;
