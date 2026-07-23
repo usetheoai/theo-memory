@@ -62,7 +62,7 @@ function stubLlm(onCall?: (messages: unknown, callIndex: number) => unknown): {
       ? onCall(messages, i)
       : { memory: [], entities: [{ name: 'Codex', type: 'PRODUCT' }] };
   });
-  return { llm: { generateResponse: spy, generateChat: vi.fn() } as unknown as LLM, spy };
+  return { llm: { generateResponse: spy, generateChat: vi.fn() }, spy };
 }
 
 const embedder = {
