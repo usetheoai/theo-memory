@@ -306,6 +306,39 @@ export class InMemoryVectorStore implements VectorStore {
   }
 
   /**
+   * Session enumeration (session-separation fix 2026-07-23) — distinct
+   * `session_id` values under the `(workspace, user)` anchor in `filters`,
+   * with live counts + newest activity, ordered by lastActivityAt DESC.
+   * Duck-typed store extension (mirrors the skills-methods precedent): NOT part
+   * of the VectorStore DIP; `LocalScopedMemory.listSessions` feature-detects it.
+   */
+  async listSessions(
+    filters?: Filters,
+  ): Promise<readonly { sessionId: string; memoryCount: number; lastActivityAt: Date }[]> {
+    await Promise.resolve();
+    const wsFilter = filters?.workspace_id ?? 'default';
+    const userFilter = filters?.user_id;
+    const byId = new Map<string, { memoryCount: number; lastActivityAt: Date }>();
+    for (const row of this.rows.values()) {
+      const sessionId = row.payload['session_id'];
+      if (typeof sessionId !== 'string' || sessionId.length === 0) continue;
+      if (((row.payload['workspace_id'] as string | undefined) ?? 'default') !== wsFilter) continue;
+      if (userFilter !== undefined && userFilter !== null && row.payload['user_id'] !== userFilter) continue;
+      const at = row.createdAt ?? new Date(0);
+      const agg = byId.get(sessionId);
+      if (agg === undefined) {
+        byId.set(sessionId, { memoryCount: 1, lastActivityAt: at });
+      } else {
+        agg.memoryCount += 1;
+        if (at > agg.lastActivityAt) agg.lastActivityAt = at;
+      }
+    }
+    return [...byId.entries()]
+      .map(([sessionId, a]) => ({ sessionId, ...a }))
+      .sort((a, b) => b.lastActivityAt.getTime() - a.lastActivityAt.getTime());
+  }
+
+  /**
    * first-class-episodes M2 T2.1 — cursor-paginated temporal list.
    *
    * Mirrors PgvectorStore.listEpisodes ordering `(created_at, id)` so the

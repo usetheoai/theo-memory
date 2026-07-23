@@ -54,10 +54,10 @@ test('Memory has exactly the 11 top-level keys (v0.4a flushReflections; v0.6 ski
   >();
 });
 
-test('ScopedMemory has the 5 scoped verbs + episodes + count read surfaces (#113)', () => {
+test('ScopedMemory has the 5 scoped verbs + episodes + count + listSessions read surfaces (#113; session-separation 2026-07-23)', () => {
   type Keys = keyof ScopedMemory;
   expectTypeOf<Keys>().toEqualTypeOf<
-    'remember' | 'recall' | 'reflect' | 'getAll' | 'forget' | 'episodes' | 'count'
+    'remember' | 'recall' | 'reflect' | 'getAll' | 'forget' | 'episodes' | 'count' | 'listSessions'
   >();
 });
 

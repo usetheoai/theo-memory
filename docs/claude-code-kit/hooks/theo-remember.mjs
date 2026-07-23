@@ -24,16 +24,23 @@ async function main() {
   // Salience floor — a short turn is rarely a durable fact worth a write.
   if (text.length < SALIENCE_MIN_CHARS) return;
 
-  // Omit userId by default so the gateway's injected X-Theo-User-Id drives the tier
-  // (unified per-account memory). An explicit THEOMEM_MEMORY_USER_ID pins it for raw
-  // REST. `project` stays in metadata either way — for context, not for scoping.
+  // Session-separation (2026-07-23, M8 model): when the hook payload carries the
+  // Claude Code session_id, the write targets the SESSION tier — the edge's
+  // X-Theo-User-Id binds the user, so the scope is (workspace, user, session).
+  // Each session gets its own working memory; the SessionEnd promote hook
+  // (theo-promote.mjs) runs the M9 reflect that lifts durable facts to global.
+  // Exactly ONE tier key may be sent (server superRefine): sessionId wins;
+  // legacy userId pin (raw REST without edge) only applies when no session id.
   //
   // DETACHED: server-side LLM extraction takes ~8s through the gateway; a blocking
   // await would either stall the session that long OR (at the 3s default timeout)
   // abort and silently drop the write. postDetached hands it to a background worker
   // and returns immediately — the write lands, the session is never held.
+  const sessionId = typeof input.session_id === 'string' && input.session_id.length > 0
+    ? input.session_id
+    : undefined;
   postDetached('/v1/remember', {
-    ...(userId ? { userId } : {}),
+    ...(sessionId ? { sessionId } : userId ? { userId } : {}),
     text,
     metadata: { source: 'claude-code', project },
   });

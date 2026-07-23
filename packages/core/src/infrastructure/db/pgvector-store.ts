@@ -814,6 +814,39 @@ export class PgvectorStore implements VectorStore {
   }
 
   /**
+   * Session enumeration (session-separation fix 2026-07-23) — distinct
+   * `session_id` values under the `(workspace, user)` anchor in `filters`, with
+   * live counts + newest activity. Duck-typed store extension (skills-methods
+   * precedent — off the VectorStore DIP per ADR-0008); consumed by
+   * `LocalScopedMemory.listSessions` → `GET /v1/scopes/user/:id/sessions`.
+   * Uses the M8 composite index (migration 0024) leading columns.
+   */
+  async listSessions(
+    filters?: Filters,
+  ): Promise<readonly { sessionId: string; memoryCount: number; lastActivityAt: Date }[]> {
+    const params: string[] = [filters?.workspace_id ?? 'default'];
+    let userClause = '';
+    if (filters?.user_id !== undefined && filters.user_id !== null) {
+      params.push(filters.user_id);
+      userClause = ' AND user_id = $2';
+    }
+    const res = await this.pool.query<{ session_id: string; memory_count: number; last_activity_at: Date }>(
+      `SELECT session_id, COUNT(*)::int AS memory_count, MAX(created_at) AS last_activity_at
+       FROM memories
+       WHERE t_invalid IS NULL AND session_id IS NOT NULL AND workspace_id = $1${userClause}
+       GROUP BY session_id
+       ORDER BY MAX(created_at) DESC
+       LIMIT 500`,
+      params,
+    );
+    return res.rows.map((r) => ({
+      sessionId: r.session_id,
+      memoryCount: r.memory_count,
+      lastActivityAt: r.last_activity_at,
+    }));
+  }
+
+  /**
    * skills-cross-repo-flat-list T1.1 (ADR D1/D3) — tenant-safe cross-repo skills
    * listing. Filters `kind='skill'` rows whose `agent_id` starts with the
    * escaped `'{subject}:'` prefix (the gateway's per-customer namespace, ADR D3
