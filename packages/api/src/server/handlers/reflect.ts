@@ -16,7 +16,7 @@ import {
   MALFORMED_BODY,
   safeJson,
   scopeOrValidationError,
-  principalUserId,
+  actingUserId,
   workspaceBoundMemory,
 } from './_body-parsing.js';
 
@@ -37,7 +37,7 @@ export async function reflectHandler(c: Context, memory: Memory): Promise<Respon
   }
   const { maxIterations } = parsed.data;
   // multi-tenant-workspace-isolation T3.1: scope reflect by the Principal's workspace (ADR D3).
-  const scoped = resolveScope(workspaceBoundMemory(c, memory), parsed.data, principalUserId(c));
+  const scoped = resolveScope(workspaceBoundMemory(c, memory), parsed.data, actingUserId(c));
   // Session-separation fix (2026-07-23): a SESSION-tier reflect threads the M9
   // SessionToGlobalConsolidationPolicy so durable working memories (default
   // confirmation_count ≥ 3 — M11 FAILCLOSED_DEFAULT_POLICY threshold) are
