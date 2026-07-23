@@ -4,6 +4,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+- **Abas SESSION/AGENT da tela Entities sempre vazias (#119).** `filtersFor()` no handler REST montava a Filters de tier único (`{ session_id }`) SEM o `user_id` — mas entidades de session/agent tier carregam AMBAS as colunas (o write path deriva o escopo da memória-fonte, M8/ADR-0021), e o predicado da listagem é `COALESCE(user_id,'') = COALESCE($2,'')`. Resultado: uma sessão com 237 memórias e 712 entidades linkadas renderizava "No entities". Agora o acting user (Principal ou header da edge) é threadado nos filtros dos três tiers — o mesmo que o caminho de fallback do handler já fazia. RED-GREEN em `entities-readport.test.ts`.
+
+
 ### Changed
 - **CI: pipeline mais rápida (#116).** (1) `paths-ignore` (`.claude/**`, `**/*.md`) nos 3 workflows — pushes só-de-docs param de disparar build/deploy/testes/scan (o build de tag `v*` aponta para merge commits com código, nunca é filtrado). (2) Dockerfile: `COPY` reordenado (manifests → `pnpm install` → source) nos stages builder + production-deps, para o layer de install ser cache-hit quando só o código muda — evita recompilar os módulos nativos (isolated-vm/onnxruntime/sharp) a cada push. (3) Cache mount BuildKit no store pnpm (`--mount=type=cache`) em ambos os installs — deps inalteradas linkam do store persistido em vez de re-baixar.
 
