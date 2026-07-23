@@ -119,9 +119,14 @@ if (PG_URI === undefined || PG_URI === '') {
       expect(Number(rows[0]?.n)).toBe(2); // both memories linked to the John Smith node(s)
     });
 
-    test('item-2: infer:false (verbatim) ALSO extracts + surfaces entities', async () => {
-      // No LLM extraction on this path — the raw text is persisted verbatim and
-      // Phase 7 (shared linkEntities) extracts entities from the verbatim text.
+    test('item-2: infer:false (verbatim) does NOT extract inline — graph comes from the reextract backfill', async () => {
+      // Phase A D1 (multilingual-entity-extraction, mem0 parity): the verbatim
+      // path persists the raw text and runs NO inline entity extraction — the
+      // 83%-noise incident came from the EN-only heuristic firing here. The
+      // graph for verbatim/imported memories is produced by the M13
+      // `themory reextract` backfill (tests/integration/reextract.test.ts).
+      // This pin previously asserted the PRE-Phase-A behavior and had been
+      // failing since D1 shipped; updated as part of M13 T1.1.
       const memory = await createLocalMemory({
         vectorStore: new PgvectorStore(pool),
         embedder: fixedEmbedder(),
@@ -134,7 +139,7 @@ if (PG_URI === undefined || PG_URI === '') {
       expect(res.status).toBe(200);
       const body = (await res.json()) as { entities: { id: string; memory_count: number }[] };
       const names = body.entities.map((e) => e.id);
-      expect(names).toContain('John Smith');
+      expect(names).not.toContain('John Smith');
     });
 
     test('negative: entityBoost:false persists zero entity rows', async () => {
