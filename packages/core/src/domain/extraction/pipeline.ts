@@ -23,9 +23,9 @@ import type { HistoryBatchRecord } from '../dip/history-manager.js';
 import { InvalidScope } from '../errors.js';
 import { lemmatizeForBm25 } from '../lemmatization.js';
 import { emitEvent } from '../memory-event.js';
-import { DEFAULT_ENTITY_TAXONOMY } from '../ontology.js';
 import type { MemoryItem } from '../memory-item.js';
 import type { Message } from '../message.js';
+import { DEFAULT_ENTITY_TAXONOMY } from '../ontology.js';
 import type { RememberOptions } from '../options.js';
 import type { Filters } from '../scope.js';
 

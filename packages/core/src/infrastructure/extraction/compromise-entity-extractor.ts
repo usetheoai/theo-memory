@@ -13,6 +13,7 @@
 import type { EntityExtractor, EntityType, ExtractedEntity } from '../../domain/dip/entity-extractor.js';
 import { isEntityNoise } from '../../domain/extraction/entity-noise-filter.js';
 import { detectInputLanguage } from '../../domain/extraction/language.js';
+
 import {
   BOUNDARY_STOP,
   CONJUGATED_VERB,
