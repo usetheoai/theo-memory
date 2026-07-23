@@ -43,11 +43,15 @@ async function main() {
 
   if (text.length < SALIENCE_MIN_CHARS) return;
 
-  // Omit userId by default so the gateway drives the tier (unified per-account space).
+  // Session-separation (2026-07-23): the flush belongs to the compacting SESSION's
+  // working memory (M8) — sessionId wins over the legacy userId pin (one tier key).
   // DETACHED so the ~8s server-side extraction never stalls compaction (see theo-lib
   // postDetached) and never aborts under the 3s timeout.
+  const sessionId = typeof input.session_id === 'string' && input.session_id.length > 0
+    ? input.session_id
+    : undefined;
   postDetached('/v1/remember', {
-    ...(userId ? { userId } : {}),
+    ...(sessionId ? { sessionId } : userId ? { userId } : {}),
     text,
     metadata: { source: 'claude-code', project, phase: 'precompact' },
   });

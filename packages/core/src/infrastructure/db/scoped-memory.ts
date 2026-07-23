@@ -15,11 +15,11 @@ import {
   encodeEpisodeCursor,
   resolveEpisodeLimit,
 } from '../../domain/episode.js';
-import { InvalidScope, MemoryNotFound } from '../../domain/errors.js';
+import { InvalidScope, MemoryNotFound, SessionsListingNotSupported } from '../../domain/errors.js';
 import { runExtractionPipeline } from '../../domain/extraction/pipeline.js';
 import { emitEvent } from '../../domain/memory-event.js';
 import type { MemoryItem, MemoryItemWithScore } from '../../domain/memory-item.js';
-import type { ScopedMemory } from '../../domain/memory-store.js';
+import type { ScopedMemory, SessionSummary } from '../../domain/memory-store.js';
 import type { Message } from '../../domain/message.js';
 import { resolveOntology } from '../../domain/ontology.js';
 import type {
@@ -219,6 +219,31 @@ export class LocalScopedMemory implements ScopedMemory {
   async count(): Promise<number> {
     const [, total] = await this.config.vectorStore.list(this.filters, 1);
     return total;
+  }
+
+  /**
+   * Session enumeration (session-separation fix 2026-07-23). Delegates to the
+   * store's duck-typed `listSessions` extension (skills-methods precedent —
+   * kept off the VectorStore DIP per ADR-0008 method-count discipline). Scoped
+   * by the `(workspace, user)` anchor of THIS scope's filters; a store without
+   * the capability fails loudly (Rule 8 — never a silent empty list).
+   */
+  async listSessions(): Promise<readonly SessionSummary[]> {
+    const store = this.config.vectorStore as {
+      listSessions?: (filters?: Filters) => Promise<readonly SessionSummary[]>;
+    };
+    if (typeof store.listSessions !== 'function') {
+      throw new SessionsListingNotSupported(
+        'listSessions requires a store with the listSessions extension — use PgvectorStore or InMemoryVectorStore.',
+      );
+    }
+    const anchor: Filters = {
+      ...(this.filters.workspace_id !== undefined ? { workspace_id: this.filters.workspace_id } : {}),
+      ...(this.filters.user_id !== undefined && this.filters.user_id !== null
+        ? { user_id: this.filters.user_id }
+        : {}),
+    };
+    return store.listSessions(anchor);
   }
 
   async getAll(options?: GetAllOptions): Promise<readonly MemoryItem[]> {
