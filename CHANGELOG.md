@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Gate Step 5 do M13 — suite completa vermelha em `run-server.test.ts` (pré-existente) + lint dos módulos reextract.** O mock de `@usetheo/memory` do teste não espelhava os imports `PgRoutingPolicyStore`/`PgRoutingAuditStore` que `run-server.ts` ganhou no M11/explainable-recall (vitest falhava o arquivo inteiro no load — só visível na suite completa); asserções desnecessárias + ordem de import nos módulos reextract corrigidas via `--fix`. (#111)
 
 ### Removed
+- Suite `tests/unit/dogfood/` (10 arquivos, 20 testes) — pinava a maquinaria de journey-audit (run_journey_audit.py, drivers, catálogo, skill antiga) substituída pelo kit Cycle 6+1 (297e373); o veredito histórico do gate (`EVIDENCE_SUFFICIENT`, 2026-07-12) permanece registrado em CLAUDE.md/audits e no git. Surfaced pelo gate Step 5 do M13. (#111)
 - Testes órfãos da app demo `examples/chat-with-memory` (a app foi removida em c3a1b63/2026-07-16; os testes ficaram referenciando módulos deletados — 8 falhas latentes que só apareciam na suite completa) + o resíduo `examples/` (só restava um package.json). Surfaced pelo gate Step 5 do M13. (#111)
 
 ### Changed
