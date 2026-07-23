@@ -85,6 +85,7 @@ function spyStore(): { store: MemoryEntityStore; calls: UpsertAndLinkParams[] } 
     store: {
       upsertAndLink: vi.fn(async (p: UpsertAndLinkParams) => { calls.push(p); await Promise.resolve(); }),
       list: vi.fn(async () => []),
+      supersedeEntity: vi.fn(async () => false),
     },
   };
 }

@@ -141,4 +141,60 @@ export class PgMemoryEntityStore implements MemoryEntityStore {
       summary: r.summary ?? '',
     }));
   }
+
+  /**
+   * M13 T2.1 (#111) — auditable supersede in ONE transaction. The UPDATE's
+   * `superseded_by IS NULL` predicate is the atomic arbiter for concurrent
+   * calls (exactly one wins); the target is validated fail-closed BEFORE any
+   * write (lesson theo-cloud#252). Never DELETE — links move, edges repoint,
+   * the old row keeps its history behind the pointer.
+   */
+  async supersedeEntity(params: { oldId: string; newId: string; workspaceId: string }): Promise<boolean> {
+    const { oldId, newId, workspaceId } = params;
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      // Fail-closed target validation (both rows, same workspace, new not superseded).
+      const check = await client.query<{ id: string }>(
+        `SELECT id FROM entities WHERE id = $1 AND workspace_id = $2 AND superseded_by IS NULL`,
+        [newId, workspaceId],
+      );
+      if (check.rowCount === 0) {
+        throw new Error(`supersedeEntity: target entity ${newId} not found (or superseded) in workspace`);
+      }
+      // Atomic arbiter: only the call that flips NULL→newId proceeds to repoint.
+      const marked = await client.query(
+        `UPDATE entities SET superseded_by = $1 WHERE id = $2 AND workspace_id = $3 AND superseded_by IS NULL`,
+        [newId, oldId, workspaceId],
+      );
+      if ((marked.rowCount ?? 0) === 0) {
+        await client.query('ROLLBACK');
+        return false; // already superseded (idempotent) or old row absent
+      }
+      // Repoint links: copy then drop (composite PK → ON CONFLICT DO NOTHING).
+      await client.query(
+        `INSERT INTO memory_entities (memory_id, entity_id)
+         SELECT memory_id, $1 FROM memory_entities WHERE entity_id = $2
+         ON CONFLICT DO NOTHING`,
+        [newId, oldId],
+      );
+      await client.query(`DELETE FROM memory_entities WHERE entity_id = $1`, [oldId]);
+      // Repoint edge endpoints (provenance source_memory_id untouched).
+      await client.query(
+        `UPDATE entity_edges SET source_entity_id = $1 WHERE source_entity_id = $2 AND workspace_id = $3`,
+        [newId, oldId, workspaceId],
+      );
+      await client.query(
+        `UPDATE entity_edges SET target_entity_id = $1 WHERE target_entity_id = $2 AND workspace_id = $3`,
+        [newId, oldId, workspaceId],
+      );
+      await client.query('COMMIT');
+      return true;
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
 }
