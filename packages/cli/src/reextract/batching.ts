@@ -23,6 +23,9 @@ export const REEXTRACT_INPUT_MAX_CHARS = 16000;
 /** Mechanism labels the M13 DoD zeroes (pre-Phase-A write path). */
 export const MECHANISM_TYPES = ['PROPER', 'COMPOUND', 'QUOTED'] as const;
 
+/** SQL literal list for `type IN (...)` — single source (DRY, /review F-arch-10). */
+export const MECHANISM_SQL = MECHANISM_TYPES.map((t) => `'${t}'`).join(',');
+
 export class ReextractCheckpointCorrupted extends Error {}
 
 /** Count+bytes chunking (D3): closes at `size` items OR `maxBytes` total; a single
