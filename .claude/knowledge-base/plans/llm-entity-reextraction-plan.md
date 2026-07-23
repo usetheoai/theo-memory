@@ -219,11 +219,12 @@ mecanismo (DRY).
 `prompt.ts:77` (menu); baseline: 1409 PROPER/231 COMPOUND/18 QUOTED.
 
 #### Files to edit
-- `packages/core/src/domain/ontology.ts` (add `DEFAULT_ENTITY_TAXONOMY`)
-- `packages/core/src/domain/extraction/entity-linking.ts` (gate + endpoints)
-- `packages/core/src/domain/extraction/pipeline.ts` (coerção default quando sem ontology)
-- `packages/core/src/domain/extraction-phase7.test.ts` (unit)
-- `tests/integration/ontology.test.ts` (integração)
+- `packages/core/src/domain/ontology.ts`
+- `packages/core/src/domain/extraction/entity-linking.ts`
+- `packages/core/src/domain/extraction/pipeline.ts`
+- `packages/core/src/domain/extraction-phase7.test.ts`
+- `tests/integration/ontology.test.ts`
+- `tests/integration/entities/extract.test.ts`
 - `CHANGELOG.md`
 
 #### Deep file dependency analysis
@@ -298,10 +299,10 @@ auditabilidade que o graphiti não tem (blueprint Q2); precedente interno
 NOTHING.
 
 #### Files to edit
-- `packages/core/src/infrastructure/db/migrations/0027_entities_superseded_by.sql` (NEW)
-- `packages/core/src/domain/dip/memory-entity-store.ts` (porta: `supersedeEntity`)
-- `packages/core/src/infrastructure/db/pg-memory-entity-store.ts` (impl transacional)
-- `tests/integration/entities/supersede.test.ts` (NEW)
+- `packages/core/src/infrastructure/db/migrations/0027_entities_superseded_by.sql`
+- `packages/core/src/domain/dip/memory-entity-store.ts`
+- `packages/core/src/infrastructure/db/pg-memory-entity-store.ts`
+- `tests/integration/entities/supersede.test.ts`
 - `CHANGELOG.md`
 
 #### Deep file dependency analysis
@@ -374,7 +375,7 @@ o dashboard mostraria dobrado durante/pós backfill; espelha o precedente `t_inv
 #### Files to edit
 - `packages/core/src/infrastructure/db/pg-memory-entity-store.ts`
 - `packages/core/src/infrastructure/db/pg-graph-expansion-store.ts`
-- `tests/integration/entities/supersede.test.ts` (casos de listagem)
+- `tests/integration/entities/supersede.test.ts`
 - `CHANGELOG.md`
 
 #### Deep file dependency analysis
@@ -439,11 +440,11 @@ Blueprint Q8 (lista exata de funções); M12 `migrate-claude-code.mjs` (chunk/dr
 precedente); baseline (1029 alvos sem grafo).
 
 #### Files to edit
-- `packages/cli/src/reextract/engine.ts` (NEW)
-- `packages/cli/src/reextract/engine.test.ts` (NEW — unit com stubs)
+- `packages/cli/src/reextract/engine.ts`
+- `packages/cli/src/reextract/engine.test.ts`
 - `packages/core/src/index.ts` OU `packages/core/src/local/index.ts` (export público mínimo
   necessário p/ o engine — somente se algo do Q8 não estiver exportado; additive)
-- `tests/integration/reextract.test.ts` (NEW — DB isolado + LLM stub determinístico)
+- `tests/integration/reextract.test.ts`
 - `CHANGELOG.md`
 
 #### Deep file dependency analysis
@@ -537,9 +538,9 @@ operacional pertence ao CLI; DoD do M13 nomeia o comando.
 
 #### Files to edit
 - `packages/cli/src/cli.ts`
-- `packages/cli/src/reextract/run-reextract.ts` (NEW — bootstrap + saída)
-- `packages/core/src/cli-locked-names.test.ts` (sentinela: novo verbo adicionado à lista)
-- `tests/integration/reextract-cli.test.ts` (NEW — spawn do CLI em modo dry-run contra DB isolado)
+- `packages/cli/src/reextract/run-reextract.ts`
+- `packages/core/src/cli-locked-names.test.ts`
+- `tests/integration/reextract-cli.test.ts`
 - `CHANGELOG.md`
 
 #### Deep file dependency analysis
@@ -598,7 +599,7 @@ blueprint Q7 (métricas determinísticas primárias; sem LLM-judge no gate).
 Baseline: `knowledge-base/audits/m13-entity-noise-baseline-2026-07-23.md` (queries canônicas).
 
 #### Files to edit
-- `knowledge-base/audits/m13-entity-noise-post-backfill-{date}.md` (NEW — relatório)
+- `knowledge-base/audits/m13-entity-noise-post-backfill-{date}.md`
 - `CHANGELOG.md`
 
 #### Deep file dependency analysis
