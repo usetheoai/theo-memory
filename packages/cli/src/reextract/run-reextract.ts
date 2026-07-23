@@ -12,6 +12,8 @@
  */
 import { rmSync } from 'node:fs';
 
+import { trace } from '@opentelemetry/api';
+
 import { PgMemoryEntityStore, PgMemoryGraphStore } from '@usetheo/memory';
 import type { Embedder, LLM } from '@usetheo/memory';
 import {
@@ -84,11 +86,22 @@ export async function runReextractCli(opts: ReextractCliOptions): Promise<number
     process.stderr.write('Error: --commit requires --retire-mechanism.\n');
     process.exit(2);
   }
+  // /review F-dom-cli-1 (HIGH): contradictory flags NEVER resolve toward
+  // destruction — an explicit --dry-run beats --commit by failing closed (#252).
+  if (opts.dryRun === true && opts.commit === true) {
+    process.stderr.write('Error: --dry-run and --commit are contradictory; drop one.\n');
+    process.exit(2);
+  }
   if (opts.retireMechanism === true) {
     const retirePool = new Pool({ connectionString: process.env['THEOMEM_PG_URI'] });
     try {
       const { retireMechanism } = await import('./retire.js');
-      const report = await retireMechanism({ pool: retirePool }, { commit: opts.commit === true });
+      // /review F-arch-7/F-dom-obs-1/F-wire-1: wire the OTel tracer at the CLI
+      // composition root so reextract_noise_retired actually fires in the
+      // deployed artifact (global no-op tracer when no provider is registered —
+      // zero cost). Mirrors the `themory server` app.ts:70 precedent.
+      const tracer = trace.getTracer('@usetheo/memory-cli/reextract', '0.1.0');
+      const report = await retireMechanism({ pool: retirePool, tracer }, { commit: opts.commit === true });
       process.stdout.write(
         opts.json === true
           ? `${JSON.stringify(report)}\n`
@@ -126,6 +139,9 @@ export async function runReextractCli(opts: ReextractCliOptions): Promise<number
         embedder,
         memoryEntityStore: new PgMemoryEntityStore(pool),
         memoryGraphStore: new PgMemoryGraphStore(pool),
+        // /review F-arch-7/F-dom-obs-1/F-wire-1: real tracer so
+        // reextract_chunk_done + ontology_type_coerced fire in production.
+        tracer: trace.getTracer('@usetheo/memory-cli/reextract', '0.1.0'),
         checkpointPath: CHECKPOINT_PATH,
       },
       {
@@ -141,9 +157,13 @@ export async function runReextractCli(opts: ReextractCliOptions): Promise<number
     process.stdout.write(
       opts.json === true ? `${JSON.stringify(report)}\n` : `${renderHuman(report)}\n`,
     );
-    // Partial LLM failures → exit 1 so operators/scripts see the incomplete run
+    // Partial failures → exit 1 so operators/scripts see the incomplete run
     // (the checkpoint excludes the failed ids — `--resume` retries them).
-    return (report.skipped['target_failed_llm'] ?? 0) > 0 ? 1 : 0;
+    // /review F-arch-6/F-dom-db-3: sum EVERY target_failed_* class, not just llm.
+    const failed = Object.entries(report.skipped)
+      .filter(([k]) => k.startsWith('target_failed_'))
+      .reduce((acc, [, v]) => acc + v, 0);
+    return failed > 0 ? 1 : 0;
   } finally {
     await pool.end();
   }

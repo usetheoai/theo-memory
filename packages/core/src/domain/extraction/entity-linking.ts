@@ -17,7 +17,7 @@ import type { EntityToLink, MemoryEntityStore } from '../dip/memory-entity-store
 import type { EdgeToLink, MemoryGraphStore } from '../dip/memory-graph-store.js';
 import { emitEvent } from '../memory-event.js';
 import type { MemoryItem } from '../memory-item.js';
-import { ONTOLOGY_FALLBACK_TYPE, type Ontology } from '../ontology.js';
+import { ONTOLOGY_FALLBACK_TYPE } from '../ontology.js';
 import type { Filters } from '../scope.js';
 
 import { isEntityNoise } from './entity-noise-filter.js';
@@ -43,11 +43,6 @@ export interface EntityLinkingDeps {
   readonly entityExtractor?: EntityExtractor;
   readonly memoryEntityStore?: MemoryEntityStore;
   readonly memoryGraphStore?: MemoryGraphStore;
-  /** domain-ontologies T4.1 + M13 T1.1 — the configured Item 15 ontology, when
-   *  present. Post-M13 the type-carry is UNGATED: the pipeline coerces against
-   *  exactly one vocabulary (this ontology OR the closed default taxonomy) and
-   *  the coerced semantic type always reaches `entities.type`. */
-  readonly ontology?: Ontology;
 }
 
 /** Lowercase + underscore the surface name → the per-scope dedup key (EC-1). */
@@ -147,7 +142,7 @@ export async function linkEntities(
           // M13 T1.1 (ADR D1, #111) — the SEMANTIC type is honored on EVERY path:
           // the pipeline already coerced it against exactly one vocabulary (the
           // configured ontology OR the closed default taxonomy), so here a missing
-          // type simply defaults to OTHER. The old 'PROPER' placeholder was the
+          // type simply defaults to OTHER. The old PROPER placeholder was the
           // mechanism label the M13 DoD zeroes (review F-dom-db-1's identity-
           // fragmentation concern is resolved by the D2 supersede migration, not
           // by keeping the placeholder).

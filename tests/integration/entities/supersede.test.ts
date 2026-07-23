@@ -149,6 +149,66 @@ if (PG_URI === undefined || PG_URI === '') {
       expect(Number(orphan.rows[0]?.n)).toBe(0);
     });
 
+    test('test_supersede_survives_duplicate_edge_on_new_side', async () => {
+      // /review F-arch-1/F-dom-db-1 RED: NEW already carries the IDENTICAL edge
+      // triple (same scope, relation, target, source_memory) that OLD carries —
+      // the blind endpoint UPDATE would hit entity_edges_scope_triple_uq and
+      // roll back the whole supersede. The fix drops the colliding old-side row
+      // and repoints the remainder.
+      const m1 = await seedMemory();
+      const oldId = await seedEntity('dupedge', 'PROPER');
+      const newId = await seedEntity('DupEdge', 'CONCEPT');
+      const target = await seedEntity('X', 'CONCEPT');
+      await link(m1, oldId);
+      await pool.query(
+        `INSERT INTO entity_edges (workspace_id, user_id, source_entity_id, target_entity_id, relation, normalized_relation, source_memory_id)
+         VALUES ('ws1','alice',$1,$3,'uses','uses',$4), ('ws1','alice',$2,$3,'uses','uses',$4)`,
+        [oldId, newId, target, m1],
+      );
+      const changed = await store.supersedeEntity({ oldId, newId, workspaceId: 'ws1' });
+      expect(changed).toBe(true);
+      const { rows } = await pool.query<{ source_entity_id: string }>(
+        `SELECT source_entity_id FROM entity_edges WHERE normalized_relation = 'uses'`);
+      expect(rows).toHaveLength(1); // collision resolved by drop, not duplicate
+      expect(rows[0]?.source_entity_id).toBe(newId);
+    });
+
+    test('test_supersede_mid_tx_failure_rolls_back_completely', async () => {
+      // /review F-tests-3 (chaos): a failure AFTER the arbiter UPDATE must roll
+      // back EVERYTHING (no half-superseded state) and a retry must succeed.
+      const m1 = await seedMemory();
+      const oldId = await seedEntity('chaos', 'PROPER');
+      const newId = await seedEntity('Chaos', 'CONCEPT');
+      await link(m1, oldId);
+      let fired = false;
+      const faultyPool = {
+        connect: async () => {
+          const client = await pool.connect();
+          // Explicit wrapper (never mutate the pg client): passthrough query
+          // that throws ONCE on the link-repoint DELETE, mid-transaction.
+          return {
+            query: async (sql: string, params?: unknown[]) => {
+              if (!fired && sql.includes('DELETE FROM memory_entities')) {
+                fired = true;
+                throw new Error('injected mid-tx failure');
+              }
+              return client.query(sql, params);
+            },
+            release: () => client.release(),
+          };
+        },
+      } as unknown as ConstructorParameters<typeof PgMemoryEntityStore>[0];
+      const faultyStore = new PgMemoryEntityStore(faultyPool);
+      await expect(faultyStore.supersedeEntity({ oldId, newId, workspaceId: 'ws1' }))
+        .rejects.toThrow(/injected/);
+      // fully rolled back: pointer clear, link intact
+      const after = await counts(oldId);
+      expect(after.superseded).toBeNull();
+      expect(after.links).toBe(1);
+      // retry on the healthy pool succeeds
+      expect(await store.supersedeEntity({ oldId, newId, workspaceId: 'ws1' })).toBe(true);
+    });
+
     test('test_concurrent_supersede_same_old_single_winner', async () => {
       // concurrent test with atomic-counter invariant: two parallel calls, one winner
       const m1 = await seedMemory();

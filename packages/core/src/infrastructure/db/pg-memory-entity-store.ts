@@ -182,14 +182,33 @@ export class PgMemoryEntityStore implements MemoryEntityStore {
       );
       await client.query(`DELETE FROM memory_entities WHERE entity_id = $1`, [oldId]);
       // Repoint edge endpoints (provenance source_memory_id untouched).
-      await client.query(
-        `UPDATE entity_edges SET source_entity_id = $1 WHERE source_entity_id = $2 AND workspace_id = $3`,
-        [newId, oldId, workspaceId],
-      );
-      await client.query(
-        `UPDATE entity_edges SET target_entity_id = $1 WHERE target_entity_id = $2 AND workspace_id = $3`,
-        [newId, oldId, workspaceId],
-      );
+      // /review F-arch-1/F-dom-db-1: a blind UPDATE collides with
+      // entity_edges_scope_triple_uq when NEW already carries the identical
+      // triple — drop the colliding old-side row FIRST (its image already
+      // exists), then repoint the remainder. Same shape as the links path.
+      for (const [endpoint, mirror] of [
+        ['source_entity_id', 'target_entity_id'],
+        ['target_entity_id', 'source_entity_id'],
+      ] as const) {
+        await client.query(
+          `DELETE FROM entity_edges old
+            WHERE old.${endpoint} = $2 AND old.workspace_id = $3
+              AND EXISTS (SELECT 1 FROM entity_edges nw
+                    WHERE nw.workspace_id = old.workspace_id
+                      AND COALESCE(nw.user_id,'') = COALESCE(old.user_id,'')
+                      AND COALESCE(nw.session_id,'') = COALESCE(old.session_id,'')
+                      AND COALESCE(nw.agent_id,'') = COALESCE(old.agent_id,'')
+                      AND nw.${endpoint} = $1
+                      AND nw.${mirror} = old.${mirror}
+                      AND nw.normalized_relation = old.normalized_relation
+                      AND COALESCE(nw.source_memory_id::text,'') = COALESCE(old.source_memory_id::text,''))`,
+          [newId, oldId, workspaceId],
+        );
+        await client.query(
+          `UPDATE entity_edges SET ${endpoint} = $1 WHERE ${endpoint} = $2 AND workspace_id = $3`,
+          [newId, oldId, workspaceId],
+        );
+      }
       await client.query('COMMIT');
       return true;
     } catch (err) {

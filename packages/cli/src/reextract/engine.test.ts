@@ -37,6 +37,11 @@ function stubPool(targets: readonly ReextractTarget[]): ReextractPool {
       if (sql.includes('reextract:select-targets')) {
         return { rows: targets as unknown as R[] };
       }
+      // link-check probe: report a fresh (non-pre-existing) link so the
+      // F-dom-db-3 guard sees a successful persist in the stubbed world.
+      if (sql.includes('reextract:link-check')) {
+        return { rows: [{ entity_id: 'stub-new-link' }] as unknown as R[] };
+      }
       return { rows: [] };
     },
   };
@@ -138,6 +143,20 @@ describe('runReextract (unit, stubs)', () => {
     );
     await expect(rejection).rejects.toThrow(ReextractCheckpointCorrupted);
     await expect(rejection).rejects.toThrow(/--restart/);
+  });
+
+  test('test_parse_failure_is_distinct_typed_skip', async () => {
+    // /review F-arch-6/F-dom-cli-2: malformed LLM output → target_failed_parse
+    // (distinct from transport target_failed_llm), and the batch never aborts.
+    const targets = makeTargets(2);
+    const { llm } = stubLlm((_m, i) => (i === 0 ? '{not valid json' : { memory: [], entities: [] }));
+    const report = await runReextract(
+      { pool: stubPool(targets), llm, embedder, memoryEntityStore: stubEntityStore(), checkpointPath: freshCheckpoint() },
+      baseOpts({ concurrency: 1 }),
+    );
+    expect(report.skipped['target_failed_parse']).toBe(1);
+    expect(report.skipped['target_failed_llm']).toBeUndefined();
+    expect(report.processed).toBe(1);
   });
 
   test('test_llm_failure_is_typed_skip_not_abort', async () => {

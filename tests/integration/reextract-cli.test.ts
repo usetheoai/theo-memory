@@ -91,6 +91,10 @@ if (PG_URI === undefined || PG_URI === '' || !DIST_EXISTS) {
       const stray = runCli(['reextract', '--commit'], { PATH: process.env['PATH'], THEOMEM_PG_URI: PG_URI });
       expect(stray.status).toBe(2);
       expect(stray.stderr).toContain('--retire-mechanism');
+      // /review F-dom-cli-1: contradictory --dry-run + --commit → fail closed, exit 2
+      const contradictory = runCli(['reextract', '--retire-mechanism', '--commit', '--dry-run'], { PATH: process.env['PATH'], THEOMEM_PG_URI: PG_URI });
+      expect(contradictory.status).toBe(2);
+      expect(contradictory.stderr).toContain('contradictory');
       // --retire-mechanism without --commit → DRY-RUN report, zero writes
       const dry = runCli(['reextract', '--retire-mechanism', '--json'], { PATH: process.env['PATH'], THEOMEM_PG_URI: PG_URI });
       expect(dry.status).toBe(0);
