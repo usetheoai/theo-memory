@@ -556,8 +556,11 @@ operacional pertence ao CLI; DoD do M13 nomeia o comando.
 #### Files to edit
 - `packages/cli/src/cli.ts`
 - `packages/cli/src/reextract/run-reextract.ts`
+- `packages/agent-core/src/agent-tools-memory.ts`
 - `packages/core/src/cli-locked-names.test.ts`
 - `tests/integration/reextract-cli.test.ts`
+- `CLAUDE.md`
+- `.claude/knowledge-base/plans/llm-entity-reextraction-plan.md`
 - `CHANGELOG.md`
 
 #### Deep file dependency analysis
