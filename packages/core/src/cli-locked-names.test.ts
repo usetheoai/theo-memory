@@ -43,6 +43,9 @@ const LOCKED_VERBS: readonly VerbExpectation[] = [
   // M12 (2026-07-22) — data-import namespace, locked per CLAUDE.md § Locked names amendment.
   { name: "'import'", pattern: /\.command\(\s*['"]import['"]/ },
   { name: "'claude-code'", pattern: /\.command\(\s*['"]claude-code['"]/ },
+  // M13 (2026-07-23) — semantic entity backfill verb, locked per CLAUDE.md § Locked names
+  // amendment (#111; same sanctioned-extension process as M12).
+  { name: "'reextract'", pattern: /\.command\(\s*['"]reextract['"]/ },
 ];
 
 // Flags MUST be the FIRST argument of `.option()` calls. The boundary char
