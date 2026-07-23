@@ -21,7 +21,7 @@ import type { Memory, ScopedMemory } from '@usetheo/memory/contract';
 import type { Context } from 'hono';
 import { z } from 'zod';
 
-import { principalUserId, workspaceBoundMemory } from './_body-parsing.js';
+import { actingUserId, workspaceBoundMemory } from './_body-parsing.js';
 
 
 const SCOPE_TYPES = ['user', 'session', 'agent', 'skill'] as const;
@@ -166,7 +166,7 @@ export async function scopesHandler(c: Context, memory: Memory): Promise<Respons
   }
 
   // multi-tenant-workspace-isolation T3.1: list ONLY the Principal's workspace (ADR D3).
-  const scoped = pathParamsToScoped(workspaceBoundMemory(c, memory), typeParse.data, id, principalUserId(c));
+  const scoped = pathParamsToScoped(workspaceBoundMemory(c, memory), typeParse.data, id, actingUserId(c));
 
   // Dashboard pager fast path (2026-07-22): no cursor and no in-memory date
   // filters → REAL SQL pagination (store-level offset + limit) and the true

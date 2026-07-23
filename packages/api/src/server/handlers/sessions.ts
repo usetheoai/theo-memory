@@ -12,7 +12,7 @@
 import type { Memory, ScopedMemory } from '@usetheo/memory/contract';
 import type { Context } from 'hono';
 
-import { principalUserId, workspaceBoundMemory } from './_body-parsing.js';
+import { actingUserId, workspaceBoundMemory } from './_body-parsing.js';
 
 export async function sessionsHandler(c: Context, memory: Memory): Promise<Response> {
   const type = c.req.param('type');
@@ -22,7 +22,7 @@ export async function sessionsHandler(c: Context, memory: Memory): Promise<Respo
     return c.notFound();
   }
 
-  const userId = principalUserId(c);
+  const userId = actingUserId(c);
   const scoped: ScopedMemory = workspaceBoundMemory(c, memory).user(userId ?? id);
 
   // Feature-detect: a legacy/cloud scoped memory without the capability is an

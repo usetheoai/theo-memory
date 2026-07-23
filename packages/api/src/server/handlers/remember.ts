@@ -17,7 +17,7 @@ import {
   applyHeaderUserScope,
   readJsonBody,
   scopeOrValidationError,
-  principalUserId,
+  actingUserId,
   workspaceBoundMemory,
 } from './_body-parsing.js';
 
@@ -36,13 +36,13 @@ async function auditRememberRouting(
   const p = c.get('principal') as Principal | undefined;
   const workspaceId = p?.workspaceId ?? DEFAULT_WORKSPACE_ID;
   const chosenScope: ChosenScope = body.userId !== undefined ? 'global' : 'session';
-  const auditUserId = principalUserId(c) ?? body.userId ?? body.sessionId ?? body.agentId ?? 'system';
+  const auditUserId = actingUserId(c) ?? body.userId ?? body.sessionId ?? body.agentId ?? 'system';
   await recordRoutingDecision(store, {
     workspaceId,
     userId: auditUserId,
     chosenScope,
     attribution: attributedTo === 'agent' ? 'agent' : 'user',
-    decidedBy: principalUserId(c) ?? 'system',
+    decidedBy: actingUserId(c) ?? 'system',
     why: `remember:${chosenScope === 'global' ? 'user-tier' : 'ephemeral-tier'}`,
     at: new Date(),
   });
@@ -66,7 +66,7 @@ export async function rememberHandler(c: Context, memory: Memory, routingAuditSt
   // multi-tenant-workspace-isolation T3.1: bind to the Principal's workspace
   // (ADR D3) BEFORE resolving the body's tier — the workspace comes from the
   // credential, the tier from the body.
-  const scoped = resolveScope(workspaceBoundMemory(c, memory), parsed.data, principalUserId(c));
+  const scoped = resolveScope(workspaceBoundMemory(c, memory), parsed.data, actingUserId(c));
   // themory-category-filter-server-side T4.2 — pass category through the SDK
   // boundary. EC-2 length check fires inside runExtractionPipeline at T3.3.
   const items = await scoped.remember(text, { infer, attributedTo, metadata, category });
@@ -120,7 +120,7 @@ export async function batchRememberHandler(c: Context, memory: Memory, routingAu
   for (let i = 0; i < parsed.data.items.length; i++) {
     const item = parsed.data.items[i]!;
     try {
-      const scoped = resolveScope(bound, item, principalUserId(c));
+      const scoped = resolveScope(bound, item, actingUserId(c));
       // `ScopedMemoryLike.remember` is typed `unknown` at the REST boundary; the
       // runtime shape is the MemoryItem array (with `rejectedAsDuplicate`).
       const written = (await scoped.remember(item.text, {
