@@ -48,6 +48,7 @@ import {
 } from '../handlers/routing-governance.js';
 import { scopedForgetHandler } from '../handlers/scoped-forget.js';
 import { scopesHandler } from '../handlers/scopes.js';
+import { sessionsHandler } from '../handlers/sessions.js';
 import {
   deleteSkillHandler,
   executeSkillHandler,
@@ -142,6 +143,8 @@ function registerScopeRoutes(app: OpenAPIHono, options: CreateServerOptions): vo
     options;
   app.get('/v1/scopes/:type/:id/memories', requireScopeOnPrincipal('memory:read'), (c) => scopesHandler(c, memory));
   app.get('/v1/scopes/:type/:id/episodes', requireScopeOnPrincipal('memory:read'), (c) => episodesHandler(c, memory));
+  // Session-separation fix (2026-07-23): enumerate a user's session sub-scopes.
+  app.get('/v1/scopes/:type/:id/sessions', requireScopeOnPrincipal('memory:read'), (c) => sessionsHandler(c, memory));
   app.delete('/v1/scopes/:type/:id/memories/:memId', requireScopeOnPrincipal('memory:delete'), (c) => scopedForgetHandler(c, memory));
   app.get('/v1/scopes/:type/:id/metrics', requireScopeOnPrincipal('memory:read'), (c) => metricsHandler(c, memory, usageCounterStore, memoryEntityStore));
   app.get('/v1/scopes/:type/:id/entities', requireScopeOnPrincipal('memory:read'), (c) => entitiesHandler(c, memory, memoryEntityStore));

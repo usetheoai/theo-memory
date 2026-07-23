@@ -369,7 +369,11 @@ describe('runExtractionPipeline (8-phase write)', () => {
       expect(result[0]?.text).toBe('clinical note');
     });
 
-    test('no ontology configured → no coercion event (default path)', async () => {
+    test('no ontology configured → DEFAULT taxonomy coerces out-of-vocab observably (M13 T1.1)', async () => {
+      // Pin FLIPPED by M13 (#111, ADR D1): the default path now applies
+      // DEFAULT_ENTITY_TAXONOMY — an out-of-vocab type ('Wizard') is coerced to
+      // OTHER with the observable `ontology_type_coerced` event (Princípio 3),
+      // instead of being silently discarded to a mechanism label.
       const { tracer, exporter } = setupTracer();
       const store = new StubVectorStore();
       const llm = makeLlm({
@@ -382,7 +386,7 @@ describe('runExtractionPipeline (8-phase write)', () => {
         { vectorStore: store, embedder: makeEmbedder(), llm, tracer },
       );
       const spans = exporter.getFinishedSpans().map((sp) => sp.name);
-      expect(spans).not.toContain('ontology_type_coerced');
+      expect(spans).toContain('ontology_type_coerced');
     });
   });
 

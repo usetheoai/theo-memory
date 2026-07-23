@@ -109,5 +109,14 @@ export function theoAdditions(nodeBin = 'node', hooksDir = '~/.claude/hooks') {
         hooks: [{ type: 'command', command: `${nodeBin} ${hooksDir}/theo-precompact.mjs` }],
       },
     ],
+    // Session-separation (2026-07-23): M9 promotion trigger — end-of-session reflect
+    // lifts durable session working memories to the (workspace, user) global tier.
+    SessionEnd: [
+      {
+        hooks: [
+          { type: 'command', command: `${nodeBin} ${hooksDir}/theo-promote.mjs`, async: true },
+        ],
+      },
+    ],
   };
 }

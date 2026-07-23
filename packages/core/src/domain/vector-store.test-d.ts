@@ -92,8 +92,8 @@ test('delete(vectorId) and deleteCol() return Promise<void>', () => {
   expectTypeOf<VectorStore['deleteCol']>().returns.resolves.toEqualTypeOf<void>();
 });
 
-test('list(filters?, topK?, includeSoftDeleted?) returns Promise<readonly [results, totalCount]>', () => {
-  expectTypeOf<VectorStore['list']>().parameters.toEqualTypeOf<[Filters?, number?, boolean?]>();
+test('list(filters?, topK?, includeSoftDeleted?, offset?) returns Promise<readonly [results, totalCount]>', () => {
+  expectTypeOf<VectorStore['list']>().parameters.toEqualTypeOf<[Filters?, number?, boolean?, number?]>();
   expectTypeOf<VectorStore['list']>().returns.resolves.toEqualTypeOf<
     readonly [readonly VectorStoreResult[], number]
   >();

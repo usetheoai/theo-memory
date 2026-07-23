@@ -18,6 +18,7 @@ import {
   resolveEpisodeLimit,
 } from '../../domain/episode.js';
 import { EmbeddingMismatch } from '../../domain/errors.js';
+import { normalizeEntityKey } from '../../domain/extraction/entity-linking.js';
 import { emitEvent } from '../../domain/memory-event.js';
 import type { Filters } from '../../domain/scope.js';
 
@@ -705,6 +706,12 @@ export class PgvectorStore implements VectorStore {
    * migrations 0018/0019 — no children-first logic, EC-1). Returns whether a row
    * matched.
    *
+   * #110 — hard delete also garbage-collects the graph, TARGETED (O(k), never a
+   * full-table sweep): the entities this memory linked are re-checked after the
+   * cascade; any that lost their LAST `memory_entities` link is deleted, along
+   * with edges touching a collected endpoint. Same transaction as the delete —
+   * a crash never leaves half-collected state. Emits `entity_gc_collected`
+   * (Princípio 3) when anything was collected.
    */
   async deleteInScope(vectorId: string, filters: Filters, hard: boolean): Promise<boolean> {
     // workspace param matches what rows carry: unbound rows store 'default'.
@@ -718,11 +725,63 @@ export class PgvectorStore implements VectorStore {
         where += ` AND ${col} = $${String(params.length)}`;
       }
     }
-    const sql = hard
-      ? `DELETE FROM memories WHERE ${where}`
-      : `UPDATE memories SET t_invalid = NOW() WHERE ${where} AND t_invalid IS NULL`;
-    const result = await this.pool.query(sql, params);
-    return (result.rowCount ?? 0) > 0;
+    if (!hard) {
+      const result = await this.pool.query(
+        `UPDATE memories SET t_invalid = NOW() WHERE ${where} AND t_invalid IS NULL`,
+        params,
+      );
+      return (result.rowCount ?? 0) > 0;
+    }
+    const { matched, entitiesCollected, edgesCollected } = await this.withTransaction(async (client) => {
+      // Capture the linked entity ids BEFORE the delete cascades the links away.
+      const { rows: linked } = await client.query<{ entity_id: string }>(
+        'SELECT entity_id FROM memory_entities WHERE memory_id = $1',
+        [vectorId],
+      );
+      const result = await client.query(`DELETE FROM memories WHERE ${where}`, params);
+      const hit = (result.rowCount ?? 0) > 0;
+      let ents = 0;
+      let edges = 0;
+      if (hit && linked.length > 0) {
+        const ids = linked.map((r) => r.entity_id);
+        // Edges first (they reference entities): drop edges whose endpoint is about
+        // to be collected (endpoint in `ids` AND endpoint now has zero links).
+        // M13 T2.2 (#111): `collectible` = zero-link entities among the linked ids
+        // MINUS supersede anchors — a row carrying `superseded_by` and a row
+        // referenced BY one are audit-trail anchors (Princípio 3); the GC never
+        // collects either, and edges follow the same set so provenance survives.
+        const collectibleCte =
+          `collectible AS (
+             SELECT e.id FROM entities e
+              WHERE e.id = ANY($1::uuid[])
+                AND e.superseded_by IS NULL
+                AND NOT EXISTS (SELECT 1 FROM memory_entities me WHERE me.entity_id = e.id)
+                AND NOT EXISTS (SELECT 1 FROM entities o WHERE o.superseded_by = e.id))`;
+        const edgeRes = await client.query(
+          `WITH ${collectibleCte}
+           DELETE FROM entity_edges ee
+           WHERE ee.source_entity_id IN (SELECT id FROM collectible)
+              OR ee.target_entity_id IN (SELECT id FROM collectible)`,
+          [ids],
+        );
+        edges = edgeRes.rowCount ?? 0;
+        const entRes = await client.query(
+          `WITH ${collectibleCte}
+           DELETE FROM entities e
+           WHERE e.id IN (SELECT id FROM collectible)`,
+          [ids],
+        );
+        ents = entRes.rowCount ?? 0;
+      }
+      return { matched: hit, entitiesCollected: ents, edgesCollected: edges };
+    });
+    if (entitiesCollected > 0 || edgesCollected > 0) {
+      emitEvent(this.tracer, 'entity_gc_collected', {
+        entities_collected: entitiesCollected,
+        edges_collected: edgesCollected,
+      });
+    }
+    return matched;
   }
 
   async deleteCol(): Promise<void> {
@@ -733,6 +792,7 @@ export class PgvectorStore implements VectorStore {
     filters?: Filters,
     topK = 100,
     includeSoftDeleted = false,
+    offset = 0,
   ): Promise<readonly [readonly VectorStoreResult[], number]> {
     const filter = composeFilters(filters, 1);
     // Live-only by default: exclude soft-deleted rows (t_invalid IS NOT NULL),
@@ -758,10 +818,88 @@ export class PgvectorStore implements VectorStore {
       FROM memories
       WHERE ${liveClause}${filter.sql}
       ORDER BY created_at DESC, id ASC
-      LIMIT $${filter.nextParamIndex}
+      LIMIT $${filter.nextParamIndex} OFFSET $${filter.nextParamIndex + 1}
     `;
-    const pageResult = await this.pool.query<MemoriesRow>(pageSql, [...filter.params, topK]);
+    const pageResult = await this.pool.query<MemoriesRow>(pageSql, [...filter.params, topK, offset]);
     return [pageResult.rows.map(rowToResult), total];
+  }
+
+  /**
+   * Entity-filtered listing (theo-cloud#252) — the live memories LINKED to one
+   * entity via `memory_entities`, under the scope `filters`, newest first.
+   * `entityName` is the SURFACE name (what `/entities` returns as `id`);
+   * normalization to `entities.normalized_key` happens here (same
+   * `normalizeEntityKey` the write-path linking uses), workspace-bound so a
+   * same-named entity in another workspace never leaks. Duck-typed store
+   * extension (skills precedent — off the VectorStore DIP); consumed by
+   * `LocalScopedMemory.getAll({ entity })` → `?entity=` on the scope listing.
+   */
+  async listByEntity(
+    filters: Filters | undefined,
+    entityName: string,
+    topK = 100,
+    offset = 0,
+  ): Promise<readonly [readonly VectorStoreResult[], number]> {
+    const filter = composeFilters(filters, 3);
+    const normalizedKey = normalizeEntityKey(entityName);
+    const workspaceId = filters?.workspace_id ?? 'default';
+    const entityClause = `t_invalid IS NULL${filter.sql}
+       AND EXISTS (
+         SELECT 1 FROM memory_entities me
+         JOIN entities e ON e.id = me.entity_id
+         WHERE me.memory_id = memories.id
+           AND e.workspace_id = $1 AND e.normalized_key = $2
+       )`;
+    const baseParams = [workspaceId, normalizedKey, ...filter.params];
+    const countResult = await this.pool.query<{ total: number }>(
+      `SELECT COUNT(*)::int AS total FROM memories WHERE ${entityClause}`,
+      baseParams,
+    );
+    const total = countResult.rows[0]?.total ?? 0;
+    const pageResult = await this.pool.query<MemoriesRow>(
+      `SELECT id, text, hash, payload, user_id, session_id, agent_id, attributed_to, category,
+              kind, code, description, code_language, derived_from, superseded_by, confirmation_count,
+              created_at
+       FROM memories
+       WHERE ${entityClause}
+       ORDER BY created_at DESC, id ASC
+       LIMIT $${filter.nextParamIndex} OFFSET $${filter.nextParamIndex + 1}`,
+      [...baseParams, topK, offset],
+    );
+    return [pageResult.rows.map(rowToResult), total];
+  }
+
+  /**
+   * Session enumeration (session-separation fix 2026-07-23) — distinct
+   * `session_id` values under the `(workspace, user)` anchor in `filters`, with
+   * live counts + newest activity. Duck-typed store extension (skills-methods
+   * precedent — off the VectorStore DIP per ADR-0008); consumed by
+   * `LocalScopedMemory.listSessions` → `GET /v1/scopes/user/:id/sessions`.
+   * Uses the M8 composite index (migration 0024) leading columns.
+   */
+  async listSessions(
+    filters?: Filters,
+  ): Promise<readonly { sessionId: string; memoryCount: number; lastActivityAt: Date }[]> {
+    const params: string[] = [filters?.workspace_id ?? 'default'];
+    let userClause = '';
+    if (filters?.user_id !== undefined && filters.user_id !== null) {
+      params.push(filters.user_id);
+      userClause = ' AND user_id = $2';
+    }
+    const res = await this.pool.query<{ session_id: string; memory_count: number; last_activity_at: Date }>(
+      `SELECT session_id, COUNT(*)::int AS memory_count, MAX(created_at) AS last_activity_at
+       FROM memories
+       WHERE t_invalid IS NULL AND session_id IS NOT NULL AND workspace_id = $1${userClause}
+       GROUP BY session_id
+       ORDER BY MAX(created_at) DESC
+       LIMIT 500`,
+      params,
+    );
+    return res.rows.map((r) => ({
+      sessionId: r.session_id,
+      memoryCount: r.memory_count,
+      lastActivityAt: r.last_activity_at,
+    }));
   }
 
   /**

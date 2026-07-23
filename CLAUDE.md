@@ -267,7 +267,7 @@ The `production-ready` token was historically blocked by two hard gates per `dog
 | API verbs | `remember` / `recall` / `forget` / `reflect` | strategic |
 | Two runtimes | `local` (Postgres + pgvector) + `cloud` (TheoCloud-managed) | strategic |
 | Subpath exports | `@usetheo/memory` (local default) + `@usetheo/memory/cloud` (managed) | strategic |
-| themory CLI verbs | `remember <text>` / `recall <query>` / `forget <id>` / `reflect` (closes Roadmap Item 18 verbs-as-CLI; per ADR D2 of verbs-as-cli plan + verbs-as-cli-fixes-cycle-1 T5.3) + `import claude-code` (M12, 2026-07-22 — data-import namespace; ships ONLY claude-code, future sources by demand) | strategic |
+| themory CLI verbs | `remember <text>` / `recall <query>` / `forget <id>` / `reflect` (closes Roadmap Item 18 verbs-as-CLI; per ADR D2 of verbs-as-cli plan + verbs-as-cli-fixes-cycle-1 T5.3) + `import claude-code` (M12, 2026-07-22 — data-import namespace; ships ONLY claude-code, future sources by demand) + `reextract` (M13, 2026-07-23 — backfill LLM de entidades semânticas, #111) | strategic |
 | themory CLI flags (stable) | `--user` / `--session` / `--agent` / `--top-k` / `--threshold` / `--diversify` / `--hard` / `--json` / `--text` (sentinel-guarded by `src/__tests__/cli-locked-names.test.ts`) | strategic |
 
 ---

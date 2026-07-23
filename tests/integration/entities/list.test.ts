@@ -50,6 +50,38 @@ if (PG_URI === undefined || PG_URI === '') {
   });
 
   describe('PgMemoryEntityStore.list (T4.1)', () => {
+    test('soft-deleted memories do not count and a fully-deleted entity vanishes (#115)', async () => {
+      const live = await seedMemory(pool, '2026-06-01T00:00:00Z');
+      const gone = await seedMemory(pool, '2026-06-02T00:00:00Z');
+      await store.upsertAndLink({
+        memoryId: live,
+        workspaceId: 'default',
+        filters: { user_id: 'alice' },
+        entities: [
+          { type: 'PROPER', name: 'Kept Entity', normalizedKey: 'kept_entity', embedding: new Array(1536).fill(0) },
+        ],
+      });
+      await store.upsertAndLink({
+        memoryId: gone,
+        workspaceId: 'default',
+        filters: { user_id: 'alice' },
+        entities: [
+          { type: 'PROPER', name: 'Kept Entity', normalizedKey: 'kept_entity', embedding: new Array(1536).fill(0) },
+          { type: 'PROPER', name: 'Ghost Entity', normalizedKey: 'ghost_entity', embedding: new Array(1536).fill(0) },
+        ],
+      });
+      // Soft-delete one memory: its links MUST stop counting (the incident
+      // symptom: "Forget 1 memories" offered for an entity whose only links
+      // were already forgotten).
+      await pool.query(`UPDATE memories SET t_invalid = now() WHERE id = $1`, [gone]);
+
+      const rows = await store.list({ workspaceId: 'default', filters: { user_id: 'alice' } });
+      const kept = rows.find((r) => r.name === 'Kept Entity');
+      expect(kept?.memoryCount).toBe(1);
+      // An entity whose every linked memory is soft-deleted disappears entirely.
+      expect(rows.find((r) => r.name === 'Ghost Entity')).toBeUndefined();
+    });
+
     test('returns one summary per entity with memoryCount from the join, ordered desc', async () => {
       const m1 = await seedMemory(pool, '2026-06-01T00:00:00Z');
       const m2 = await seedMemory(pool, '2026-06-03T00:00:00Z');

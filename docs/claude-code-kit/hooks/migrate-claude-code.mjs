@@ -31,8 +31,19 @@ import { scrub } from './theo-scrub.mjs';
 
 // --- Constants -------------------------------------------------------------
 
-/** Facts per HTTP request. Bounded to stay under the server MAX_BATCH_ITEMS (1000). */
-export const CHUNK_SIZE = 500;
+/**
+ * Facts per HTTP request. The server does per-item work (embedding ≈ 1.5s/item measured live,
+ * issue #109): 183 items took 275s — grazing Node fetch's non-extendable ~300s headers timeout
+ * ("fetch failed"). 75 caps a request at ~2 min with margin; also far under MAX_BATCH_ITEMS (1000).
+ */
+export const CHUNK_SIZE = 75;
+
+/**
+ * Serialized-body byte budget per HTTP request (issue #109). The REST server enforces a
+ * 1 MB bodyLimit (DOS guard); a count-only chunk of real-world prose exceeds it → 413.
+ * Conservative half-limit leaves headroom for JSON envelope + multi-byte characters.
+ */
+export const CHUNK_MAX_BYTES = 512 * 1024;
 
 /** Above this redacted-content ratio a node is treated as secret-dominated → SKIP (fail-closed). */
 export const SECRET_DOMINATED_RATIO = 0.4;
@@ -154,8 +165,13 @@ function combinedText(node) {
  * carried in metadata (values kept string|number|boolean|null per the server
  * schema — wikilinks joined into a comma string).
  *
+ * Scope semantics (#109 live E2E, theo-lib parity): `userId` is OPTIONAL — omitted, the item
+ * carries NO userId so the gateway's edge-injected X-Theo-User-Id binds the tier and migrated
+ * rows land in the SAME scope the kit hooks recall from. The project slug is provenance
+ * metadata, never the scope.
+ *
  * @param {ReturnType<typeof parseNode>} node
- * @param {{ userId: string, project: string }} opts
+ * @param {{ userId?: string, project: string }} opts
  */
 export function nodeToBatchItem(node, opts) {
   const { clean } = scrub(combinedText(node));
@@ -172,7 +188,7 @@ export function nodeToBatchItem(node, opts) {
     wikilinks: scrub(node.wikilinks.join(',')).clean,
   };
   if (type) metadata.node_type = type;
-  const item = { userId: opts.userId, text: clean, infer: false, metadata };
+  const item = { ...(opts.userId ? { userId: opts.userId } : {}), text: clean, infer: false, metadata };
   if (type) item.category = type;
   return item;
 }
@@ -190,7 +206,7 @@ export function nodeToBatchItem(node, opts) {
  *
  * @param {string} sourceDir
  */
-export function planMigration(sourceDir) {
+export function planMigration(sourceDir, opts = {}) {
   const items = [];
   const skipped = [];
   const nodes = [];
@@ -229,7 +245,7 @@ export function planMigration(sourceDir) {
         continue;
       }
 
-      items.push(nodeToBatchItem(node, { userId: slug, project: slug }));
+      items.push(nodeToBatchItem(node, { userId: opts.userId, project: slug }));
       if (s.redactedChars > 0) redacted += 1;
       nodes.push({ file, project: slug, skipped: false, redactions: s.kinds.length });
     }
@@ -244,22 +260,64 @@ export function planMigration(sourceDir) {
 // --- BATCH IMPORT (fail-loud on any HTTP failure) --------------------------
 
 /**
- * POST the batch items to `<endpoint>/v1/remember/batch` in chunks of
- * {@link CHUNK_SIZE}. Fails LOUD — throws {@link MigrationHttpError} on an
+ * Split items into chunks bounded BOTH by count ({@link CHUNK_SIZE} / opts.chunkSize)
+ * AND serialized bytes ({@link CHUNK_MAX_BYTES}) — issue #109: a count-only chunk of
+ * real-world prose exceeds the server's 1 MB bodyLimit and the whole import 413s.
+ * A single item that alone exceeds the byte budget fails FAST with a typed error
+ * (the server would reject it anyway; silent skip would hide data loss).
+ *
+ * @param {Array<object>} items
+ * @param {number} chunkSize
+ * @param {number} maxBytes
+ * @returns {Array<Array<object>>}
+ */
+export function chunkByBytes(items, chunkSize, maxBytes) {
+  // JSON envelope: {"items":[...]} + commas between items.
+  const envelope = '{"items":[]}'.length;
+  const chunks = [];
+  let current = [];
+  let currentBytes = envelope;
+  for (const item of items) {
+    const itemBytes = Buffer.byteLength(JSON.stringify(item), 'utf8');
+    if (envelope + itemBytes > maxBytes) {
+      throw new MigrationHttpError(
+        `batch item exceeds the per-request byte budget (${itemBytes} > ${maxBytes - envelope} bytes serialized) — cannot import without server-side 413`,
+      );
+    }
+    if (current.length >= chunkSize || currentBytes + itemBytes + 1 > maxBytes) {
+      chunks.push(current);
+      current = [];
+      currentBytes = envelope;
+    }
+    current.push(item);
+    currentBytes += itemBytes + 1; // +1 for the separating comma
+  }
+  if (current.length > 0) chunks.push(current);
+  return chunks;
+}
+
+/**
+ * POST the batch items to `<endpoint>/v1/remember/batch` in chunks bounded by
+ * count ({@link CHUNK_SIZE}) AND serialized bytes ({@link CHUNK_MAX_BYTES}).
+ * Fails LOUD — throws {@link MigrationHttpError} on an
  * unreachable endpoint or any non-2xx status, never partially claims success.
  *
  * @param {Array<object>} items
- * @param {{ endpoint: string, token?: string, chunkSize?: number, fetchImpl?: typeof fetch }} opts
+ * @param {{ endpoint: string, token?: string, pathPrefix?: string, chunkSize?: number, maxBytes?: number, fetchImpl?: typeof fetch }} opts
  */
 export async function importBatch(items, opts) {
   const endpoint = opts.endpoint;
   const chunkSize = opts.chunkSize ?? CHUNK_SIZE;
+  const maxBytes = opts.maxBytes ?? CHUNK_MAX_BYTES;
   const doFetch = opts.fetchImpl ?? fetch;
-  const url = `${endpoint.replace(/\/+$/, '')}/v1/remember/batch`;
+  // theo-lib parity: with a gateway prefix the verb path drops its /v1 — the gateway rewrite
+  // maps /v1/memory/remember/batch → /v1/remember/batch. Without a prefix, native REST path.
+  const prefix = (opts.pathPrefix ?? '').replace(/\/+$/, '');
+  const path = prefix ? `${prefix}/remember/batch` : '/v1/remember/batch';
+  const url = `${endpoint.replace(/\/+$/, '')}${path}`;
   const totals = { imported: 0, deduped: 0, failed: 0, requests: 0 };
 
-  for (let i = 0; i < items.length; i += chunkSize) {
-    const chunk = items.slice(i, i + chunkSize);
+  for (const chunk of chunkByBytes(items, chunkSize, maxBytes)) {
     const headers = { 'content-type': 'application/json' };
     if (opts.token) headers.authorization = `Bearer ${opts.token}`;
 
@@ -385,15 +443,24 @@ export function parseKitEnvFile(path) {
  */
 export function resolveImportEndpoint(env, fileVars) {
   if (env.THEOMEM_MIGRATE_URL !== undefined && env.THEOMEM_MIGRATE_URL !== '') {
-    return { url: env.THEOMEM_MIGRATE_URL, token: env.THEOMEM_MIGRATE_TOKEN || undefined };
+    return {
+      url: env.THEOMEM_MIGRATE_URL,
+      pathPrefix: '',
+      token: env.THEOMEM_MIGRATE_TOKEN || undefined,
+      userId: env.THEOMEM_MEMORY_USER_ID || undefined,
+    };
   }
   const base = env.THEOMEM_MEMORY_URL || fileVars.THEOMEM_MEMORY_URL || '';
-  const prefix = env.THEOMEM_MEMORY_PATH_PREFIX || fileVars.THEOMEM_MEMORY_PATH_PREFIX || '';
+  // The prefix is returned SEPARATELY, never baked into the url: the Theo gateway REWRITES
+  // /v1/memory/X → /v1/X (Traefik memory-rewrite), so the verb path must drop its /v1 when a
+  // prefix is in play (theo-lib parity — issue #109 live E2E hit /v1/memory/v1/... → 404).
+  const pathPrefix = env.THEOMEM_MEMORY_PATH_PREFIX || fileVars.THEOMEM_MEMORY_PATH_PREFIX || '';
   const token = env.THEOMEM_MEMORY_TOKEN || fileVars.THEOMEM_MEMORY_TOKEN || undefined;
+  const userId = env.THEOMEM_MEMORY_USER_ID || fileVars.THEOMEM_MEMORY_USER_ID || undefined;
   if (base !== '') {
-    return { url: `${base.replace(/\/+$/, '')}${prefix}`, token };
+    return { url: base.replace(/\/+$/, ''), pathPrefix, token, userId };
   }
-  return { url: undefined, token };
+  return { url: undefined, pathPrefix, token, userId };
 }
 
 export async function main(argvOverride) {
@@ -407,8 +474,11 @@ export async function main(argvOverride) {
   const resolved = resolveImportEndpoint(process.env, fileVars);
   const endpoint = resolved.url || DEFAULT_ENDPOINT;
   const token = process.env.THEOMEM_MIGRATE_TOKEN || resolved.token || undefined;
+  // theo-lib parity: explicit user override wins; absent → items carry NO userId and the
+  // gateway's edge-injected X-Theo-User-Id binds the scope the kit hooks recall from.
+  const userId = process.env.THEOMEM_MIGRATE_USER_ID || resolved.userId || undefined;
 
-  const { report, items } = planMigration(args.source);
+  const { report, items } = planMigration(args.source, { userId });
   const log = (s) => process.stdout.write(`${s}\n`);
   log(`source:      ${args.source}`);
   log(`scanned:     ${report.scanned} node(s)`);
@@ -426,8 +496,9 @@ export async function main(argvOverride) {
   }
 
   log('');
-  log(`committing ${items.length} item(s) to ${endpoint}/v1/remember/batch ...`);
-  const result = await importBatch(items, { endpoint, token });
+  const prefix = resolved.pathPrefix || '';
+  log(`committing ${items.length} item(s) to ${endpoint}${prefix ? `${prefix}/remember/batch` : '/v1/remember/batch'} ...`);
+  const result = await importBatch(items, { endpoint, token, pathPrefix: prefix });
   log(`imported=${result.imported} deduped=${result.deduped} failed=${result.failed} requests=${result.requests}`);
 }
 

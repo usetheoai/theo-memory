@@ -5,6 +5,7 @@
  * potentially-long-running (LLM consolidation) — async/queued semantics per
  * ADR D2.
  */
+import { SessionToGlobalConsolidationPolicy } from '@usetheo/memory';
 import type { Memory } from '@usetheo/memory/contract';
 import type { Context } from 'hono';
 
@@ -15,7 +16,7 @@ import {
   MALFORMED_BODY,
   safeJson,
   scopeOrValidationError,
-  principalUserId,
+  actingUserId,
   workspaceBoundMemory,
 } from './_body-parsing.js';
 
@@ -36,7 +37,16 @@ export async function reflectHandler(c: Context, memory: Memory): Promise<Respon
   }
   const { maxIterations } = parsed.data;
   // multi-tenant-workspace-isolation T3.1: scope reflect by the Principal's workspace (ADR D3).
-  const scoped = resolveScope(workspaceBoundMemory(c, memory), parsed.data, principalUserId(c));
-  const result = await scoped.reflect({ maxIterations });
+  const scoped = resolveScope(workspaceBoundMemory(c, memory), parsed.data, actingUserId(c));
+  // Session-separation fix (2026-07-23): a SESSION-tier reflect threads the M9
+  // SessionToGlobalConsolidationPolicy so durable working memories (default
+  // confirmation_count ≥ 3 — M11 FAILCLOSED_DEFAULT_POLICY threshold) are
+  // PROMOTED to the (workspace, user) global tier. Before this, the policy was
+  // SDK-only — no REST caller ever triggered the shipped M9 promotion.
+  const isSessionTier = typeof (parsed.data as { sessionId?: unknown }).sessionId === 'string';
+  const result = await scoped.reflect({
+    maxIterations,
+    ...(isSessionTier ? { conflictResolution: new SessionToGlobalConsolidationPolicy() } : {}),
+  });
   return c.json(result, 202);
 }

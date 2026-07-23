@@ -267,6 +267,7 @@ export class InMemoryVectorStore implements VectorStore {
     filters?: Filters,
     topK = 100,
     _includeSoftDeleted = false,
+    offset = 0,
   ): Promise<readonly [readonly VectorStoreResult[], number]> {
     // InMemoryVectorStore hard-deletes (delete() removes the row), so it holds no
     // soft-deleted state — `includeSoftDeleted` is a no-op here. The param exists
@@ -301,7 +302,57 @@ export class InMemoryVectorStore implements VectorStore {
       return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
     });
     await Promise.resolve();
-    return [matching.slice(0, topK), matching.length];
+    return [matching.slice(offset, offset + topK), matching.length];
+  }
+
+  /**
+   * Entity-filtered listing (theo-cloud#252) — the in-memory store tracks NO
+   * entity links (`memory_entities` is a Pg-only structure), so the honest
+   * answer is an empty page, never the scope fallback (returning the whole
+   * scope here is exactly the bug the filter exists to close). Duck-typed
+   * extension mirroring PgvectorStore.listByEntity.
+   */
+  async listByEntity(
+    _filters?: Filters,
+    _entityName?: string,
+    _topK = 100,
+    _offset = 0,
+  ): Promise<readonly [readonly VectorStoreResult[], number]> {
+    await Promise.resolve();
+    return [[], 0];
+  }
+
+  /**
+   * Session enumeration (session-separation fix 2026-07-23) — distinct
+   * `session_id` values under the `(workspace, user)` anchor in `filters`,
+   * with live counts + newest activity, ordered by lastActivityAt DESC.
+   * Duck-typed store extension (mirrors the skills-methods precedent): NOT part
+   * of the VectorStore DIP; `LocalScopedMemory.listSessions` feature-detects it.
+   */
+  async listSessions(
+    filters?: Filters,
+  ): Promise<readonly { sessionId: string; memoryCount: number; lastActivityAt: Date }[]> {
+    await Promise.resolve();
+    const wsFilter = filters?.workspace_id ?? 'default';
+    const userFilter = filters?.user_id;
+    const byId = new Map<string, { memoryCount: number; lastActivityAt: Date }>();
+    for (const row of this.rows.values()) {
+      const sessionId = row.payload['session_id'];
+      if (typeof sessionId !== 'string' || sessionId.length === 0) continue;
+      if (((row.payload['workspace_id'] as string | undefined) ?? 'default') !== wsFilter) continue;
+      if (userFilter !== undefined && userFilter !== null && row.payload['user_id'] !== userFilter) continue;
+      const at = row.createdAt ?? new Date(0);
+      const agg = byId.get(sessionId);
+      if (agg === undefined) {
+        byId.set(sessionId, { memoryCount: 1, lastActivityAt: at });
+      } else {
+        agg.memoryCount += 1;
+        if (at > agg.lastActivityAt) agg.lastActivityAt = at;
+      }
+    }
+    return [...byId.entries()]
+      .map(([sessionId, a]) => ({ sessionId, ...a }))
+      .sort((a, b) => b.lastActivityAt.getTime() - a.lastActivityAt.getTime());
   }
 
   /**

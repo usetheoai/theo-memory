@@ -28,6 +28,31 @@ if (PG_URI === undefined || PG_URI === '') {
     });
   });
 } else {
+  /** Shared harness (hook: no dup blocks) — fresh pool + stub embedder/llm per describe. */
+  function makeHarness(): { pool: pg.Pool; embedder: Embedder; llm: (text: string) => LLM } {
+    return {
+      pool: new pg.Pool({ connectionString: PG_URI, max: 4 }),
+      embedder: {
+        embed: vi.fn(async () => new Array<number>(MAX_EMBEDDING_DIM).fill(0)),
+        embedBatch: vi.fn(async (t: readonly string[]) => t.map(() => new Array<number>(MAX_EMBEDDING_DIM).fill(0))),
+      },
+      llm: (text: string): LLM => ({
+        generateResponse: vi.fn(async () => ({ memory: [{ id: '0', text }] })),
+        generateChat: vi.fn(async () => ({ role: 'assistant' as const, content: '' })),
+      }),
+    };
+  }
+  /** Shared per-describe lifecycle: end pool + migrate/truncate before each test. */
+  function wireLifecycle(pool: pg.Pool): void {
+    afterAll(async () => pool.end());
+    beforeEach(async () => {
+      await runMigrations(pool);
+      await pool.query(
+        'TRUNCATE memories, entities, memory_entities, entity_edges, history RESTART IDENTITY CASCADE',
+      );
+    });
+  }
+
   describe('T1.1 PgvectorStore.deleteInScope (scope-checked forget)', () => {
     const pool = new pg.Pool({ connectionString: PG_URI, max: 4 });
     const store = new PgvectorStore(pool);
@@ -65,6 +90,70 @@ if (PG_URI === undefined || PG_URI === '') {
       const { rows } = await pool.query('SELECT 1 FROM memories WHERE id = $1', [id]);
       return rows.length > 0;
     }
+
+    test('test_gc_ignores_superseded', async () => {
+      // M13 T2.2 (#111): the hard-forget GC must never collect (a) an entity that
+      // carries a `superseded_by` pointer nor (b) an entity referenced BY one —
+      // both are audit-trail anchors (Princípio 3), even at zero links.
+      const a = await seed({ user: 'alice', suffix: 'sup-a' });
+      const { rows: ents } = await pool.query<{ id: string }>(
+        `INSERT INTO entities (name, normalized_key, type, embedding, payload, workspace_id, user_id)
+         VALUES ('old codex', 'codex', 'PROPER', $1::vector, '{}'::jsonb, 'default', 'alice'),
+                ('Codex', 'codex', 'PRODUCT', $1::vector, '{}'::jsonb, 'default', 'alice')
+         RETURNING id`,
+        [JSON.stringify(EMB)],
+      );
+      const [oldE, newE] = [ents[0]!.id, ents[1]!.id];
+      // supersede state: OLD points at NEW; only NEW holds the (single) link.
+      await pool.query(`UPDATE entities SET superseded_by = $1 WHERE id = $2`, [newE, oldE]);
+      await pool.query(`INSERT INTO memory_entities (memory_id, entity_id) VALUES ($1, $2)`, [a, newE]);
+
+      // Act: hard-forget the only memory linked to NEW (NEW drops to zero links).
+      const matched = await store.deleteInScope(a, { user_id: 'alice', workspace_id: 'default' }, true);
+      expect(matched).toBe(true);
+
+      // Then: both survive — NEW is referenced by OLD.superseded_by; OLD carries the pointer.
+      const { rows: kept } = await pool.query<{ id: string }>(
+        `SELECT id FROM entities WHERE id = ANY($1::uuid[])`, [[oldE, newE]]);
+      expect(kept.map((r) => r.id).sort()).toEqual([oldE, newE].sort());
+    });
+
+    test('hard delete garbage-collects entities that lost their LAST memory link (#110)', async () => {
+      // Arrange: memory A links e1 (only A) + e2 (A and B); an edge e1→e2 without
+      // a source memory (so the FK cascade cannot remove it — GC must).
+      const a = await seed({ user: 'alice', suffix: 'gc-a' });
+      const b = await seed({ user: 'alice', suffix: 'gc-b' });
+      const { rows: ents } = await pool.query<{ id: string }>(
+        `INSERT INTO entities (name, normalized_key, type, embedding, payload, workspace_id, user_id)
+         VALUES ('Solo Entity', 'solo entity', 'PROPER', $1::vector, '{}'::jsonb, 'default', 'alice'),
+                ('Shared Entity', 'shared entity', 'PROPER', $1::vector, '{}'::jsonb, 'default', 'alice')
+         RETURNING id`,
+        [JSON.stringify(EMB)],
+      );
+      const [e1, e2] = [ents[0]!.id, ents[1]!.id];
+      await pool.query(
+        `INSERT INTO memory_entities (memory_id, entity_id) VALUES ($1, $2), ($1, $3), ($4, $3)`,
+        [a, e1, e2, b],
+      );
+      await pool.query(
+        `INSERT INTO entity_edges (workspace_id, user_id, source_entity_id, target_entity_id, relation, normalized_relation)
+         VALUES ('default', 'alice', $1, $2, 'knows', 'knows')`,
+        [e1, e2],
+      );
+
+      // Act: hard-forget memory A.
+      const matched = await store.deleteInScope(a, { user_id: 'alice', workspace_id: 'default' }, true);
+      expect(matched).toBe(true);
+
+      // Assert: e1 lost its last link → COLLECTED; e2 still linked by B → SURVIVES;
+      // the e1→e2 edge lost an endpoint → COLLECTED.
+      const { rows: e1Rows } = await pool.query('SELECT 1 FROM entities WHERE id = $1', [e1]);
+      expect(e1Rows).toHaveLength(0);
+      const { rows: e2Rows } = await pool.query('SELECT 1 FROM entities WHERE id = $1', [e2]);
+      expect(e2Rows).toHaveLength(1);
+      const { rows: edgeRows } = await pool.query('SELECT 1 FROM entity_edges WHERE source_entity_id = $1', [e1]);
+      expect(edgeRows).toHaveLength(0);
+    });
 
     test('soft-deletes an owned memory in scope (returns true; t_invalid set)', async () => {
       const id = await seed({ user: 'alice', suffix: 'owned' });
@@ -133,23 +222,9 @@ if (PG_URI === undefined || PG_URI === '') {
   });
 
   describe('T1.1 ScopedMemory.forget (scoped wrapper)', () => {
-    const pool = new pg.Pool({ connectionString: PG_URI, max: 4 });
-    const embedder: Embedder = {
-      embed: vi.fn(async () => new Array<number>(MAX_EMBEDDING_DIM).fill(0)),
-      embedBatch: vi.fn(async (t: readonly string[]) => t.map(() => new Array<number>(MAX_EMBEDDING_DIM).fill(0))),
-    };
-    const llm = (text: string): LLM => ({
-      generateResponse: vi.fn(async () => ({ memory: [{ id: '0', text }] })),
-      generateChat: vi.fn(async () => ({ role: 'assistant' as const, content: '' })),
-    });
+    const { pool, embedder, llm } = makeHarness();
 
-    afterAll(async () => {
-      await pool.end();
-    });
-    beforeEach(async () => {
-      await runMigrations(pool);
-      await pool.query('TRUNCATE memories, entities, memory_entities, entity_edges, history RESTART IDENTITY CASCADE');
-    });
+    wireLifecycle(pool);
 
     test('memory.user(alice).forget(ownId) removes it from the scope (getAll excludes it)', async () => {
       const memory = await createLocalMemory({ vectorStore: new PgvectorStore(pool), embedder, llm: llm('alice likes coffee') });
@@ -170,24 +245,10 @@ if (PG_URI === undefined || PG_URI === '') {
   });
 
   describe('T1.2 DELETE /v1/scopes/:type/:id/memories/:memId', () => {
-    const pool = new pg.Pool({ connectionString: PG_URI, max: 4 });
-    const embedder: Embedder = {
-      embed: vi.fn(async () => new Array<number>(MAX_EMBEDDING_DIM).fill(0)),
-      embedBatch: vi.fn(async (t: readonly string[]) => t.map(() => new Array<number>(MAX_EMBEDDING_DIM).fill(0))),
-    };
-    const llm = (text: string): LLM => ({
-      generateResponse: vi.fn(async () => ({ memory: [{ id: '0', text }] })),
-      generateChat: vi.fn(async () => ({ role: 'assistant' as const, content: '' })),
-    });
+    const { pool, embedder, llm } = makeHarness();
     const UUID = '00000000-0000-4000-8000-000000000000';
 
-    afterAll(async () => {
-      await pool.end();
-    });
-    beforeEach(async () => {
-      await runMigrations(pool);
-      await pool.query('TRUNCATE memories, entities, memory_entities, entity_edges, history RESTART IDENTITY CASCADE');
-    });
+    wireLifecycle(pool);
 
     async function seedAlice(text: string): Promise<{ app: Awaited<ReturnType<typeof createServer>> | ReturnType<typeof createServer>; id: string }> {
       const memory = await createLocalMemory({ vectorStore: new PgvectorStore(pool), embedder, llm: llm(text) });

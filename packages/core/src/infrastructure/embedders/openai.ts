@@ -46,11 +46,25 @@ function client(): OpenAI {
 
 const EMBED_MODEL = 'text-embedding-3-small';
 
+/**
+ * Char budget for a single embedding input (#109 live E2E). The model context is 8192
+ * tokens; a 47K-char imported memory node 400'd (`maximum context length is 8192 tokens`)
+ * and the whole remember failed. 16000 chars ≈ 5-6K tokens for pt/en prose+code — safe
+ * margin. The VERBATIM text is stored in full; only the embedding sees the head
+ * (standard truncation practice — recall still matches on the leading content).
+ */
+export const EMBED_INPUT_MAX_CHARS = 16000;
+
+/** Head-truncate an embedding input to {@link EMBED_INPUT_MAX_CHARS}. */
+export function clampEmbedInput(text: string): string {
+  return text.length > EMBED_INPUT_MAX_CHARS ? text.slice(0, EMBED_INPUT_MAX_CHARS) : text;
+}
+
 export class OpenAIEmbedder implements Embedder {
   async embed(text: string): Promise<readonly number[]> {
     const resp = await client().embeddings.create({
       model: EMBED_MODEL,
-      input: text,
+      input: clampEmbedInput(text),
     });
     return resp.data[0]!.embedding;
   }
@@ -61,7 +75,7 @@ export class OpenAIEmbedder implements Embedder {
     if (texts.length === 0) return [];
     const resp = await client().embeddings.create({
       model: EMBED_MODEL,
-      input: texts as string[],
+      input: texts.map(clampEmbedInput),
     });
     return resp.data.map((d) => d.embedding);
   }

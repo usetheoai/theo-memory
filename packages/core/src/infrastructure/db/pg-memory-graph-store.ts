@@ -102,7 +102,9 @@ export class PgMemoryGraphStore implements MemoryGraphStore {
 
   /** EC-2: resolve an endpoint name (already normalized by the caller — do NOT
    *  re-normalize) to its entity id by `(scope, normalized_key)`. Earliest node
-   *  wins so a duplicate key (PROPER vs COMPOUND) resolves deterministically. */
+   *  wins so a duplicate key (PROPER vs COMPOUND) resolves deterministically.
+   *  M13 T2.2 (#111): superseded rows are excluded — new edges must attach to the
+   *  live identity, never resurrect a mechanism-labeled predecessor. */
   private async resolveEntityId(
     client: PoolClient,
     workspaceId: string,
@@ -118,6 +120,7 @@ export class PgMemoryGraphStore implements MemoryGraphStore {
           AND COALESCE(session_id,'') = COALESCE($3,'')
           AND COALESCE(agent_id,'') = COALESCE($4,'')
           AND normalized_key = $5
+          AND superseded_by IS NULL
         ORDER BY created_at ASC
         LIMIT 1`,
       [workspaceId, userId, sessionId, agentId, normalizedKey],

@@ -4,11 +4,8 @@
  * from `pipeline.ts` (behavior-preserving) to keep each module under the 500-line
  * budget; `pipeline.ts` re-exports the public `ExtractionDeps` + `applyOntologyToEntities`.
  */
-import { randomUUID } from 'node:crypto';
-
 import type { Tracer } from '@opentelemetry/api';
 
-import { hashFact } from '../dedup.js';
 import type { Embedder } from '../dip/embedder.js';
 import type { EntityExtractor } from '../dip/entity-extractor.js';
 import type { HistoryManager } from '../dip/history-manager.js';
@@ -18,12 +15,9 @@ import type { MemoryGraphStore } from '../dip/memory-graph-store.js';
 import type { InsertOutcome, VectorStore } from '../dip/vector-store.js';
 import { emitEvent } from '../memory-event.js';
 import type { MemoryItem } from '../memory-item.js';
-import type { Message } from '../message.js';
 import { ONTOLOGY_FALLBACK_TYPE, type Ontology } from '../ontology.js';
-import type { RememberOptions } from '../options.js';
 import type { Filters, Scope } from '../scope.js';
 
-import { linkEntities } from './entity-linking.js';
 import type { AutoCategorizeConfig } from './taxonomy.js';
 
 /**
@@ -54,6 +48,13 @@ export function applyOntologyToEntities(
   return entities.map((e) => {
     if (e.type === undefined || allowed.has(e.type)) {
       return e;
+    }
+    // M13 /review F-tests-1 (plan T1.1 Deep Dive): LLMs occasionally emit the
+    // vocabulary in lowercase ('person') — a case variant of an ALLOWED type is
+    // normalized, never coerced to OTHER (no coercion event: intent matched).
+    const upper = e.type.toUpperCase();
+    if (allowed.has(upper)) {
+      return { ...e, type: upper };
     }
     emitEvent(tracer, 'ontology_type_coerced', {
       ontology: ontology.name,
@@ -176,61 +177,6 @@ export function toMemoryItem(id: string, text: string, hash: string, scope: Scop
 }
 
 /**
- * `infer: false` fast-path (upstream reference index.ts:568-586).
- * Each message becomes one verbatim memory; no LLM call, no entity store.
- */
-export async function runInferFalsePath(
-  messages: readonly Message[],
-  filters: Filters,
-  deps: ExtractionDeps,
-  options: RememberOptions | undefined,
-): Promise<readonly MemoryItem[]> {
-  const scope = scopeFromFilters(filters);
-  const items: MemoryItem[] = [];
-  const vectors: (readonly number[])[] = [];
-  const ids: string[] = [];
-  const payloads: Payload[] = [];
-  for (const msg of messages) {
-    if (msg.content.length === 0) {
-      continue;
-    }
-    const id = randomUUID();
-    const hash = hashFact(msg.content);
-    const vector = await deps.embedder.embed(msg.content);
-    const now = new Date();
-    const metadata = options?.metadata ?? {};
-    const payload = buildPayload(msg.content, hash, filters, metadata);
-    // v1.1 T2.1 + EC-2: verbatim path attribution. RememberOptions.attributedTo
-    // routes through the payload to the column hoist in pgvector-store.
-    if (options?.attributedTo !== undefined) {
-      payload['attributed_to'] = options.attributedTo;
-    }
-    // themory-category-filter-server-side T3.3 — verbatim path category.
-    // EC-2 length check ran at pipeline entry; here we just propagate. Routes
-    // to payload['category'] so the pgvector-store hoist promotes it to the
-    // top-level `category` column on INSERT.
-    if (options?.category !== undefined) {
-      payload['category'] = options.category;
-    }
-    items.push(toMemoryItem(id, msg.content, hash, scope, payload, now));
-    vectors.push(vector);
-    ids.push(id);
-    payloads.push(payload);
-  }
-  if (vectors.length > 0) {
-    const outcomes = await deps.vectorStore.insert(vectors, ids, payloads);
-    const persisted = patchItemsWithOutcomes(items, outcomes);
-    // item-2 fix (2026-06-20): verbatim writes now also extract + link entities
-    // (Phase 7 shared helper). FAIL-SOFT — a remember({infer:false}) never fails
-    // because entity linking failed. Uses the patched ids so links point at the
-    // authoritative (post-UPSERT) memory id.
-    await linkEntities(persisted, filters, deps, deps.tracer);
-    return persisted;
-  }
-  return items;
-}
-
-/**
  * principles-alignment-hardening T2.1 — patch MemoryItem instances with
  * UPSERT outcomes from the vector store. Surfaces Princípio 1 (confirmação)
  * + Princípio 3 (rejectedAsDuplicate IGNORE auditability) on the DTO.
@@ -332,3 +278,5 @@ export async function persistWithFallback(
     return outcomes;
   }
 }
+
+export { runInferFalsePath } from './infer-false-path.js';

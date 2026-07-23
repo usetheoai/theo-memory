@@ -19,7 +19,7 @@ import { InvalidScope, MemoryNotFound } from '../../domain/errors.js';
 import { runExtractionPipeline } from '../../domain/extraction/pipeline.js';
 import { emitEvent } from '../../domain/memory-event.js';
 import type { MemoryItem, MemoryItemWithScore } from '../../domain/memory-item.js';
-import type { ScopedMemory } from '../../domain/memory-store.js';
+import type { ScopedMemory, SessionSummary } from '../../domain/memory-store.js';
 import type { Message } from '../../domain/message.js';
 import { resolveOntology } from '../../domain/ontology.js';
 import type {
@@ -35,7 +35,7 @@ import type { Filters, Scope } from '../../domain/scope.js';
 import type { LocalMemoryConfig } from './config.js';
 import { runReflection } from './reflect-orchestrator.js';
 import { rowsToMemoryItems } from './row-mapping.js';
-import { applySkillFilters } from './scope-filters.js';
+import { getAllItems, listScopeSessions } from './scoped-listing.js';
 import { type RetrievalContext, retrieveResults } from './scoped-retrieval.js';
 
 // Backward-compat re-exports (M8 T0 — helpers moved to scope-filters.ts).
@@ -215,14 +215,24 @@ export class LocalScopedMemory implements ScopedMemory {
     }
   }
 
+  /** #113 — real scope total from the store's COUNT (list() already computes it). */
+  async count(): Promise<number> {
+    const [, total] = await this.config.vectorStore.list(this.filters, 1);
+    return total;
+  }
+
+  /**
+   * Session enumeration (session-separation fix 2026-07-23) — internals in
+   * `scoped-listing.ts` (module-budget split; skills-methods duck-typed
+   * precedent, kept off the VectorStore DIP per ADR-0008).
+   */
+  async listSessions(): Promise<readonly SessionSummary[]> {
+    return listScopeSessions(this.config, this.filters);
+  }
+
+  /** Paged scope listing; `entity` option = theo-cloud#252 memory_entities filter. */
   async getAll(options?: GetAllOptions): Promise<readonly MemoryItem[]> {
-    const limit = options?.topK ?? 100;
-    const [results] = await this.config.vectorStore.list(applySkillFilters(this.filters, options), limit);
-    const { items, fallbackCount } = rowsToMemoryItems(results, this.scope);
-    if (fallbackCount > 0) {
-      emitEvent(this.config.tracer, 'getall_temporal_fallback', { count: fallbackCount });
-    }
-    return items;
+    return getAllItems(this.config, this.scope, this.filters, options);
   }
 
   /**

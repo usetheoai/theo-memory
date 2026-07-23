@@ -32,6 +32,19 @@ export interface Ontology {
   readonly description?: string;
 }
 
+/**
+ * M13 (ADR D1, #111) — the closed DEFAULT taxonomy applied when NO domain
+ * ontology is configured. Mirrors the Phase 2 prompt menu (prompt.ts) so the
+ * types the LLM already emits are honored instead of discarded; out-of-vocab
+ * coerces to `OTHER` via the same `applyOntologyToEntities` (observable
+ * `ontology_type_coerced` — never the silent fallback the mechanism labels had).
+ */
+export const DEFAULT_ENTITY_TAXONOMY: Ontology = {
+  name: 'default',
+  entityTypes: ['PERSON', 'ORG', 'PLACE', 'PRODUCT', 'CONCEPT', 'OTHER'],
+  relationTypes: [],
+};
+
 /** The built-in ontology registry keys. */
 export type OntologyName = 'medical' | 'legal' | 'code' | 'support';
 

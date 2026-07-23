@@ -235,6 +235,18 @@ export type { Ontology, OntologyName } from './ontology.js';
 export { BUILTIN_ONTOLOGIES, ONTOLOGY_FALLBACK_TYPE, resolveOntology, validateOntology } from './ontology.js';
 
 /**
+ * M13 (#111) — the closed default entity taxonomy applied when no Item 15
+ * ontology is configured (ADR D1), plus the Phase-7 linking primitives the
+ * `themory reextract` composition root orchestrates (blueprint Q8 — the job
+ * reuses the write-path pieces; zero new extraction stack).
+ *
+ */
+export { DEFAULT_ENTITY_TAXONOMY } from './ontology.js';
+export { linkEntities } from './extraction/entity-linking.js';
+export type { EntityLinkingDeps, LinkableItem } from './extraction/entity-linking.js';
+export { applyOntologyToEntities } from './extraction/pipeline-helpers.js';
+
+/**
  * `EntityExtractor` DIP — sync, deterministic node extractor from text.
  * Default adapter: `CompromiseEntityExtractor` (JS-native NLP + regex fallback).
  *

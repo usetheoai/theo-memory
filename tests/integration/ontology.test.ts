@@ -98,23 +98,44 @@ describe.skipIf(ROOT_PG_URI === '')('domain-ontologies GOAL — typed extraction
     expect(spans).toContain('ontology_type_coerced');
   }, 180_000);
 
-  it('default path (no ontology) persists the LLM entity as the PROPER placeholder (byte-unchanged)', async () => {
+  // M13 T1.1 (ADR D1, #111): the default path now honors the LLM's SEMANTIC type,
+  // coerced to the closed default vocabulary (PERSON|ORG|PLACE|PRODUCT|CONCEPT|OTHER).
+  // This deliberately FLIPS the old pin ('PROPER' placeholder) — the mechanism
+  // label is what the M13 DoD zeroes.
+  it('test_no_ontology_write_persists_semantic_type — default path persists the coerced LLM type', async () => {
+    const exporter = new InMemorySpanExporter();
+    const provider = new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)] });
+    const tracer = provider.getTracer('default-taxonomy');
+    const defaultStub: LLM = {
+      generateResponse: async () => ({
+        memory: [{ id: '0', text: 'Adalove shipped the Blorptek device.' }],
+        entities: [
+          { name: 'Adalove', type: 'PERSON' }, // in default vocab → persists as PERSON
+          { name: 'Blorptek', type: 'ANIMAL' }, // out-of-vocab → coerced to OTHER + event
+        ],
+        relations: [],
+      }),
+      generateChat: async () => ({ role: 'assistant' as const, content: '' }),
+    };
     const memory = await createLocalMemory({
       vectorStore: new PgvectorStore(pool, { embeddingDim: 384 }),
       embedder: new LocalTransformerEmbedder(),
       embeddingDim: 384,
-      llm: makeMedicalStubLlm(),
-      // NO ontology configured — the entity-linking type-carry is gated off, so
-      // LLM nodes persist as the shipped 'PROPER' placeholder (review F-dom-db-1:
-      // the no-ontology dedup identity is unchanged).
+      llm: defaultStub,
+      tracer,
+      // NO ontology configured — the DEFAULT closed taxonomy applies (M13 D1).
     });
     const noOntUser = `${USER}-noont`;
-    await memory.user(noOntUser).remember('clinical note');
+    await memory.user(noOntUser).remember('release note');
     const { rows } = await pool.query<{ name: string; type: string | null }>(
-      `SELECT name, type FROM entities WHERE name = $1 AND agent_id IS NULL AND session_id IS NULL AND user_id = $2`,
-      ['Qquib', noOntUser],
+      `SELECT name, type FROM entities WHERE name = ANY($1::text[]) AND user_id = $2`,
+      [['Adalove', 'Blorptek'], noOntUser],
     );
-    // The domain type did NOT leak onto the default path; it's the PROPER placeholder.
-    expect(rows[0]?.type).toBe('PROPER');
+    const byName = new Map(rows.map((r) => [r.name, r.type]));
+    expect(byName.get('Adalove')).toBe('PERSON');
+    expect(byName.get('Blorptek')).toBe('OTHER');
+    // test_out_of_vocab_type_coerces_to_other_with_event — observable coercion.
+    const spans = exporter.getFinishedSpans().map((s) => s.name);
+    expect(spans).toContain('ontology_type_coerced');
   }, 180_000);
 });
