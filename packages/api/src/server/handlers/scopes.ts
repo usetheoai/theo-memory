@@ -198,7 +198,19 @@ export async function scopesHandler(c: Context, memory: Memory): Promise<Respons
       entity === undefined && typeof scoped.count === 'function' ? await scoped.count() : undefined;
     const nextCursor =
       hasMore && page.length > 0 ? encodeCursor(page[page.length - 1]!) : undefined;
-    return c.json({ items: page, nextCursor, ...(total !== undefined ? { total } : {}) }, 200);
+    // Fail-closed echo (incident 2026-07-23): the applied entity filter is
+    // ECHOED so consumers can verify it was honored — a provider that ignores
+    // unknown query keys returns no echo, and a cascade-delete client MUST
+    // abort rather than treat the unfiltered scope as the entity's memories.
+    return c.json(
+      {
+        items: page,
+        nextCursor,
+        ...(total !== undefined ? { total } : {}),
+        ...(entity !== undefined ? { entity } : {}),
+      },
+      200,
+    );
   }
 
   // Legacy path — cursor / date-range filters applied in-memory over the getAll
@@ -236,5 +248,5 @@ export async function scopesHandler(c: Context, memory: Memory): Promise<Respons
   const hasMore = filtered.length > offset + limit;
   const nextCursor = hasMore && page.length > 0 ? encodeCursor(page[page.length - 1]!) : undefined;
 
-  return c.json({ items: page, nextCursor }, 200);
+  return c.json({ items: page, nextCursor, ...(entity !== undefined ? { entity } : {}) }, 200);
 }
