@@ -107,3 +107,40 @@ docker exec -w /tmp themory_app /nodejs/bin/node /app/dist/agent-tools/cli.js re
 docker exec -w /tmp themory_app /nodejs/bin/node /app/dist/agent-tools/cli.js reextract --json
 # queries: ver m13-entity-noise-baseline-2026-07-23.md (byte-a-byte)
 ```
+
+## Apêndice T2.1 — noise retirement live (fechamento do DoD)
+
+- **Data:** 2026-07-23 ~17:31 UTC (build `1976b71`, deploy 17:29 UTC — inclui a guarda TOCTOU do /review + migration 0028)
+- **Comando:** `themory reextract --retire-mechanism --dry-run` → `--commit`
+
+### Retirement report
+
+| | dry-run | commit |
+|---|---|---|
+| candidates | 1401 | 1401 |
+| retired | 0 | **1401** |
+| linksRemoved | 0 | 1691 |
+| edgesRemoved | 0 | 761 |
+| duration | 50 ms | 294 ms |
+
+Candidatos = mecanismo vivo NÃO-âncora (2220 mecanismo vivo − 819 âncoras excluídas pela guarda).
+
+### Queries canônicas — pós-retirement (conjunto vivo, `superseded_by IS NULL`)
+
+| Métrica | Baseline | Pós-backfill | **Pós-retirement** | Alvo DoD | Veredito |
+|---|---|---|---|---|---|
+| ALL-CAPS mecanismo (linkado) | 129* | 85 | **0** | ≤ 10 | ✅ **ATINGIDO** |
+| ≤3 chars mecanismo (linkado) | 106* | 58 | **0** | ≤ 10 | ✅ **ATINGIDO** |
+| Mecanismo vivo total | 1658 | 1401 | **0** | — | ✅ zerado |
+| Mecanismo NOVO na janela | — | 0 | **0** | 0 | ✅ |
+| Âncoras de supersede preservadas | — | 819 | **819** | (nunca deletar) | ✅ Princípio 3 |
+| Entidades vivas semânticas | 0 | 8377 (parcial) | **7629 / 7629** | 100% | ✅ |
+| Edges órfãs / Links órfãos | — | — | **0 / 0** | 0 | ✅ GC limpo |
+
+\* baseline media o total bruto; o recorte de mecanismo linkado é a régua do #111.
+
+### Distribuição semântica final (vivas)
+
+`OTHER 5086 · CONCEPT 1480 · PRODUCT 636 · ORG 323 · PERSON 83 · PLACE 21` — taxonomia fechada completa; zero rótulo de mecanismo (PROPER/COMPOUND/QUOTED).
+
+**Veredito T4.1 + T2.1: TODAS as metas numéricas do DoD do M13 ATINGIDAS na base live, com evidência SQL reproduzível e zero órfãos.** O achado estrutural do relatório principal (supersede re-tipa mas não aposenta) foi fechado pelo slice `m13-noise-retirement`.
