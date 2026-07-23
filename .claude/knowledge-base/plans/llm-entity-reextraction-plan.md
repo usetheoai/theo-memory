@@ -399,12 +399,14 @@ RED (extensão do teste de supersede com asserts de listagem) → GREEN → REFA
 benchmark Phase 4).
 
 #### TDD
-- `test_superseded_entity_disappears_from_list`: pós-supersede, `store.list` não contém OLD
-  e contém NEW com os links agregados (contagem exata).
-- `test_graph_expansion_skips_superseded`: expansão 1-hop a partir de memória re-apontada
-  retorna NEW, nunca OLD.
+- `test_superseded_entity_disappears_from_list`: Given OLD supersedida por NEW; When
+  `store.list(...)`; Then `expect(rows.find(r => r.name === OLD)).toBeUndefined()` e
+  `expect(kept.memoryCount).toBe(<links migrados>)` (contagem exata).
+- `test_graph_expansion_skips_superseded`: Given memória re-apontada; When expansão 1-hop;
+  Then `expect(nodes).toContain(NEW)` e `expect(nodes).not.toContain(OLD)`.
 - `test_gc_ignores_superseded` (em `tests/integration/scoped-forget.test.ts` estendido):
-  hard-forget de memória linkada a NEW não coleta OLD supersedida (guarda do GC).
+  Given OLD supersedida sem links; When hard-forget de memória linkada a NEW; Then
+  `expect(entityStillExists(OLD)).toBe(true)` (guarda do GC).
 
 #### Concurrency tests
 (none — single-threaded)
@@ -557,14 +559,14 @@ RED (CLI dry-run spawn) → GREEN → REFACTOR → wiring (caller = usuário/ope
 relatório impresso + exit code).
 
 #### TDD
-- `test_cli_reextract_dry_run_reports_targets_and_exits_zero` (integração): spawn
-  `node dist/... reextract --dry-run --json` contra DB isolado semeado com 3 alvos →
-  stdout JSON com `targets: 3`, exit 0, e ZERO chamadas LLM (env aponta para stub server
-  inexistente — dry-run nem tenta).
-- `test_cli_reextract_missing_env_exits_2`: sem PG URI → exit 2 e mensagem contém
-  `THEOMEM_PG_URI`.
-- `test_cli_locked_names_includes_reextract` (sentinela atualizada): lista de verbos contém
-  `reextract`.
+- `test_cli_reextract_dry_run_reports_targets_and_exits_zero` (integração): Given DB isolado
+  semeado com 3 alvos; When spawn `node dist/... reextract --dry-run --json`; Then
+  `expect(json.targets).toBe(3)`, `expect(exitCode).toBe(0)` e ZERO chamadas LLM (env
+  aponta para stub inexistente — dry-run nem tenta).
+- `test_cli_reextract_missing_env_exits_2`: Given env sem PG URI; When spawn; Then
+  `expect(exitCode).toBe(2)` e `expect(stderr).toContain('THEOMEM_PG_URI')`.
+- `test_cli_locked_names_includes_reextract` (sentinela atualizada): Then
+  `expect(lockedVerbs).toContain('reextract')`.
 
 #### Concurrency tests
 (none — single-threaded)
@@ -616,11 +618,11 @@ número). Negative: custo real >2x estimado no 1º chunk → pausa + reavaliaç�
 6. relatório.
 
 #### TDD
-- (Task operacional — o "teste" é o benchmark determinístico): as queries canônicas
-  re-executadas DEVEM satisfazer: `all_caps_tokens <= 10 AND very_short_names <= 10` no
-  conjunto não-supersedido; `memories_without_graph` elegíveis = 0; zero entidades novas com
-  type de mecanismo (`created_at > início` ∧ mecanismo = 0). Registrado como SQL + saída no
-  relatório (executável por qualquer revisor).
+- `test_benchmark_noise_targets_met` (operacional-determinístico): Given o backfill live
+  concluído; When as queries canônicas re-executam; Then `expect(all_caps_tokens).toBeLessThanOrEqual(10)`,
+  `expect(very_short_names).toBeLessThanOrEqual(10)` (conjunto não-supersedido),
+  `expect(memories_without_graph_elegiveis).toBe(0)` e `expect(new_mechanism_entities).toBe(0)` —
+  registrado como SQL + saída no relatório (executável por qualquer revisor).
 
 #### Concurrency tests
 (none — single-threaded)
