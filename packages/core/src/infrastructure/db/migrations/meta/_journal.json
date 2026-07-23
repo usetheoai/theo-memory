@@ -190,6 +190,13 @@
       "when": 1784728688047,
       "tag": "0026_equal_bucky",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1784808170550,
+      "tag": "0027_entities_superseded_by",
+      "breakpoints": true
     }
   ]
 }

@@ -26,7 +26,7 @@ function stubEntityStore(names: readonly string[]): {
       }) satisfies EntityNodeSummary,
   );
   const listSpy = vi.fn(async () => summaries);
-  return { store: { upsertAndLink: vi.fn(), list: listSpy }, listSpy };
+  return { store: { upsertAndLink: vi.fn(), list: listSpy, supersedeEntity: vi.fn(async () => false) }, listSpy };
 }
 
 /** Stub recall counter that reports a fixed cumulative count. */

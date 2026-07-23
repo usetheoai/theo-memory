@@ -45,7 +45,7 @@ describe('T4.2 — entitiesHandler via injected read port', () => {
   test('returns entities from the read port with memory_count, sorted desc', async () => {
     const app = createServer({
       memory: stubMemory(),
-      memoryEntityStore: { upsertAndLink: vi.fn(), list: vi.fn().mockResolvedValue(summaries) },
+      memoryEntityStore: { upsertAndLink: vi.fn(), supersedeEntity: vi.fn(async () => false), list: vi.fn().mockResolvedValue(summaries) },
     });
     const res = await app.fetch(new Request('http://localhost/v1/scopes/user/alice/entities'));
     expect(res.status).toBe(200);
@@ -58,7 +58,7 @@ describe('T4.2 — entitiesHandler via injected read port', () => {
   test('response shape unchanged: id, memory_count, last_seen_at present', async () => {
     const app = createServer({
       memory: stubMemory(),
-      memoryEntityStore: { upsertAndLink: vi.fn(), list: vi.fn().mockResolvedValue(summaries) },
+      memoryEntityStore: { upsertAndLink: vi.fn(), supersedeEntity: vi.fn(async () => false), list: vi.fn().mockResolvedValue(summaries) },
     });
     const res = await app.fetch(new Request('http://localhost/v1/scopes/user/alice/entities'));
     const body = (await res.json()) as { entities: Record<string, unknown>[] };
@@ -81,6 +81,7 @@ describe('T4.2 — entitiesHandler via injected read port', () => {
       memory: stubMemory(),
       memoryEntityStore: {
         upsertAndLink: vi.fn(),
+        supersedeEntity: vi.fn(async () => false),
         list: vi.fn().mockRejectedValue(new Error('db down')),
       },
     });
