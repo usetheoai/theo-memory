@@ -61,6 +61,25 @@ export function principalUserId(c: Context): string | undefined {
 /** MCP-parity user-scope header the edge injects (mirrors the streamable-http transport). */
 const USER_SCOPE_HEADER = 'X-Theo-User-Id';
 
+/** The edge-injected auth-trusted acting user, or undefined (no edge / SDK / dev). */
+export function headerUserId(c: Context): string | undefined {
+  const v = c.req.header(USER_SCOPE_HEADER)?.trim();
+  return v === undefined || v === '' ? undefined : v;
+}
+
+/**
+ * The acting user for scope binding (session-separation fix, 2026-07-23):
+ * a member Principal's own userId (IDOR confinement — the header can never
+ * widen a member) ?? the edge-injected `X-Theo-User-Id` (the gateway's broker
+ * keys are workspace-admin, so without this fallback a session/agent scope
+ * through the edge carried NO user and session rows landed `user_id NULL` —
+ * breaking session enumeration and the SESSION ∪ GLOBAL union). Absent both →
+ * undefined (workspace-admin semantics, unchanged for direct callers).
+ */
+export function actingUserId(c: Context): string | undefined {
+  return principalUserId(c) ?? headerUserId(c);
+}
+
 /**
  * Resolve the user tier the SAME way the MCP transport does: when the body names
  * no scope tier, fall back to the auth-trusted `X-Theo-User-Id` the edge injects.

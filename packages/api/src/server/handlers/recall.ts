@@ -16,7 +16,7 @@ import {
   MALFORMED_BODY,
   safeJson,
   scopeOrValidationError,
-  principalUserId,
+  actingUserId,
   workspaceBoundMemory,
 } from './_body-parsing.js';
 
@@ -43,7 +43,7 @@ export async function recallHandler(c: Context, memory: Memory): Promise<Respons
   }
   const { query, topK, threshold, attributedTo, asOf, graphExpand } = parsed.data;
   // multi-tenant-workspace-isolation T3.1: scope recall by the Principal's workspace (ADR D3).
-  const scoped = resolveScope(workspaceBoundMemory(c, memory), parsed.data, principalUserId(c));
+  const scoped = resolveScope(workspaceBoundMemory(c, memory), parsed.data, actingUserId(c));
   // explainable-recall S2 (D2) — mint the recall_id HERE so it can be BOTH driven
   // into the accountable-forgetting trace (SDK keys the recall_traces rows with it)
   // AND returned to the caller for the follow-up GET /v1/recall-traces/:recallId.

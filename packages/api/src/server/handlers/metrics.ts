@@ -38,7 +38,7 @@ import type { Context } from 'hono';
 import { z } from 'zod';
 
 import { attributedPeerOf } from './_attributed-peer.js';
-import { principalUserId, workspaceBoundMemory } from './_body-parsing.js';
+import { actingUserId, workspaceBoundMemory } from './_body-parsing.js';
 
 const SCOPE_TYPES = ['user', 'session', 'agent'] as const;
 const ScopeTypeSchema = z.enum(SCOPE_TYPES);
@@ -83,7 +83,7 @@ export async function metricsHandler(
     return c.notFound();
   }
 
-  const scoped = pathParamsToScoped(workspaceBoundMemory(c, memory), typeParse.data, id, principalUserId(c));
+  const scoped = pathParamsToScoped(workspaceBoundMemory(c, memory), typeParse.data, id, actingUserId(c));
   const items = await scoped.getAll();
   // #113 — the REAL scope total (store COUNT), never the page length: the live
   // dashboard showed "TOTAL MEMORIES = 100" for a 440-memory scope because the
