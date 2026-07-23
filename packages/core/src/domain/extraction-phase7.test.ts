@@ -117,6 +117,55 @@ describe('Phase 7 — entity linking (T3.1)', () => {
     expect(calls[0]?.entities[0]?.normalizedKey).toBeDefined();
   });
 
+  // M13 T1.1 (ADR D1, #111) — semantic types by default, mechanism labels never persisted.
+  test('test_missing_type_defaults_to_other — LLM entity without type persists as OTHER', async () => {
+    const { store, calls } = spyStore();
+    await runExtractionPipeline(
+      [{ role: 'user', content: 'Adalove shipped a device' }],
+      { user_id: 'alice', workspace_id: 'default' },
+      {
+        vectorStore: new StubVectorStore(),
+        embedder: makeEmbedder(),
+        llm: makeLlm({ memory: [{ id: '0', text: 'Adalove shipped a device' }], entities: [{ name: 'Adalove' }] }),
+        memoryEntityStore: store,
+      },
+    );
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.entities[0]?.type).toBe('OTHER');
+  });
+
+  test('test_llm_semantic_type_persists_without_ontology — PERSON survives the default path', async () => {
+    const { store, calls } = spyStore();
+    await runExtractionPipeline(
+      [{ role: 'user', content: 'Adalove shipped a device' }],
+      { user_id: 'alice', workspace_id: 'default' },
+      {
+        vectorStore: new StubVectorStore(),
+        embedder: makeEmbedder(),
+        llm: makeLlm({ memory: [{ id: '0', text: 'Adalove shipped a device' }], entities: [{ name: 'Adalove', type: 'PERSON' }] }),
+        memoryEntityStore: store,
+      },
+    );
+    expect(calls[0]?.entities[0]?.type).toBe('PERSON');
+  });
+
+  test('test_fallback_extractor_mechanism_labels_coerced_to_other', async () => {
+    const { store, calls } = spyStore();
+    await runExtractionPipeline(
+      [{ role: 'user', content: 'John Smith works at Google' }],
+      { user_id: 'alice', workspace_id: 'default' },
+      {
+        vectorStore: new StubVectorStore(),
+        embedder: makeEmbedder(),
+        llm: oneFactLlm(), // no LLM entities → compromise fallback fires
+        entityExtractor: makeExtractor([{ type: 'PROPER', name: 'John Smith' }]),
+        memoryEntityStore: store,
+      },
+    );
+    // Mechanism labels (PROPER/COMPOUND/QUOTED) never reach the store post-M13.
+    expect(calls[0]?.entities[0]?.type).toBe('OTHER');
+  });
+
   test('F-L4: emits entity_linked on the success path', async () => {
     const { tracer, exporter } = setupTracer();
     const { store } = spyStore();
