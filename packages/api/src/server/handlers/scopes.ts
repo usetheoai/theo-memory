@@ -46,6 +46,13 @@ const QuerySchema = z.object({
    */
   offset: z.coerce.number().int().min(0).default(0),
   /**
+   * Entity filter (theo-cloud#252) — only memories LINKED to this entity
+   * (surface name; normalization + memory_entities join happen at the store).
+   * The server-side filter the dashboard's per-entity cascade-forget requires;
+   * without it the cascade deleted the first GLOBAL page.
+   */
+  entity: z.string().min(1).max(512).optional(),
+  /**
    * themory-category-filter-server-side T4.1 / ADR D3 — operator-supplied
    * category filter (1-64 chars). Empty string is rejected at the boundary
    * (zod min(1)) per ADR D3; lengths > 64 are rejected per the same ADR.
@@ -139,6 +146,7 @@ export async function scopesHandler(c: Context, memory: Memory): Promise<Respons
     cursor: c.req.query('cursor'),
     limit: c.req.query('limit'),
     offset: c.req.query('offset'),
+    entity: c.req.query('entity'),
     category: c.req.query('category'),
     from: c.req.query('from'),
     to: c.req.query('to'),
@@ -152,7 +160,7 @@ export async function scopesHandler(c: Context, memory: Memory): Promise<Respons
       422,
     );
   }
-  const { cursor: rawCursor, limit, offset, category, from, to } = queryParse.data;
+  const { cursor: rawCursor, limit, offset, entity, category, from, to } = queryParse.data;
 
   let cursor: z.infer<typeof CursorSchema> | null = null;
   if (rawCursor !== undefined) {
@@ -179,11 +187,15 @@ export async function scopesHandler(c: Context, memory: Memory): Promise<Respons
     const raw = await scoped.getAll({
       topK: limit + 1,
       offset,
+      ...(entity !== undefined ? { entity } : {}),
       ...(category !== undefined ? { category } : {}),
     });
     const page = raw.slice(0, limit);
     const hasMore = raw.length > limit;
-    const total = typeof scoped.count === 'function' ? await scoped.count() : undefined;
+    // Entity-filtered requests omit `total` — scoped.count() is scope-wide and
+    // would misreport the filtered set (the cascade pages via hasMore instead).
+    const total =
+      entity === undefined && typeof scoped.count === 'function' ? await scoped.count() : undefined;
     const nextCursor =
       hasMore && page.length > 0 ? encodeCursor(page[page.length - 1]!) : undefined;
     return c.json({ items: page, nextCursor, ...(total !== undefined ? { total } : {}) }, 200);
@@ -194,8 +206,10 @@ export async function scopesHandler(c: Context, memory: Memory): Promise<Respons
   // themory-category-filter-server-side T4.1 — thread category into getAll
   // when supplied. zod min(1) already rejected empty string; LocalScopedMemory.getAll
   // performs EC-3 defense-in-depth normalization for direct SDK callers.
-  const all =
-    category !== undefined ? await scoped.getAll({ category }) : await scoped.getAll();
+  const all = await scoped.getAll({
+    ...(entity !== undefined ? { entity } : {}),
+    ...(category !== undefined ? { category } : {}),
+  });
   let filtered: readonly MemoryItem[] = all;
   // ADR D3 — created_at range filter (inclusive bounds). Applied in-memory,
   // consistent with the existing cursor filter (same O(scope) honesty note).
