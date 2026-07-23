@@ -4,6 +4,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+- **CI: pipeline mais rápida (#116).** (1) `paths-ignore` (`.claude/**`, `**/*.md`) nos 3 workflows — pushes só-de-docs param de disparar build/deploy/testes/scan (o build de tag `v*` aponta para merge commits com código, nunca é filtrado). (2) Dockerfile: `COPY` reordenado (manifests → `pnpm install` → source) nos stages builder + production-deps, para o layer de install ser cache-hit quando só o código muda — evita recompilar os módulos nativos (isolated-vm/onnxruntime/sharp) a cada push. (3) Cache mount BuildKit no store pnpm (`--mount=type=cache`) em ambos os installs — deps inalteradas linkam do store persistido em vez de re-baixar.
+
+
 ### Added
 
 ### Changed
