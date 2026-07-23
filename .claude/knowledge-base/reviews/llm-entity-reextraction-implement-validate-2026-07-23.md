@@ -1,8 +1,8 @@
 # Implementation Validation: llm-entity-reextraction
 
 **Date:** 2026-07-23
-**Overall:** FAIL
-**Total checks:** 11 (PASS: 7, FAIL: 1, SKIP: 1)
+**Overall:** PARTIAL
+**Total checks:** 11 (PASS: 8, FAIL: 0, SKIP: 1)
 
 ## Checks
 
@@ -12,23 +12,8 @@
 ### checkpoint_consistency — `PASS`
 
 
-### npm test — `FAIL`
+### npm test — `PASS`
 
-
-```
-ession→global PROMOTION…
-    214|     // fail-soft placement-decision audit row in the deployed artifact…
-    215|     routingAuditStore: new PgRoutingAuditStore(pool),
-       |                            ^
-    216|     ...(skillExecutor !== undefined ? { skillExecutor } : {}),
-    217|     // explainable-recall-read S2 (/review F-arch-1) — opt-in recall t…
- ❯ runMcpServer packages/mcp/src/run-mcp-server.ts:311:18
- ❯ packages/mcp/src/run-mcp-server.test.ts:172:5
-
-⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
-
-
-```
 
 ### npm run typecheck — `PASS`
 
@@ -65,4 +50,4 @@ ession→global PROMOTION…
 
 ## Handoff decision
 
-Implementation FAILS at least one gate. Loop back to /implement to address.
+Implementation PARTIAL — some gates were SKIPped because pre-conditions absent (e.g., package.json). Decide whether SKIPs are acceptable for this phase.
