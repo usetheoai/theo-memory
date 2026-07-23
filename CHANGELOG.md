@@ -7,6 +7,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 - **Gate Step 5 do M13 — suite completa vermelha em `run-server.test.ts` (pré-existente) + lint dos módulos reextract.** O mock de `@usetheo/memory` do teste não espelhava os imports `PgRoutingPolicyStore`/`PgRoutingAuditStore` que `run-server.ts` ganhou no M11/explainable-recall (vitest falhava o arquivo inteiro no load — só visível na suite completa); asserções desnecessárias + ordem de import nos módulos reextract corrigidas via `--fix`. (#111)
 
+### Removed
+- Testes órfãos da app demo `examples/chat-with-memory` (a app foi removida em c3a1b63/2026-07-16; os testes ficaram referenciando módulos deletados — 8 falhas latentes que só apareciam na suite completa) + o resíduo `examples/` (só restava um package.json). Surfaced pelo gate Step 5 do M13. (#111)
+
 ### Changed
 - Sentinela `MEMORY_EVENTS` 45→47: eventos `reextract_chunk_done` + `reextract_noise_retired` registrados na união tipada (extensão sancionada M13). (#111)
 

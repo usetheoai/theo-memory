@@ -16,24 +16,16 @@
 
 
 ```
-45 values (44 prior + entity_gc_collected, #110)
-AssertionError: expected [ 'extraction_started', …(46) ] to have a length of 45 but got 47
+ver/routes/memory/recall.ts' imported from /home/paulo/Projetos/usetheo/theo-data/theo-memory/tests/unit/examples/server-routes-contract.test.ts
+ ❯ tests/unit/examples/server-routes-contract.test.ts:187:21
+    185|
+    186|   it("GET /api/memory/recall returns 400 when userId is missing", asyn…
+    187|     const { GET } = await import(
+       |                     ^
+    188|       "../../../examples/chat-with-memory/server/routes/memory/recall.…
+    189|     );
 
-- Expected
-+ Received
-
-- 45
-+ 47
-
- ❯ packages/core/src/domain/memory-event.test.ts:12:27
-     10| describe('MEMORY_EVENTS', () => {
-     11|   test('has 45 values (44 prior + entity_gc_collected, #110)', () => {
-     12|     expect(MEMORY_EVENTS).toHaveLength(45);
-       |                           ^
-     13|   });
-     14|
-
-⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[41/41]⎯
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[40/40]⎯
 
 
 ```
