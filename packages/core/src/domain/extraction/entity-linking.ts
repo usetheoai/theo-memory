@@ -72,8 +72,13 @@ export interface LlmEntity {
  * `relations === undefined` skips edge linking.
  *
  */
+/** ISP slice of MemoryItem — linkEntities only reads the anchor id + text, so
+ *  batch callers (reextract) can pass a minimal row without fabricating the
+ *  full MemoryItem envelope. Full MemoryItem satisfies the Pick structurally. */
+export type LinkableItem = Pick<MemoryItem, 'id' | 'text'>;
+
 export async function linkEntities(
-  items: readonly MemoryItem[],
+  items: readonly LinkableItem[],
   filters: Filters,
   deps: EntityLinkingDeps,
   tracer: Tracer | undefined,
@@ -189,7 +194,7 @@ export async function linkEntities(
  * EC-1). Endpoints are resolved by name in the store; unresolved → skipped (D5).
  */
 async function linkEdges(
-  items: readonly MemoryItem[],
+  items: readonly LinkableItem[],
   filters: Filters,
   deps: EntityLinkingDeps,
   tracer: Tracer | undefined,

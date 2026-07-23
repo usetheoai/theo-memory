@@ -456,9 +456,11 @@ precedente); baseline (1029 alvos sem grafo).
 
 #### Files to edit
 - `packages/cli/src/reextract/engine.ts`
+- `packages/cli/src/reextract/batching.ts`
 - `packages/cli/src/reextract/engine.test.ts`
-- `packages/core/src/index.ts` OU `packages/core/src/local/index.ts` (export público mínimo
-  necessário p/ o engine — somente se algo do Q8 não estiver exportado; additive)
+- `packages/core/src/domain/index.ts`
+- `packages/core/src/domain/extraction/entity-linking.ts`
+- `packages/core/src/domain/memory-event.ts`
 - `tests/integration/reextract.test.ts`
 - `CHANGELOG.md`
 

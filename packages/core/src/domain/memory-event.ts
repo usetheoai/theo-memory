@@ -37,6 +37,10 @@ export const MEMORY_EVENTS = [
   // indistinguishably from "no input" — the IGNORE decision was silent.
   // @see CLAUDE.md § IMPORTANTE Princípio 3
   'extraction_zero_facts',
+  // M13 T3.1 (#111) — `themory reextract` observability: fires once per chunk
+  // with processed/skipped counters so the operator can watch backfill progress
+  // (Princípio 3 — the job's IGNORE decisions are visible, never silent).
+  'reextract_chunk_done',
   // principles-alignment-hardening T4.1 — Princípio 3 IGNORE auditability per
   // ADR D2: fires when retrieval pipeline's threshold-filter step drops N
   // sub-threshold candidates. Attributes include filtered_count so consumers
