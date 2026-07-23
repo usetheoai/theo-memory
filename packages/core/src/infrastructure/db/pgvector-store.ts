@@ -746,19 +746,29 @@ export class PgvectorStore implements VectorStore {
         const ids = linked.map((r) => r.entity_id);
         // Edges first (they reference entities): drop edges whose endpoint is about
         // to be collected (endpoint in `ids` AND endpoint now has zero links).
+        // M13 T2.2 (#111): `collectible` = zero-link entities among the linked ids
+        // MINUS supersede anchors — a row carrying `superseded_by` and a row
+        // referenced BY one are audit-trail anchors (Princípio 3); the GC never
+        // collects either, and edges follow the same set so provenance survives.
+        const collectibleCte =
+          `collectible AS (
+             SELECT e.id FROM entities e
+              WHERE e.id = ANY($1::uuid[])
+                AND e.superseded_by IS NULL
+                AND NOT EXISTS (SELECT 1 FROM memory_entities me WHERE me.entity_id = e.id)
+                AND NOT EXISTS (SELECT 1 FROM entities o WHERE o.superseded_by = e.id))`;
         const edgeRes = await client.query(
-          `DELETE FROM entity_edges ee
-           WHERE (ee.source_entity_id = ANY($1::uuid[]) AND NOT EXISTS (
-                    SELECT 1 FROM memory_entities me WHERE me.entity_id = ee.source_entity_id))
-              OR (ee.target_entity_id = ANY($1::uuid[]) AND NOT EXISTS (
-                    SELECT 1 FROM memory_entities me WHERE me.entity_id = ee.target_entity_id))`,
+          `WITH ${collectibleCte}
+           DELETE FROM entity_edges ee
+           WHERE ee.source_entity_id IN (SELECT id FROM collectible)
+              OR ee.target_entity_id IN (SELECT id FROM collectible)`,
           [ids],
         );
         edges = edgeRes.rowCount ?? 0;
         const entRes = await client.query(
-          `DELETE FROM entities e
-           WHERE e.id = ANY($1::uuid[])
-             AND NOT EXISTS (SELECT 1 FROM memory_entities me WHERE me.entity_id = e.id)`,
+          `WITH ${collectibleCte}
+           DELETE FROM entities e
+           WHERE e.id IN (SELECT id FROM collectible)`,
           [ids],
         );
         ents = entRes.rowCount ?? 0;
