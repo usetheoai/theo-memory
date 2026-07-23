@@ -76,4 +76,14 @@ export interface MemoryEntityStore {
    * `lastSeenAt`, ordered by `memoryCount` desc. Read side of ADR D4.
    */
   list(params: ListEntitiesParams): Promise<readonly EntityNodeSummary[]>;
+
+  /**
+   * M13 T2.1 (#111) — auditable supersede: repoint `memory_entities` links and
+   * `entity_edges` endpoints from `oldId` to `newId` and mark
+   * `old.superseded_by = newId`, all in ONE transaction. Never DELETE
+   * (Princípio 3). Returns `true` when the old row was superseded by THIS call;
+   * `false` when it was already superseded (idempotent re-run). A missing/
+   * cross-workspace `newId` throws BEFORE any write (fail-closed).
+   */
+  supersedeEntity(params: { oldId: string; newId: string; workspaceId: string }): Promise<boolean>;
 }

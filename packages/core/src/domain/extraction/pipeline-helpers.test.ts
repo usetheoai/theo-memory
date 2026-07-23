@@ -27,7 +27,7 @@ function deps(): { deps: ExtractionDeps; extractSpy: ReturnType<typeof vi.fn>; u
     embedBatch: async (texts: readonly string[]) => texts.map(() => [0.1, 0.2]),
   };
   const entityExtractor: EntityExtractor = { extract: extractSpy };
-  const memoryEntityStore: MemoryEntityStore = { upsertAndLink: upsertSpy, list: async () => [] };
+  const memoryEntityStore: MemoryEntityStore = { upsertAndLink: upsertSpy, list: async () => [], supersedeEntity: async () => false };
   const vectorStore = {
     insert: vi.fn(async (_v: unknown, ids: readonly string[]) =>
       ids.map((id) => ({ id, rejectedAsDuplicate: false })),

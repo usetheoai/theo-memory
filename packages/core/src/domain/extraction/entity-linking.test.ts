@@ -29,6 +29,7 @@ function recordingStore(): { store: MemoryEntityStore; names: string[] } {
       for (const e of params.entities) names.push(e.name);
     },
     list: async () => [],
+    supersedeEntity: async () => false,
   };
   return { store, names };
 }
