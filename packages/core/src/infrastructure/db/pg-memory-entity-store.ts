@@ -121,10 +121,12 @@ export class PgMemoryEntityStore implements MemoryEntityStore {
                  FROM entity_edges ee
                  JOIN entities te ON te.id = ee.target_entity_id
                 WHERE ee.source_entity_id = e.id
+                  AND te.superseded_by IS NULL
                   AND ee.t_invalid IS NULL
              ) d
          ) s ON true
         WHERE e.workspace_id = $1
+          AND e.superseded_by IS NULL
           AND COALESCE(e.user_id,'') = COALESCE($2,'')
           AND COALESCE(e.session_id,'') = COALESCE($3,'')
           AND COALESCE(e.agent_id,'') = COALESCE($4,'')

@@ -91,6 +91,33 @@ if (PG_URI === undefined || PG_URI === '') {
       return rows.length > 0;
     }
 
+    test('test_gc_ignores_superseded', async () => {
+      // M13 T2.2 (#111): the hard-forget GC must never collect (a) an entity that
+      // carries a `superseded_by` pointer nor (b) an entity referenced BY one —
+      // both are audit-trail anchors (Princípio 3), even at zero links.
+      const a = await seed({ user: 'alice', suffix: 'sup-a' });
+      const { rows: ents } = await pool.query<{ id: string }>(
+        `INSERT INTO entities (name, normalized_key, type, embedding, payload, workspace_id, user_id)
+         VALUES ('old codex', 'codex', 'PROPER', $1::vector, '{}'::jsonb, 'default', 'alice'),
+                ('Codex', 'codex', 'PRODUCT', $1::vector, '{}'::jsonb, 'default', 'alice')
+         RETURNING id`,
+        [JSON.stringify(EMB)],
+      );
+      const [oldE, newE] = [ents[0]!.id, ents[1]!.id];
+      // supersede state: OLD points at NEW; only NEW holds the (single) link.
+      await pool.query(`UPDATE entities SET superseded_by = $1 WHERE id = $2`, [newE, oldE]);
+      await pool.query(`INSERT INTO memory_entities (memory_id, entity_id) VALUES ($1, $2)`, [a, newE]);
+
+      // Act: hard-forget the only memory linked to NEW (NEW drops to zero links).
+      const matched = await store.deleteInScope(a, { user_id: 'alice', workspace_id: 'default' }, true);
+      expect(matched).toBe(true);
+
+      // Then: both survive — NEW is referenced by OLD.superseded_by; OLD carries the pointer.
+      const { rows: kept } = await pool.query<{ id: string }>(
+        `SELECT id FROM entities WHERE id = ANY($1::uuid[])`, [[oldE, newE]]);
+      expect(kept.map((r) => r.id).sort()).toEqual([oldE, newE].sort());
+    });
+
     test('hard delete garbage-collects entities that lost their LAST memory link (#110)', async () => {
       // Arrange: memory A links e1 (only A) + e2 (A and B); an edge e1→e2 without
       // a source memory (so the FK cascade cannot remove it — GC must).
