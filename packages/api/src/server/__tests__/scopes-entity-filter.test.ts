@@ -34,6 +34,12 @@ describe('GET /v1/scopes/user/:id/memories?entity= — entity-filtered listing',
     );
     expect(res.status).toBe(200);
     expect(calls[0]).toMatchObject({ topK: 11, offset: 0, entity: 'Codex' });
+    // Fail-closed echo (incident 2026-07-23): consumers MUST see the applied
+    // filter in the response — an old provider ignores unknown query keys
+    // silently, and a cascade trusting the unechoed listing deleted 60+
+    // unrelated memories. The echo is what lets clients abort.
+    const body = (await res.json()) as { entity?: string };
+    expect(body.entity).toBe('Codex');
   });
 
   test('empty entity is rejected (422)', async () => {
