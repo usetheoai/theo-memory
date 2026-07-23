@@ -4,11 +4,8 @@
  * from `pipeline.ts` (behavior-preserving) to keep each module under the 500-line
  * budget; `pipeline.ts` re-exports the public `ExtractionDeps` + `applyOntologyToEntities`.
  */
-import { randomUUID } from 'node:crypto';
-
 import type { Tracer } from '@opentelemetry/api';
 
-import { hashFact } from '../dedup.js';
 import type { Embedder } from '../dip/embedder.js';
 import type { EntityExtractor } from '../dip/entity-extractor.js';
 import type { HistoryManager } from '../dip/history-manager.js';
@@ -18,9 +15,7 @@ import type { MemoryGraphStore } from '../dip/memory-graph-store.js';
 import type { InsertOutcome, VectorStore } from '../dip/vector-store.js';
 import { emitEvent } from '../memory-event.js';
 import type { MemoryItem } from '../memory-item.js';
-import type { Message } from '../message.js';
 import { ONTOLOGY_FALLBACK_TYPE, type Ontology } from '../ontology.js';
-import type { RememberOptions } from '../options.js';
 import type { Filters, Scope } from '../scope.js';
 
 import type { AutoCategorizeConfig } from './taxonomy.js';
