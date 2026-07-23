@@ -395,6 +395,35 @@ The 2026-07-22 live test proved the demand: 432 file-based memory nodes across l
 
 ---
 
+## M13 — [ ] Re-extração LLM de entidades com types semânticos (corrige #111)
+
+> Added 2026-07-23 by `/roadmap-feature` (slug: `llm-entity-reextraction`). See CHANGELOG `[Unreleased] § Added`.
+
+**Objective:** Substituir o grafo de entidades ruidoso (extração heurística EN-only + types de mecanismo) por extração LLM-primary com types SEMÂNTICOS, via backfill batch idempotente sobre a base existente + tipagem correta nas escritas novas — Fase B do blueprint `multilingual-entity-extraction`.
+
+**Definition of done:**
+
+- [ ] Comando/job de re-extração batch (ex.: `themory reextract`) idempotente, com provenance por substituição (Princípio 3) e custo LLM bounded (batching por contagem E bytes — lição #112) + dry-run com estimativa de custo antes do commit.
+- [ ] Types SEMÂNTICOS (PERSON/ORG/PRODUCT/CONCEPT/…) persistidos nas escritas novas E no backfill — zero rótulos de mecanismo (PROPER/COMPOUND/QUOTED) em entidades novas.
+- [ ] Ruído medido cai na base live pós-backfill: entidades ALL-CAPS ≤10 (baseline 80) e nomes ≤3 chars ≤10 (baseline 53).
+- [ ] Memórias verbatim/importadas ganham grafo (blueprint D2 — gap deixado pela Phase A D1, que removeu a extração inline do `infer:false` por paridade REDACTED).
+- [ ] Dashboard Entities Fase 2 desbloqueada: coluna TYPE + filtro por type (theo-cloud#253 deferral).
+
+**Dependencies:** M12
+
+> Skill-default: most recent `[x]` milestone at amendment time (todos M0–M12 já [x] → M13 elegível imediatamente).
+
+**Top risks (new — pre-existing risks documented elsewhere in roadmap):**
+
+1. Custo/latência LLM do backfill (~730 memórias + ~840 entidades) — mitigação: batching bounded, dry-run com estimativa de custo, idempotência (re-rodar nunca duplica).
+2. Substituição destrutiva do grafo atual (perda de provenance/edges válidas) — mitigação: supersede/soft-delete (nunca hard-delete em massa) + verificação fail-closed de filtros em operações em massa (lição do incidente theo-cloud#252).
+
+**Why now (from grill Q1):**
+
+A análise da tela Entities (2026-07-23) MEDIU o ruído que a extração heurística deixou: 80 entidades ALL-CAPS (LOW/MEDIUM/HIGH/BLOCKER/UI/API…), 53 nomes ≤3 chars, fragmentos truncados como entidades, e types persistidos que são rótulos do MECANISMO de extração (PROPER 734 / COMPOUND 89 / QUOTED 16) — o ruído domina o ranking do dashboard e bloqueia a coluna TYPE. A Phase A (D1+D6, shipped) estancou a fonte; o M13 limpa o estoque e completa a tipagem semântica. Tracked: theo-memory#111.
+
+---
+
 ## State-of-the-art references
 
 Conceptual comparison peers. `` / `` / `` are already cloned under

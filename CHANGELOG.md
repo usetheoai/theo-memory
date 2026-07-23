@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- Roadmap amended: added M13 Re-extração LLM de entidades com types semânticos (`/roadmap-feature llm-entity-reextraction`) — corrige theo-memory#111 (Fase B do blueprint `multilingual-entity-extraction`)
 - **Separação por sessão de ponta a ponta (modelo M8 realizado).** (a) `ScopedMemory.listSessions()` + `GET /v1/scopes/user/:id/sessions` — enumeração das sessões distintas de um `(workspace, user)` com contagem live + última atividade (nunca existia: as tabs SESSION do dashboard eram seletores de tipo sem seletor de instância); store duck-typed (`PgvectorStore`/`InMemoryVectorStore.listSessions`), erro tipado `SessionsListingNotSupported` → 501 honesto. (b) `POST /v1/reflect { sessionId }` agora threada a `SessionToGlobalConsolidationPolicy` (M9) — a promoção session→global era SDK-only, nenhum caminho REST a disparava. (c) Hooks do kit (`theo-remember`/`theo-recall`/`theo-precompact`) passam o `session_id` do Claude Code → escritas nascem na working memory da sessão `(workspace, user, session)` e recall lê SESSION ∪ GLOBAL; novo hook `theo-promote.mjs` (SessionEnd) dispara o reflect de promoção. RED-GREEN: unit (in-memory), integração pgvector isolada (2 casos), handler REST (3), wiring do reflect (2). Split de módulo: `memory-config.ts` extraído de `memory-store.ts` (budget 300 linhas).
 
 ### Added
