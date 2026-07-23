@@ -17,7 +17,7 @@ import type { EntityToLink, MemoryEntityStore } from '../dip/memory-entity-store
 import type { EdgeToLink, MemoryGraphStore } from '../dip/memory-graph-store.js';
 import { emitEvent } from '../memory-event.js';
 import type { MemoryItem } from '../memory-item.js';
-import { ONTOLOGY_FALLBACK_TYPE, type Ontology } from '../ontology.js';
+import { ONTOLOGY_FALLBACK_TYPE } from '../ontology.js';
 import type { Filters } from '../scope.js';
 
 import { isEntityNoise } from './entity-noise-filter.js';
@@ -43,11 +43,6 @@ export interface EntityLinkingDeps {
   readonly entityExtractor?: EntityExtractor;
   readonly memoryEntityStore?: MemoryEntityStore;
   readonly memoryGraphStore?: MemoryGraphStore;
-  /** domain-ontologies T4.1 — present ONLY when an ontology is configured. Gates
-   *  whether LLM-node persistence carries the (coerced) domain type. Absent =
-   *  the shipped default: LLM nodes persist as the 'PROPER' placeholder, so the
-   *  no-ontology entity dedup identity is byte-unchanged (review F-dom-db-1). */
-  readonly ontology?: Ontology;
 }
 
 /** Lowercase + underscore the surface name → the per-scope dedup key (EC-1). */
@@ -72,8 +67,13 @@ export interface LlmEntity {
  * `relations === undefined` skips edge linking.
  *
  */
+/** ISP slice of MemoryItem — linkEntities only reads the anchor id + text, so
+ *  batch callers (reextract) can pass a minimal row without fabricating the
+ *  full MemoryItem envelope. Full MemoryItem satisfies the Pick structurally. */
+export type LinkableItem = Pick<MemoryItem, 'id' | 'text'>;
+
 export async function linkEntities(
-  items: readonly MemoryItem[],
+  items: readonly LinkableItem[],
   filters: Filters,
   deps: EntityLinkingDeps,
   tracer: Tracer | undefined,
@@ -139,15 +139,14 @@ export async function linkEntities(
       // representative memory (mirrors EC-5 edge-endpoint anchoring).
       await upsertNodes(
         llmEntities.map((e) => ({
-          // domain-ontologies T4.1 — ONLY when an ontology is configured, persist
-          // the LLM's (ontology-coerced) domain type so it reaches `entities.type`.
-          // With NO ontology, keep the shipped 'PROPER' placeholder so the entity
-          // dedup identity (which includes `type`) is byte-unchanged on the
-          // default path (review F-dom-db-1: avoids non-deterministic LLM-type
-          // fragmentation of the shipped entity-graph feature). The slice-1/2
-          // hardcode discarded the LLM type unconditionally; this confines the
-          // change to the opt-in ontology path.
-          type: deps.ontology !== undefined ? (e.type ?? 'PROPER') : 'PROPER',
+          // M13 T1.1 (ADR D1, #111) — the SEMANTIC type is honored on EVERY path:
+          // the pipeline already coerced it against exactly one vocabulary (the
+          // configured ontology OR the closed default taxonomy), so here a missing
+          // type simply defaults to OTHER. The old PROPER placeholder was the
+          // mechanism label the M13 DoD zeroes (review F-dom-db-1's identity-
+          // fragmentation concern is resolved by the D2 supersede migration, not
+          // by keeping the placeholder).
+          type: e.type ?? ONTOLOGY_FALLBACK_TYPE,
           name: e.name.trim(),
           normalizedKey: normalizeEntityKey(e.name),
         })),
@@ -160,7 +159,10 @@ export async function linkEntities(
         await upsertNodes(
           entityExtractor
             .extract(item.text)
-            .map((e) => ({ type: e.type, name: e.name.trim(), normalizedKey: normalizeEntityKey(e.name) })),
+            // M13 T1.1 — the compromise fallback emits MECHANISM labels
+            // (PROPER/COMPOUND/QUOTED); they carry no domain semantics and the
+            // M13 DoD zeroes them, so fallback entities persist as OTHER.
+            .map((e) => ({ type: ONTOLOGY_FALLBACK_TYPE, name: e.name.trim(), normalizedKey: normalizeEntityKey(e.name) })),
           item.id,
         );
       }
@@ -187,7 +189,7 @@ export async function linkEntities(
  * EC-1). Endpoints are resolved by name in the store; unresolved → skipped (D5).
  */
 async function linkEdges(
-  items: readonly MemoryItem[],
+  items: readonly LinkableItem[],
   filters: Filters,
   deps: EntityLinkingDeps,
   tracer: Tracer | undefined,
@@ -239,10 +241,10 @@ async function linkEdges(
         const embeddings = await deps.embedder.embedBatch(names);
         const endpointEntities: EntityToLink[] = names
           .map((name, i) => ({
-            // domain-ontologies (F-dom-2) — auto-created relation-endpoint nodes
-            // have no LLM type to coerce; under an ontology they take the OTHER
-            // fallback (in-vocab), keeping the default path on 'PROPER' (unchanged).
-            type: deps.ontology !== undefined ? ONTOLOGY_FALLBACK_TYPE : 'PROPER',
+            // domain-ontologies (F-dom-2) + M13 T1.1 — auto-created relation-endpoint
+            // nodes have no LLM type to coerce; they take the OTHER fallback
+            // unconditionally (mechanism labels are never persisted post-M13).
+            type: ONTOLOGY_FALLBACK_TYPE,
             name,
             normalizedKey: normalizeEntityKey(name),
             embedding: embeddings[i] ?? [],

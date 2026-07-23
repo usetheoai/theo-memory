@@ -566,3 +566,18 @@ export class SkillExecutorUnavailableError extends Error {
     Object.setPrototypeOf(this, SkillExecutorUnavailableError.prototype);
   }
 }
+
+/**
+ * Thrown by `ScopedMemory.listSessions()` when the wired vector store lacks the
+ * duck-typed `listSessions` extension (session-separation fix 2026-07-23). A
+ * silent `[]` would be dishonest — the sessions may exist but be unenumerable.
+ * Maps to HTTP 501 at the REST boundary.
+ */
+export class SessionsListingNotSupported extends Error {
+  override readonly name = 'SessionsListingNotSupported' as const;
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    Object.setPrototypeOf(this, SessionsListingNotSupported.prototype);
+  }
+}

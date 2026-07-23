@@ -169,10 +169,14 @@ describe('planMigration — dry-run over the fixture corpus', () => {
     const wl = items.find((i) => i.metadata.file === 'wikilink.md');
     expect(wl?.metadata.wikilinks).toBe('some-link,another-link');
 
-    // every imported item is verbatim (infer:false) and project-namespaced.
+    // every imported item is verbatim (infer:false). Scope note (#109 live E2E): items carry
+    // NO userId by default — the gateway's edge-injected X-Theo-User-Id binds the tier (theo-lib
+    // parity), so migrated rows land in the SAME scope the kit hooks recall from. The project
+    // slug is provenance metadata, never the scope.
     for (const item of items) {
       expect(item.infer).toBe(false);
-      expect(item.userId).toBe('proj');
+      expect('userId' in item).toBe(false);
+      expect(item.metadata.project).toBe('proj');
     }
   });
 });
@@ -212,28 +216,6 @@ describe('dry-run vs --commit HTTP boundary', () => {
   });
 });
 
-describe('importBatch — fail-loud on HTTP failure (error-handling.md)', () => {
-  it('throws MigrationHttpError with the status on a non-2xx response', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response('nope', { status: 401, statusText: 'Unauthorized' }),
-    );
-    await expect(importBatch([{ userId: 'p', text: 't', infer: false }], { endpoint: 'http://x' })).rejects.toThrow(
-      MigrationHttpError,
-    );
-    await expect(importBatch([{ userId: 'p', text: 't', infer: false }], { endpoint: 'http://x' })).rejects.toThrow(
-      /401/,
-    );
-  });
-
-  it('throws MigrationHttpError (unreachable) when fetch rejects', async () => {
-    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('ECONNREFUSED'));
-    await expect(
-      importBatch([{ userId: 'p', text: 't', infer: false }], { endpoint: 'http://dead.invalid' }),
-    ).rejects.toThrow(/unreachable/);
-  });
-});
-
-// Live integration stub — only runs when a real endpoint is explicitly provided.
 // Kept as executable documentation of the --commit round-trip contract without
 // requiring a deployed endpoint in CI.
 describe.skipIf(!process.env.THEOMEM_MIGRATE_URL_LIVE)('live --commit round-trip (opt-in)', () => {

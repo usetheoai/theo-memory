@@ -20,7 +20,7 @@ import type { EpisodeListOptions, Memory, ScopedMemory } from '@usetheo/memory/c
 import type { Context } from 'hono';
 import { z } from 'zod';
 
-import { principalUserId, workspaceBoundMemory } from './_body-parsing.js';
+import { actingUserId, workspaceBoundMemory } from './_body-parsing.js';
 
 const SCOPE_TYPES = ['user', 'session', 'agent'] as const;
 const ScopeTypeSchema = z.enum(SCOPE_TYPES);
@@ -95,7 +95,7 @@ export async function episodesHandler(c: Context, memory: Memory): Promise<Respo
     ...(q.q !== undefined ? { queryText: q.q } : {}),
   };
 
-  const scoped = pathParamsToScoped(workspaceBoundMemory(c, memory), typeParse.data, id, principalUserId(c));
+  const scoped = pathParamsToScoped(workspaceBoundMemory(c, memory), typeParse.data, id, actingUserId(c));
   const page = await scoped.episodes(options);
 
   const items = page.items.map((m) => ({

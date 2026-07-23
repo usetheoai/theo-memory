@@ -16,7 +16,7 @@ import { MemoryNotFound, WorkspaceMismatch } from '@usetheo/memory/contract';
 import type { Context } from 'hono';
 import { z } from 'zod';
 
-import { principalUserId, workspaceBoundMemory } from './_body-parsing.js';
+import { actingUserId, workspaceBoundMemory } from './_body-parsing.js';
 
 const SCOPE_TYPES = ['user', 'session', 'agent'] as const;
 const ScopeTypeSchema = z.enum(SCOPE_TYPES);
@@ -51,7 +51,7 @@ export async function scopedForgetHandler(c: Context, memory: Memory): Promise<R
   // `?hard=true` EXACTLY → hard delete; anything else (incl. "false") → soft.
   const hard = c.req.query('hard') === 'true';
 
-  const scoped = pathParamsToScoped(workspaceBoundMemory(c, memory), typeParse.data, id, principalUserId(c));
+  const scoped = pathParamsToScoped(workspaceBoundMemory(c, memory), typeParse.data, id, actingUserId(c));
   try {
     await scoped.forget(memId, hard ? { hard: true } : undefined);
   } catch (err) {

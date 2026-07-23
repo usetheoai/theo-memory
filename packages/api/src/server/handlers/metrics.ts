@@ -38,7 +38,7 @@ import type { Context } from 'hono';
 import { z } from 'zod';
 
 import { attributedPeerOf } from './_attributed-peer.js';
-import { principalUserId, workspaceBoundMemory } from './_body-parsing.js';
+import { actingUserId, workspaceBoundMemory } from './_body-parsing.js';
 
 const SCOPE_TYPES = ['user', 'session', 'agent'] as const;
 const ScopeTypeSchema = z.enum(SCOPE_TYPES);
@@ -83,8 +83,13 @@ export async function metricsHandler(
     return c.notFound();
   }
 
-  const scoped = pathParamsToScoped(workspaceBoundMemory(c, memory), typeParse.data, id, principalUserId(c));
+  const scoped = pathParamsToScoped(workspaceBoundMemory(c, memory), typeParse.data, id, actingUserId(c));
   const items = await scoped.getAll();
+  // #113 — the REAL scope total (store COUNT), never the page length: the live
+  // dashboard showed "TOTAL MEMORIES = 100" for a 440-memory scope because the
+  // getAll page cap leaked into the metric. `count` is optional-chained for
+  // adapters predating the contract addition (honest fallback: page length).
+  const total = typeof scoped.count === 'function' ? await scoped.count() : items.length;
 
   // Principal-derived workspace (mirrors the entities handler). One resolution,
   // reused by both the entity-store count and the recall counter below.
@@ -128,9 +133,9 @@ export async function metricsHandler(
 
   return c.json(
     {
-      total_memories: items.length,
+      total_memories: total,
       entity_count: entityCount,
-      add_events: items.length,
+      add_events: total,
       retrieval_api_usage: retrievalApiUsage,
     },
     200,

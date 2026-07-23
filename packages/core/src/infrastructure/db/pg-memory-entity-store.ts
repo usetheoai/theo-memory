@@ -109,7 +109,11 @@ export class PgMemoryEntityStore implements MemoryEntityStore {
               COALESCE(s.summary, '') AS summary
          FROM entities e
          JOIN memory_entities me ON me.entity_id = e.id
-         JOIN memories m ON m.id = me.memory_id
+         -- #115: LIVE memories only. Counting soft-deleted links made the
+         -- dashboard offer "Forget N memories" for entities whose links were
+         -- already forgotten (cascade then honestly deleted 0 — confusing).
+         -- An entity with zero live links drops out of the listing entirely.
+         JOIN memories m ON m.id = me.memory_id AND m.t_invalid IS NULL
          LEFT JOIN LATERAL (
            SELECT string_agg(rel, '; ' ORDER BY rel) AS summary
              FROM (
@@ -117,10 +121,12 @@ export class PgMemoryEntityStore implements MemoryEntityStore {
                  FROM entity_edges ee
                  JOIN entities te ON te.id = ee.target_entity_id
                 WHERE ee.source_entity_id = e.id
+                  AND te.superseded_by IS NULL
                   AND ee.t_invalid IS NULL
              ) d
          ) s ON true
         WHERE e.workspace_id = $1
+          AND e.superseded_by IS NULL
           AND COALESCE(e.user_id,'') = COALESCE($2,'')
           AND COALESCE(e.session_id,'') = COALESCE($3,'')
           AND COALESCE(e.agent_id,'') = COALESCE($4,'')
@@ -136,5 +142,80 @@ export class PgMemoryEntityStore implements MemoryEntityStore {
       lastSeenAt: r.last_seen_at instanceof Date ? r.last_seen_at.toISOString() : String(r.last_seen_at),
       summary: r.summary ?? '',
     }));
+  }
+
+  /**
+   * M13 T2.1 (#111) — auditable supersede in ONE transaction. The UPDATE's
+   * `superseded_by IS NULL` predicate is the atomic arbiter for concurrent
+   * calls (exactly one wins); the target is validated fail-closed BEFORE any
+   * write (lesson theo-cloud#252). Never DELETE — links move, edges repoint,
+   * the old row keeps its history behind the pointer.
+   */
+  async supersedeEntity(params: { oldId: string; newId: string; workspaceId: string }): Promise<boolean> {
+    const { oldId, newId, workspaceId } = params;
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      // Fail-closed target validation (both rows, same workspace, new not superseded).
+      const check = await client.query<{ id: string }>(
+        `SELECT id FROM entities WHERE id = $1 AND workspace_id = $2 AND superseded_by IS NULL`,
+        [newId, workspaceId],
+      );
+      if (check.rowCount === 0) {
+        throw new Error(`supersedeEntity: target entity ${newId} not found (or superseded) in workspace`);
+      }
+      // Atomic arbiter: only the call that flips NULL→newId proceeds to repoint.
+      const marked = await client.query(
+        `UPDATE entities SET superseded_by = $1 WHERE id = $2 AND workspace_id = $3 AND superseded_by IS NULL`,
+        [newId, oldId, workspaceId],
+      );
+      if ((marked.rowCount ?? 0) === 0) {
+        await client.query('ROLLBACK');
+        return false; // already superseded (idempotent) or old row absent
+      }
+      // Repoint links: copy then drop (composite PK → ON CONFLICT DO NOTHING).
+      await client.query(
+        `INSERT INTO memory_entities (memory_id, entity_id)
+         SELECT memory_id, $1 FROM memory_entities WHERE entity_id = $2
+         ON CONFLICT DO NOTHING`,
+        [newId, oldId],
+      );
+      await client.query(`DELETE FROM memory_entities WHERE entity_id = $1`, [oldId]);
+      // Repoint edge endpoints (provenance source_memory_id untouched).
+      // /review F-arch-1/F-dom-db-1: a blind UPDATE collides with
+      // entity_edges_scope_triple_uq when NEW already carries the identical
+      // triple — drop the colliding old-side row FIRST (its image already
+      // exists), then repoint the remainder. Same shape as the links path.
+      for (const [endpoint, mirror] of [
+        ['source_entity_id', 'target_entity_id'],
+        ['target_entity_id', 'source_entity_id'],
+      ] as const) {
+        await client.query(
+          `DELETE FROM entity_edges old
+            WHERE old.${endpoint} = $2 AND old.workspace_id = $3
+              AND EXISTS (SELECT 1 FROM entity_edges nw
+                    WHERE nw.workspace_id = old.workspace_id
+                      AND COALESCE(nw.user_id,'') = COALESCE(old.user_id,'')
+                      AND COALESCE(nw.session_id,'') = COALESCE(old.session_id,'')
+                      AND COALESCE(nw.agent_id,'') = COALESCE(old.agent_id,'')
+                      AND nw.${endpoint} = $1
+                      AND nw.${mirror} = old.${mirror}
+                      AND nw.normalized_relation = old.normalized_relation
+                      AND COALESCE(nw.source_memory_id::text,'') = COALESCE(old.source_memory_id::text,''))`,
+          [newId, oldId, workspaceId],
+        );
+        await client.query(
+          `UPDATE entity_edges SET ${endpoint} = $1 WHERE ${endpoint} = $2 AND workspace_id = $3`,
+          [newId, oldId, workspaceId],
+        );
+      }
+      await client.query('COMMIT');
+      return true;
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 }

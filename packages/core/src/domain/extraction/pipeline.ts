@@ -25,6 +25,7 @@ import { lemmatizeForBm25 } from '../lemmatization.js';
 import { emitEvent } from '../memory-event.js';
 import type { MemoryItem } from '../memory-item.js';
 import type { Message } from '../message.js';
+import { DEFAULT_ENTITY_TAXONOMY } from '../ontology.js';
 import type { RememberOptions } from '../options.js';
 import type { Filters } from '../scope.js';
 
@@ -228,13 +229,16 @@ export async function runExtractionPipeline(
     return [];
   }
 
-  // domain-ontologies T2.2 (ADR D2) — when an ontology is configured, validate
-  // the LLM's entity types against the domain vocabulary: out-of-vocab → OTHER
-  // + emit `ontology_type_coerced` (Princípio 3 observability). Fail-soft: an
-  // ontology error degrades to the raw entities — it NEVER fails remember().
-  if (deps.ontology !== undefined && llmEntities !== undefined) {
+  // domain-ontologies T2.2 (ADR D2) + M13 T1.1 (ADR D1, #111) — ALWAYS coerce the
+  // LLM's entity types against exactly ONE vocabulary (mutually exclusive by
+  // construction — EC-2): the configured Item 15 ontology when present, else the
+  // closed DEFAULT taxonomy (PERSON|ORG|PLACE|PRODUCT|CONCEPT|OTHER — the menu the
+  // Phase 2 prompt already requests). Out-of-vocab → OTHER + `ontology_type_coerced`
+  // (Princípio 3). Fail-soft: a coercion error degrades to raw entities — it NEVER
+  // fails remember().
+  if (llmEntities !== undefined) {
     try {
-      llmEntities = applyOntologyToEntities(llmEntities, deps.ontology, tracer);
+      llmEntities = applyOntologyToEntities(llmEntities, deps.ontology ?? DEFAULT_ENTITY_TAXONOMY, tracer);
     } catch {
       // degrade to raw entities (fail-soft); coercion is best-effort enrichment.
     }

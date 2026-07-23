@@ -151,6 +151,12 @@ export interface VectorStore {
     filters?: Filters,
     topK?: number,
     includeSoftDeleted?: boolean,
+    /**
+     * SQL-level page offset under the deterministic `created_at DESC, id ASC`
+     * order (dashboard pager 2026-07-22 — offset was silently ignored end-to-end
+     * and no page beyond the first was reachable). Default `0`.
+     */
+    offset?: number,
   ): Promise<readonly [readonly VectorStoreResult[], number]>;
 
   /**

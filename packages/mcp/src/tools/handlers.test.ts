@@ -266,7 +266,8 @@ describe('dispatch — skills write surface (skills-write-surface T2.3)', () => 
       ),
     );
 
-    expect(vi.mocked(memory.skills)).toHaveBeenCalledWith('acme');
+    // #114: repoId namespaced with the auth subject (BFF D3 parity) — dashboard visibility.
+    expect(vi.mocked(memory.skills)).toHaveBeenCalledWith('alice:acme');
     expect(skillScoped.add).toHaveBeenCalledWith({ code: 'export const x=1;', description: 'a skill', codeLanguage: 'typescript' });
     expect(result.isError ?? false).toBe(false);
     expect(JSON.stringify(result.content)).toContain('sk-1');
@@ -314,6 +315,25 @@ describe('dispatch — skills write surface (skills-write-surface T2.3)', () => 
     );
     expect(result.isError ?? false).toBe(false);
   });
+
+  // #114 backward-compat: a no-auth transport (stdio local dev — scope without a
+  // session userId) keeps the BARE repoId, matching pre-fix single-user behavior.
+  it('add_skill keeps the bare repoId when the scope carries no auth userId', async () => {
+    const skillScoped = { add: vi.fn(), recall: vi.fn(), getAll: vi.fn(), consolidate: vi.fn(), forget: vi.fn() };
+    skillScoped.add.mockResolvedValue({ id: 'sk-2', hash: 'h-2' });
+    const memory = mock<Memory>();
+    vi.mocked(memory.skills).mockReturnValue(skillScoped as never);
+
+    const result = await withScope({ session: null }, () =>
+      dispatch(
+        'add_skill',
+        { repoId: 'acme', code: 'x', description: 'local skill', codeLanguage: 'typescript' },
+        { memoryFactory: () => memory },
+      ),
+    );
+    expect(vi.mocked(memory.skills)).toHaveBeenCalledWith('acme');
+    expect(result.isError ?? false).toBe(false);
+  });
 });
 
 describe('execute_skill dispatch — T2.4', () => {
@@ -349,7 +369,8 @@ describe('execute_skill dispatch — T2.4', () => {
       ),
     );
 
-    expect(vi.mocked(memory.skills)).toHaveBeenCalledWith('acme');
+    // #114: repoId namespaced with the auth subject (BFF D3 parity) — dashboard visibility.
+    expect(vi.mocked(memory.skills)).toHaveBeenCalledWith('alice:acme');
     expect(execute).toHaveBeenCalledWith('sk-1', { x: 2, y: 3 }, undefined);
     expect(result.isError).toBe(false);
     expect(JSON.stringify(result.content)).toContain('5');
@@ -444,7 +465,7 @@ describe('workspace isolation across all tool verbs (T3.1, #82)', () => {
     );
 
     expect(vi.mocked(root.withWorkspace!)).toHaveBeenCalledWith('tn-A');
-    expect(vi.mocked(bound.skills)).toHaveBeenCalledWith('acme'); // skills resolved on the WS-bound memory
+    expect(vi.mocked(bound.skills)).toHaveBeenCalledWith('alice:acme'); // WS-bound + #114 subject-namespaced
   });
 
   // F-xval-1 (HIGH) — the plan-mandated ALS concurrency test. Two recall dispatches

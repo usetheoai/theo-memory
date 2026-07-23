@@ -99,6 +99,9 @@ export class PgGraphExpansionStore implements GraphExpansionStore {
              count(DISTINCT me.entity_id) AS shared_entities
         FROM memory_entities me
         JOIN expanded_entities xe ON xe.entity_id = me.entity_id
+        -- M13 T2.2 (#111): live entities only — a superseded row must never carry
+        -- an expansion path (defense in depth for mid-backfill residual links).
+        JOIN entities ent ON ent.id = me.entity_id AND ent.superseded_by IS NULL
         JOIN memories m ON m.id = me.memory_id
        WHERE me.memory_id <> ALL($1::uuid[])
          AND m.workspace_id = $2

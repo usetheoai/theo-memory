@@ -14,11 +14,17 @@ async function main() {
   const project = projectOf(input.cwd);
   const { userId } = loadEnv();
 
-  // Omit userId by default → the gateway's X-Theo-User-Id drives the tier, so recall
-  // reads the account's ONE unified space (what the dashboard shows). Query stays the
-  // project name so the injected context is relevant to where you are.
+  // Session-separation (2026-07-23, M8 model): recall from the SESSION tier when the
+  // payload carries the Claude Code session_id — the session scope reads SESSION ∪
+  // GLOBAL (its own working memory plus the user's durable facts), so a fresh session
+  // still gets the global space while an ongoing one also sees its own writes.
+  // Exactly ONE tier key (server superRefine): sessionId wins; legacy userId pin
+  // (raw REST without edge) only applies when no session id is present.
+  const sessionId = typeof input.session_id === 'string' && input.session_id.length > 0
+    ? input.session_id
+    : undefined;
   const result = await post('/v1/recall', {
-    ...(userId ? { userId } : {}),
+    ...(sessionId ? { sessionId } : userId ? { userId } : {}),
     query: project,
     topK: 5,
   });

@@ -17,12 +17,16 @@ import {
 import { describe, expect, test, vi } from 'vitest';
 
 import { MAX_EMBEDDING_DIM } from './constants.js';
+
 import type { Embedder } from './dip/embedder.js';
 import type { EntityExtractor } from './dip/entity-extractor.js';
 import type { LLM } from './dip/llm.js';
 import type { MemoryEntityStore, UpsertAndLinkParams } from './dip/memory-entity-store.js';
 import type { InsertOutcome, VectorStore, VectorStoreResult } from './dip/vector-store.js';
+import { linkEntities } from './extraction/entity-linking.js';
+import { applyOntologyToEntities } from './extraction/pipeline-helpers.js';
 import { runExtractionPipeline } from './extraction/pipeline.js';
+import { DEFAULT_ENTITY_TAXONOMY } from './ontology.js';
 import type { Filters } from './scope.js';
 
 type Payload = Record<string, string | number | boolean | null>;
@@ -85,6 +89,7 @@ function spyStore(): { store: MemoryEntityStore; calls: UpsertAndLinkParams[] } 
     store: {
       upsertAndLink: vi.fn(async (p: UpsertAndLinkParams) => { calls.push(p); await Promise.resolve(); }),
       list: vi.fn(async () => []),
+      supersedeEntity: vi.fn(async () => false),
     },
   };
 }
@@ -115,6 +120,55 @@ describe('Phase 7 — entity linking (T3.1)', () => {
     expect(calls[0]?.entities.map((e) => e.name).sort()).toEqual(['Google', 'John Smith']);
     expect(calls[0]?.entities[0]?.embedding).toHaveLength(MAX_EMBEDDING_DIM);
     expect(calls[0]?.entities[0]?.normalizedKey).toBeDefined();
+  });
+
+  // M13 T1.1 (ADR D1, #111) — semantic types by default, mechanism labels never persisted.
+  test('test_missing_type_defaults_to_other — LLM entity without type persists as OTHER', async () => {
+    const { store, calls } = spyStore();
+    await runExtractionPipeline(
+      [{ role: 'user', content: 'Adalove shipped a device' }],
+      { user_id: 'alice', workspace_id: 'default' },
+      {
+        vectorStore: new StubVectorStore(),
+        embedder: makeEmbedder(),
+        llm: makeLlm({ memory: [{ id: '0', text: 'Adalove shipped a device' }], entities: [{ name: 'Adalove' }] }),
+        memoryEntityStore: store,
+      },
+    );
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.entities[0]?.type).toBe('OTHER');
+  });
+
+  test('test_llm_semantic_type_persists_without_ontology — PERSON survives the default path', async () => {
+    const { store, calls } = spyStore();
+    await runExtractionPipeline(
+      [{ role: 'user', content: 'Adalove shipped a device' }],
+      { user_id: 'alice', workspace_id: 'default' },
+      {
+        vectorStore: new StubVectorStore(),
+        embedder: makeEmbedder(),
+        llm: makeLlm({ memory: [{ id: '0', text: 'Adalove shipped a device' }], entities: [{ name: 'Adalove', type: 'PERSON' }] }),
+        memoryEntityStore: store,
+      },
+    );
+    expect(calls[0]?.entities[0]?.type).toBe('PERSON');
+  });
+
+  test('test_fallback_extractor_mechanism_labels_coerced_to_other', async () => {
+    const { store, calls } = spyStore();
+    await runExtractionPipeline(
+      [{ role: 'user', content: 'John Smith works at Google' }],
+      { user_id: 'alice', workspace_id: 'default' },
+      {
+        vectorStore: new StubVectorStore(),
+        embedder: makeEmbedder(),
+        llm: oneFactLlm(), // no LLM entities → compromise fallback fires
+        entityExtractor: makeExtractor([{ type: 'PROPER', name: 'John Smith' }]),
+        memoryEntityStore: store,
+      },
+    );
+    // Mechanism labels (PROPER/COMPOUND/QUOTED) never reach the store post-M13.
+    expect(calls[0]?.entities[0]?.type).toBe('OTHER');
   });
 
   test('F-L4: emits entity_linked on the success path', async () => {
@@ -406,5 +460,33 @@ describe('Phase 7 — LLM is the PRIMARY (multilingual) node source', () => {
     expect(extractor.extract).toHaveBeenCalled();
     const linkedNames = calls.flatMap((c) => c.entities.map((e) => e.name));
     expect(linkedNames).toContain('John Smith');
+  });
+
+  test('test_lowercase_semantic_type_normalized_before_validation', async () => {
+    // /review F-tests-1 (M13): plan T1.1 Deep Dive — an LLM emitting 'person'
+    // must persist PERSON, never be silently coerced to OTHER by exact-match.
+    const upserted: { type: string }[] = [];
+    const store: MemoryEntityStore = {
+      upsertAndLink: vi.fn(async (p: UpsertAndLinkParams) => {
+        for (const e of p.entities) upserted.push({ type: e.type });
+      }),
+      list: vi.fn(async () => []),
+      supersedeEntity: vi.fn(async () => false),
+    };
+    await linkEntities(
+      [{ id: 'm-lower', text: 'Paulo joined Acme' }],
+      { user_id: 'alice' },
+      {
+        embedder: {
+          embed: async () => [0.1, 0.2],
+          embedBatch: async (t: readonly string[]) => t.map(() => [0.1, 0.2]),
+        },
+        memoryEntityStore: store,
+      },
+      undefined,
+      undefined,
+      applyOntologyToEntities([{ name: 'Paulo', type: 'person' }], DEFAULT_ENTITY_TAXONOMY, undefined),
+    );
+    expect(upserted.map((u) => u.type)).toEqual(['PERSON']);
   });
 });

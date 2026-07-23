@@ -37,6 +37,14 @@ export const MEMORY_EVENTS = [
   // indistinguishably from "no input" — the IGNORE decision was silent.
   // @see CLAUDE.md § IMPORTANTE Princípio 3
   'extraction_zero_facts',
+  // M13 T3.1 (#111) — `themory reextract` observability: fires once per chunk
+  // with processed/skipped counters so the operator can watch backfill progress
+  // (Princípio 3 — the job's IGNORE decisions are visible, never silent).
+  'reextract_chunk_done',
+  // m13-noise-retirement T1.1 (#111) — fires once per `--retire-mechanism` run
+  // with candidates/retired/links/edges counts (dry-run included). Princípio 3:
+  // the bulk forget decision is observable, never silent.
+  'reextract_noise_retired',
   // principles-alignment-hardening T4.1 — Princípio 3 IGNORE auditability per
   // ADR D2: fires when retrieval pipeline's threshold-filter step drops N
   // sub-threshold candidates. Attributes include filtered_count so consumers
@@ -78,6 +86,11 @@ export const MEMORY_EVENTS = [
   // filtered_count = 0 (mirrors recall_threshold_filtered). Makes the IGNORE
   // decision observable. @see CLAUDE.md § IMPORTANTE Princípio 3
   'entity_noise_filtered',
+  // #110 — a hard forget garbage-collected entity rows that lost their LAST
+  // memory link (targeted refcount GC in the same transaction as the delete).
+  // Attributes `entities_collected` + `edges_collected`. Makes graph shrinkage
+  // observable (Princípio 3) — orphan entities were 48% of the dev graph before.
+  'entity_gc_collected',
   // themory-scoped-forget-and-retrieval-counter T2.3 — the per-scope recall
   // counter increment failed (non-fatal; fail-soft per Princípio 3 — a recall()
   // MUST NEVER fail because `retrieval_api_usage` could not be bumped). Mirrors

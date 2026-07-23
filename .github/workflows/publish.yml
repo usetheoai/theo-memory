@@ -13,6 +13,14 @@ on:
     branches: [develop]
     tags: ["v*"]
   workflow_dispatch:
+# Single self-hosted runner: successive develop pushes must SUPERSEDE (cancel) the
+# queued/older run instead of piling up — the newest run always redeploys, so a
+# cancelled predecessor is never left without a successor deploy (2026-07-22 incident:
+# a manual cancel mid-deploy with no successor left the dev host down). Tag runs get
+# their own group per ref and are never cancelled by develop pushes.
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
 permissions:
   contents: read
   packages: write

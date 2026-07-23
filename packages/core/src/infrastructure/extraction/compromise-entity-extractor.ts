@@ -12,65 +12,30 @@
  */
 import type { EntityExtractor, EntityType, ExtractedEntity } from '../../domain/dip/entity-extractor.js';
 import { isEntityNoise } from '../../domain/extraction/entity-noise-filter.js';
+import { detectInputLanguage } from '../../domain/extraction/language.js';
+
+import {
+  BOUNDARY_STOP,
+  CONJUGATED_VERB,
+  GENERIC_HEADS,
+  NON_SPECIFIC_ADJ,
+  PROPER_GLUE,
+  SENTENCE_STARTERS,
+} from './english-word-lists.js';
+
+/**
+ * Scrub redaction markers (`[REDACTED:high_entropy]`, …) MUST never surface as
+ * entities (#111 — the marker survived the bare-token strip as `REDACTEDhighentropy`
+ * and became the 2nd most-connected "entity" in the dev graph). Stripped from the
+ * input before any extraction path runs.
+ */
+const REDACTION_MARKER = /\[REDACTED:[a-z_]+\]/gi;
+
+/** QUOTED spans longer than this are whole-sentence quotes, not entity titles (#111). */
+const MAX_QUOTED_WORDS = 6;
 
 /** Minimum surface length for a candidate to count as an entity (EC-2). */
 const MIN_NAME_LENGTH = 2;
-
-/** Words too generic to be a useful entity head. */
-const GENERIC_HEADS = new Set<string>([
-  'thing', 'things', 'stuff', 'way', 'time', 'experience', 'situation', 'case',
-  'fact', 'matter', 'issue', 'idea', 'thought', 'feeling', 'place', 'area',
-  'part', 'kind', 'type', 'sort', 'lot', 'bit', 'day', 'year', 'week', 'month',
-  'moment', 'instance', 'example', 'technique', 'method', 'approach', 'process',
-  'step', 'tool', 'result', 'outcome', 'goal', 'task', 'item', 'topic',
-]);
-
-/** Adjectives too vague to make a compound specific. */
-const NON_SPECIFIC_ADJ = new Set<string>([
-  'many', 'few', 'several', 'some', 'any', 'all', 'most', 'more', 'less', 'much',
-  'little', 'enough', 'various', 'numerous', 'multiple', 'great', 'good', 'bad',
-  'nice', 'best', 'worst', 'new', 'old', 'recent', 'current', 'previous', 'next',
-  'last', 'first', 'other', 'another', 'such', 'certain', 'important', 'main',
-  'major', 'minor', 'key', 'primary', 'real', 'whole', 'entire', 'full',
-  'complete', 'total', 'basic', 'simple', 'general', 'common', 'usual', 'normal',
-]);
-
-/** Capitalization-insensitive function words that may glue a proper sequence. */
-const PROPER_GLUE = new Set<string>(['of', 'the', 'and', 'for', 'in', 'at']);
-
-/** Function words that, when a candidate STARTS or ENDS with them (or consists
- *  entirely of them), mark the candidate as a predicate/clause fragment rather
- *  than an entity — e.g. "is a", "on the", "and commutes", "lives in", "s skip".
- *  These leak from `nouns()` over-matching and the regex-fallback bigrams. */
-const BOUNDARY_STOP = new Set<string>([
-  // copulas / auxiliaries
-  'is', 'are', 'was', 'were', 'be', 'been', 'being', 'am', "'s", 's', "'re", 'do',
-  'does', 'did', 'will', 'would', 'can', 'could', 'should', 'may', 'might', 'must',
-  // articles / determiners / pronouns
-  'a', 'an', 'the', 'this', 'that', 'these', 'those', 'it', 'its', 'i', 'we', 'they',
-  'he', 'she', 'you', 'my', 'our', 'your', 'his', 'her', 'their',
-  // prepositions / conjunctions
-  'of', 'on', 'in', 'at', 'to', 'for', 'and', 'or', 'but', 'with', 'by', 'from',
-  'as', 'than', 'then', 'so', 'about', 'into', 'onto', 'over', 'under',
-]);
-
-/** Unambiguously-verbal (conjugated) forms — a candidate whose first or last
- *  token (after boundary-stripping) is one of these is a relation/clause fragment
- *  ("project uses", "lives in"→"lives", "and commutes"→"commutes"), not an entity.
- *  Only conjugated forms (-s / -ed / irregular past) are listed: BASE forms (lead,
- *  run, build, report, study, work, manage…) are noun-homographs ("team lead",
- *  "morning run", "the build") and MUST NOT be dropped — keeps recall on the
- *  English fallback path now that the LLM is the primary node source. */
-const CONJUGATED_VERB = new Set<string>([
-  'uses', 'used', 'using', 'lives', 'lived', 'living', 'commutes', 'commuted',
-  'commuting', 'works', 'worked', 'working', 'reports', 'reported', 'reporting',
-  'studies', 'studied', 'acquires', 'acquired', 'manages', 'managed', 'managing',
-  'builds', 'built', 'knows', 'knew', 'knowing', 'runs', 'ran', 'running', 'makes',
-  'made', 'making', 'leads', 'led', 'leading', 'joins', 'joined', 'joining',
-  'leaves', 'left', 'leaving', 'owns', 'owned', 'owning', 'likes', 'liked',
-  'wants', 'wanted', 'needs', 'needed', 'gets', 'got', 'getting', 'goes', 'went',
-  'going', 'comes', 'came', 'coming', 'is', 'are', 'was', 'were',
-]);
 
 /** Trim leading/trailing function words from a candidate and drop predicate/clause
  *  fragments. Returns the cleaned entity name, or `null` when nothing entity-like
@@ -87,17 +52,6 @@ export function cleanCandidateName(raw: string): string | null {
   if (CONJUGATED_VERB.has(first) || CONJUGATED_VERB.has(last)) return null;
   return tokens.join(' ');
 }
-
-/** Common sentence-initial words that are NOT proper nouns even when capitalized.
- *  A LONE sentence-initial capital matching this set is dropped (precision); a
- *  capital that starts a multi-word run, or a non-starter like "Google", is kept
- *  (recall) — fixes the sentence-initial truncation edge from the /review. */
-const SENTENCE_STARTERS = new Set<string>([
-  'the', 'a', 'an', 'this', 'that', 'these', 'those', 'i', 'we', 'he', 'she',
-  'they', 'it', 'you', 'my', 'our', 'your', 'his', 'her', 'their', 'today',
-  'yesterday', 'tomorrow', 'then', 'there', 'here', 'when', 'where', 'why',
-  'how', 'what', 'who', 'if', 'so', 'but', 'and', 'or', 'now', 'later',
-]);
 
 type NlpFactory = (text: string) => {
   nouns: () => { out: (fmt: 'array') => string[] };
@@ -144,16 +98,26 @@ function pushUnique(acc: Map<string, ExtractedEntity>, type: EntityType, raw: st
   if (!acc.has(key)) acc.set(key, { type, name });
 }
 
+/** Push a QUOTED candidate unless it is a whole-sentence quote (#111). */
+function pushQuoted(acc: Map<string, ExtractedEntity>, raw: string): void {
+  if (raw.trim().split(/\s+/).filter(Boolean).length > MAX_QUOTED_WORDS) return;
+  pushUnique(acc, 'QUOTED', raw);
+}
+
 function extractQuoted(text: string, acc: Map<string, ExtractedEntity>): void {
   const doubleQuote = /"([^"]+)"/g;
   let m: RegExpExecArray | null;
-  while ((m = doubleQuote.exec(text)) !== null) pushUnique(acc, 'QUOTED', m[1] ?? '');
+  while ((m = doubleQuote.exec(text)) !== null) pushQuoted(acc, m[1] ?? '');
   const singleQuote = /(?:^|[\s([{,;])'([^']+)'(?=[\s.,;:!?)\]]|$)/g;
-  while ((m = singleQuote.exec(text)) !== null) pushUnique(acc, 'QUOTED', m[1] ?? '');
+  while ((m = singleQuote.exec(text)) !== null) pushQuoted(acc, m[1] ?? '');
 }
 
 /** Capitalized multi/single-word sequences not at sentence start. */
-function extractProper(text: string, acc: Map<string, ExtractedEntity>): void {
+function extractProper(
+  text: string,
+  acc: Map<string, ExtractedEntity>,
+  opts: { keepLoneCapitals: boolean } = { keepLoneCapitals: true },
+): void {
   const sentences = text.split(/(?<=[.!?])\s+/);
   for (const sentence of sentences) {
     const tokens = sentence.split(/\s+/).filter(Boolean);
@@ -166,9 +130,17 @@ function extractProper(text: string, acc: Map<string, ExtractedEntity>): void {
         // Drop a LONE sentence-initial capital that is a common starter stopword
         // (e.g. "The", "Today", "I") — but keep multi-word runs ("John Smith") and
         // lone non-starters ("Google"). Fixes the sentence-initial recall edge.
-        const loneSentenceInitialStarter =
-          run.length === 1 && runStartIdx === 0 && SENTENCE_STARTERS.has((run[0] ?? '').toLowerCase());
-        if (run.length > 0 && !loneSentenceInitialStarter) pushUnique(acc, 'PROPER', run.join(' '));
+        // #111 (global corpora): for non-English text the EN starter list cannot apply,
+        // so ANY lone sentence-initial capital is dropped by POSITION (no per-language
+        // vocabulary) — "Não"/"Aber"/"Entonces" are casing artifacts, while multi-word
+        // runs ("São Paulo", "Claude Code") always survive.
+        const loneSentenceInitial = run.length === 1 && runStartIdx === 0;
+        const dropLone = loneSentenceInitial
+          ? opts.keepLoneCapitals
+            ? SENTENCE_STARTERS.has((run[0] ?? '').toLowerCase())
+            : true
+          : false;
+        if (run.length > 0 && !dropLone) pushUnique(acc, 'PROPER', run.join(' '));
       }
       run = [];
       runStartIdx = -1;
@@ -193,35 +165,39 @@ function extractProper(text: string, acc: Map<string, ExtractedEntity>): void {
   }
 }
 
-/** Multi-word noun phrases with a non-vague modifier (e.g. "machine learning"). */
-function extractCompound(
+/**
+ * NLP-derived paths, merged (hook: no dup blocks): COMPOUND — multi-word noun
+ * phrases with a non-vague modifier (e.g. "machine learning") — and NOUN — single
+ * salient nouns (skipped entirely in regex fallback). Both are `nouns()`-derived,
+ * English-only signals; the caller gates them off for non-English text (#111).
+ */
+function extractNlpDerived(
   text: string,
   acc: Map<string, ExtractedEntity>,
   nlp: NlpFactory | undefined,
 ): void {
-  const nounPhrases = collectNounPhrases(text, nlp);
-  for (const phrase of nounPhrases) {
+  for (const phrase of collectNounPhrases(text, nlp)) {
     const words = phrase.split(/\s+/).filter(Boolean);
-    if (words.length < 2) continue;
-    const head = (words[words.length - 1] ?? '').toLowerCase();
-    const modifier = (words[0] ?? '').toLowerCase();
-    if (GENERIC_HEADS.has(head)) continue;
-    if (NON_SPECIFIC_ADJ.has(modifier)) continue;
-    pushUnique(acc, 'COMPOUND', words.join(' '));
+    if (words.length >= 2) {
+      const head = (words[words.length - 1] ?? '').toLowerCase();
+      const modifier = (words[0] ?? '').toLowerCase();
+      if (GENERIC_HEADS.has(head)) continue;
+      if (NON_SPECIFIC_ADJ.has(modifier)) continue;
+      pushUnique(acc, 'COMPOUND', words.join(' '));
+    } else if (nlp !== undefined) {
+      const noun = words[0] ?? '';
+      if (GENERIC_HEADS.has(noun.toLowerCase())) continue;
+      if (/^[a-z]/.test(noun)) pushUnique(acc, 'NOUN', noun);
+    }
   }
 }
 
-/** Single salient nouns (NLP-derived; skipped entirely in regex fallback). */
-function extractNoun(
-  text: string,
-  acc: Map<string, ExtractedEntity>,
-  nlp: NlpFactory | undefined,
-): void {
-  if (nlp === undefined) return;
-  for (const noun of collectNouns(text, nlp)) {
-    const lower = noun.toLowerCase();
-    if (GENERIC_HEADS.has(lower)) continue;
-    if (noun.split(/\s+/).length === 1 && /^[a-z]/.test(noun)) pushUnique(acc, 'NOUN', noun);
+/** NLP nouns() with crash isolation — shared by the compound + noun paths (hook: no dup blocks). */
+function safeNouns(text: string, nlp: NlpFactory): string[] {
+  try {
+    return nlp(text).nouns().out('array');
+  } catch {
+    return [];
   }
 }
 
@@ -234,19 +210,7 @@ function collectNounPhrases(text: string, nlp: NlpFactory | undefined): string[]
     while ((m = re.exec(text)) !== null) out.push(`${m[1]} ${m[2]}`);
     return out;
   }
-  try {
-    return nlp(text).nouns().out('array');
-  } catch {
-    return [];
-  }
-}
-
-function collectNouns(text: string, nlp: NlpFactory): string[] {
-  try {
-    return nlp(text).nouns().out('array');
-  } catch {
-    return [];
-  }
+  return safeNouns(text, nlp);
 }
 
 export class CompromiseEntityExtractor implements EntityExtractor {
@@ -264,12 +228,19 @@ export class CompromiseEntityExtractor implements EntityExtractor {
   }
 
   extract(text: string): readonly ExtractedEntity[] {
-    if (text.trim().length === 0) return [];
+    // #111 gate 1 (language-independent): scrub redaction markers never become entities.
+    const clean = text.replace(REDACTION_MARKER, ' ');
+    if (clean.trim().length === 0) return [];
     const acc = new Map<string, ExtractedEntity>();
-    extractQuoted(text, acc);
-    extractProper(text, acc);
-    extractCompound(text, acc, this.nlp);
-    extractNoun(text, acc, this.nlp);
+    extractQuoted(clean, acc);
+    // #111 gate 2 (language-agnostic, no per-language lists): this extractor's heuristics
+    // are ENGLISH-only. For detected non-English text, the nouns()-derived paths are
+    // skipped entirely, and PROPER keeps only multi-word runs (lone sentence-initial
+    // capitals like "Não"/"Aber"/"Entonces" are positional artifacts, not entities).
+    const lang = detectInputLanguage(clean);
+    const isEnglishish = lang === null || lang.iso6391 === 'en';
+    extractProper(clean, acc, { keepLoneCapitals: isEnglishish });
+    if (isEnglishish) extractNlpDerived(clean, acc, this.nlp);
     return Array.from(acc.values());
   }
 }
