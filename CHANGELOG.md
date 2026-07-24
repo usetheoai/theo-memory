@@ -5,6 +5,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.43.0] - 2026-07-24
+
+### Added
 - **M14 Phase 5 — gate de isolamento (workspace, user) + benchmark do recall por-prompt.** Teste HARD GATE `tests/integration/kit-recall-parity/isolation.test.ts` (contra `ankane/pgvector:v0.5.1`): prova cross-TENANT E cross-USER para as 4 superfícies novas (get_memory, list_entities, update_memory, delete_entities) + o cenário fail-closed #252 (delete sem user confirmado aborta, nada removido) — 5/5. Benchmark `recall-coverage-benchmark.test.ts` (determinístico, sem API key): a fração `last_accessed_at IS NULL` cai de **100% baseline → 80%** (query constante do nome do projeto, comportamento do hook antigo — reproduz o ~79% medido em produção) → **5%** (12 queries distintas por-prompt, hook novo) = **75 pontos** de redução. Números persistidos em `knowledge-base/implementations/claude-code-kit-recall-parity-benchmark.json`. (M14)
 - **M14 T4.2 — manifesto de distribuição (marketplace).** `.claude-plugin/plugin.json` + `.claude-plugin/marketplace.json` (formato do kit de referência): declaram os 8 hooks (4 novos M14 + 4 existentes) + o comando `/onboard` + `userConfig` (URL + token). README documenta os hooks novos + a seção `/onboard`. Empacota o kit para instalação via marketplace. (M14)
 - **M14 T4.1 — wizard `/onboard` idempotente.** Novo `theo-onboard.mjs`: detecta `CLAUDE.md`/`AGENTS.md` no cwd e os importa como memórias de perfil (reusa o conceito do `themory import claude-code` do M12, adaptado ao `post()` do kit). Idempotência por hash de conteúdo (marker local por-projeto) — re-rodar com conteúdo igual não duplica. Scope `(workspace,user)` do Principal server-side (ADR-M14-1): o body só carrega conteúdo, nunca identidade; sem token não importa (EC-2). (M14)
@@ -27,19 +41,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 - **CI: pipeline mais rápida (#116).** (1) `paths-ignore` (`.claude/**`, `**/*.md`) nos 3 workflows — pushes só-de-docs param de disparar build/deploy/testes/scan (o build de tag `v*` aponta para merge commits com código, nunca é filtrado). (2) Dockerfile: `COPY` reordenado (manifests → `pnpm install` → source) nos stages builder + production-deps, para o layer de install ser cache-hit quando só o código muda — evita recompilar os módulos nativos (isolated-vm/onnxruntime/sharp) a cada push. (3) Cache mount BuildKit no store pnpm (`--mount=type=cache`) em ambos os installs — deps inalteradas linkam do store persistido em vez de re-baixar.
-
-
-### Added
-
-### Changed
-
-### Deprecated
-
-### Removed
-
-### Fixed
-
-### Security
 
 ## [0.42.0] - 2026-07-23
 
