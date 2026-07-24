@@ -120,6 +120,93 @@ são todos anteriores ao M15.
 Precedente do repo para dívida pré-existente registrada e não corrigida na hora:
 `pgvector-store.ts` (1344 linhas), `run-mcp-server.ts` (433), `handlers.test.ts` (521).
 
+## Phase 3 + T4.1 benchmark (2026-07-24)
+
+| Task | Status | Wiring (a/b/c) | Note |
+|---|---|---|---|
+| T3.2 + T3.3 | committed | pass / pass / pass | 4 asserções contra Postgres real |
+| T3.4 | committed | n/a | comentário corrigido + sentinela |
+| T4.1 | committed | n/a / pass / n/a | benchmark determinístico |
+
+### O resultado medido
+
+| Métrica | Valor |
+|---|---|
+| precision@1 sem boost | 0.64 |
+| precision@1 com boost | **1.00** |
+| delta | **+0.36** |
+| `recall_set_churn` (pós-threshold) | **0** |
+| `boostedCandidateCount` | 9 de 25 tópicos |
+
+Documento com método e ressalvas: `docs/benchmarks/entity-boost-m15.md`. Bruto:
+`docs/benchmarks/entity-boost-m15.json`. Reprodução determinística — vetores fixos, sem LLM,
+sem amostragem, sem relógio.
+
+### Três honestidades sobre o benchmark
+
+1. **A base 0.64 não é o piso de desempate aleatório** (~0.25 com quatro empatados). A memória
+   relevante é inserida primeiro em cada tópico e isso parece enviesar o desempate a favor
+   dela. O efeito é conservador: eleva a base e encolhe o delta, então **+0.36 é limite
+   inferior**.
+2. **`boostedCandidateCount` é 9, não 25.** O boost mudou o resultado nos 9 tópicos onde a
+   relevante ainda não estava em primeiro por sorte de desempate; nos outros 16 confirmou uma
+   posição já correta. A asserção existe para que um boost morto não passe calado — que é
+   exatamente o defeito do #122.
+3. **Não é comparação com outro sistema.** É medição interna antes/depois. `public-copy.md` § 4
+   exige reprodução independente para claim comparativo, e este benchmark não a tem.
+
+### Desvio registrado em T3.2
+
+O plano pedia asserção sobre `trace.components.entity`. O recall trace grava uma linha por
+candidato **descartado** (accountable forgetting), então uma memória **mantida** não tem linha
+de trace, e a asserção como escrita era impossível. Substituída pela diferença de score sobre o
+mesmo controle de embeddings idênticos, que prova a mesma coisa.
+
+### Aviso de lint pré-existente corrigido
+
+`packages/cli/src/reextract/run-reextract.ts` carregava um aviso de espaçamento de import
+anterior a este cycle (último commit do arquivo é do M13). O DoD exige zero avisos; a correção
+é whitespace, risco zero, registrada aqui por tocar arquivo fora do escopo declarado.
+
+## DoD do ROADMAP M15 — item a item, com evidência
+
+| # | Item do DoD | Estado | Evidência |
+|---|---|---|---|
+| 1 | `entityBoostById` populado no Step 6 a partir de `entities` + `memory_entities`, scoped, zero vazamento cross-scope | **feito** | `entity-boost-step.ts` + `pipeline.ts` Step 6; `linked-keys.test.ts` prova que workspace estrangeiro não retorna vínculo |
+| 2 | Boost aditivo, roda DEPOIS do gate semântico; teste provando que sub-threshold NÃO é ressuscitado | **feito** | `ranking.test.ts::test_sub_threshold_candidate_is_not_resurrected_by_boost` — a memória irrelevante **é** candidata (a busca devolve as 3) e cai no threshold |
+| 3 | Normalização na mesma escala do BM25 (sigmoid) antes do `ENTITY_BOOST_WEIGHT` | **divergência registrada** | ver abaixo |
+| 4 | Benchmark obrigatório: precisão@k COM e SEM boost, delta registrado | **feito** | `docs/benchmarks/entity-boost-m15.md` — 0.64 → 1.00, delta +0.36, churn 0 |
+| 5 | Comentário-guarda de `recall-trace-store.ts` atualizado | **feito** | T3.4 + sentinela `recall-trace-entity-comment.test.ts` |
+| 6 | Custo controlado: sem round-trip não-bounded; medir latência antes/depois | **feito** | 1 consulta para 20 candidatos (`linked-keys.test.ts`); índice servido a 50k linhas (`query-plan.test.ts`); latência por query no JSON do benchmark, com asserção de teto |
+| 7 | ADR-0007 revisitado | **feito** | ADR-0023 — a flag passa a governar os dois lados; `CLAUDE.md` atualizado |
+
+### Item 3 — a divergência, e por que ela fica registrada em vez de corrigida
+
+O DoD pedia normalização por **sigmoid**. A implementação usa `entityBoost(numLinked)`, que já
+normaliza — o resultado é limitado a `[0, ENTITY_BOOST_WEIGHT]`, e `maxPossible` soma
+exatamente esse teto — mas por **atenuação de espalhamento**, não por sigmoid. O ADR D1 do
+plano decidiu explicitamente não alterar `scoring.ts`, e o benchmark confirma que a intenção do
+item (o componente não domina a soma) está satisfeita: o teto do boost é 0.5 contra 1.0 de cada
+um dos outros dois sinais.
+
+Ao verificar isso encontrei algo pior que a divergência de forma. A curva é **decrescente**:
+
+| `numLinked` | boost |
+|---|---|
+| 1 | 0.5000 |
+| 3 | 0.4980 |
+| 10 | 0.4625 |
+
+Uma memória que casa três entidades da query recebe *menos* impulso que uma que casa uma. A
+fórmula veio de outra semântica de `numLinked` — "quantas entidades esta memória tem no total",
+onde a penalidade faz sentido porque memória ligada a 40 entidades é genérica. O M15 passou a
+alimentá-la com a **interseção** query↔memória, onde mais deveria ser melhor.
+
+Na faixa realista o efeito é ínfimo (0.500 contra 0.498), o boost se comporta como binário, e é
+por isso que o ganho medido é real. Não há bug observável hoje. Mas é imprecisão semântica que
+vai incomodar quando alguém quiser diferenciar "casou 1" de "casou 5", então está registrada em
+**#125** com as duas direções de correção e o mesmo gate do M15: sem ganho medido, não muda.
+
 ## Next task
 
 **T3.2** — the ranking integration test at `tests/integration/entity-boost/ranking.test.ts`:
