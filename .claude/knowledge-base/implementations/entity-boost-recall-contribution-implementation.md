@@ -207,6 +207,57 @@ por isso que o ganho medido é real. Não há bug observável hoje. Mas é impre
 vai incomodar quando alguém quiser diferenciar "casou 1" de "casou 5", então está registrada em
 **#125** com as duas direções de correção e o mesmo gate do M15: sem ganho medido, não muda.
 
+## T4.2 — validação final consolidada (2026-07-24)
+
+### Resultado das suítes
+
+| Suíte | Resultado |
+|---|---|
+| `npm test` (contract) | **1340 passed**, 1 skipped, **0 erros de tipo** |
+| `npm run test:integration` | **618 passed**, 56 skipped, **4 failed** — ver abaixo |
+| `npm run lint` | **0 erros, 0 avisos** |
+| `npm run typecheck` | **0 erros** |
+
+### As 4 falhas de integração são ambientais, com prova
+
+Todas em `tests/integration/entity-label-language-determinism.test.ts`:
+
+```
+× an English input persists English entity labels (not translated to Portuguese)
+× a Portuguese input persists Portuguese entity labels (not translated to English)
+× a Portuguese input persists a Portuguese fact (not translated to English)
+× an English input persists an English fact (not translated to Portuguese)
+```
+
+O arquivo declara na própria cabeçalho: *"This is an LLM-behavioral property, so it uses a REAL
+OpenAI LLM (a stub would prove nothing about real label-following)"*, e roda sob
+`describe.skipIf(ROOT_PG_URI === '' || !HAS_KEY)`.
+
+A chave existe no `.env` — então o `skipIf` não pula — mas **está inválida**:
+
+```
+curl -s -o /dev/null -w "%{http_code}" https://api.openai.com/v1/models -H "Authorization: Bearer $KEY"
+→ 401
+```
+
+O M15 não toca extração, tradução nem o caminho de LLM. A relação é: chave presente porém
+inválida faz o `skipIf` não pular e as chamadas falharem. Corrigir isso é rotacionar a chave,
+não mudar código deste milestone.
+
+### Uma invocação errada minha, corrigida
+
+A primeira tentativa de "suíte completa" usou `npx vitest run` sem config, que varre 511
+arquivos misturando contract, integration e e2e — resultado: 293 arquivos falhando, que eu
+poderia ter reportado como catástrofe. O repo tem três configs separados
+(`vitest.contract.config.ts`, `vitest.integration.config.ts`, `vitest.e2e.config.ts`) e é assim
+que o CI roda. Com o comando certo, os números acima.
+
+### Sentinela que fez o trabalho dela
+
+`memory-event.test.ts` falhou exigindo 48 eventos quando a união passou a ter 49. Não é ruído:
+é o gate que força reconhecimento explícito quando a união tipada `MEMORY_EVENTS` cresce.
+Atualizada para 49 com o nome do evento novo na descrição.
+
 ## Next task
 
 **T3.2** — the ranking integration test at `tests/integration/entity-boost/ranking.test.ts`:
