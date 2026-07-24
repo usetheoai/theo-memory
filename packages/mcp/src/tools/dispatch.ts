@@ -11,7 +11,7 @@
  */
 import { McpError, type CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
-import type { Memory, RecallTraceStore } from '@usetheo/memory/contract';
+import type { Memory, MemoryEntityStore, RecallTraceStore } from '@usetheo/memory/contract';
 import { classifyError, UnknownToolError } from '@usetheo/memory-agent-core';
 
 import { addSkillHandler, TOOL_NAME as ADD_SKILL } from './add-skill-handler.js';
@@ -23,10 +23,14 @@ import { recallHandler, TOOL_NAME as RECALL } from './recall-handler.js';
 import { reflectHandler, TOOL_NAME as REFLECT } from './reflect-handler.js';
 import { explainRecallHandler, TOOL_NAME as EXPLAIN_RECALL } from './explain-recall-handler.js';
 import { rememberHandler, TOOL_NAME as REMEMBER } from './remember-handler.js';
+import { getMemoryHandler, TOOL_NAME as GET_MEMORY } from './get-memory-handler.js';
+import { listEntitiesHandler, TOOL_NAME as LIST_ENTITIES } from './list-entities-handler.js';
+import { updateMemoryHandler, TOOL_NAME as UPDATE_MEMORY } from './update-memory-handler.js';
+import { deleteEntitiesHandler, TOOL_NAME as DELETE_ENTITIES } from './delete-entities-handler.js';
 
 type HandlerFn = (
   args: unknown,
-  deps: { memoryFactory: () => Memory; recallTraceStore?: RecallTraceStore },
+  deps: { memoryFactory: () => Memory; recallTraceStore?: RecallTraceStore; memoryEntityStore?: MemoryEntityStore },
 ) => Promise<CallToolResult>;
 
 const HANDLERS = new Map<string, HandlerFn>([
@@ -43,6 +47,13 @@ const HANDLERS = new Map<string, HandlerFn>([
   [EXECUTE_SKILL, executeSkillHandler],
   // recall-trace-retention-and-mcp M4 T4.1 — explain why a recall dropped candidates.
   [EXPLAIN_RECALL, explainRecallHandler],
+  // M14 T2.1 — get_memory: reuse Memory.get scoped to the Principal.
+  [GET_MEMORY, getMemoryHandler],
+  // M14 T2.2 — list_entities: reuse the entity read port, scoped to the Principal.
+  [LIST_ENTITIES, listEntitiesHandler],
+  // M14 T2.3 — update_memory: remember-then-forget (ADD-only, edge EC-1).
+  [UPDATE_MEMORY, updateMemoryHandler],
+  [DELETE_ENTITIES, deleteEntitiesHandler],
 ]);
 
 /**
@@ -54,7 +65,7 @@ const HANDLERS = new Map<string, HandlerFn>([
 export async function dispatch(
   toolName: string,
   args: unknown,
-  deps: { memoryFactory: () => Memory; recallTraceStore?: RecallTraceStore },
+  deps: { memoryFactory: () => Memory; recallTraceStore?: RecallTraceStore; memoryEntityStore?: MemoryEntityStore },
 ): Promise<CallToolResult> {
   try {
     const handler = HANDLERS.get(toolName);

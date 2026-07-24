@@ -44,6 +44,8 @@ vi.mock('@usetheo/memory', () => ({
   // a missing name fails the whole file at load.
   SandboxedSkillExecutor: class MockSandboxedSkillExecutor {},
   PgRoutingAuditStore: class MockPgRoutingAuditStore {},
+  // M14 T2.2 — run-mcp-server wires PgMemoryEntityStore for the entity tools.
+  PgMemoryEntityStore: class MockPgMemoryEntityStore {},
 }));
 
 vi.mock('pg', () => ({

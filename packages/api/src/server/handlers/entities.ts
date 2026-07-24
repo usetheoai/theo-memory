@@ -46,15 +46,23 @@ interface EntityAccumulator {
 }
 
 
-/** Build the single-tier Filters for a scope type+id (others undefined). */
-function filtersFor(type: ScopeType, id: string): Filters {
+/** Build the Filters for a scope type+id, threading the acting user.
+ *
+ *  M8 isolation (#118-session): session/agent-tier entities carry BOTH
+ *  `session_id`/`agent_id` AND `user_id` (the write path derives them from the
+ *  source memory's scope columns). The store's listing predicate is
+ *  `COALESCE(user_id,'') = COALESCE($2,'')`, so omitting the user made the
+ *  SESSION/AGENT tabs match ZERO rows — the tab rendered "No entities" over a
+ *  session with 237 memories and 712 linked entities. The user tier binds to the
+ *  Principal when present (a user-Principal can only address its OWN scope). */
+function filtersFor(type: ScopeType, id: string, userId?: string): Filters {
   switch (type) {
     case 'user':
-      return { user_id: id };
+      return { user_id: userId ?? id };
     case 'session':
-      return { session_id: id };
+      return { session_id: id, ...(userId !== undefined ? { user_id: userId } : {}) };
     case 'agent':
-      return { agent_id: id };
+      return { agent_id: id, ...(userId !== undefined ? { user_id: userId } : {}) };
   }
 }
 
@@ -80,7 +88,7 @@ export async function entitiesHandler(
     const workspaceId = principal?.workspaceId ?? DEFAULT_WORKSPACE_ID;
     const summaries = await memoryEntityStore.list({
       workspaceId,
-      filters: filtersFor(typeParse.data, id),
+      filters: filtersFor(typeParse.data, id, actingUserId(c)),
     });
     const entities = summaries.map((s) => ({
       id: s.name,

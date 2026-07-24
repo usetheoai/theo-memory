@@ -51,7 +51,7 @@ function stubEntityStore(): MemoryEntityStore {
   return {
     upsertAndLink: vi.fn(async () => undefined),
     list: vi.fn(async () => []),
-    supersedeEntity: vi.fn(async () => true),
+    supersedeEntity: vi.fn(async () => true), forgetEntity: vi.fn(async () => ({ entitiesRemoved: 0, linksRemoved: 0, edgesRemoved: 0 })),
   };
 }
 

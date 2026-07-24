@@ -35,7 +35,7 @@ describe('T3.1 — graphHandler {nodes, edges}', () => {
   test('graph_returns_nodes_and_edges', async () => {
     const app = createServer({
       memory: stubMemory(),
-      memoryEntityStore: { upsertAndLink: vi.fn(), supersedeEntity: vi.fn(async () => false), list: vi.fn().mockResolvedValue(nodes) },
+      memoryEntityStore: { upsertAndLink: vi.fn(), supersedeEntity: vi.fn(async () => false), forgetEntity: vi.fn(async () => ({ entitiesRemoved: 0, linksRemoved: 0, edgesRemoved: 0 })), list: vi.fn().mockResolvedValue(nodes) },
       memoryGraphStore: { upsertEdges: vi.fn(), invalidateEdgesByMemory: vi.fn(), listEdges: vi.fn().mockResolvedValue(edges) },
     });
     const res = await app.fetch(new Request('http://localhost/v1/scopes/user/alice/graph'));
@@ -49,7 +49,7 @@ describe('T3.1 — graphHandler {nodes, edges}', () => {
   test('graph_empty_edges_when_graph_store_absent (D6)', async () => {
     const app = createServer({
       memory: stubMemory(),
-      memoryEntityStore: { upsertAndLink: vi.fn(), supersedeEntity: vi.fn(async () => false), list: vi.fn().mockResolvedValue(nodes) },
+      memoryEntityStore: { upsertAndLink: vi.fn(), supersedeEntity: vi.fn(async () => false), forgetEntity: vi.fn(async () => ({ entitiesRemoved: 0, linksRemoved: 0, edgesRemoved: 0 })), list: vi.fn().mockResolvedValue(nodes) },
       // no memoryGraphStore
     });
     const res = await app.fetch(new Request('http://localhost/v1/scopes/user/alice/graph'));
@@ -61,7 +61,7 @@ describe('T3.1 — graphHandler {nodes, edges}', () => {
   test('graph_invalid_scope_type_404', async () => {
     const app = createServer({
       memory: stubMemory(),
-      memoryEntityStore: { upsertAndLink: vi.fn(), supersedeEntity: vi.fn(async () => false), list: vi.fn().mockResolvedValue([]) },
+      memoryEntityStore: { upsertAndLink: vi.fn(), supersedeEntity: vi.fn(async () => false), forgetEntity: vi.fn(async () => ({ entitiesRemoved: 0, linksRemoved: 0, edgesRemoved: 0 })), list: vi.fn().mockResolvedValue([]) },
       memoryGraphStore: { upsertEdges: vi.fn(), invalidateEdgesByMemory: vi.fn(), listEdges: vi.fn().mockResolvedValue([]) },
     });
     const res = await app.fetch(new Request('http://localhost/v1/scopes/bogus/alice/graph'));

@@ -97,6 +97,37 @@ export function theoAdditions(nodeBin = 'node', hooksDir = '~/.claude/hooks') {
         hooks: [{ type: 'command', command: `${nodeBin} ${hooksDir}/theo-recall.mjs` }],
       },
     ],
+    // M14 T1.3 — recall por-PROMPT: dispara em toda mensagem do usuário, busca pelo
+    // prompt (não pelo nome do projeto), scoped ao Principal. Fecha o gap dos 79%
+    // não-lidos. Timeout de 8s (o post do kit é bounded; nunca bloqueia o turno).
+    UserPromptSubmit: [
+      {
+        hooks: [
+          { type: 'command', command: `${nodeBin} ${hooksDir}/theo-prompt-recall.mjs`, timeout: 8 },
+        ],
+      },
+    ],
+    // M14 T3.2 — guarda anti-escrita: bloqueia Write/Edit em MEMORY.md (memória invisível ao
+    // recall) e redireciona ao remember. Exit 2 = block; qualquer falha própria → allow.
+    PreToolUse: [
+      {
+        matcher: 'Write|Edit',
+        hooks: [
+          { type: 'command', command: `${nodeBin} ${hooksDir}/theo-block-memory-write.mjs` },
+        ],
+      },
+    ],
+    // M14 T3.1 — tool-context: quando um comando Bash falha (Traceback/panic/error), busca a
+    // memória desse erro (a última vez que o vimos) e injeta via additionalContext. Só Bash;
+    // pula git commit/merge e output curto. Timeout de 8s (post bounded; nunca bloqueia o turno).
+    PostToolUse: [
+      {
+        matcher: 'Bash',
+        hooks: [
+          { type: 'command', command: `${nodeBin} ${hooksDir}/theo-tool-context.mjs`, timeout: 8 },
+        ],
+      },
+    ],
     Stop: [
       {
         hooks: [
