@@ -105,6 +105,66 @@ describe('MCP bearer auth — user impersonation (real verifier)', () => {
     // The write would have landed in bob's scope before the fix.
     expect(capturedUserId).toBe('live-alice');
   });
+
+  it('test_key_with_blank_user_id_is_rejected_not_downgraded', async () => {
+    // /review Finding 3: a user-BOUND key row with a corrupt empty user_id must fail closed
+    // (401), never silently downgrade to header-trust. Reachable via direct DB write /
+    // migration backfill, not the mint handler.
+    const secret = `theo_live_${randomUUID().replace(/-/g, '')}${randomUUID().replace(/-/g, '')}`;
+    const { createHash } = await import('node:crypto');
+    const hash = createHash('sha256').update(secret).digest('hex');
+    // A user row with an empty id satisfies the FK; the corrupt state the issue describes is a
+    // key BOUND to it (user_id = '') rather than null. Reachable by direct write / backfill.
+    await db.pool.query(`INSERT INTO users (id, email) VALUES ('', 'blank@example.test') ON CONFLICT DO NOTHING`);
+    await db.pool.query(
+      `INSERT INTO theo_api_keys
+         (id, subject, tenant_id, key_name, key_hash, key_prefix, scopes, workspace_id, user_id)
+       VALUES ($1, 'blank', 'self', 'blank', $2, $3, $4::jsonb, $5, '')`,
+      [randomUUID().slice(0, 20), hash, secret.slice(0, 12), JSON.stringify(['memory:read']), WORKSPACE],
+    );
+
+    const delegate = vi.fn(async () => {});
+    const handler = withBearerAuth(delegate, { apiKey: verifier });
+    const res = mockRes();
+    await handler(
+      { headers: { authorization: `Bearer ${secret}`, 'x-theo-user-id': 'live-bob' } } as unknown as IncomingMessage,
+      res,
+    );
+
+    expect(delegate).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('test_platform_admin_key_marks_the_request_gateway_trusted', async () => {
+    // /review Finding 2: a workspace-level key MAY act-as-user, but ONLY when it carries
+    // memory:platform-admin — the scope only the theo-cloud gateway credential holds. Then and
+    // only then does markGatewayTrusted fire, so `X-Theo-User-Id` is honoured.
+    const { isGatewayTrusted } = await import('../../../packages/mcp/src/auth/request-workspace.js');
+    const secret = `theo_live_${randomUUID().replace(/-/g, '')}${randomUUID().replace(/-/g, '')}`;
+    const { createHash } = await import('node:crypto');
+    const hash = createHash('sha256').update(secret).digest('hex');
+    // Workspace-level (user_id NULL) key bearing platform-admin — the gateway credential shape.
+    await db.pool.query(
+      `INSERT INTO theo_api_keys
+         (id, subject, tenant_id, key_name, key_hash, key_prefix, scopes, workspace_id, user_id)
+       VALUES ($1, 'gw', 'self', 'gw', $2, $3, $4::jsonb, $5, NULL)`,
+      [randomUUID().slice(0, 20), hash, secret.slice(0, 12), JSON.stringify(['memory:platform-admin']), WORKSPACE],
+    );
+
+    let gatewayTrusted = false;
+    let resolvedUser: string | undefined;
+    const delegate = async (req: IncomingMessage) => {
+      gatewayTrusted = isGatewayTrusted(req);
+      resolvedUser = scopeFromRequest(req)?.session?.userId;
+    };
+    await withBearerAuth(delegate, { apiKey: verifier })(
+      { headers: { authorization: `Bearer ${secret}`, 'x-theo-user-id': 'end-user' } } as unknown as IncomingMessage,
+      mockRes(),
+    );
+
+    expect(gatewayTrusted).toBe(true);
+    expect(resolvedUser).toBe('end-user'); // the gateway's injected user is honoured
+  });
 });
 
 /**

@@ -24,7 +24,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import type { AuthVerifier, Principal } from '@usetheo/memory/contract';
 
-import { attachUser, attachWorkspace } from './request-workspace.js';
+import { attachUser, attachWorkspace, markGatewayTrusted } from './request-workspace.js';
 
 /** EC-1 — shape regex: prefix + at least 40 base64url chars (theo_live_* canonical 43). */
 const THEO_LIVE_SHAPE = /^theo_live_[A-Za-z0-9_-]{40,}$/;
@@ -71,19 +71,22 @@ function extractBearer(headerValue: string | string[] | undefined): string | nul
 
 type ErrorKind = 'missing_token' | 'invalid_token';
 
-function buildWwwAuthenticate(
-  realm: string,
-  resourceMetadataPath: string,
-  error: ErrorKind,
-  description: string,
-): string {
+/** The 401 challenge fields shared by the WWW-Authenticate header and the JSON body. */
+interface Challenge {
+  readonly realm: string;
+  readonly resourceMetadataPath: string;
+  readonly error: ErrorKind;
+  readonly description: string;
+}
+
+function buildWwwAuthenticate(c: Challenge): string {
   // RFC 6750 § 3 — Bearer scheme + auth-param list. MCP spec adds
   // `resource_metadata` as the RFC 9728 discovery hint for clients.
   return (
-    `Bearer realm="${realm}", ` +
-    `error="${error}", ` +
-    `error_description="${description}", ` +
-    `resource_metadata="${resourceMetadataPath}"`
+    `Bearer realm="${c.realm}", ` +
+    `error="${c.error}", ` +
+    `error_description="${c.description}", ` +
+    `resource_metadata="${c.resourceMetadataPath}"`
   );
 }
 
@@ -94,9 +97,10 @@ function send401(
   error: ErrorKind,
   description: string,
 ): void {
+  const challenge: Challenge = { realm, resourceMetadataPath, error, description };
   res.statusCode = 401;
   res.setHeader('Content-Type', 'application/json');
-  res.setHeader('WWW-Authenticate', buildWwwAuthenticate(realm, resourceMetadataPath, error, description));
+  res.setHeader('WWW-Authenticate', buildWwwAuthenticate(challenge));
   res.end(
     JSON.stringify({
       code: error === 'missing_token' ? 'AUTH_REQUIRED' : 'INVALID_TOKEN',
@@ -201,12 +205,37 @@ export function withBearerAuth(
             }
             attachWorkspace(req, principal.workspaceId);
             // M16 (#121): the USER tier is auth-trusted too when the credential carries one.
-            // Without this the transport fell back to `X-Theo-User-Id`, letting any key in a
-            // workspace act as any user in it (ADR-M14-1 violated at scope-build time).
-            // A workspace-level credential resolves no user — that is the gateway topology,
-            // where the header IS the auth-trusted signal.
+            // M16 (#121) + /review Findings 2 & 3 — three DISTINCT principal states, each with
+            // its own trust decision. The earlier version conflated them and left a live
+            // impersonation primitive.
+            //
+            //  (a) userId is a non-empty string → USER-BOUND key. Its user is the identity,
+            //      full stop; the client header is irrelevant. `attachUser` pins it, and
+            //      `scopeFromRequest` then ignores `X-Theo-User-Id`.
+            //
+            //  (b) userId is null → WORKSPACE-LEVEL key. This is NOT proof of a trusted
+            //      gateway — an operator can mint an unbound key and use it directly. Honour
+            //      `X-Theo-User-Id` ONLY when the credential also carries `memory:platform-admin`,
+            //      the scope that ONLY the theo-cloud gateway credential holds (admin-keys.ts).
+            //      Absent that scope, attach the workspace with NO user, so a scope-required
+            //      tool call fails closed rather than trusting the header.
+            //
+            //  (c) userId is a blank/empty string → MALFORMED principal (a user-bound row with
+            //      corrupt data). Fail closed: 401, mirroring the blank-workspace EC-1 reject
+            //      above. Never silently downgrade a bound credential to header-trust.
             const principalUser = (principal as { userId?: string | null }).userId;
-            if (typeof principalUser === 'string' && principalUser.trim() !== '') {
+            const principalScopes = (principal as { scopes?: readonly string[] }).scopes ?? [];
+            if (principalUser === null || principalUser === undefined) {
+              // (b) workspace-level — the header is trusted only for the gateway credential.
+              if (principalScopes.includes('memory:platform-admin')) {
+                markGatewayTrusted(req);
+              }
+            } else if (principalUser.trim() === '') {
+              // (c) malformed — a bound key with an empty user is not a workspace key.
+              send401(res, realm, resourceMetadataPath, 'invalid_token', 'Resolved principal has a malformed user.');
+              return;
+            } else {
+              // (a) user-bound — identity comes from the credential.
               attachUser(req, principalUser);
             }
             await delegate(req, res);
