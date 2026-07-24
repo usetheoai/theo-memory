@@ -25,6 +25,7 @@ import { explainRecallHandler, TOOL_NAME as EXPLAIN_RECALL } from './explain-rec
 import { rememberHandler, TOOL_NAME as REMEMBER } from './remember-handler.js';
 import { getMemoryHandler, TOOL_NAME as GET_MEMORY } from './get-memory-handler.js';
 import { listEntitiesHandler, TOOL_NAME as LIST_ENTITIES } from './list-entities-handler.js';
+import { updateMemoryHandler, TOOL_NAME as UPDATE_MEMORY } from './update-memory-handler.js';
 
 type HandlerFn = (
   args: unknown,
@@ -49,6 +50,8 @@ const HANDLERS = new Map<string, HandlerFn>([
   [GET_MEMORY, getMemoryHandler],
   // M14 T2.2 — list_entities: reuse the entity read port, scoped to the Principal.
   [LIST_ENTITIES, listEntitiesHandler],
+  // M14 T2.3 — update_memory: remember-then-forget (ADD-only, edge EC-1).
+  [UPDATE_MEMORY, updateMemoryHandler],
 ]);
 
 /**
