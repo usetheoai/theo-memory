@@ -6,8 +6,9 @@
  * to a memory, supersede, forget), while this serves the hot READ path that ranks recall
  * candidates. Different reason to change, different module.
  */
-import type { Filters } from '../../domain/scope.js';
 import type { Pool } from 'pg';
+
+import type { Filters } from '../../domain/scope.js';
 
 /**
  * Returns the `normalized_key` values linked to each of the given memories, in ONE query.
