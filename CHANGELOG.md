@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- **O CI agora roda a suíte de contrato (1353 testes), que antes ele ignorava.** Só a suíte de integração era executada, então uma regressão de contrato ficava invisível até alguém rodá-la à mão. Um novo job leve (sem Postgres, sem build) fecha essa lacuna — provado que barra um commit com falha deliberada (#104).
 
 ### Changed
 
@@ -13,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+- **O CI parou de rodar o mesmo trabalho duas vezes.** `Integration` e `Security SAST` disparavam por `push` e por `pull_request` no mesmo commit, e a chave de concorrência (`github.ref`) os colocava em grupos distintos, então ambos rodavam. A chave passou a ser a branch, então o run do PR cancela o do push — metade dos runs, e sobra o que testa o merge commit (#129).
 
 ### Security
 

@@ -20,7 +20,12 @@ permissions:
 
 # One run per ref — a new push cancels the in-flight run (single-trunk develop).
 concurrency:
-  group: integration-${{ github.ref }}
+  # #129: key on the BRANCH, not github.ref. A push to develop and its PR carry different
+  # github.ref values (refs/heads/develop vs refs/pull/N/merge), so the old key put them in
+  # different groups and both ran — the same work twice. head.ref (PR) and ref_name (push)
+  # both resolve to `develop`, so the PR run now cancels the push run: one run, and it's the
+  # PR's (which tests the merge commit).
+  group: integration-${{ github.event.pull_request.head.ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -123,3 +128,31 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           THEOMEM_EMBEDDER: openai
         run: pnpm run test:integration
+
+  # #104 — the contract suite (1353 tests) was NOT run by CI: only test:integration was,
+  # so a contract regression was invisible until someone ran it locally. This job runs it.
+  # It needs neither Postgres nor a build — the contract config resolves imports to `src`
+  # via alias — so it is a cheap, fast gate that competes minimally for the shared runner.
+  contract:
+    name: contract (test + typecheck)
+    runs-on: [self-hosted, linux, x64]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run contract suite + typecheck
+        # `npm test` = vitest run --config vitest.contract.config.ts; the config carries
+        # its own tsc typecheck. No Postgres, no OPENAI_API_KEY — pure unit/contract.
+        run: pnpm test
