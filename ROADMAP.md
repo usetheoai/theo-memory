@@ -428,7 +428,7 @@ A análise da tela Entities (2026-07-23) MEDIU o ruído que a extração heurís
 
 > Added 2026-07-24 by `/roadmap-feature` (slug: `claude-code-kit-recall-parity`). See CHANGELOG `[Unreleased] § Added`.
 
-**Objective:** Fechar o gap de LEITURA do kit do Claude Code (`docs/claude-code-kit/`). Hoje o kit registra 4 hooks e 3 são ESCRITA — medição live: 1.804 escritas/24h mas **79% das 2.520 memórias vivas nunca foram lidas** (`last_accessed_at IS NULL`). O único hook de leitura busca pelo NOME DO PROJETO (constante), uma vez por sessão, `topK:5`. Este milestone entrega a experiência de recall contínuo + separação de autoria do plugin de memória de referência para o Claude Code — mas adaptada ao modelo multi-tenant, NUNCA copiada de um plugin single-tenant.
+**Objective:** Fechar o gap de LEITURA do agente em DUAS superfícies — os lifecycle hooks do kit (`docs/claude-code-kit/`) E as tools MCP. Hoje o kit registra 4 hooks e 3 são ESCRITA — medição live: 1.804 escritas/24h mas **79% das 2.520 memórias vivas nunca foram lidas** (`last_accessed_at IS NULL`). O único hook de leitura busca pelo NOME DO PROJETO (constante), uma vez por sessão, `topK:5`. No MCP, o agente escreve entidades (M13) mas não tem `list_entities` para recuperá-las. Este milestone entrega a experiência de recall contínuo + separação de autoria do plugin de memória de referência para o Claude Code — mas adaptada ao modelo multi-tenant, NUNCA copiada de um plugin single-tenant.
 
 **Definition of done:**
 
@@ -436,7 +436,8 @@ A análise da tela Entities (2026-07-23) MEDIU o ruído que a extração heurís
 - [ ] `attributed_to` (v1.1) separa autoria por ORIGEM DE HOOK: user-prompt → `user`; resumos de sessão/compactação → `assistant` — nunca inferido. Impede que sugestões do assistente virem "preferência do usuário".
 - [ ] `PreToolUse`/`PostToolUse` trazem memórias contextuais (por arquivo aberto / por erro de comando), no mesmo escopo.
 - [ ] Wizard `/onboard` idempotente (detecta `CLAUDE.md`/`AGENTS.md`) + guarda `PreToolUse` anti-escrita em `MEMORY.md` + distribuição via marketplace de plugin.
-- [ ] **Teste de isolamento cross-tenant E cross-user PASSA** (como o M8 fez): o recall/autoria de um `(workspace A, user X)` jamais retorna memória de `(workspace B)` nem de `(workspace A, user Y)`.
+- [ ] **Paridade de superfície MCP:** o server expõe `list_entities` (reusa o handler REST `/entities`) e `get_memory` por ID (reusa `MemoryStore.get(memoryId)`, já shipado) — cada um herdando o Principal `(workspace, user)` da credencial/AsyncLocalStorage, JAMAIS aceitando `user_id` do argumento da tool. `update_memory` fica FORA por contrato (ADR-0003, ADD-only: mutação = `forget`+`remember`). `delete_entities` fica FORA deste milestone: exige primitivo de forget-de-entidade que o core NÃO tem (só `supersedeEntity`, que re-tipa) e toca a classe de bug do cascade-delete (theo-cloud#252) — tratar em milestone próprio com guarda fail-closed de filtro, não por paridade de superfície.
+- [ ] **Teste de isolamento cross-tenant E cross-user PASSA** (como o M8 fez): o recall/autoria/`list_entities`/`get_memory` de um `(workspace A, user X)` jamais retorna dado de `(workspace B)` nem de `(workspace A, user Y)`.
 
 **Dependencies:** M8, M10, M12
 
