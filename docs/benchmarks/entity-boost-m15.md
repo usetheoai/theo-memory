@@ -4,15 +4,28 @@ Measured 2026-07-24 against real `ankane/pgvector:v0.5.1`, on the `develop` bran
 
 ## Results
 
-| Metric | Value |
-|---|---|
-| precision@1 — boost OFF | **0.64** |
-| precision@1 — boost ON | **1.00** |
-| delta | **+0.36** |
-| `recall_set_churn` (post-threshold) | **0** |
-| `boostedCandidateCount` | **9** of 25 topics |
+Two runs, same corpus, same code:
 
-Raw output: [`entity-boost-m15.json`](./entity-boost-m15.json).
+| Metric | Run 1 | Run 2 |
+|---|---|---|
+| precision@1 — boost OFF | 0.64 | 0.68 |
+| precision@1 — boost ON | **1.00** | **1.00** |
+| delta | +0.36 | +0.32 |
+| `recall_set_churn` (post-threshold) | **0** | **0** |
+| `boostedCandidateCount` | 9 of 25 | 8 of 25 |
+| latency per query — boost OFF | — | 40.70 ms |
+| latency per query — boost ON | — | 46.91 ms |
+
+Raw output of the latest run: [`entity-boost-m15.json`](./entity-boost-m15.json).
+
+**The baseline is not stable across runs; the boosted side is.** With the boost off every
+candidate in a topic ties exactly, so which one lands first is decided by Postgres' row order
+— and that is not guaranteed stable between runs. With the boost on the tie is always broken
+the same way, so precision@1 is 1.00 deterministically.
+
+The honest reading is therefore a **range**, not a point: the baseline sits around 0.64–0.68
+and the delta around +0.32 to +0.36. An earlier version of this document claimed the run
+reproduces "the numbers exactly". That was wrong, and the second run is what disproved it.
 
 ## Reproduction
 
@@ -23,8 +36,9 @@ npm run build
 npx vitest run tests/integration/entity-boost/precision-benchmark.test.ts
 ```
 
-Fully deterministic: fixed vectors, no LLM, no sampling, no clock. Re-running reproduces the
-numbers exactly.
+Fixed vectors, no LLM, no sampling, no wall-clock in the scoring path. The **boosted** side
+reproduces exactly. The **baseline** does not: it depends on how Postgres orders exactly-tied
+rows, which varies between runs. Expect the baseline in the 0.64–0.68 band.
 
 ## Method
 
@@ -54,13 +68,22 @@ figures — this compares the system against itself, feature off versus on.
 tie-break would land near 0.25. The baseline is higher because ordering among equal scores is
 not random: the relevant memory is inserted first in each topic, and that appears to bias the
 tie-break in its favour. The effect is conservative for this report — it *raises* the baseline
-and therefore *shrinks* the measured delta, so **+0.36 is a lower bound**, not an inflated one.
+and therefore *shrinks* the measured delta, so the reported band is a **lower bound**, not an
+inflated one.
 
-**`boostedCandidateCount` is 9, not 25.** The boost changed the outcome for the 9 topics where
-the relevant memory was not already ranked first by tie-break. For the other 16 it confirmed a
-position that was already correct. The number exists so a dead boost cannot pass this
-benchmark silently — which is precisely the defect (#122) this milestone closes, where the
-component had been summed as a constant zero since v0.1.
+**`boostedCandidateCount` is 8–9, not 25.** The boost changed the outcome only for the topics
+where the relevant memory was not already ranked first by tie-break; for the rest it confirmed a
+position that happened to be correct already. That is also why the count moves between runs — it
+is the complement of the unstable baseline. The number exists so a dead boost cannot pass this
+benchmark silently, which is precisely the defect (#122) this milestone closes: the component had
+been summed as a constant zero since v0.1.
+
+**Cost: +6.2 ms per query (40.70 → 46.91 ms), about 15%.** That is the price of one extra
+indexed round-trip over the candidate set, measured on the same 25 queries. It is bounded by
+construction: one query per recall regardless of candidate count, proven separately by
+`linked-keys.test.ts` (20 candidates cost exactly 1 query) and `query-plan.test.ts` (index-served
+at 50k rows). These are absolute numbers from one machine under load, so treat the ratio as the
+signal, not the milliseconds.
 
 **Memories written before M13 have no extracted entities** and therefore never receive a
 boost. `themory reextract` is the remediation. This benchmark seeds its own graph and does not

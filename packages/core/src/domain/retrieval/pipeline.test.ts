@@ -354,7 +354,7 @@ describe('runRetrievalPipeline entity boost', () => {
       entityBoostStore: {
         linkedKeysForMemories: async (p) => {
           asked = p.memoryIds;
-          return new Map([['m-kw', ['são_paulo']]]) as ReadonlyMap<string, readonly string[]>;
+          return new Map([['m-kw', ['são_paulo']]]);
         },
       },
       workspaceId: 'ws1',
