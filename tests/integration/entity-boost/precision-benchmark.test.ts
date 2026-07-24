@@ -101,11 +101,14 @@ async function runQuery(topic: number, withBoost: boolean) {
 interface Measurement {
   precisionAtK: number;
   postThresholdSets: string[][];
+  /** Wall-clock ms for the whole query set — the DoD's before/after cost measurement. */
+  elapsedMs: number;
 }
 
 async function measure(withBoost: boolean): Promise<Measurement> {
   let hits = 0;
   const postThresholdSets: string[][] = [];
+  const started = performance.now();
   for (let topic = 0; topic < TOPICS; topic += 1) {
     const results = await runQuery(topic, withBoost);
     const ids = results.map((r) => r.id);
@@ -114,7 +117,7 @@ async function measure(withBoost: boolean): Promise<Measurement> {
       hits += 1;
     }
   }
-  return { precisionAtK: hits / TOPICS, postThresholdSets };
+  return { precisionAtK: hits / TOPICS, postThresholdSets, elapsedMs: performance.now() - started };
 }
 
 beforeAll(async () => {
@@ -171,6 +174,10 @@ describe('entity boost precision benchmark', () => {
       delta: with_.precisionAtK - without.precisionAtK,
       recallSetChurn: churn,
       boostedCandidateCount,
+      latencyMsPerQuery: {
+        withoutBoost: Number((without.elapsedMs / TOPICS).toFixed(2)),
+        withBoost: Number((with_.elapsedMs / TOPICS).toFixed(2)),
+      },
     };
     mkdirSync('docs/benchmarks', { recursive: true });
     writeFileSync('docs/benchmarks/entity-boost-m15.json', `${JSON.stringify(report, null, 2)}\n`);
@@ -181,5 +188,11 @@ describe('entity boost precision benchmark', () => {
     expect(report.recallSetChurn).toBe(0);
     // Without this, a dead boost would pass the two assertions above trivially.
     expect(report.boostedCandidateCount).toBeGreaterThan(0);
+    // Cost is bounded: the boost adds ONE indexed query over the candidate set, so the
+    // per-query cost must stay the same order of magnitude. A blown budget here would mean
+    // an N+1 crept back in.
+    expect(report.latencyMsPerQuery.withBoost).toBeLessThan(
+      report.latencyMsPerQuery.withoutBoost * 3 + 5,
+    );
   }, 600_000);
 });
