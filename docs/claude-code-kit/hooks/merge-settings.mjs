@@ -97,6 +97,16 @@ export function theoAdditions(nodeBin = 'node', hooksDir = '~/.claude/hooks') {
         hooks: [{ type: 'command', command: `${nodeBin} ${hooksDir}/theo-recall.mjs` }],
       },
     ],
+    // M14 T1.3 — recall por-PROMPT: dispara em toda mensagem do usuário, busca pelo
+    // prompt (não pelo nome do projeto), scoped ao Principal. Fecha o gap dos 79%
+    // não-lidos. Timeout de 8s (o post do kit é bounded; nunca bloqueia o turno).
+    UserPromptSubmit: [
+      {
+        hooks: [
+          { type: 'command', command: `${nodeBin} ${hooksDir}/theo-prompt-recall.mjs`, timeout: 8 },
+        ],
+      },
+    ],
     Stop: [
       {
         hooks: [
