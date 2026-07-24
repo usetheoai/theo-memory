@@ -33,9 +33,9 @@ import { emitEvent } from '../memory-event.js';
 import type { MemoryItemWithScore } from '../memory-item.js';
 import type { RecallOptions } from '../options.js';
 import type { Filters, Scope } from '../scope.js';
-import { computeEntityBoost } from './entity-boost-step.js';
 import { combineScores, maxPossible, sigmoidBm25 } from '../scoring.js';
 
+import { computeEntityBoost } from './entity-boost-step.js';
 import { mmrRerank } from './mmr.js';
 import { scopeAwareReweight } from './scope-reweight.js';
 
