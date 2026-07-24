@@ -424,7 +424,7 @@ A análise da tela Entities (2026-07-23) MEDIU o ruído que a extração heurís
 
 ---
 
-## M14 — [ ] Paridade de recall do kit Claude Code (leitura contínua + autoria), preservando `(workspace, user, session-opcional)`
+## M14 — [x] Paridade de recall do kit Claude Code (leitura contínua + autoria), preservando `(workspace, user, session-opcional)`
 
 > Added 2026-07-24 by `/roadmap-feature` (slug: `claude-code-kit-recall-parity`). See CHANGELOG `[Unreleased] § Added`.
 
