@@ -43,10 +43,16 @@ export type DropReason = 'semantic_gate' | 'sub_threshold' | 'nan' | 'mmr_redund
  * candidate is discarded before `combineScores` runs, so no composite exists
  * (honest null, not a fabricated 0 — EC-6).
  *
- * NOTE: the `entity` component is uniformly `0` in v0.1 (`entityBoostById` is
- * never populated); the column is persisted schema-forward and becomes
- * meaningful when entity-boost integration lands. Do NOT read signal into it
- * today.
+ * The `entity` component carries real signal as of M15 (#122): it is the boost a candidate
+ * received for being linked to entities mentioned in the query, already attenuated by
+ * `entityBoost()`. A value of `0` now means what it says — no entity of the query is linked
+ * to that memory — instead of "the feature is not wired yet", which is what it meant from
+ * v0.1 until M15.
+ *
+ * Two honest caveats when reading it. Memories written before M13 have no extracted
+ * entities at all and therefore always score `0` here; `themory reextract` is the
+ * remediation. And when the entity store is unreachable the whole query degrades to a zero
+ * boost, which is visible as the `entity_boost_degraded` event rather than in this column.
  */
 export interface RecallTraceRow {
   /** Correlation id of the recall this drop belongs to (server-minted UUID). */
