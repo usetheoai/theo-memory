@@ -4,9 +4,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-### Changed
-- **A opção `entityBoost` volta a significar o que promete.** Ela desligava a extração de entidades na escrita, mas na leitura não governava nada — porque o impulso por entidades era somado como zero constante desde a v0.1. Agora vale dos dois lados: desligar a opção devolve exatamente o comportamento anterior (M15, #122).
-
 ### Added
 - **M15 T4.1 — benchmark medido do ganho.** Contra Postgres real, com corpus determinístico de 100 memórias: a precisão do primeiro resultado sobe de **0.64 para 1.00** quando o impulso por entidades está ligado, sem nenhuma memória sair do conjunto recuperado. Método, ressalvas e comando de reprodução em `docs/benchmarks/entity-boost-m15.md` (M15, #122).
 - **M15 T3.2/T3.3 — evidência de que o ganho é real e não custa nada.** Contra Postgres real: duas memórias com o mesmo texto e o mesmo embedding, uma ligada à entidade da busca — a ligada vem primeiro. E as duas guardas: uma memória irrelevante ligada à entidade **não** é ressuscitada, e nenhuma memória some do resultado por efeito do impulso (M15, #122).
@@ -16,15 +13,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **M15 T1.1 — casamento entre a query e as entidades já persistidas.** Uma query que menciona "São Paulo" ou o campo `user_id` agora identifica as entidades correspondentes no acervo, preservando acentuação e nomes com mais de uma palavra. É a peça que faltava para o terceiro sinal do recall deixar de ser inerte (M15, #122).
 
 ### Changed
-
-### Fixed
-- **`get_memory` retornava memória JÁ ESQUECIDA (achado do live test M14).** O `forget` faz soft-delete (`t_invalid`) e todos os outros read paths filtram, mas a leitura por id (`Memory.get` → `vectorStore.get`) não filtrava — o dono dava `forget` e o `get_memory` seguia devolvendo o conteúdo. Corrigido no read PÚBLICO (`LocalMemory.get` retorna `null` quando `t_invalid` está setado); o `get` cru do store continua devolvendo a linha de propósito, para o `forget({hard:true})` poder fazer a erasure GDPR de uma memória já esquecida. Regressão coberta em `isolation.test.ts`.
+- **A opção `entityBoost` volta a significar o que promete.** Ela desligava a extração de entidades na escrita, mas na leitura não governava nada — porque o impulso por entidades era somado como zero constante desde a v0.1. Agora vale dos dois lados: desligar a opção devolve exatamente o comportamento anterior (M15, #122).
 
 ### Deprecated
 
 ### Removed
 
 ### Fixed
+- **`get_memory` retornava memória JÁ ESQUECIDA (achado do live test M14).** O `forget` faz soft-delete (`t_invalid`) e todos os outros read paths filtram, mas a leitura por id (`Memory.get` → `vectorStore.get`) não filtrava — o dono dava `forget` e o `get_memory` seguia devolvendo o conteúdo. Corrigido no read PÚBLICO (`LocalMemory.get` retorna `null` quando `t_invalid` está setado); o `get` cru do store continua devolvendo a linha de propósito, para o `forget({hard:true})` poder fazer a erasure GDPR de uma memória já esquecida. Regressão coberta em `isolation.test.ts`.
 
 ### Security
 
