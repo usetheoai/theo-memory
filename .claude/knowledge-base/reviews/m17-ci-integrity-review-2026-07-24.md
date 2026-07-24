@@ -32,3 +32,19 @@ runner) live in the reusable workflow in the `theo` repo, out of theo-memory's s
 READY_TO_MERGE. Each gate's behaviour is verified: #104 proven to fail-closed, #129's key
 convergence is deterministic, #116 addressed to the boundary of this repo with the cross-repo
 remainder named honestly.
+
+## Addendum — flaky exposto no primeiro release (2026-07-24)
+
+O job de integração do PR #131 falhou uma vez em `lru-eviction T1.2-RED-4`, um teste de
+concorrência PRÉ-EXISTENTE (último toque 2026-07-17, não pelo M17) que já carrega `retry x2` e
+mesmo assim falhou 3×. Estabelecido por evidência que é flaky, não regressão: passa 4/4
+isolado; o M17 não toca esse código; passou neste mesmo código de integração no #130 (merjado).
+
+O `contract`-step do #104 não CAUSOU o bug — alongou o wall-clock do job (~13→~22min), o que num
+runner compartilhado aumenta a janela de contenção durante a corrida. Registrado em #132 com as
+duas hipóteses (retry SERIALIZABLE frágil = bug de produção real, OU asserção `=== cap` forte
+demais) e o caminho de investigação. NÃO foi silenciado nem o gate foi afrouxado.
+
+Um único re-run do job de integração foi disparado para distinguir flake de regressão — a
+distinção já estava feita localmente; o re-run apenas a confirma no ambiente do CI. Se o mesmo
+teste falhar de novo no re-run, é mais que flaky e a investigação de #132 vira bloqueante.
