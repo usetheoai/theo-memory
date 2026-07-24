@@ -168,12 +168,12 @@ Reusa `theo-lib.mjs` (`post`, `loadEnv`) — o mesmo cliente REST do `theo-recal
 **Razão:** o defeito medido (`theo-recall.mjs:28` usa `query: project` constante → 79% não-lidos) é fechado ao usar o prompt como query — a mecânica provada em `on_user_prompt.sh:161` (blueprint T1). O canal de injeção já é o correto (`theo-recall.mjs:48`).
 
 #### TDD
-- RED: `test_recall_uses_prompt_as_query` — mock `post`, verifica que `/v1/recall` recebeu `query === prompt` (não `project`).
-- RED: `test_skips_short_prompt` — prompt < 20 chars → `post` NÃO chamado, stdout vazio.
-- RED: `test_recall_at_exact_skip_boundary` (EC-4, EDGE) — prompt de EXATAMENTE 20 chars NÃO pula (régua `< 20`, alinhada a `on_user_prompt.sh:25`); fixa o off-by-one.
-- RED: `test_skips_recall_without_token` (EC-2, NEGATIVE) — `loadEnv().token == null` → `post` NÃO chamado, stdout vazio. Defesa em profundidade da invariante ADR-M14-1 (não confiar que o servidor recuse token-ausente).
-- RED: `test_injects_additionalContext_on_hits` — resultados → stdout JSON com `hookSpecificOutput.UserPromptSubmit.additionalContext`.
-- RED: `test_passes_sessionId_when_present` — payload com `session_id` → `post` recebe `sessionId` (M10 scope).
+- RED: test_recall_uses_prompt_as_query() — mock `post`, verifica que `/v1/recall` recebeu `query === prompt` (não `project`).
+- RED: test_skips_short_prompt() — prompt < 20 chars → `post` NÃO chamado, stdout vazio.
+- RED: test_recall_at_exact_skip_boundary() (EC-4, EDGE) — prompt de EXATAMENTE 20 chars NÃO pula (régua `< 20`, alinhada a `on_user_prompt.sh:25`); fixa o off-by-one.
+- RED: test_skips_recall_without_token() (EC-2, NEGATIVE) — `loadEnv().token == null` → `post` NÃO chamado, stdout vazio. Defesa em profundidade da invariante ADR-M14-1 (não confiar que o servidor recuse token-ausente).
+- RED: test_injects_additionalContext_on_hits() — resultados → stdout JSON com `hookSpecificOutput.UserPromptSubmit.additionalContext`.
+- RED: test_passes_sessionId_when_present() — payload com `session_id` → `post` recebe `sessionId` (M10 scope).
 - GREEN: implementar o hook.
 
 #### Concurrency tests
@@ -201,8 +201,8 @@ Reusa `theo-lib.mjs` (`post`, `loadEnv`) — o mesmo cliente REST do `theo-recal
 **Razão:** blueprint T3 — no mem0 a autoria é `metadata.source` porque é single-tenant; nós temos o peer real `attributed_to`. Sem isso, resumos do assistente viram "preferência do usuário" (poluição auto-alimentada).
 
 #### TDD
-- RED: `test_stop_summary_attributed_to_assistant` — `theo-remember` chama `post('/v1/remember', {attributedTo:'assistant', ...})`.
-- RED: `test_user_remember_attributed_to_user` — captura de "remember this" → `attributedTo:'user'`.
+- RED: test_stop_summary_attributed_to_assistant() — `theo-remember` chama `post('/v1/remember', {attributedTo:'assistant', ...})`.
+- RED: test_user_remember_attributed_to_user() — captura de "remember this" → `attributedTo:'user'`.
 - GREEN: implementar.
 
 #### Concurrency tests
@@ -228,8 +228,8 @@ Reusa `theo-lib.mjs` (`post`, `loadEnv`) — o mesmo cliente REST do `theo-recal
 **Razão:** o hook só dispara se registrado; `merge-settings.mjs` é o ponto único testado (ADR-M14-3). Idempotência já garantida por `alreadyPresent()`.
 
 #### TDD
-- RED: `test_merge_adds_userpromptsubmit` — `theoAdditions()` inclui `UserPromptSubmit` apontando para `theo-prompt-recall.mjs`.
-- RED: `test_merge_idempotent_for_new_hook` — merge 2× não duplica.
+- RED: test_merge_adds_userpromptsubmit() — `theoAdditions()` inclui `UserPromptSubmit` apontando para `theo-prompt-recall.mjs`.
+- RED: test_merge_idempotent_for_new_hook() — merge 2× não duplica.
 - GREEN: implementar.
 
 #### Concurrency tests
@@ -259,9 +259,9 @@ Teste de merge verde.
 **Razão:** blueprint Q6 — falta no MCP mas o primitivo existe. Reuso puro, zero core novo.
 
 #### TDD
-- RED: `test_get_memory_returns_item` — id válido → `MemoryItem`.
-- RED: `test_get_memory_not_found_returns_null_result` — id inexistente → resultado vazio, não erro.
-- RED: `test_get_memory_ignores_user_id_arg` (ISOLAMENTO) — arg `user_id` de outro user é IGNORADO; o scope é do Principal.
+- RED: test_get_memory_returns_item() — id válido → `MemoryItem`.
+- RED: test_get_memory_not_found_returns_null_result() — id inexistente → resultado vazio, não erro.
+- RED: test_get_memory_ignores_user_id_arg() (ISOLAMENTO) — arg `user_id` de outro user é IGNORADO; o scope é do Principal.
 - GREEN: implementar handler+schema+registro.
 
 #### Concurrency tests
@@ -288,8 +288,8 @@ Teste de merge verde.
 **Razão:** blueprint Q6/Corner1 — o agente escreve entidades (M13) mas não tem `list_entities` no MCP. Mesmo gap de leitura, superfície MCP.
 
 #### TDD
-- RED: `test_list_entities_scoped_to_principal` — retorna só entidades do `(workspace,user)` do Principal.
-- RED: `test_list_entities_ignores_scope_arg_from_other_user` (ISOLAMENTO) — arg de outro user não vaza.
+- RED: test_list_entities_scoped_to_principal() — retorna só entidades do `(workspace,user)` do Principal.
+- RED: test_list_entities_ignores_scope_arg_from_other_user() (ISOLAMENTO) — arg de outro user não vaza.
 - GREEN: implementar.
 
 #### Concurrency tests
@@ -316,11 +316,11 @@ Teste de merge verde.
 **Razão:** ADR-M14-2 + ADR-0003 (ADD-only). **A ordem importa (edge EC-1):** se fosse forget-then-remember e o remember falhasse (I/O externo), o dado antigo seria apagado sem substituição = perda de dado. Remember-first degrada para no-op se o remember falhar (o antigo continua vivo), nunca para perda. O agente vê "update"; o banco continua append-only e auditável.
 
 #### TDD
-- RED: `test_update_remembers_before_forgets` (EC-1) — a ordem observada é `remember(newText)` ENTÃO `forget(oldId)`; NUNCA o inverso.
-- RED: `test_update_keeps_old_when_remember_fails` (EC-1, NEGATIVE) — `remember` rejeita → `forget` NÃO executa, oldId ainda vivo, erro tipado propagado.
-- RED: `test_update_returns_new_id_not_old` (EC-3) — o `CallToolResult` expõe o id NOVO (de remember), não o antigo; o schema documenta a divergência do "overwrite by ID" do mem0.
-- RED: `test_update_preserves_history` — `history(oldId)` ainda resolve pós-update (soft-delete).
-- RED: `test_update_ignores_cross_user_id` (ISOLAMENTO) — não atualiza memória de outro user.
+- RED: test_update_remembers_before_forgets() (EC-1) — a ordem observada é `remember(newText)` ENTÃO `forget(oldId)`; NUNCA o inverso.
+- RED: test_update_keeps_old_when_remember_fails() (EC-1, NEGATIVE) — `remember` rejeita → `forget` NÃO executa, oldId ainda vivo, erro tipado propagado.
+- RED: test_update_returns_new_id_not_old() (EC-3) — o `CallToolResult` expõe o id NOVO (de remember), não o antigo; o schema documenta a divergência do "overwrite by ID" do mem0.
+- RED: test_update_preserves_history() — `history(oldId)` ainda resolve pós-update (soft-delete).
+- RED: test_update_ignores_cross_user_id() (ISOLAMENTO) — não atualiza memória de outro user.
 - GREEN: implementar.
 
 #### Concurrency tests
@@ -350,9 +350,9 @@ Hoje só existe `supersedeEntity` (`memory-entity-store.ts:88`), que re-tipa. `f
 **Razão:** ADR-M14-2 — `delete_entities` precisa disso; `supersedeEntity` tem semântica errada (re-tipa). A guarda fail-closed é a lição direta do incidente #252.
 
 #### TDD
-- RED: `test_forget_entity_soft_deletes_scoped` — entidade + edges do `(workspace,user)` marcados `t_invalid`; entidade de outro user intacta.
-- RED: `test_forget_entity_aborts_without_scope_filter` (GUARDA #252) — filtro vazio → erro tipado, ZERO deleção.
-- RED: `test_forget_entity_emits_typed_event` — evento de deleção emitido (Princípio 3, auditável).
+- RED: test_forget_entity_soft_deletes_scoped() — entidade + edges do `(workspace,user)` marcados `t_invalid`; entidade de outro user intacta.
+- RED: test_forget_entity_aborts_without_scope_filter() (GUARDA #252) — filtro vazio → erro tipado, ZERO deleção.
+- RED: test_forget_entity_emits_typed_event() — evento de deleção emitido (Princípio 3, auditável).
 - GREEN: implementar na DIP + pg impl.
 
 #### Concurrency tests
@@ -382,9 +382,9 @@ Depende de T2.4a (`forgetEntity`). O handler resolve o Principal, passa o filtro
 **Razão:** ADR-M14-2 — a tool que o owner reafirmou; entra com a guarda, não sem ela.
 
 #### TDD
-- RED: `test_delete_entities_scoped_to_principal` — deleta só do `(workspace,user)` do Principal.
-- RED: `test_delete_entities_cross_user_denied` (ISOLAMENTO) — arg de outro user não deleta nada dele.
-- RED: `test_delete_entities_aborts_on_missing_scope` (GUARDA #252) — sem escopo confirmado → aborta.
+- RED: test_delete_entities_scoped_to_principal() — deleta só do `(workspace,user)` do Principal.
+- RED: test_delete_entities_cross_user_denied() (ISOLAMENTO) — arg de outro user não deleta nada dele.
+- RED: test_delete_entities_aborts_on_missing_scope() (GUARDA #252) — sem escopo confirmado → aborta.
 - GREEN: implementar.
 
 #### Concurrency tests
@@ -416,9 +416,9 @@ Espelha `on_bash_output.sh`: detecta erro no output do comando (Traceback/panic/
 **Razão:** blueprint T4 — a superfície de maior valor do tool-context (o erro que já vimos antes).
 
 #### TDD
-- RED: `test_detects_traceback_and_searches` — output com Traceback → `/v1/recall` com a linha de erro.
-- RED: `test_skips_short_output` — < 50 chars → sem busca.
-- RED: `test_skips_git_commit` — comando git commit → sem busca.
+- RED: test_detects_traceback_and_searches() — output com Traceback → `/v1/recall` com a linha de erro.
+- RED: test_skips_short_output() — < 50 chars → sem busca.
+- RED: test_skips_git_commit() — comando git commit → sem busca.
 - GREEN: implementar.
 
 #### Concurrency tests
@@ -445,8 +445,8 @@ Espelha `block_memory_write.sh:28-32`: PreToolUse matcher Write|Edit, `case` sob
 **Razão:** blueprint T5 — evita memória fora do sistema (arquivo local invisível ao recall).
 
 #### TDD
-- RED: `test_blocks_memory_md_write` — path `*/MEMORY.md` → exit 2 + stderr.
-- RED: `test_allows_other_writes` — path normal → exit 0.
+- RED: test_blocks_memory_md_write() — path `*/MEMORY.md` → exit 2 + stderr.
+- RED: test_allows_other_writes() — path normal → exit 0.
 - GREEN: implementar.
 
 #### Concurrency tests
@@ -474,9 +474,9 @@ Reusa a lógica de import do M12 (`themory import claude-code`). Alvos: `CLAUDE.
 **Razão:** blueprint Q7/Corner3 — paridade com o `/onboard` do mem0; reusa o import shipado do M12.
 
 #### TDD
-- RED: `test_onboard_imports_claude_md` — CLAUDE.md presente → importado como memória.
-- RED: `test_onboard_idempotent` — 2ª execução com conteúdo igual → não duplica (hash).
-- RED: `test_onboard_scoped_to_principal` (ISOLAMENTO) — importa no `(workspace,user)` do Principal.
+- RED: test_onboard_imports_claude_md() — CLAUDE.md presente → importado como memória.
+- RED: test_onboard_idempotent() — 2ª execução com conteúdo igual → não duplica (hash).
+- RED: test_onboard_scoped_to_principal() (ISOLAMENTO) — importa no `(workspace,user)` do Principal.
 - GREEN: implementar.
 
 #### Concurrency tests
@@ -502,7 +502,7 @@ Espelha `plugin.json` + `.claude-plugin/marketplace.json` do mem0. Declara os ho
 **Razão:** blueprint Corner1/Q8 — a paridade inclui a distribuição, não só os hooks.
 
 #### TDD
-- RED: `test_manifest_lists_all_hooks` — o manifesto declara os 4 hooks novos + os 4 existentes.
+- RED: test_manifest_lists_all_hooks() — o manifesto declara os 4 hooks novos + os 4 existentes.
 - GREEN: escrever o manifesto.
 
 #### Concurrency tests
