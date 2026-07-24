@@ -53,3 +53,25 @@ export function attachUser(req: IncomingMessage, userId: string): void {
 export function userFromRequest(req: IncomingMessage): string | undefined {
   return (req as IncomingMessage & { [USER_KEY]?: string })[USER_KEY];
 }
+
+const GATEWAY_TRUSTED_KEY = Symbol('themory.request.gatewayTrusted');
+
+/**
+ * Mark the request as coming through a TRUSTED gateway (M16 / #121, /review Finding 2).
+ *
+ * Set by the bearer gate ONLY when a workspace-level credential also carries the
+ * `memory:platform-admin` scope — the scope that only the theo-cloud gateway credential
+ * holds. It is the explicit, auth-derived signal that authorizes honouring `X-Theo-User-Id`.
+ *
+ * Without it, a workspace-level key used DIRECTLY (an operator can mint an unbound key) would
+ * let the client header pick any user in the workspace — a workspace-wide impersonation
+ * primitive. "Workspace-level" is not "trusted gateway"; only this mark is.
+ */
+export function markGatewayTrusted(req: IncomingMessage): void {
+  (req as IncomingMessage & { [GATEWAY_TRUSTED_KEY]?: boolean })[GATEWAY_TRUSTED_KEY] = true;
+}
+
+/** True when the bearer gate authorized gateway-injected user headers for this request. */
+export function isGatewayTrusted(req: IncomingMessage): boolean {
+  return (req as IncomingMessage & { [GATEWAY_TRUSTED_KEY]?: boolean })[GATEWAY_TRUSTED_KEY] === true;
+}
