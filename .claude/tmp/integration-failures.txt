@@ -1,4 +1,0 @@
-     × an English input persists English entity labels (not translated to Portuguese) 1229ms (retry x2)
-     × a Portuguese input persists Portuguese entity labels (not translated to English) 873ms (retry x2)
-     × a Portuguese input persists a Portuguese fact (not translated to English) 1061ms (retry x2)
-     × an English input persists an English fact (not translated to Portuguese) 684ms (retry x2)
