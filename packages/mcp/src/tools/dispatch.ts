@@ -23,6 +23,7 @@ import { recallHandler, TOOL_NAME as RECALL } from './recall-handler.js';
 import { reflectHandler, TOOL_NAME as REFLECT } from './reflect-handler.js';
 import { explainRecallHandler, TOOL_NAME as EXPLAIN_RECALL } from './explain-recall-handler.js';
 import { rememberHandler, TOOL_NAME as REMEMBER } from './remember-handler.js';
+import { getMemoryHandler, TOOL_NAME as GET_MEMORY } from './get-memory-handler.js';
 
 type HandlerFn = (
   args: unknown,
@@ -43,6 +44,8 @@ const HANDLERS = new Map<string, HandlerFn>([
   [EXECUTE_SKILL, executeSkillHandler],
   // recall-trace-retention-and-mcp M4 T4.1 — explain why a recall dropped candidates.
   [EXPLAIN_RECALL, explainRecallHandler],
+  // M14 T2.1 — get_memory: reuse Memory.get scoped to the Principal.
+  [GET_MEMORY, getMemoryHandler],
 ]);
 
 /**
