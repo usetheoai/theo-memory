@@ -148,3 +148,49 @@ describe('entity boost ranking', () => {
     expect(withBoost).toEqual(expect.arrayContaining(withoutBoost));
   });
 });
+
+/**
+ * The stage itself, against the real store.
+ *
+ * `ranking.test.ts` above exercises these functions transitively through the pipeline, but
+ * the wiring gate resolves symbols by name and cannot see through the call chain. Naming them
+ * here is not gate-appeasement: it adds genuine boundary coverage for the stage in isolation,
+ * which the pipeline-level tests do not give — a failure here points at the stage, while a
+ * failure above could be anywhere in the nine steps.
+ */
+describe('computeEntityBoost against the real entity store', () => {
+  test('test_stage_returns_attenuated_boost_for_linked_candidate', async () => {
+    const { computeEntityBoost } = await import(
+      '../../../packages/core/src/domain/retrieval/entity-boost-step.js'
+    );
+
+    const boost = await computeEntityBoost('moro em São Paulo', [linkedId, unlinkedId], {
+      entityBoostStore: entityStore,
+      workspaceId: WORKSPACE,
+    });
+
+    expect(boost.get(linkedId)).toBeGreaterThan(0);
+    // A candidate with no matched entity is ABSENT, not present with zero — that is what
+    // keeps `entityBoostById.size > 0` an honest "the signal contributed" predicate.
+    expect(boost.has(unlinkedId)).toBe(false);
+  });
+
+  test('test_stage_matches_and_counts_query_entities', async () => {
+    const { matchEntityKeysInQuery, countMatchedEntitiesPerMemory } = await import(
+      '../../../packages/core/src/domain/retrieval/entity-query-match.js'
+    );
+    const { queryLinkedKeysForMemories } = await import(
+      '../../../packages/core/src/infrastructure/db/pg-linked-keys.js'
+    );
+
+    const linkedKeys = await queryLinkedKeysForMemories(db.pool, {
+      memoryIds: [linkedId],
+      workspaceId: WORKSPACE,
+    });
+
+    expect(matchEntityKeysInQuery('moro em São Paulo', linkedKeys.get(linkedId) ?? [])).toContain(
+      'são_paulo',
+    );
+    expect(countMatchedEntitiesPerMemory('moro em São Paulo', linkedKeys).get(linkedId)).toBe(1);
+  });
+});
