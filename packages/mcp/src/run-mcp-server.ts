@@ -20,6 +20,7 @@
  * @see EC-7 — env-var hard-fail + dual signal handlers
  * @see Plan theo-memory-standalone-p0 § T2.1 (extraction motivation)
  */
+import { trace } from '@opentelemetry/api';
 import { Pool } from 'pg';
 
 import { runMigrations, PgMemoryEntityStore } from '@usetheo/memory';
@@ -342,8 +343,10 @@ export async function runMcpServer(options?: RunMcpServerOptions): Promise<void>
       // M4 — back explain_recall with the recall-trace store, opt-in under the same
       // THEOMEM_RECALL_TRACE posture as the SDK write + REST read.
       ...(resolveRecallTraceEnabled() ? { recallTraceStore: new PgRecallTraceStore(pool) } : {}),
-      // M14 T2.2 — back list_entities with the entity read port (pool-backed).
-      memoryEntityStore: new PgMemoryEntityStore(pool),
+      // M14 T2.2 — back list_entities with the entity read port (pool-backed). The tracer
+      // makes delete_entities' `entity_forgotten` event observable (Princípio 3); it is the
+      // OTel API no-op tracer unless an SDK exporter is configured, so this is always safe.
+      memoryEntityStore: new PgMemoryEntityStore(pool, trace.getTracer('themory-memory-entity-store')),
     });
 
   // What SIGTERM must tear down differs per transport, and it is only known after

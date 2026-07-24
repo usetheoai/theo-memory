@@ -8,8 +8,8 @@ import { MEMORY_EVENTS, emitEvent } from './memory-event.js';
 import type { MemoryEvent } from './memory-event.js';
 
 describe('MEMORY_EVENTS', () => {
-  test('has 47 values (45 prior + reextract_chunk_done + reextract_noise_retired, M13 #111)', () => {
-    expect(MEMORY_EVENTS).toHaveLength(47);
+  test('has 48 values (47 prior + entity_forgotten, M14 delete_entities auditability)', () => {
+    expect(MEMORY_EVENTS).toHaveLength(48);
   });
 
   test('includes category_auto_assigned + category_auto_dropped (auto-categorization, Princípio 3)', () => {
@@ -108,17 +108,23 @@ describe('MEMORY_EVENTS', () => {
 });
 
 describe('emitEvent', () => {
-  test('is a no-op when tracer is undefined (does not throw)', () => {
-    expect(() => emitEvent(undefined, 'extraction_started')).not.toThrow();
-  });
-
-  test('calls tracer.startActiveSpan with the event name when provided', () => {
+  /** A recording tracer stub: exposes the setAttribute/end spies the span receives. */
+  function stubTracer() {
     const setAttribute = vi.fn();
     const end = vi.fn();
     const startActiveSpan = vi.fn((_name: string, fn: (span: { setAttribute: typeof setAttribute; end: typeof end }) => void) => {
       fn({ setAttribute, end });
     });
     const tracer = { startActiveSpan } as unknown as Parameters<typeof emitEvent>[0];
+    return { tracer, startActiveSpan, setAttribute, end };
+  }
+
+  test('is a no-op when tracer is undefined (does not throw)', () => {
+    expect(() => emitEvent(undefined, 'extraction_started')).not.toThrow();
+  });
+
+  test('calls tracer.startActiveSpan with the event name when provided', () => {
+    const { tracer, startActiveSpan, setAttribute, end } = stubTracer();
     emitEvent(tracer, 'extraction_completed', { facts: 3 });
     expect(startActiveSpan).toHaveBeenCalledWith('extraction_completed', expect.any(Function));
     expect(setAttribute).toHaveBeenCalledWith('facts', 3);
@@ -126,12 +132,7 @@ describe('emitEvent', () => {
   });
 
   test('passes through string attribute values', () => {
-    const setAttribute = vi.fn();
-    const end = vi.fn();
-    const startActiveSpan = vi.fn((_name: string, fn: (span: { setAttribute: typeof setAttribute; end: typeof end }) => void) => {
-      fn({ setAttribute, end });
-    });
-    const tracer = { startActiveSpan } as unknown as Parameters<typeof emitEvent>[0];
+    const { tracer, setAttribute } = stubTracer();
     emitEvent(tracer, 'persist_completed', { scope: 'alice' });
     expect(setAttribute).toHaveBeenCalledWith('scope', 'alice');
   });

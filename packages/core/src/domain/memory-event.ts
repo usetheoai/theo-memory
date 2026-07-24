@@ -91,6 +91,13 @@ export const MEMORY_EVENTS = [
   // Attributes `entities_collected` + `edges_collected`. Makes graph shrinkage
   // observable (Princípio 3) — orphan entities were 48% of the dev graph before.
   'entity_gc_collected',
+  // M14 T2.4a — a scoped `delete_entities`/`forgetEntity` removed a derived entity
+  // (node) + its links + edges from the (workspace, user) graph. The source memories
+  // are UNTOUCHED (the graph is a re-extractable projection). Attributes `entities_removed`
+  // + `links_removed` + `edges_removed`. Makes the (only) destructive graph decision
+  // observable — the audit trail that replaces a soft-delete tombstone (the entities
+  // table has no `t_invalid`; ADR-M14-2 amendment). @see CLAUDE.md § Princípio 3
+  'entity_forgotten',
   // themory-scoped-forget-and-retrieval-counter T2.3 — the per-scope recall
   // counter increment failed (non-fatal; fail-soft per Princípio 3 — a recall()
   // MUST NEVER fail because `retrieval_api_usage` could not be bumped). Mirrors
