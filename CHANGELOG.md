@@ -13,8 +13,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+- **O job de contrato do CI passou a rodar dentro do job de integração, reusando o Postgres.** Ao ligar a suíte de contrato no CI (#104), alguns testes que inicializam o servidor tentavam abrir conexão sem banco e vazavam erros não-tratados; rodá-los junto do Postgres que a integração já sobe elimina a instabilidade sem um segundo banco (#104).
 
 ### Security
+
+## [0.46.0] - 2026-07-24
+
+### Added
+- **O CI agora roda a suíte de contrato (1353 testes), que antes ele ignorava.** Só a suíte de integração era executada, então uma regressão de contrato ficava invisível até alguém rodá-la à mão. Um novo job leve (sem Postgres, sem build) fecha essa lacuna — provado que barra um commit com falha deliberada (#104).
+
+
+### Fixed
+- **O CI parou de rodar o mesmo trabalho duas vezes.** `Integration` e `Security SAST` disparavam por `push` e por `pull_request` no mesmo commit, e a chave de concorrência (`github.ref`) os colocava em grupos distintos, então ambos rodavam. A chave passou a ser a branch, então o run do PR cancela o do push — metade dos runs, e sobra o que testa o merge commit (#129).
 
 ## [0.45.0] - 2026-07-24
 
