@@ -194,6 +194,16 @@ export class LocalMemory implements Memory {
     if (result === null) {
       return null;
     }
+    // Workspace isolation (mirrors `forget` EC-5, theo-memory#82): a workspace-bound Memory
+    // NEVER reads another tenant's row. The raw `vectorStore.get(id)` is unscoped (WHERE id=$1);
+    // without this guard, `get(id)` was a cross-tenant IDOR (caught by the M14 Phase 5 isolation
+    // gate). When no workspace is bound (single-tenant / no-auth dev), the row is served as-is.
+    if (this.workspaceId !== undefined) {
+      const rowWorkspace = (result.payload['workspace_id'] as string | undefined) ?? 'default';
+      if (rowWorkspace !== this.workspaceId) {
+        return null;
+      }
+    }
     return {
       id: result.id,
       text: String(result.payload['text'] ?? ''),
