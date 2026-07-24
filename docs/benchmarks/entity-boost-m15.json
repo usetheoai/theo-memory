@@ -8,10 +8,14 @@
   },
   "k": 1,
   "precisionAtK": {
-    "withoutBoost": 0.64,
+    "withoutBoost": 0.68,
     "withBoost": 1
   },
-  "delta": 0.36,
+  "delta": 0.31999999999999995,
   "recallSetChurn": 0,
-  "boostedCandidateCount": 9
+  "boostedCandidateCount": 8,
+  "latencyMsPerQuery": {
+    "withoutBoost": 40.7,
+    "withBoost": 46.91
+  }
 }
