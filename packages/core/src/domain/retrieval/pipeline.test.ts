@@ -271,3 +271,166 @@ describe('runRetrievalPipeline M10 scope-aware reweight', () => {
     expect(out[0]?.attributedTo).toBe('agent');
   });
 });
+
+/**
+ * M15 T3.1 (#122) — Step 6 populates `entityBoostById`.
+ *
+ * This is the line the issue points at: the map was created empty and never filled, so
+ * `combineScores` had always summed a component that was always zero.
+ */
+describe('runRetrievalPipeline entity boost', () => {
+  const boostCandidates: VectorStoreResult[] = [
+    { id: 'm-linked', score: 0.8, payload: { text: 'sobre são paulo' } },
+    { id: 'm-plain', score: 0.8, payload: { text: 'sem entidade' } },
+  ];
+
+  function boostStore(linked: Record<string, string[]>) {
+    return {
+      linkedKeysForMemories: async () =>
+        new Map(Object.entries(linked)) as ReadonlyMap<string, readonly string[]>,
+    };
+  }
+
+  test('test_entity_boost_map_is_populated_when_query_mentions_linked_entity', async () => {
+    const deps: RetrievalDeps = {
+      vectorStore: vectorStoreReturning(boostCandidates),
+      embedder,
+      entityBoostStore: boostStore({ 'm-linked': ['são_paulo'] }),
+    };
+
+    const results = await runRetrievalPipeline('moro em São Paulo', FILTERS, deps, {
+      threshold: 0.1,
+      topK: 10,
+    });
+
+    const linked = results.find((r) => r.id === 'm-linked');
+    const plain = results.find((r) => r.id === 'm-plain');
+    expect(linked).toBeDefined();
+    expect(plain).toBeDefined();
+    // Same semantic score; only the entity link separates them.
+    expect((linked as { score: number }).score).toBeGreaterThan((plain as { score: number }).score);
+  });
+
+  test('test_pipeline_without_entity_store_behaves_identically', async () => {
+    const base: RetrievalDeps = { vectorStore: vectorStoreReturning(boostCandidates), embedder };
+
+    const baseline = await runRetrievalPipeline('moro em São Paulo', FILTERS, base, {
+      threshold: 0.1,
+      topK: 10,
+    });
+
+    expect(baseline.map((r) => r.id)).toEqual(['m-linked', 'm-plain']);
+  });
+
+  test('test_query_with_no_entity_match_leaves_signal_off', async () => {
+    const deps: RetrievalDeps = {
+      vectorStore: vectorStoreReturning(boostCandidates),
+      embedder,
+      entityBoostStore: boostStore({ 'm-linked': ['berlim'] }),
+    };
+
+    const results = await runRetrievalPipeline('moro em São Paulo', FILTERS, deps, {
+      threshold: 0.1,
+      topK: 10,
+    });
+
+    // No key matched, so no candidate is boosted and both keep the same score.
+    const linked = results.find((r) => r.id === 'm-linked') as { score: number };
+    const plain = results.find((r) => r.id === 'm-plain') as { score: number };
+    expect(linked.score).toBe(plain.score);
+  });
+
+  test('test_bm25_only_candidate_also_receives_boost', async () => {
+    const store = {
+      search: async () => [{ id: 'm-sem', score: 0.8, payload: { text: 'semantico' } }],
+      keywordSearch: async () => [{ id: 'm-kw', score: 9, payload: { text: 'são paulo' } }],
+    } as unknown as VectorStore;
+    let asked: readonly string[] = [];
+    const deps: RetrievalDeps = {
+      vectorStore: store,
+      embedder,
+      entityBoostStore: {
+        linkedKeysForMemories: async (p) => {
+          asked = p.memoryIds;
+          return new Map([['m-kw', ['são_paulo']]]);
+        },
+      },
+    };
+
+    await runRetrievalPipeline('moro em São Paulo', FILTERS, deps, { threshold: 0.05, topK: 10 });
+
+    // The union must be built BEFORE the lookup, otherwise a BM25-only candidate could
+    // never be boosted.
+    expect(asked).toContain('m-kw');
+  });
+
+  test('test_entity_store_failure_degrades_to_empty_boost_and_emits_event', async () => {
+    const events: string[] = [];
+    const tracer = {
+      startActiveSpan: (name: string, fn: (span: unknown) => void) => {
+        events.push(name);
+        fn({ setAttribute: () => {}, end: () => {} });
+      },
+    } as unknown as NonNullable<RetrievalDeps['tracer']>;
+
+    const deps: RetrievalDeps = {
+      vectorStore: vectorStoreReturning(boostCandidates),
+      embedder,
+      entityBoostStore: {
+        linkedKeysForMemories: async () => {
+          throw new Error('connection terminated');
+        },
+      },
+      tracer,
+    };
+
+    const results = await runRetrievalPipeline('moro em São Paulo', FILTERS, deps, {
+      threshold: 0.1,
+      topK: 10,
+    });
+
+    // Recall is a read path: losing the third signal beats returning an error.
+    expect(results.map((r) => r.id)).toEqual(['m-linked', 'm-plain']);
+    // But the degradation is never silent (Princípio 3).
+    expect(events).toContain('entity_boost_degraded');
+  });
+});
+
+/**
+ * M15 /review (#122) — the timeout row of the plan's Failure-scenarios table.
+ *
+ * Only a THROWN error degraded the boost. A hung query has no error to catch, so it would
+ * block every recall behind it — the plan promised this degraded and it did not.
+ */
+describe('runRetrievalPipeline entity boost timeout', () => {
+  test('test_hung_entity_lookup_degrades_instead_of_blocking_recall', async () => {
+    const events: string[] = [];
+    const tracer = {
+      startActiveSpan: (name: string, fn: (span: unknown) => void) => {
+        events.push(name);
+        fn({ setAttribute: () => {}, end: () => {} });
+      },
+    } as unknown as NonNullable<RetrievalDeps['tracer']>;
+
+    const deps: RetrievalDeps = {
+      vectorStore: vectorStoreReturning([
+        { id: 'm1', score: 0.8, payload: { text: 'kept' } },
+      ]),
+      embedder,
+      entityBoostStore: {
+        // Never settles — the shape of a saturated pool or a wedged connection.
+        linkedKeysForMemories: () => new Promise(() => {}),
+      },
+      timeoutMs: 25,
+      tracer,
+    };
+
+    const results = await runRetrievalPipeline('moro em São Paulo', FILTERS, deps, {
+      threshold: 0.1,
+      topK: 10,
+    });
+
+    expect(results.map((r) => r.id)).toEqual(['m1']);
+    expect(events).toContain('entity_boost_degraded');
+  });
+});

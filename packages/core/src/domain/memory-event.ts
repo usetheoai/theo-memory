@@ -98,6 +98,25 @@ export const MEMORY_EVENTS = [
   // observable — the audit trail that replaces a soft-delete tombstone (the entities
   // table has no `t_invalid`; ADR-M14-2 amendment). @see CLAUDE.md § Princípio 3
   'entity_forgotten',
+  // M15 T3.1 (#122) — the recall entity boost could not be computed (the entity store
+  // threw: timeout, connection reset, …) and the query proceeded WITHOUT the third
+  // signal. Recall is a read path, so losing the boost beats returning an error to the
+  // caller — but the degradation is never silent, because a permanently-zero boost that
+  // nobody can see is exactly the defect #122 was. Attribute `error`.
+  // @see CLAUDE.md § Princípio 3
+  'entity_boost_degraded',
+  // M15 /review (#122) — the entity boost RAN and produced a result. Attributes
+  // `candidates` (how many were looked up) and `boosted` (how many received a non-zero
+  // boost). Emitted on every recall where an entity store is configured, INCLUDING when
+  // `boosted` is 0.
+  //
+  // `entity_boost_degraded` only fires when the store THROWS. An empty graph, a
+  // normalization drift, or a scope mismatch all yield an empty map with no exception —
+  // byte-identical to the dead path this milestone exists to fix. Without a liveness
+  // signal the defect could return silently and nobody would see it. `boosted = 0`
+  // sustained across a busy scope is the alarm.
+  // @see CLAUDE.md § Princípio 3
+  'entity_boost_applied',
   // themory-scoped-forget-and-retrieval-counter T2.3 — the per-scope recall
   // counter increment failed (non-fatal; fail-soft per Princípio 3 — a recall()
   // MUST NEVER fail because `retrieval_api_usage` could not be bumped). Mirrors

@@ -24,6 +24,7 @@ import type { Tracer } from '@opentelemetry/api';
 import type { AdaptiveRetrievalPolicy, AdaptiveTuning } from '../dip/adaptive-retrieval-policy.js';
 import type { Embedder } from '../dip/embedder.js';
 import type { GraphExpansionStore } from '../dip/graph-expansion-store.js';
+import type { MemoryEntityStore } from '../dip/memory-entity-store.js';
 import type { RecallTraceRow, RecallTraceStore } from '../dip/recall-trace-store.js';
 import type { Reranker } from '../dip/reranker.js';
 import type { VectorStore, VectorStoreResult } from '../dip/vector-store.js';
@@ -35,6 +36,7 @@ import type { RecallOptions } from '../options.js';
 import type { Filters, Scope } from '../scope.js';
 import { combineScores, maxPossible, sigmoidBm25 } from '../scoring.js';
 
+import { computeEntityBoost } from './entity-boost-step.js';
 import { mmrRerank } from './mmr.js';
 import { scopeAwareReweight } from './scope-reweight.js';
 
@@ -82,6 +84,20 @@ export interface RetrievalDeps {
     readonly scopeKey: string;
     readonly maxRows: number;
   };
+  /**
+   * M15 T3.1 (#122) — read side of the entity graph, used to populate the entity boost in
+   * Step 6. Optional: an installation without a populated graph (everything before M13)
+   * behaves exactly as it does today, with the boost simply absent.
+   *
+   * Narrowed to the single method the pipeline needs rather than the whole
+   * `MemoryEntityStore` — the recall path has no business seeing `upsertAndLink` or
+   * `forgetEntity` (ISP).
+   */
+  readonly entityBoostStore?: Pick<MemoryEntityStore, 'linkedKeysForMemories'> | undefined;
+
+  /** Ceiling for the entity lookup; the boost degrades rather than blocking recall. */
+  readonly timeoutMs?: number | undefined;
+
   readonly tracer?: Tracer;
 }
 
@@ -448,8 +464,11 @@ export async function runRetrievalPipeline(
     }
   }
 
-  // Step 6: entity boost (v0.1 ships without entity store integration; numLinked=0 always)
-  const entityBoostById = new Map<string, number>();
+  // Step 6: entity boost (M15 / #122 — populated from the persisted entity graph).
+  const candidateIds = new Set<string>();
+  for (const r of semanticResults) candidateIds.add(r.id);
+  if (bm25Results !== null) for (const r of bm25Results) candidateIds.add(r.id);
+  const entityBoostById = await computeEntityBoost(query, [...candidateIds], filters, deps);
 
   // Step 7: combined score per candidate (union of semantic + BM25 ids)
   const candidates = new Map<string, { semantic: number; bm25: number; entity: number; payload: Payload }>();
