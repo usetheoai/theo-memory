@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+- **O job de contrato do CI passou a rodar dentro do job de integração, reusando o Postgres.** Ao ligar a suíte de contrato no CI (#104), alguns testes que inicializam o servidor tentavam abrir conexão sem banco e vazavam erros não-tratados; rodá-los junto do Postgres que a integração já sobe elimina a instabilidade sem um segundo banco (#104).
 
 ### Security
 
