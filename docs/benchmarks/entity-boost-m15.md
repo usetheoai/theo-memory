@@ -11,10 +11,11 @@ Two runs, same corpus, same code:
 | precision@1 — boost OFF | 0.64 | 0.68 |
 | precision@1 — boost ON | **1.00** | **1.00** |
 | delta | +0.36 | +0.32 |
-| `recall_set_churn` (post-threshold) | **0** | **0** |
+| `recall_set_churn` at default threshold (0.1) | **0** | **0** |
+| `recall_set_churn` at threshold 0.8 | not measured | **75** |
 | `boostedCandidateCount` | 9 of 25 | 8 of 25 |
-| latency per query — boost OFF | — | 40.70 ms |
-| latency per query — boost ON | — | 46.91 ms |
+| latency per query — boost OFF | 40.70 ms | 27.66 ms |
+| latency per query — boost ON | 46.91 ms | 52.50 ms |
 
 Raw output of the latest run: [`entity-boost-m15.json`](./entity-boost-m15.json).
 
@@ -71,12 +72,37 @@ tie-break in its favour. The effect is conservative for this report — it *rais
 and therefore *shrinks* the measured delta, so the reported band is a **lower bound**, not an
 inflated one.
 
-**`boostedCandidateCount` is 8–9, not 25.** The boost changed the outcome only for the topics
-where the relevant memory was not already ranked first by tie-break; for the rest it confirmed a
-position that happened to be correct already. That is also why the count moves between runs — it
-is the complement of the unstable baseline. The number exists so a dead boost cannot pass this
-benchmark silently, which is precisely the defect (#122) this milestone closes: the component had
-been summed as a constant zero since v0.1.
+**`boostedCandidateCount` is 25 — one per topic.** The boost changed the outcome only for the topics
+The earlier figure of 8–9 came from a broken instrument: it compared ranks between two runs, so
+it only counted topics where the boost changed the winner, and it inherited the baseline's
+instability — meaning a completely DEAD boost could have produced a non-zero count from
+tie-break noise alone. It is now asked of the stage directly: how many candidates received a
+non-zero boost. A dead boost returns an empty map, always. The number exists so the defect
+(#122) this milestone closes — a component summed as a constant zero since v0.1 — cannot come
+back unnoticed.
+
+## The renormalization risk is real, and here is its size
+
+Plan ADR D1 accepted, knowingly, that enabling the boost raises `maxPossible` and therefore
+lowers the normalized score of every candidate WITHOUT an entity link. It accepted that on the
+explicit condition that D2 would measure it.
+
+The first version of this benchmark did not. It measured churn at the pipeline default
+threshold (0.1), where an unlinked candidate lands at `1.0/1.5 = 0.667` — 6.7× above the gate.
+Zero churn there was an arithmetic certainty, not an observation. The instrument reported
+"no risk" because it was incapable of reporting anything else.
+
+Measured properly, at threshold 0.8, the effect is **75 evictions across 25 topics**. The
+arithmetic is exact and fully explains it: without the boost all four candidates in a topic
+score 1.0; with it the linked one stays at `1.5/1.5 = 1.0` while the three unlinked fall to
+`1.0/1.5 = 0.667`, below the gate. Three per topic, twenty-five topics.
+
+**What this means for a consumer.** At the default threshold nothing changes — the drop does
+not cross the gate. At a high threshold, turning the boost on can remove unlinked results that
+a previous version returned. That is a behaviour change, not a bug: a candidate with no entity
+link genuinely IS further from the achievable maximum once entity evidence is on the table.
+But it is a change nobody would predict from the release notes alone, so it is stated here and
+tracked separately for a decision on whether D1 should stand.
 
 **Cost: +6.2 ms per query (40.70 → 46.91 ms), about 15%.** That is the price of one extra
 indexed round-trip over the candidate set, measured on the same 25 queries. It is bounded by
