@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- **Roadmap M16–M20 — o backlog de issues abertas virou plano rastreável.** Cinco milestones agrupando as 13 issues que exigem trabalho, por coesão técnica: identidade fail-closed, CI que prova o que diz provar, qualidade do sinal de entidades, dívida do caminho de recall, e higiene de dependências (#121, #84, #102, #104, #129, #116, #125, #127, #124, #123, #118).
 
 ### Changed
 
