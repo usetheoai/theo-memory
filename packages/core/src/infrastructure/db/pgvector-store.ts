@@ -633,16 +633,25 @@ export class PgvectorStore implements VectorStore {
   }
 
   async get(vectorId: string): Promise<VectorStoreResult | null> {
-    const result = await this.pool.query<MemoriesRow>(
+    // `t_invalid` is selected (and surfaced on the payload) but NOT filtered here: the
+    // internal callers need the row even when it is soft-deleted — `LocalMemory.forget`
+    // reads it to authorize a GDPR hard-erasure of an ALREADY-forgotten memory. The
+    // public read (`LocalMemory.get`) is what hides forgotten rows.
+    const result = await this.pool.query<MemoriesRow & { t_invalid: Date | null }>(
       `SELECT id, text, hash, payload, workspace_id, user_id, session_id, agent_id, attributed_to, category,
-              kind, code, description, code_language, derived_from, superseded_by, confirmation_count
+              kind, code, description, code_language, derived_from, superseded_by, confirmation_count, t_invalid
          FROM memories WHERE id = $1`,
       [vectorId],
     );
     if (result.rows.length === 0) {
       return null;
     }
-    return rowToResult(result.rows[0] as MemoriesRow);
+    const row = result.rows[0] as MemoriesRow & { t_invalid: Date | null };
+    const mapped = rowToResult(row);
+    if (row.t_invalid !== null && row.t_invalid !== undefined) {
+      (mapped.payload as Record<string, unknown>)['t_invalid'] = row.t_invalid;
+    }
+    return mapped;
   }
 
   async update(vectorId: string, vector: readonly number[], payload: Payload): Promise<void> {
