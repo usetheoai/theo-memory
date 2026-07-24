@@ -5,6 +5,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.44.0] - 2026-07-24
+
+### Added
 - **M15 /review — o impulso por entidades ficou observável.** Passa a existir sinal de que o impulso está vivo a cada busca, para que ele não possa voltar a morrer em silêncio como aconteceu da v0.1 ao M15 (M15) (#122).
 - **M15 — o impulso pode reduzir resultados quando o corte de relevância é alto.** Com o impulso ligado, memórias sem vínculo de entidade perdem cerca de um terço do score normalizado. No corte padrão isso não muda nada; acima de ~0.67 elas passam a ficar de fora. Medido: 75 exclusões em 25 buscas com corte 0.8. É comportamento defensável — um resultado sem vínculo está mesmo mais longe do máximo alcançável quando há evidência de entidade — mas ninguém adivinharia isso pelas notas de release, então está aqui e rastreado em #127 (M15) (#122).
 - **M15 T4.1 — benchmark medido do ganho.** Contra Postgres real, com corpus de 100 memórias: a precisão do primeiro resultado sobe de **0.64–0.68 para 1.00** quando o impulso por entidades está ligado, sem nenhuma memória sair do conjunto recuperado, ao custo de **+6 ms por busca**. A faixa na linha de base é honesta: sem o impulso os candidatos empatam e a ordem entre empatados varia entre execuções — com o impulso ligado o resultado é estável. Método, ressalvas e comando de reprodução em `docs/benchmarks/entity-boost-m15.md` (M15) (#122).
@@ -14,20 +28,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **M15 T1.2 — contagem de entidades por memória.** Cada memória recuperada agora sabe quantas das entidades citadas na busca estão ligadas a ela, que é o número que alimenta o peso do sinal estrutural no ranking (M15) (#122).
 - **M15 T1.1 — casamento entre a query e as entidades já persistidas.** Uma query que menciona "São Paulo" ou o campo `user_id` agora identifica as entidades correspondentes no acervo, preservando acentuação e nomes com mais de uma palavra. É a peça que faltava para o terceiro sinal do recall deixar de ser inerte (M15) (#122).
 
+
 ### Changed
 - **A opção `entityBoost` volta a significar o que promete.** Ela desligava a extração de entidades na escrita, mas na leitura não governava nada — porque o impulso por entidades era somado como zero constante desde a v0.1. Agora vale dos dois lados: desligar a opção devolve exatamente o comportamento anterior (M15) (#122).
 
-### Deprecated
-
-### Removed
 
 ### Fixed
 - **Entidade aposentada influenciava o ranking.** Quando uma entidade é substituída por outra (M13), a linha antiga continuava podendo receber novas ligações e, com o impulso ligado, empurrava resultados — enquanto a listagem, o painel e o grafo já a escondiam. Um impulso vindo de algo que nenhuma tela mostra (M15) (#122).
 - **A busca de vínculos respeitava apenas o workspace.** Agora aplica o escopo completo — usuário, sessão e agente — o mesmo predicado usado no resto do sistema, em vez de herdar a garantia do conjunto de candidatos (M15) (#122).
 - **Uma consulta de entidades pendurada travava a busca inteira.** Só erro lançado degradava; agora há teto de 750 ms e a busca segue sem o terceiro sinal em vez de bloquear quem chamou (M15) (#122).
 - **`get_memory` retornava memória JÁ ESQUECIDA (achado do live test M14).** O `forget` faz soft-delete (`t_invalid`) e todos os outros read paths filtram, mas a leitura por id (`Memory.get` → `vectorStore.get`) não filtrava — o dono dava `forget` e o `get_memory` seguia devolvendo o conteúdo. Corrigido no read PÚBLICO (`LocalMemory.get` retorna `null` quando `t_invalid` está setado); o `get` cru do store continua devolvendo a linha de propósito, para o `forget({hard:true})` poder fazer a erasure GDPR de uma memória já esquecida. Regressão coberta em `isolation.test.ts`.
-
-### Security
 
 ## [0.43.0] - 2026-07-24
 
