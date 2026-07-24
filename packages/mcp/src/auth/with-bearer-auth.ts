@@ -24,7 +24,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import type { AuthVerifier, Principal } from '@usetheo/memory/contract';
 
-import { attachWorkspace } from './request-workspace.js';
+import { attachUser, attachWorkspace } from './request-workspace.js';
 
 /** EC-1 — shape regex: prefix + at least 40 base64url chars (theo_live_* canonical 43). */
 const THEO_LIVE_SHAPE = /^theo_live_[A-Za-z0-9_-]{40,}$/;
@@ -186,6 +186,15 @@ export function withBearerAuth(
               return;
             }
             attachWorkspace(req, principal.workspaceId);
+            // M16 (#121): the USER tier is auth-trusted too when the credential carries one.
+            // Without this the transport fell back to `X-Theo-User-Id`, letting any key in a
+            // workspace act as any user in it (ADR-M14-1 violated at scope-build time).
+            // A workspace-level credential resolves no user — that is the gateway topology,
+            // where the header IS the auth-trusted signal.
+            const principalUser = (principal as { userId?: string | null }).userId;
+            if (typeof principalUser === 'string' && principalUser.trim() !== '') {
+              attachUser(req, principalUser);
+            }
             await delegate(req, res);
             return;
           }
