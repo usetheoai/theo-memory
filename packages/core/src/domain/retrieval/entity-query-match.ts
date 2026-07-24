@@ -93,3 +93,47 @@ export function matchEntityKeysInQuery(
   }
   return matched;
 }
+
+/**
+ * Counts, per memory, how many DISTINCT entities mentioned in the query are linked to it —
+ * the `numLinked` that {@link entityBoost} turns into a score contribution.
+ *
+ * Memories with no matched entity are absent from the result rather than present with a
+ * zero. That keeps `entityBoostById.size > 0` an honest predicate for "the entity signal
+ * actually contributed", which is what the pipeline uses to decide whether the signal is
+ * active for this query.
+ *
+ * Each distinct key is matched against the query once for the whole candidate set, not once
+ * per memory: candidates share entities heavily (that is precisely why they are candidates),
+ * so per-memory matching would redo the same comparisons across the whole over-fetch window.
+ *
+ * @param query - raw user query text, unnormalized.
+ * @param linkedKeysByMemory - memory id to the `normalized_key` values linked to it. The
+ *   store returns one row per link, so the same key may legitimately appear twice; counting
+ *   occurrences instead of distinct entities would inflate the boost.
+ */
+export function countMatchedEntitiesPerMemory(
+  query: string,
+  linkedKeysByMemory: ReadonlyMap<string, readonly string[]>,
+): ReadonlyMap<string, number> {
+  const distinctKeys = new Set<string>();
+  for (const keys of linkedKeysByMemory.values()) {
+    for (const key of keys) {
+      distinctKeys.add(key);
+    }
+  }
+
+  const matchedKeys = new Set(matchEntityKeysInQuery(query, [...distinctKeys]));
+  const counts = new Map<string, number>();
+  if (matchedKeys.size === 0) {
+    return counts;
+  }
+
+  for (const [memoryId, keys] of linkedKeysByMemory) {
+    const hits = new Set(keys.filter((key) => matchedKeys.has(key)));
+    if (hits.size > 0) {
+      counts.set(memoryId, hits.size);
+    }
+  }
+  return counts;
+}
