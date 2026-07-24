@@ -1,0 +1,150 @@
+/**
+ * M15 T3.2 + T3.3 (#122) — the entity boost changes RANKING, and changes nothing else.
+ *
+ * Against real `ankane/pgvector:v0.5.1`, through the actual retrieval pipeline with the
+ * actual pg stores. The two memories are seeded with IDENTICAL embeddings, so their semantic
+ * scores tie exactly and the entity link is the only thing that can separate them. Without
+ * that control the test would prove nothing — a ranking difference could just be cosine noise.
+ *
+ * The blueprint recorded that `REDACTED` asserts set membership and cardinality but never
+ * relative order, so there is no prior art to copy here: these assertions are our own design.
+ */
+import { randomUUID } from 'node:crypto';
+
+import pg from 'pg';
+import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+
+import { PgMemoryEntityStore, PgvectorStore } from '@usetheo/memory';
+import type { Embedder } from '@usetheo/memory';
+import { runRetrievalPipeline } from '../../../packages/core/src/domain/retrieval/pipeline.js';
+
+import { createIsolatedDb, type IsolatedDb } from '../_helpers/isolated-db.js';
+
+const DIM = 384;
+const WORKSPACE = 'default';
+const USER = 'u-boost';
+
+/** Every text embeds to the same vector, so semantic score can never break the tie. */
+const tiedEmbedder: Embedder = {
+  embed: async () => Array(DIM).fill(0.05),
+  embedBatch: async (texts) => texts.map(() => Array(DIM).fill(0.05)),
+};
+
+let db: IsolatedDb;
+let vectorStore: PgvectorStore;
+let entityStore: PgMemoryEntityStore;
+
+async function seedMemory(text: string, vec: number[]): Promise<string> {
+  const id = randomUUID();
+  await db.pool.query(
+    `INSERT INTO memories (id, workspace_id, user_id, text, hash, embedding, payload)
+     VALUES ($1, $2, $3, $4, $5, $6::vector, '{}'::jsonb)`,
+    [id, WORKSPACE, USER, text, randomUUID(), `[${vec.join(',')}]`],
+  );
+  return id;
+}
+
+/** Reuses the entity row when it already exists — one entity, many linked memories. */
+async function linkEntity(memoryId: string, normalizedKey: string): Promise<void> {
+  const { rows } = await db.pool.query<{ id: string }>(
+    `INSERT INTO entities (id, workspace_id, user_id, name, embedding, payload, type, normalized_key)
+     VALUES ($1, $2, $3, $4, $5::vector, '{}'::jsonb, 'NOUN', $6)
+     ON CONFLICT (workspace_id, COALESCE(user_id,''), COALESCE(session_id,''),
+                  COALESCE(agent_id,''), COALESCE(type,''), COALESCE(normalized_key,''))
+     DO UPDATE SET name = entities.name
+     RETURNING id`,
+    [
+      randomUUID(),
+      WORKSPACE,
+      USER,
+      normalizedKey.replace(/_/g, ' '),
+      `[${Array(DIM).fill(0).join(',')}]`,
+      normalizedKey,
+    ],
+  );
+  await db.pool.query(`INSERT INTO memory_entities (memory_id, entity_id) VALUES ($1, $2)`, [
+    memoryId,
+    rows[0]?.id,
+  ]);
+}
+
+/** topK is deliberately far above the corpus so the returned set IS the post-threshold set. */
+async function recall(withBoost: boolean, query = 'moro em São Paulo') {
+  return runRetrievalPipeline(
+    query,
+    { user_id: USER, workspace_id: WORKSPACE } as never,
+    {
+      vectorStore: vectorStore as never,
+      embedder: tiedEmbedder,
+      ...(withBoost ? { entityBoostStore: entityStore, workspaceId: WORKSPACE } : {}),
+    },
+    { topK: 100, threshold: 0.1 },
+  );
+}
+
+let linkedId = '';
+let unlinkedId = '';
+let irrelevantLinkedId = '';
+
+beforeAll(async () => {
+  db = await createIsolatedDb({ embeddingDim: DIM });
+  vectorStore = new PgvectorStore(db.pool, { embeddingDim: DIM });
+  entityStore = new PgMemoryEntityStore(db.pool);
+
+  const tied = Array(DIM).fill(0.05) as number[];
+  linkedId = await seedMemory('anotacao sobre a cidade', tied);
+  unlinkedId = await seedMemory('anotacao sobre a cidade', tied);
+  await linkEntity(linkedId, 'são_paulo');
+
+  // Semantically far from the query (orthogonal vector) but linked to the same entity —
+  // the candidate the boost must NOT resurrect.
+  const orthogonal = Array(DIM).fill(0) as number[];
+  orthogonal[0] = 1;
+  irrelevantLinkedId = await seedMemory('assunto totalmente distinto', orthogonal);
+  await linkEntity(irrelevantLinkedId, 'são_paulo');
+}, 180_000);
+
+afterAll(async () => {
+  await db?.dropDb();
+});
+
+describe('entity boost ranking', () => {
+  test('test_linked_memory_ranks_above_unlinked_equivalent', async () => {
+    const results = await recall(true);
+    const ids = results.map((r) => r.id);
+
+    expect(ids).toContain(linkedId);
+    expect(ids).toContain(unlinkedId);
+    expect(ids.indexOf(linkedId)).toBeLessThan(ids.indexOf(unlinkedId));
+  });
+
+  test('test_entity_component_is_positive_for_linked_memory', async () => {
+    const results = await recall(true);
+    const linked = results.find((r) => r.id === linkedId) as { score: number };
+    const unlinked = results.find((r) => r.id === unlinkedId) as { score: number };
+
+    // Identical embeddings ⇒ identical semantic and BM25 contributions. Any score gap is
+    // the entity component and nothing else.
+    expect(linked.score).toBeGreaterThan(unlinked.score);
+  });
+
+  test('test_sub_threshold_candidate_is_not_resurrected_by_boost', async () => {
+    // Negative case (`.claude/rules/testing.md` § 4.1): the semantic gate runs BEFORE the
+    // components are combined, so a candidate that fails it cannot come back through the
+    // boost. The test exists so a future refactor cannot invert that order unnoticed.
+    const results = await recall(true);
+
+    expect(results.map((r) => r.id)).not.toContain(irrelevantLinkedId);
+  });
+
+  test('test_boost_does_not_remove_memory_from_post_threshold_set', async () => {
+    // EC-2: measured on the post-threshold set, not the final topK. topK is 100 against a
+    // 3-memory corpus, so no truncation happens and the two sets are directly comparable.
+    // Measuring after truncation would report churn caused by a SUCCESSFUL promotion —
+    // the desired effect — and the target of 0 would be unreachable by construction.
+    const withoutBoost = (await recall(false)).map((r) => r.id);
+    const withBoost = (await recall(true)).map((r) => r.id);
+
+    expect(withBoost).toEqual(expect.arrayContaining(withoutBoost));
+  });
+});
