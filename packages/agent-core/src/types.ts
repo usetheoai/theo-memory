@@ -4,7 +4,7 @@
  * @see ADR D1 — Transport selection: stdio (primary) + streamable-HTTP (secondary)
  * @see ADR D8 — Package surface (subpath + bin + bundle isolation)
  */
-import type { Memory, RecallTraceStore } from '@usetheo/memory/contract';
+import type { Memory, MemoryEntityStore, RecallTraceStore } from '@usetheo/memory/contract';
 
 /**
  * Transport flavor for the MCP server.
@@ -63,4 +63,10 @@ export interface McpServerOptions {
    * `THEOMEM_RECALL_TRACE` posture as the SDK write + REST read.
    */
   readonly recallTraceStore?: RecallTraceStore;
+  /**
+   * M14 T2.2 — optional entity read store backing the `list_entities` tool. When
+   * omitted, `list_entities` returns an honest "not available" result. Injected by
+   * the composition root; scope is bound to the Principal at handler time (ADR-M14-1).
+   */
+  readonly memoryEntityStore?: MemoryEntityStore;
 }
