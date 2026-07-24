@@ -9,14 +9,20 @@
  * + pool pattern; reuses the same ON CONFLICT clause the schema UNIQUE defines.
  *
  */
+import type { Tracer } from '@opentelemetry/api';
 import type { Pool } from 'pg';
 
 import type {
   EntityNodeSummary,
+  ForgetEntityResult,
   ListEntitiesParams,
   MemoryEntityStore,
   UpsertAndLinkParams,
 } from '../../domain/dip/memory-entity-store.js';
+import { EntityForgetScopeError } from '../../domain/dip/memory-entity-store.js';
+import { emitEvent } from '../../domain/memory-event.js';
+import type { Filters } from '../../domain/scope.js';
+import { runInTx, scopeIds } from './pg-tx.js';
 
 /** F-L7: DO UPDATE the no-op `name = entities.name` so the conflicting row's id is
  *  RETURNED in one round-trip (a plain DO NOTHING returns no row on conflict,
@@ -31,18 +37,18 @@ function toVectorLiteral(embedding: readonly number[]): string {
 }
 
 export class PgMemoryEntityStore implements MemoryEntityStore {
-  constructor(private readonly pool: Pool) {}
+  constructor(
+    private readonly pool: Pool,
+    /** Optional OTel tracer — when present, `forgetEntity` emits `entity_forgotten` (Princípio 3). */
+    private readonly tracer?: Tracer,
+  ) {}
 
   async upsertAndLink(params: UpsertAndLinkParams): Promise<void> {
     if (params.entities.length === 0) return;
     const { memoryId, workspaceId, filters } = params;
-    const userId = filters.user_id ?? null;
-    const sessionId = filters.session_id ?? null;
-    const agentId = filters.agent_id ?? null;
+    const { userId, sessionId, agentId } = scopeIds(filters);
 
-    const client = await this.pool.connect();
-    try {
-      await client.query('BEGIN');
+    await runInTx(this.pool, async (client) => {
       for (const e of params.entities) {
         // EC-2 defense-in-depth at the persist boundary.
         const name = e.name.trim();
@@ -76,13 +82,7 @@ export class PgMemoryEntityStore implements MemoryEntityStore {
           [memoryId, entityId],
         );
       }
-      await client.query('COMMIT');
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
+    });
   }
 
   async list(params: ListEntitiesParams): Promise<readonly EntityNodeSummary[]> {
@@ -153,9 +153,7 @@ export class PgMemoryEntityStore implements MemoryEntityStore {
    */
   async supersedeEntity(params: { oldId: string; newId: string; workspaceId: string }): Promise<boolean> {
     const { oldId, newId, workspaceId } = params;
-    const client = await this.pool.connect();
-    try {
-      await client.query('BEGIN');
+    return runInTx(this.pool, async (client) => {
       // Fail-closed target validation (both rows, same workspace, new not superseded).
       const check = await client.query<{ id: string }>(
         `SELECT id FROM entities WHERE id = $1 AND workspace_id = $2 AND superseded_by IS NULL`,
@@ -170,8 +168,7 @@ export class PgMemoryEntityStore implements MemoryEntityStore {
         [newId, oldId, workspaceId],
       );
       if ((marked.rowCount ?? 0) === 0) {
-        await client.query('ROLLBACK');
-        return false; // already superseded (idempotent) or old row absent
+        return false; // already superseded (idempotent) or old row absent — no writes to roll back
       }
       // Repoint links: copy then drop (composite PK → ON CONFLICT DO NOTHING).
       await client.query(
@@ -209,13 +206,69 @@ export class PgMemoryEntityStore implements MemoryEntityStore {
           [newId, oldId, workspaceId],
         );
       }
-      await client.query('COMMIT');
       return true;
-    } catch (err) {
-      await client.query('ROLLBACK').catch(() => undefined);
-      throw err;
-    } finally {
-      client.release();
+    });
+  }
+
+  async forgetEntity(params: {
+    name: string;
+    workspaceId: string;
+    filters: Filters;
+  }): Promise<ForgetEntityResult> {
+    const { name, workspaceId, filters } = params;
+    // FAIL-CLOSED (#252): an under-constrained scope must ABORT before ANY database work.
+    // A user-tier delete requires a confirmed user; without it we would delete every
+    // matching entity across the whole workspace — the exact open-scope wipe of the
+    // cascade-delete incident. Throw BEFORE `pool.connect()` so nothing is touched.
+    const userId = filters.user_id;
+    if (userId === undefined || userId === '') {
+      throw new EntityForgetScopeError(
+        `forgetEntity(${name}) requires filters.user_id — refusing an open-scope delete.`,
+      );
     }
+    const { sessionId, agentId } = scopeIds(filters);
+
+    const result = await runInTx(this.pool, async (client): Promise<ForgetEntityResult> => {
+      // Resolve the target entity ids by name, scoped to (workspace, user[, session, agent]).
+      const found = await client.query<{ id: string }>(
+        `SELECT id FROM entities
+          WHERE name = $1 AND workspace_id = $2
+            AND COALESCE(user_id,'') = COALESCE($3,'')
+            AND COALESCE(session_id,'') = COALESCE($4,'')
+            AND COALESCE(agent_id,'') = COALESCE($5,'')
+            AND superseded_by IS NULL`,
+        [name, workspaceId, userId, sessionId, agentId],
+      );
+      const ids = found.rows.map((r) => r.id);
+      if (ids.length === 0) {
+        return { entitiesRemoved: 0, linksRemoved: 0, edgesRemoved: 0 };
+      }
+      // Remove the derived graph (memories untouched): links, edges, then the node rows.
+      const delLinks = await client.query(`DELETE FROM memory_entities WHERE entity_id = ANY($1::uuid[])`, [ids]);
+      const delEdges = await client.query(
+        `DELETE FROM entity_edges
+          WHERE workspace_id = $2
+            AND (source_entity_id = ANY($1::uuid[]) OR target_entity_id = ANY($1::uuid[]))`,
+        [ids, workspaceId],
+      );
+      const delEnts = await client.query(`DELETE FROM entities WHERE id = ANY($1::uuid[]) AND workspace_id = $2`, [ids, workspaceId]);
+      return {
+        entitiesRemoved: delEnts.rowCount ?? 0,
+        linksRemoved: delLinks.rowCount ?? 0,
+        edgesRemoved: delEdges.rowCount ?? 0,
+      };
+    });
+
+    // Princípio 3 — the (only) destructive graph decision is observable. The typed event is
+    // the audit trail that replaces a soft-delete tombstone (entities has no `t_invalid`;
+    // the graph is a re-extractable projection — ADR-M14-2 amendment). No-op without a tracer.
+    if (result.entitiesRemoved > 0 || result.linksRemoved > 0 || result.edgesRemoved > 0) {
+      emitEvent(this.tracer, 'entity_forgotten', {
+        entities_removed: result.entitiesRemoved,
+        links_removed: result.linksRemoved,
+        edges_removed: result.edgesRemoved,
+      });
+    }
+    return result;
   }
 }

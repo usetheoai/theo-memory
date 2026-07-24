@@ -31,11 +31,26 @@ hooks stay fast and dumb.
 | `hooks/theo-scrub.mjs` | Shared secret/PII deny-list + `scrub()` — the SAME scrub the migration tool uses (single source of truth). Applied client-side before every write. |
 | `hooks/merge-settings.mjs` | `mergeHooks(existing, additions)` — the load-bearing, tested settings.json merge (non-clobbering, idempotent). |
 | `hooks/theo-recall.mjs` | **SessionStart** — recalls the project's top-K memories, injects them via `hookSpecificOutput.additionalContext`. |
+| `hooks/theo-prompt-recall.mjs` | **UserPromptSubmit** (M14) — **per-prompt recall**: searches by the user's prompt (not the project name) on every message, scoped to the Principal `(workspace, user)` server-side. Closes the measured 79%-never-read gap. |
+| `hooks/theo-tool-context.mjs` | **PostToolUse** `Bash` (M14) — when a command fails (Traceback / panic / error), recalls the memory of that error (the last time you saw it). Skips `git commit/merge` and short output. |
+| `hooks/theo-block-memory-write.mjs` | **PreToolUse** `Write\|Edit` (M14) — blocks writes to `MEMORY.md` (invisible to recall) and redirects to `remember`. |
+| `hooks/theo-onboard.mjs` | **`/onboard` command** (M14) — idempotent import of this project's `CLAUDE.md` / `AGENTS.md` as profile memories (dedup by content hash). |
 | `hooks/theo-remember.mjs` | **Stop** — fire-and-forgets the last assistant message to `/v1/remember` (server extracts). Salience floor drops trivial turns. |
 | `hooks/theo-precompact.mjs` | **PreCompact** — flush-before-forget: persists the transcript tail before compaction. |
+| `hooks/theo-promote.mjs` | **SessionEnd** — promotes durable session working memories to the `(workspace, user)` global tier. |
+| `.claude-plugin/plugin.json` + `.claude-plugin/marketplace.json` | Distribution manifest (M14) — declares the 8 hooks + the `/onboard` command for marketplace install. |
 | `theo-memory.env.example` | Config template (endpoint URL + optional Bearer token). |
 | `install.sh` | Deploys the kit to `~/.claude` and merges the hook registrations. Idempotent. |
 | `test-merge.mjs` | Standalone merge test (`node docs/claude-code-kit/test-merge.mjs`). |
+
+## Onboarding a project (`/onboard`)
+
+Run `/onboard` once in a project to seed theo-memory with the project's context. It reads
+`CLAUDE.md` and `AGENTS.md` from the working directory and imports them as profile memories,
+scoped to the Principal `(workspace, user)` resolved from your token server-side. It is
+**idempotent** — re-running with unchanged content imports nothing (dedup by content hash),
+so it is safe to invoke on every clone. This reuses the M12 `themory import claude-code`
+concept, adapted to the kit's `post()` path.
 
 ## Setup
 

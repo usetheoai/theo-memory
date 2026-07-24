@@ -12,6 +12,12 @@ on:
   push:
     branches: [develop]
     tags: ["v*"]
+    # #116: docs-only develop pushes skip the whole build/deploy esteira.
+    # Tag (v*) builds point at merge commits (always code-bearing) so a
+    # release tag is never docs-filtered — the signed release image still builds.
+    paths-ignore:
+      - '.claude/**'
+      - '**/*.md'
   workflow_dispatch:
 # Single self-hosted runner: successive develop pushes must SUPERSEDE (cancel) the
 # queued/older run instead of piling up — the newest run always redeploys, so a

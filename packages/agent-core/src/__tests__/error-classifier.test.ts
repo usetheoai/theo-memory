@@ -15,46 +15,43 @@ import { z } from 'zod';
 import {
   ContentTooLargeError,
   EmbedderError,
+  EntityForgetScopeError,
   MemoryStoreError,
   MissingScopeError,
 } from '@usetheo/memory/contract';
 import { classifyError, UnknownToolError } from '../error-classifier.js';
 
+/** Assert a classified error is a self-correctable execution error whose text matches `re`. */
+function assertExecution(result: ReturnType<typeof classifyError>, re: RegExp): void {
+  expect(result.kind).toBe('execution');
+  if (result.kind === 'execution') {
+    expect(result.payload.isError).toBe(true);
+    expect(result.payload.content[0]?.text).toMatch(re);
+  }
+}
+
 describe('classifyError — Tool Execution Error mappings (ADR D6)', () => {
   it('maps MissingScopeError to an execution error with isError:true', () => {
-    const result = classifyError(new MissingScopeError('getScope: no active scope.'));
-    expect(result.kind).toBe('execution');
-    if (result.kind === 'execution') {
-      expect(result.payload.isError).toBe(true);
-      expect(result.payload.content[0]?.text).toContain('Scope');
-    }
+    assertExecution(classifyError(new MissingScopeError('getScope: no active scope.')), /Scope/);
+  });
+
+  it('maps EntityForgetScopeError to a self-correctable execution error (not -32603, F-api-4)', () => {
+    assertExecution(
+      classifyError(new EntityForgetScopeError('forgetEntity(X) requires filters.user_id')),
+      /user scope|fail-closed/i,
+    );
   });
 
   it('maps MemoryStoreError to an execution error with retry-in-a-moment text', () => {
-    const result = classifyError(new MemoryStoreError('pg connection refused'));
-    expect(result.kind).toBe('execution');
-    if (result.kind === 'execution') {
-      expect(result.payload.isError).toBe(true);
-      expect(result.payload.content[0]?.text).toMatch(/Retry/i);
-    }
+    assertExecution(classifyError(new MemoryStoreError('pg connection refused')), /Retry/i);
   });
 
   it('maps EmbedderError to an execution error with retry text', () => {
-    const result = classifyError(new EmbedderError('OpenAI 429 rate limit'));
-    expect(result.kind).toBe('execution');
-    if (result.kind === 'execution') {
-      expect(result.payload.isError).toBe(true);
-      expect(result.payload.content[0]?.text).toMatch(/Retry/i);
-    }
+    assertExecution(classifyError(new EmbedderError('OpenAI 429 rate limit')), /Retry/i);
   });
 
   it('maps ContentTooLargeError to an execution error citing the max cap', () => {
-    const result = classifyError(new ContentTooLargeError(50_000, 75_000));
-    expect(result.kind).toBe('execution');
-    if (result.kind === 'execution') {
-      expect(result.payload.isError).toBe(true);
-      expect(result.payload.content[0]?.text).toContain('50000');
-    }
+    assertExecution(classifyError(new ContentTooLargeError(50_000, 75_000)), /50000/);
   });
 
   it('maps pg-driver ECONNREFUSED (EC-5 PG_TRANSIENT_CODES) to an execution error with retry text', () => {
@@ -62,12 +59,7 @@ describe('classifyError — Tool Execution Error mappings (ADR D6)', () => {
     const pgErr = Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:5432'), {
       code: 'ECONNREFUSED' as const,
     });
-    const result = classifyError(pgErr);
-    expect(result.kind).toBe('execution');
-    if (result.kind === 'execution') {
-      expect(result.payload.isError).toBe(true);
-      expect(result.payload.content[0]?.text).toMatch(/Retry/i);
-    }
+    assertExecution(classifyError(pgErr), /Retry/i);
   });
 });
 

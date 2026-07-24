@@ -1,10 +1,12 @@
 /**
  * `forget` dispatch handler — T5.1.
  *
- * SEPA gotcha #1 absorbed: `forget` is on TOP-LEVEL `Memory`, NOT `ScopedMemory`
- * (per `src/core/memory-store.ts:60`). Handler calls `workspaceScopedMemory(deps.memoryFactory()).forget(id)`
- * directly. STILL gates by `getScope()` to preserve the scope-required invariant
- * (prevents anonymous bulk-delete via stdio).
+ * Forget is SUBJECT-SCOPED via `routeScopedMemory(...).forget(id)` (ScopedMemory.forget →
+ * deleteInScope over the (workspace, user) filter) — NOT the workspace-only `Memory.forget`.
+ * The M14 review found the workspace-only path was a cross-user delete IDOR (a user could
+ * forget another user's memory in the same workspace); routing through the subject scope
+ * closes it (the id must belong to the acting (workspace, user) or MemoryNotFound is raised).
+ * STILL gates by scope to prevent anonymous bulk-delete via stdio.
  *
  * `all: true` → "bulk delete deferred to v0.4" Tool Execution Error
  * (no `Memory.forgetAll` exists; `Memory.reset(scope)` is admin-only and out of
@@ -24,7 +26,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { MemoryNotFound } from '@usetheo/memory/contract';
 import type { Memory } from '@usetheo/memory/contract';
 import { getScope } from '@usetheo/memory-agent-core';
-import { workspaceScopedMemory } from './workspace-scoped-memory.js';
+import { routeScopedMemory } from './route-scoped-memory.js';
 
 import { INPUT_SCHEMA, TOOL_NAME } from './forget-schema.js';
 
@@ -39,6 +41,8 @@ export async function forgetHandler(
   // Gate on scope even for forget — prevents anonymous bulk-delete via stdio.
   // Throws MissingScopeError → dispatch classifier → Tool Execution Error.
   getScope();
+
+  const scoped = routeScopedMemory(deps.memoryFactory(), undefined);
 
   if (parsed.all === true) {
     return {
@@ -61,7 +65,7 @@ export async function forgetHandler(
   }
 
   try {
-    await workspaceScopedMemory(deps.memoryFactory()).forget(parsed.id);
+    await scoped.forget(parsed.id);
     return {
       content: [{ type: 'text', text: `Memory ${parsed.id} forgotten.` }],
       isError: false,

@@ -49,6 +49,17 @@ const cmds = (obj, event) =>
   (obj.hooks[event] || []).flatMap((e) => (e.hooks || []).map((h) => h.command));
 
 console.log('Test group A — original hooks survive the merge:');
+// M14 T1.3 — the prompt-recall hook is registered under UserPromptSubmit.
+assert(
+  cmds(merged, 'UserPromptSubmit').includes('node ~/.claude/hooks/theo-prompt-recall.mjs'),
+  'UserPromptSubmit prompt-recall hook registered',
+);
+// M14 T1.3 — merge is idempotent for the new event too.
+const twice = mergeHooks(merged, additions);
+assert(
+  cmds(twice, 'UserPromptSubmit').filter((c) => c.includes('theo-prompt-recall')).length === 1,
+  'UserPromptSubmit not duplicated on re-merge',
+);
 assert(
   cmds(merged, 'SessionStart').includes('node ~/.claude/hooks/existing-session.mjs'),
   'original SessionStart hook preserved',
