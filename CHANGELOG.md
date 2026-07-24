@@ -5,7 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
-- **M15 /review — o impulso por entidades ficou mais seguro e mais observável.** Entidades aposentadas deixam de influenciar o ranking; a busca respeita o escopo completo (usuário, sessão, agente), não só o workspace; uma consulta pendurada degrada em 750 ms em vez de travar a busca; e passa a existir sinal de que o impulso está vivo, para que ele não possa morrer em silêncio de novo (M15) (#122).
+- **M15 /review — o impulso por entidades ficou observável.** Passa a existir sinal de que o impulso está vivo a cada busca, para que ele não possa voltar a morrer em silêncio como aconteceu da v0.1 ao M15 (M15) (#122).
 - **M15 T4.1 — benchmark medido do ganho.** Contra Postgres real, com corpus de 100 memórias: a precisão do primeiro resultado sobe de **0.64–0.68 para 1.00** quando o impulso por entidades está ligado, sem nenhuma memória sair do conjunto recuperado, ao custo de **+6 ms por busca**. A faixa na linha de base é honesta: sem o impulso os candidatos empatam e a ordem entre empatados varia entre execuções — com o impulso ligado o resultado é estável. Método, ressalvas e comando de reprodução em `docs/benchmarks/entity-boost-m15.md` (M15) (#122).
 - **M15 T3.2/T3.3 — evidência de que o ganho é real e não custa nada.** Contra Postgres real: duas memórias com o mesmo texto e o mesmo embedding, uma ligada à entidade da busca — a ligada vem primeiro. E as duas guardas: uma memória irrelevante ligada à entidade **não** é ressuscitada, e nenhuma memória some do resultado por efeito do impulso (M15) (#122).
 - **M15 T3.1 — o terceiro sinal do recall deixa de ser inerte.** Uma memória ligada às entidades citadas na busca passa a ranquear acima de uma memória equivalente sem esse vínculo. Desde a v0.1 o componente existia na fórmula e valia sempre zero: o que a documentação chamava de "semântico + BM25 + entidades" era, na prática, "semântico + BM25". Instalações sem grafo populado continuam com o comportamento anterior (M15) (#122).
@@ -21,6 +21,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+- **Entidade aposentada influenciava o ranking.** Quando uma entidade é substituída por outra (M13), a linha antiga continuava podendo receber novas ligações e, com o impulso ligado, empurrava resultados — enquanto a listagem, o painel e o grafo já a escondiam. Um impulso vindo de algo que nenhuma tela mostra (M15) (#122).
+- **A busca de vínculos respeitava apenas o workspace.** Agora aplica o escopo completo — usuário, sessão e agente — o mesmo predicado usado no resto do sistema, em vez de herdar a garantia do conjunto de candidatos (M15) (#122).
+- **Uma consulta de entidades pendurada travava a busca inteira.** Só erro lançado degradava; agora há teto de 750 ms e a busca segue sem o terceiro sinal em vez de bloquear quem chamou (M15) (#122).
 - **`get_memory` retornava memória JÁ ESQUECIDA (achado do live test M14).** O `forget` faz soft-delete (`t_invalid`) e todos os outros read paths filtram, mas a leitura por id (`Memory.get` → `vectorStore.get`) não filtrava — o dono dava `forget` e o `get_memory` seguia devolvendo o conteúdo. Corrigido no read PÚBLICO (`LocalMemory.get` retorna `null` quando `t_invalid` está setado); o `get` cru do store continua devolvendo a linha de propósito, para o `forget({hard:true})` poder fazer a erasure GDPR de uma memória já esquecida. Regressão coberta em `isolation.test.ts`.
 
 ### Security
