@@ -424,6 +424,35 @@ A análise da tela Entities (2026-07-23) MEDIU o ruído que a extração heurís
 
 ---
 
+## M14 — [ ] Paridade de recall do kit Claude Code (leitura contínua + autoria), preservando `(workspace, user, session-opcional)`
+
+> Added 2026-07-24 by `/roadmap-feature` (slug: `claude-code-kit-recall-parity`). See CHANGELOG `[Unreleased] § Added`.
+
+**Objective:** Fechar o gap de LEITURA do kit do Claude Code (`docs/claude-code-kit/`). Hoje o kit registra 4 hooks e 3 são ESCRITA — medição live: 1.804 escritas/24h mas **79% das 2.520 memórias vivas nunca foram lidas** (`last_accessed_at IS NULL`). O único hook de leitura busca pelo NOME DO PROJETO (constante), uma vez por sessão, `topK:5`. Este milestone entrega a experiência de recall contínuo + separação de autoria do plugin de memória de referência para o Claude Code — mas adaptada ao modelo multi-tenant, NUNCA copiada de um plugin single-tenant.
+
+**Definition of done:**
+
+- [ ] Hook `UserPromptSubmit` faz recall pelo **PROMPT** do usuário (não pelo nome do projeto), scoped a `(workspace, user, session-opcional)`; pula prompts curtos por limiar.
+- [ ] `attributed_to` (v1.1) separa autoria por ORIGEM DE HOOK: user-prompt → `user`; resumos de sessão/compactação → `assistant` — nunca inferido. Impede que sugestões do assistente virem "preferência do usuário".
+- [ ] `PreToolUse`/`PostToolUse` trazem memórias contextuais (por arquivo aberto / por erro de comando), no mesmo escopo.
+- [ ] Wizard `/onboard` idempotente (detecta `CLAUDE.md`/`AGENTS.md`) + guarda `PreToolUse` anti-escrita em `MEMORY.md` + distribuição via marketplace de plugin.
+- [ ] **Teste de isolamento cross-tenant E cross-user PASSA** (como o M8 fez): o recall/autoria de um `(workspace A, user X)` jamais retorna memória de `(workspace B)` nem de `(workspace A, user Y)`.
+
+**Dependencies:** M8, M10, M12
+
+> M8 = invariante de isolamento `(workspace,user)`; M10 = scope-aware recall (global ∪ session) que é o motor do recall por prompt; M12 = o kit + skill que este milestone estende. Todos `[x]` → M14 elegível imediatamente.
+
+**Top risks (new — pre-existing risks documented elsewhere in roadmap):**
+
+1. **Vazamento cross-tenant/cross-user** — um recall por prompt que aceite `user_id` do body (como o plugin single-tenant de referência faz) vazaria memória entre tenants/end-users, destruindo a tese do produto. *Mitigação:* `workspace` da credencial + `user` do Principal + `session` opcional do payload, jamais do body; teste de isolamento no DoD (bullet 5).
+2. **Latência por prompt** — 1 recall por mensagem adiciona latência ao turno. *Mitigação:* pular prompts curtos por limiar + timeout não-bloqueante (o kit já escreve destacado via `theo-lib postDetached`).
+
+**Why now (from grill Q1):**
+
+O owner enviou a doc do plugin de memória de referência do Claude Code e pediu **a mesma experiência**, no nosso modelo `(workspace, user, session-opcional)`. O diagnóstico live justifica a urgência: o sistema ESCREVE muito e LÊ quase nada — 79% do acervo jamais consultado. Já shipamos a fundação de tenancy/routing (M8–M11) e a migração/kit (M12); o que falta é o agente REALMENTE recuperar a memória do end-user durante o trabalho. Escopo escolhido pelo owner: paridade TOTAL. Interop de SUPERFÍCIE (hooks/tool-shape), NÃO data-adapter de vendor — o cut de 2026-05-21 continua valendo (mesmo raciocínio de M12 e do OpenMemory-compat).
+
+---
+
 ## State-of-the-art references
 
 Conceptual comparison peers. `` / `` / `` are already cloned under
