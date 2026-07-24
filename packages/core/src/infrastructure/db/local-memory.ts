@@ -194,6 +194,13 @@ export class LocalMemory implements Memory {
     if (result === null) {
       return null;
     }
+    // A FORGOTTEN memory is not readable. `forget` soft-deletes (sets `t_invalid`), and every
+    // other read path filters it — but this by-id read did not, so a memory the user had just
+    // forgotten still came back (found by the M14 live test). The raw store `get` intentionally
+    // still returns the row so `forget({hard:true})` can GDPR-erase an already-forgotten one.
+    if (result.payload['t_invalid'] !== undefined && result.payload['t_invalid'] !== null) {
+      return null;
+    }
     // Workspace isolation (mirrors `forget` EC-5, theo-memory#82): a workspace-bound Memory
     // NEVER reads another tenant's row. The raw `vectorStore.get(id)` is unscoped (WHERE id=$1);
     // without this guard, `get(id)` was a cross-tenant IDOR (caught by the M14 Phase 5 isolation

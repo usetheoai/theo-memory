@@ -134,6 +134,19 @@ if (PG_URI === undefined || PG_URI === '') {
       expect(textOf(own)).toMatch(/YANKEE-4455/);
     });
 
+    test('get_memory — a FORGOTTEN (soft-deleted) memory is no longer readable', async () => {
+      // Found by the M14 live test: `forget` soft-deletes (t_invalid) but the by-id read did
+      // not filter it, so the owner still read a memory they had just forgotten.
+      const id = await seedMemory(AX, 'ALICE-FORGET-CANARY-4242');
+      const before = await withScope(ctxOf(AX), () => dispatch('get_memory', { id }, deps()));
+      expect(textOf(before)).toMatch(/4242/); // readable before the forget
+
+      await pool.query('UPDATE memories SET t_invalid = NOW() WHERE id = $1', [id]); // soft-delete
+
+      const after = await withScope(ctxOf(AX), () => dispatch('get_memory', { id }, deps()));
+      expect(textOf(after)).toMatch(/No memory found/);
+    });
+
     test('list_entities — (A,X) lists ZERO of (B) and ZERO of (A,Y)', async () => {
       await seedEntity(B, 'Bravo');
       await seedEntity(AY, 'Yankee');

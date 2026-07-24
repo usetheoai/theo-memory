@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+### Fixed
+- **`get_memory` retornava memória JÁ ESQUECIDA (achado do live test M14).** O `forget` faz soft-delete (`t_invalid`) e todos os outros read paths filtram, mas a leitura por id (`Memory.get` → `vectorStore.get`) não filtrava — o dono dava `forget` e o `get_memory` seguia devolvendo o conteúdo. Corrigido no read PÚBLICO (`LocalMemory.get` retorna `null` quando `t_invalid` está setado); o `get` cru do store continua devolvendo a linha de propósito, para o `forget({hard:true})` poder fazer a erasure GDPR de uma memória já esquecida. Regressão coberta em `isolation.test.ts`.
+
 ### Deprecated
 
 ### Removed
