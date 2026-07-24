@@ -12,42 +12,54 @@ import { scrubText } from './theo-scrub.mjs';
 
 const SALIENCE_MIN_CHARS = 40;
 
-async function main() {
-  const input = await readInput();
+/**
+ * Pure, testable core: build the `/v1/remember` payload for a Stop-hook turn, or null
+ * when the turn is below the salience floor. `attributedTo` marks the AUTHOR by hook
+ * origin (M14 T1.2): the Stop summary is produced by the assistant → 'assistant'; an
+ * explicit user capture → 'user'. Never inferred — the caller names it.
+ *
+ * @param {{ input: object, env: {userId: string}, attributedTo: 'assistant'|'user' }} deps
+ * @returns {{ path: string, body: object } | null}
+ */
+export function buildRememberPayload({ input, env, attributedTo }) {
   const project = projectOf(input.cwd);
-  const { userId } = loadEnv();
-  // M6-SEC-01: scrub secrets BEFORE the write. The server stores infer=false
-  // verbatim, so this client scrub is the only chance to keep a secret (an env
-  // dump, a pasted key, a token in tool output) out of the store.
+  // M6-SEC-01: scrub secrets BEFORE the write. The server stores infer=false verbatim,
+  // so this client scrub is the only chance to keep a secret out of the store.
   const text = scrubText((input.last_assistant_message || '').trim());
-
   // Salience floor — a short turn is rarely a durable fact worth a write.
-  if (text.length < SALIENCE_MIN_CHARS) return;
+  if (text.length < SALIENCE_MIN_CHARS) return null;
 
-  // Session-separation (2026-07-23, M8 model): when the hook payload carries the
-  // Claude Code session_id, the write targets the SESSION tier — the edge's
-  // X-Theo-User-Id binds the user, so the scope is (workspace, user, session).
-  // Each session gets its own working memory; the SessionEnd promote hook
-  // (theo-promote.mjs) runs the M9 reflect that lifts durable facts to global.
-  // Exactly ONE tier key may be sent (server superRefine): sessionId wins;
-  // legacy userId pin (raw REST without edge) only applies when no session id.
-  //
-  // DETACHED: server-side LLM extraction takes ~8s through the gateway; a blocking
-  // await would either stall the session that long OR (at the 3s default timeout)
-  // abort and silently drop the write. postDetached hands it to a background worker
-  // and returns immediately — the write lands, the session is never held.
-  const sessionId = typeof input.session_id === 'string' && input.session_id.length > 0
-    ? input.session_id
-    : undefined;
-  postDetached('/v1/remember', {
-    ...(sessionId ? { sessionId } : userId ? { userId } : {}),
-    text,
-    metadata: { source: 'claude-code', project },
-  });
+  const sessionId =
+    typeof input.session_id === 'string' && input.session_id.length > 0
+      ? input.session_id
+      : undefined;
+  return {
+    path: '/v1/remember',
+    body: {
+      ...(sessionId ? { sessionId } : env.userId ? { userId: env.userId } : {}),
+      text,
+      attributedTo,
+      metadata: { source: 'claude-code', project },
+    },
+  };
 }
 
-main()
-  .catch(() => {
-    // Fire-and-forget — never surface an error.
-  })
-  .finally(() => process.exit(0));
+async function main() {
+  const input = await readInput();
+  const env = loadEnv();
+  // Stop hook = the assistant's session summary → attributed to the assistant.
+  // This keeps assistant-produced summaries from ever masquerading as user preferences.
+  //
+  // DETACHED: server-side LLM extraction takes ~8s through the gateway; a blocking await
+  // would stall the session or abort at the 3s timeout and silently drop the write.
+  const payload = buildRememberPayload({ input, env, attributedTo: 'assistant' });
+  if (payload !== null) postDetached(payload.path, payload.body);
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main()
+    .catch(() => {
+      // Fire-and-forget — never surface an error.
+    })
+    .finally(() => process.exit(0));
+}
