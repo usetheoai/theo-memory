@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+- **Segurança: no modo multi-tenant, um token OIDC sem tenant era servido no workspace padrão.** O caminho OIDC do servidor MCP não resolvia workspace e caía no `default`, o que num deployment multi-tenant serviria dados de outro tenant. Agora, com o mesmo sinal de fail-closed que a API REST já usa, um token que não resolve tenant é recusado em vez de servido — deployments single-tenant seguem funcionando por padrão (#84).
 - **Segurança: uma chave de API podia operar como outro usuário do mesmo workspace.** Com o servidor MCP exposto direto (sem gateway), o cabeçalho `X-Theo-User-Id` — controlado por quem chama — sobrepunha a identidade da credencial, permitindo ler, escrever e apagar no escopo alheio. A identidade agora vem sempre da credencial autenticada; o cabeçalho só é honrado quando a credencial é de workspace e não carrega usuário, que é o caso legítimo do gateway (#121).
 
 ### Security
