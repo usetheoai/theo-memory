@@ -1,0 +1,18 @@
+{
+  "name": "theo-memory-plugins",
+  "owner": {
+    "name": "usetheo",
+    "email": "support@usetheo.dev"
+  },
+  "metadata": {
+    "description": "Official theo-memory plugins for Claude Code"
+  },
+  "plugins": [
+    {
+      "name": "theo-memory",
+      "source": "./",
+      "description": "Multi-tenant persistent memory for Claude Code. Per-prompt recall, auto-remember, error-context, MEMORY.md guard, idempotent /onboard, and MCP read/update/delete parity — scoped to the Principal (workspace, user) server-side.",
+      "version": "0.1.0"
+    }
+  ]
+}
