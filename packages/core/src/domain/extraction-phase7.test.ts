@@ -89,7 +89,7 @@ function spyStore(): { store: MemoryEntityStore; calls: UpsertAndLinkParams[] } 
     store: {
       upsertAndLink: vi.fn(async (p: UpsertAndLinkParams) => { calls.push(p); await Promise.resolve(); }),
       list: vi.fn(async () => []),
-      supersedeEntity: vi.fn(async () => false),
+      supersedeEntity: vi.fn(async () => false), forgetEntity: vi.fn(async () => ({ entitiesRemoved: 0, linksRemoved: 0, edgesRemoved: 0 })),
     },
   };
 }
@@ -471,7 +471,7 @@ describe('Phase 7 — LLM is the PRIMARY (multilingual) node source', () => {
         for (const e of p.entities) upserted.push({ type: e.type });
       }),
       list: vi.fn(async () => []),
-      supersedeEntity: vi.fn(async () => false),
+      supersedeEntity: vi.fn(async () => false), forgetEntity: vi.fn(async () => ({ entitiesRemoved: 0, linksRemoved: 0, edgesRemoved: 0 })),
     };
     await linkEntities(
       [{ id: 'm-lower', text: 'Paulo joined Acme' }],
