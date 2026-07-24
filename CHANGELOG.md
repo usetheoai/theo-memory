@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- **M15 T2.1/T2.2 — leitura dos vínculos de entidade dos candidatos.** O sistema passa a saber, em uma única consulta, quais entidades estão ligadas às memórias que uma busca recuperou — a fonte do sinal estrutural que faltava ao ranking (M15, #122).
 - **M15 T1.2 — contagem de entidades por memória.** Cada memória recuperada agora sabe quantas das entidades citadas na busca estão ligadas a ela, que é o número que alimenta o peso do sinal estrutural no ranking (M15, #122).
 - **M15 T1.1 — casamento entre a query e as entidades já persistidas.** Uma query que menciona "São Paulo" ou o campo `user_id` agora identifica as entidades correspondentes no acervo, preservando acentuação e nomes com mais de uma palavra. É a peça que faltava para o terceiro sinal do recall deixar de ser inerte (M15, #122).
 
