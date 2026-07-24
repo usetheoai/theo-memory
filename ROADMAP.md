@@ -456,7 +456,7 @@ O owner enviou a doc do plugin de memória de referência do Claude Code e pediu
 
 ---
 
-## M15 — [ ] Entity boost realmente contribui no recall (liga o 3º sinal morto — #122)
+## M15 — [x] Entity boost realmente contribui no recall (liga o 3º sinal morto — #122)
 
 > Added 2026-07-24. Tracked: theo-memory#122 (achado da análise comparativa mem0 vs theo-memory).
 
