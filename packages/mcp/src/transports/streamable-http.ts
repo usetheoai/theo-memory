@@ -28,7 +28,7 @@ import type { ScopedContext } from '@usetheo/memory/contract';
 import { withScope } from '@usetheo/memory-agent-core';
 
 import { withBearerAuth, type BearerAuthOptions } from '../auth/with-bearer-auth.js';
-import { workspaceFromRequest } from '../auth/request-workspace.js';
+import { userFromRequest, workspaceFromRequest } from '../auth/request-workspace.js';
 import type { McpServer } from '../server.js';
 import { McpSessionRegistry } from './mcp-session-registry.js';
 import type { McpServerFactory } from './mcp-session-registry.js';
@@ -75,10 +75,16 @@ export function scopeFromHeaders(
 export function scopeFromRequest(req: IncomingMessage): ScopedContext | undefined {
   const headerScope = scopeFromHeaders(req.headers);
   const workspaceId = workspaceFromRequest(req);
-  if (workspaceId === undefined && headerScope === undefined) return undefined;
+  // M16 (#121): the AUTH-resolved user wins over the client header. The header is honoured
+  // ONLY when the credential is workspace-level and carries no user — the gateway topology,
+  // where the gateway itself resolves the end user and injects the header as an auth-trusted
+  // signal. Merging the header LAST, as this did before, let alice's key write as bob.
+  const authUser = userFromRequest(req);
+  const session = authUser !== undefined ? { userId: authUser } : headerScope?.session;
+  if (workspaceId === undefined && session === undefined) return undefined;
   return {
     ...(workspaceId !== undefined ? { workspaceId } : {}),
-    ...(headerScope ?? {}),
+    ...(session !== undefined ? { session } : {}),
   };
 }
 
