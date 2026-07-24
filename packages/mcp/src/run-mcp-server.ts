@@ -27,6 +27,7 @@ import { runMigrations, PgMemoryEntityStore } from '@usetheo/memory';
 import { ApiKeyAuthVerifier } from '@usetheo/memory-api';
 import { createOauth4webapiIntrospect } from '@usetheo/memory-api';
 import { OidcAuthVerifier } from '@usetheo/memory-api';
+import { parseRequireCredentialEnv } from '@usetheo/memory-api';
 
 import {
   assertEnvOrExit,
@@ -395,7 +396,8 @@ export async function runMcpServer(options?: RunMcpServerOptions): Promise<void>
  * the resolved issuer/clientId/clientSecret. Hard-fails when mode = `oidc`
  * is selected without --issuer (Inquebrável Rule 8 fail-loud).
  */
-async function resolveBearerAuth(
+/** Exported for M16 (#84) test: proves THEMEMORY_REQUIRE_CREDENTIAL reaches the bearer options. */
+export async function resolveBearerAuth(
   mode: RunMcpServerOptions['auth'],
   pool: Pool,
   oidcInput: { issuer?: string; clientId?: string; host: string; port: number },
@@ -426,8 +428,16 @@ async function resolveBearerAuth(
     oidc = new OidcAuthVerifier({ introspect });
   }
 
+  // M16 (#84): thread the SAME fail-closed signal the REST surface reads
+  // (`run-server.ts` → `parseRequireCredentialEnv`). Without this the OIDC branch's
+  // fail-closed gate is inert in production — an OIDC token that resolves no tenant
+  // would still collapse into the `default` workspace. Reusing the REST env var keeps
+  // one tenancy signal, not two that must agree.
+  const requireCredential = parseRequireCredentialEnv(process.env['THEMEMORY_REQUIRE_CREDENTIAL']);
+
   return {
     ...(apiKey !== undefined ? { apiKey } : {}),
     ...(oidc !== undefined ? { oidc } : {}),
+    ...(requireCredential ? { requireCredential } : {}),
   };
 }

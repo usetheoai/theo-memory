@@ -21,28 +21,44 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import type { IncomingMessage } from 'node:http';
 
 import { connectStreamableHttp, scopeFromHeaders, scopeFromRequest } from '../transports/streamable-http.js';
-import { attachWorkspace } from '../auth/request-workspace.js';
+import { attachWorkspace, markGatewayTrusted } from '../auth/request-workspace.js';
 import type { McpServer } from '../server.js';
 
-// T2.2 (#82) — scopeFromRequest threads the AUTH-TRUSTED workspace into the ctx;
-// the userId tier still comes from the X-Theo-User-Id header. The workspace MUST
-// come only from the auth attachment, never from a client header (ADR D2).
+// T2.2 (#82) — scopeFromRequest threads the AUTH-TRUSTED workspace into the ctx.
+// M16 (#121, /review Finding 2) hardened the user tier: `X-Theo-User-Id` is honoured ONLY
+// when the request is gateway-trusted (a workspace-level credential bearing
+// `memory:platform-admin`). Absent that mark, a workspace-level key used directly cannot pick
+// a user via a header — otherwise any unbound key is a workspace-wide impersonation primitive.
 describe('scopeFromRequest (workspace from auth + userId from header)', () => {
   function reqWith(headers: Record<string, string>, workspaceId?: string): IncomingMessage {
     const req = { headers } as unknown as IncomingMessage;
     if (workspaceId !== undefined) attachWorkspace(req, workspaceId);
     return req;
   }
+  function gatewayReq(headers: Record<string, string>, workspaceId: string): IncomingMessage {
+    const req = reqWith(headers, workspaceId);
+    markGatewayTrusted(req);
+    return req;
+  }
 
-  it('carries the auth-attached workspaceId + the header userId', () => {
-    const ctx = scopeFromRequest(reqWith({ 'x-theo-user-id': 'alice' }, 'tn-A'));
+  it('carries the auth workspace + the header user ONLY under gateway trust', () => {
+    // Gateway topology: the platform-admin credential authorizes the injected user header.
+    const ctx = scopeFromRequest(gatewayReq({ 'x-theo-user-id': 'alice' }, 'tn-A'));
     expect(ctx).toEqual({ workspaceId: 'tn-A', session: { userId: 'alice' } });
   });
 
+  it('IGNORES the header user for a workspace key used directly (M16 Finding 2)', () => {
+    // No gateway mark: a plain workspace-level key cannot pick a user via a header.
+    const ctx = scopeFromRequest(reqWith({ 'x-theo-user-id': 'alice' }, 'tn-A'));
+    expect(ctx).toEqual({ workspaceId: 'tn-A' });
+    expect(ctx?.session).toBeUndefined();
+  });
+
   it('IGNORES a client-supplied x-workspace-id header — only the auth attachment sets the workspace (ADR D2)', () => {
+    // No workspace attachment and no gateway mark → neither the evil workspace header nor the
+    // user header is honoured. Fail closed to no scope.
     const ctx = scopeFromRequest(reqWith({ 'x-workspace-id': 'tn-EVIL', 'x-theo-user-id': 'alice' }));
-    expect(ctx).toEqual({ session: { userId: 'alice' } });
-    expect(ctx?.workspaceId).toBeUndefined();
+    expect(ctx).toBeUndefined();
   });
 
   it('workspace-only request (no userId header) yields a workspace-scoped ctx', () => {
