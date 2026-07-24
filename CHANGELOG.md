@@ -4,6 +4,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- Roadmap amended: added M14 Paridade de recall do kit Claude Code (leitura contínua + autoria) (`/roadmap-feature claude-code-kit-recall-parity`)
+
 ### Fixed
 - **Abas SESSION/AGENT da tela Entities sempre vazias (#119).** `filtersFor()` no handler REST montava a Filters de tier único (`{ session_id }`) SEM o `user_id` — mas entidades de session/agent tier carregam AMBAS as colunas (o write path deriva o escopo da memória-fonte, M8/ADR-0021), e o predicado da listagem é `COALESCE(user_id,'') = COALESCE($2,'')`. Resultado: uma sessão com 237 memórias e 712 entidades linkadas renderizava "No entities". Agora o acting user (Principal ou header da edge) é threadado nos filtros dos três tiers — o mesmo que o caminho de fallback do handler já fazia. RED-GREEN em `entities-readport.test.ts`.
 
