@@ -40,8 +40,50 @@ cases then hold, and the normalization rule keeps a single authoritative represe
 which is what plan ADR D3 actually requires. The plan's TDD section — the binding contract —
 is satisfied in full. Surfaced by the SEPA pre-RED consultation.
 
+## Phase 1 boundary mini review — PHASE_REVIEW_NEEDS_FIX (2026-07-24)
+
+Report: `.claude/knowledge-base/mini-reviews/entity-boost-recall-contribution-phase1-review-2026-07-24.md`.
+Two HIGH findings. Both are recorded honestly rather than worked around.
+
+**`wiring_pillar_a_fail` — real, known, bounded.** `matchEntityKeysInQuery` and
+`countMatchedEntitiesPerMemory` have no production caller yet. This is the deferral declared
+above, and it is a genuine consequence of the plan's phasing: the caller is T3.1, which
+cannot run before the Phase 2 port supplies the linked keys. Until then the two symbols are,
+accurately, uncalled exports. The finding is NOT dismissed — it is scheduled, and its closure
+is enforced by two independent gates: the Phase 3 boundary mini review, and
+`run_validation.py`, which re-derives symbols from the committed diffs and re-runs
+`check_wiring.py` at handoff. If T3.1 fails to wire them, the handoff fails.
+
+**`scope_drift` — gate calibration, not a violation.** The flagged file is
+`entity-boost-recall-contribution-implementation.md`, this very document, which the halt-loop
+driver mandates as the implementation working contract. The check compares modified files
+against each task's `#### Files to edit` and has no allowance for the loop's own bookkeeping
+artifact (`CHANGELOG.md` is allowed; this file is not). No production source outside the
+declared scope was touched — the Phase 1 commits contain exactly
+`entity-query-match.ts`, `entity-query-match.test.ts` and `CHANGELOG.md`.
+
+Neither finding is a reason to weaken a test or fabricate a caller. Phase 2 proceeds; the
+Phase 3 boundary is where the wiring finding must genuinely clear.
+
 ## Task log
 
 | Task | Status | Commit | Wiring (a/b/c) | Note |
 |---|---|---|---|---|
-| T1.1 | committed | see git log | defer→T3.1 / defer→T3.2 / n/a | 8/8 unit tests green; 95 LoC |
+| T1.1 | committed | `94cc7d8` | defer→T3.1 / defer→T3.2 / n/a | 10 unit tests green (8 do plano + 2 pedidos pelo SEPA: ocorrência não-fronteiriça e chave vazia que travaria o laço) |
+| T1.2 | committed | `cc0396e` | defer→T3.1 / defer→T3.2 / n/a | 14 testes verdes no arquivo; casamento por chave distinta, não por memória |
+
+### File-size note
+
+T1.1's acceptance criterion budgeted the file under 120 lines and it was 95 at T1.1 commit
+time. T1.2 legitimately adds a second function to the same file, per its own declared
+`#### Files to edit`, taking it to 139. The two functions are one cohesive concern
+(query↔entity matching); splitting them to satisfy a per-task budget measured after a later
+task would be the kind of structure-for-the-metric the parsimony ladder warns against.
+Recorded rather than silently passed.
+
+## Next task
+
+**T2.1** — declare `linkedKeysForMemories` on the `MemoryEntityStore` port
+(`packages/core/src/domain/dip/memory-entity-store.ts`). Note: every existing test double of
+that port must gain the new method or `npm run typecheck` fails — the M14 cycle hit exactly
+this when `forgetEntity` was added, and 7 doubles needed updating.
