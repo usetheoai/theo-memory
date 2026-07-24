@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+- **Segurança: uma chave de API podia operar como outro usuário do mesmo workspace.** Com o servidor MCP exposto direto (sem gateway), o cabeçalho `X-Theo-User-Id` — controlado por quem chama — sobrepunha a identidade da credencial, permitindo ler, escrever e apagar no escopo alheio. A identidade agora vem sempre da credencial autenticada; o cabeçalho só é honrado quando a credencial é de workspace e não carrega usuário, que é o caso legítimo do gateway (#121).
 
 ### Security
 
