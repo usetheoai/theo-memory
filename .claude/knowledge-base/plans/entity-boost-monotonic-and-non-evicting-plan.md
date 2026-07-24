@@ -180,7 +180,9 @@ RED: test_zero_links_still_returns_zero — expect(entityBoost(0)).toBe(0). Pres
 
 #### TDD
 
-RED: (reuso) test_stage_returns_positive_boost_for_linked_candidate já existe; rodar e confirmar verde com a nova curva.
+RED: test_step_boost_is_non_decreasing_end_to_end — através do wrapper do step (não só `entityBoost` isolado): dado dois candidatos, um com `numLinked=1` e outro com `numLinked=3`, o boost atribuído ao de `numLinked=3` é `>=` o do `numLinked=1`. Prova que a monotonicidade sobrevive à composição do step, não só à função pura. `expect(boostById.get(three)).toBeGreaterThanOrEqual(boostById.get(one))`.
+
+RED: test_step_signature_unchanged — `entityBoost` continua sendo `(numLinked: number) => number`; o step chama com um único argumento. `expect(typeof entityBoost(1)).toBe('number')`.
 
 #### Concurrency tests
 
