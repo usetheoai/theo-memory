@@ -296,7 +296,6 @@ describe('runRetrievalPipeline entity boost', () => {
       vectorStore: vectorStoreReturning(boostCandidates),
       embedder,
       entityBoostStore: boostStore({ 'm-linked': ['são_paulo'] }),
-      workspaceId: 'ws1',
     };
 
     const results = await runRetrievalPipeline('moro em São Paulo', FILTERS, deps, {
@@ -328,7 +327,6 @@ describe('runRetrievalPipeline entity boost', () => {
       vectorStore: vectorStoreReturning(boostCandidates),
       embedder,
       entityBoostStore: boostStore({ 'm-linked': ['berlim'] }),
-      workspaceId: 'ws1',
     };
 
     const results = await runRetrievalPipeline('moro em São Paulo', FILTERS, deps, {
@@ -357,7 +355,6 @@ describe('runRetrievalPipeline entity boost', () => {
           return new Map([['m-kw', ['são_paulo']]]);
         },
       },
-      workspaceId: 'ws1',
     };
 
     await runRetrievalPipeline('moro em São Paulo', FILTERS, deps, { threshold: 0.05, topK: 10 });
@@ -384,7 +381,6 @@ describe('runRetrievalPipeline entity boost', () => {
           throw new Error('connection terminated');
         },
       },
-      workspaceId: 'ws1',
       tracer,
     };
 
@@ -396,6 +392,45 @@ describe('runRetrievalPipeline entity boost', () => {
     // Recall is a read path: losing the third signal beats returning an error.
     expect(results.map((r) => r.id)).toEqual(['m-linked', 'm-plain']);
     // But the degradation is never silent (Princípio 3).
+    expect(events).toContain('entity_boost_degraded');
+  });
+});
+
+/**
+ * M15 /review (#122) — the timeout row of the plan's Failure-scenarios table.
+ *
+ * Only a THROWN error degraded the boost. A hung query has no error to catch, so it would
+ * block every recall behind it — the plan promised this degraded and it did not.
+ */
+describe('runRetrievalPipeline entity boost timeout', () => {
+  test('test_hung_entity_lookup_degrades_instead_of_blocking_recall', async () => {
+    const events: string[] = [];
+    const tracer = {
+      startActiveSpan: (name: string, fn: (span: unknown) => void) => {
+        events.push(name);
+        fn({ setAttribute: () => {}, end: () => {} });
+      },
+    } as unknown as NonNullable<RetrievalDeps['tracer']>;
+
+    const deps: RetrievalDeps = {
+      vectorStore: vectorStoreReturning([
+        { id: 'm1', score: 0.8, payload: { text: 'kept' } },
+      ]),
+      embedder,
+      entityBoostStore: {
+        // Never settles — the shape of a saturated pool or a wedged connection.
+        linkedKeysForMemories: () => new Promise(() => {}),
+      },
+      timeoutMs: 25,
+      tracer,
+    };
+
+    const results = await runRetrievalPipeline('moro em São Paulo', FILTERS, deps, {
+      threshold: 0.1,
+      topK: 10,
+    });
+
+    expect(results.map((r) => r.id)).toEqual(['m1']);
     expect(events).toContain('entity_boost_degraded');
   });
 });

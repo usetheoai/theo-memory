@@ -24,6 +24,7 @@ import type { Tracer } from '@opentelemetry/api';
 import type { AdaptiveRetrievalPolicy, AdaptiveTuning } from '../dip/adaptive-retrieval-policy.js';
 import type { Embedder } from '../dip/embedder.js';
 import type { GraphExpansionStore } from '../dip/graph-expansion-store.js';
+import type { MemoryEntityStore } from '../dip/memory-entity-store.js';
 import type { RecallTraceRow, RecallTraceStore } from '../dip/recall-trace-store.js';
 import type { Reranker } from '../dip/reranker.js';
 import type { VectorStore, VectorStoreResult } from '../dip/vector-store.js';
@@ -92,17 +93,10 @@ export interface RetrievalDeps {
    * `MemoryEntityStore` — the recall path has no business seeing `upsertAndLink` or
    * `forgetEntity` (ISP).
    */
-  readonly entityBoostStore?:
-    | {
-        linkedKeysForMemories(params: {
-          memoryIds: readonly string[];
-          workspaceId?: string | undefined;
-        }): Promise<ReadonlyMap<string, readonly string[]>>;
-      }
-    | undefined;
+  readonly entityBoostStore?: Pick<MemoryEntityStore, 'linkedKeysForMemories'> | undefined;
 
-  /** Tenant anchor for the entity lookup above. Absent resolves to the default workspace. */
-  readonly workspaceId?: string | undefined;
+  /** Ceiling for the entity lookup; the boost degrades rather than blocking recall. */
+  readonly timeoutMs?: number | undefined;
 
   readonly tracer?: Tracer;
 }
@@ -474,7 +468,7 @@ export async function runRetrievalPipeline(
   const candidateIds = new Set<string>();
   for (const r of semanticResults) candidateIds.add(r.id);
   if (bm25Results !== null) for (const r of bm25Results) candidateIds.add(r.id);
-  const entityBoostById = await computeEntityBoost(query, [...candidateIds], deps);
+  const entityBoostById = await computeEntityBoost(query, [...candidateIds], filters, deps);
 
   // Step 7: combined score per candidate (union of semantic + BM25 ids)
   const candidates = new Map<string, { semantic: number; bm25: number; entity: number; payload: Payload }>();
