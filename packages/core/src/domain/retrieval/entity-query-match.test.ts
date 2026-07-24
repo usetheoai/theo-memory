@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { matchEntityKeysInQuery } from './entity-query-match.js';
+import { countMatchedEntitiesPerMemory, matchEntityKeysInQuery } from './entity-query-match.js';
 
 /**
  * T1.1 — query↔entity matching.
@@ -79,5 +79,51 @@ describe('matchEntityKeysInQuery', () => {
     // hot read path — an unbounded loop, not a wrong answer. Rows written before the noise
     // filter (or by a reextract) can carry one, so the read path cannot assume it away.
     expect(matchEntityKeysInQuery('paulo', ['', 'paulo'])).toEqual(['paulo']);
+  });
+});
+
+/**
+ * T1.2 — per-memory link count.
+ *
+ * `entityBoost(numLinked)` (`domain/scoring.ts`) needs one integer per memory. Memories
+ * with no matched entity are ABSENT from the map, not present with zero, so that
+ * `entityBoostById.size > 0` stays the honest predicate for "the signal contributed"
+ * that `pipeline.ts` already uses to decide whether the entity signal is active.
+ */
+describe('countMatchedEntitiesPerMemory', () => {
+  it('test_counts_distinct_matched_entities_per_memory', () => {
+    const linked = new Map([['m1', ['paulo', 'são_paulo']]]);
+
+    const counts = countMatchedEntitiesPerMemory('paulo mora em São Paulo', linked);
+
+    expect(counts.get('m1')).toBe(2);
+  });
+
+  it('test_memory_with_no_matched_entity_is_absent_from_map', () => {
+    const linked = new Map([
+      ['m1', ['paulo']],
+      ['m2', ['berlim']],
+    ]);
+
+    const counts = countMatchedEntitiesPerMemory('quem é o Paulo', linked);
+
+    expect(counts.has('m2')).toBe(false);
+    expect(counts.get('m1')).toBe(1);
+  });
+
+  it('test_duplicate_key_counts_once', () => {
+    // The store returns one row per link; the same key can legitimately arrive twice.
+    // Counting occurrences instead of distinct entities would inflate the boost.
+    const linked = new Map([['m1', ['paulo', 'paulo']]]);
+
+    const counts = countMatchedEntitiesPerMemory('quem é o Paulo', linked);
+
+    expect(counts.get('m1')).toBe(1);
+  });
+
+  it('test_empty_query_produces_empty_map', () => {
+    const linked = new Map([['m1', ['paulo']]]);
+
+    expect(countMatchedEntitiesPerMemory('', linked).size).toBe(0);
   });
 });
