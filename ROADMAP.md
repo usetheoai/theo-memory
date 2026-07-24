@@ -456,6 +456,36 @@ O owner enviou a doc do plugin de memória de referência do Claude Code e pediu
 
 ---
 
+## M15 — [ ] Entity boost realmente contribui no recall (liga o 3º sinal morto — #122)
+
+> Added 2026-07-24. Tracked: theo-memory#122 (achado da análise comparativa mem0 vs theo-memory).
+
+**Objective:** Fazer o componente `entity` do `combineScores` deixar de ser sempre `0` — populando `entityBoostById` a partir do grafo já persistido — e PROVAR por benchmark que o recall melhora, sem amplificar ruído nem ressuscitar candidato sub-threshold.
+
+**Definition of done:**
+
+- [ ] `entityBoostById` populado no Step 6 do `retrieval/pipeline.ts` a partir de `entities` + `memory_entities`, scoped pelo mesmo predicado `COALESCE` dos demais tiers (zero vazamento cross-scope).
+- [ ] O boost é ADITIVO e roda DEPOIS do gate semântico — teste provando que um candidato sub-threshold NÃO é ressuscitado pelo boost.
+- [ ] Normalização na mesma escala do BM25 (sigmoid) antes do `ENTITY_BOOST_WEIGHT`, para o componente não dominar a soma.
+- [ ] **Benchmark obrigatório:** precisão@k medida COM e SEM boost sobre corpus com entidades reais; o número (delta) registrado no relatório de implementação. Sem ganho medido, o boost não liga por default.
+- [ ] Comentário-guarda de `recall-trace-store.ts:46` ("Do NOT read signal into it today") removido/atualizado — a coluna `entity` do trace passa a ser significativa e o `explain_recall` mostra a contribuição.
+- [ ] Custo controlado: a expansão por entidade não adiciona round-trip não-bounded por recall (medir latência antes/depois).
+- [ ] ADR-0007 revisitado — hoje ele descreve `entityBoost` default `true` para um comportamento que não acontece.
+
+**Dependencies:** M13 (grafo populado + filtro de ruído `entity-noise-filter.ts` — ambos já shipados).
+
+**Top risks:**
+
+1. **Amplificação de ruído** — o boost empurra memórias ligadas a entidades espúrias. *Mitigação:* o filtro de ruído já roda no write path (`entity-linking.ts:104`); o benchmark é o gate — sem ganho medido, não liga. Contexto: #111 mediu 83% de ruído no estoque ANTES do filtro; o estoque de dev foi limpo em 2026-07-24.
+2. **Latência** — casar entidades da query contra o grafo a cada recall. *Mitigação:* bounded por escopo + medição obrigatória no DoD.
+3. **Cobertura desigual** — memórias `infer:false` (import) não têm grafo (`infer-false-path.ts` não chama `linkEntities`; DoD do M13 não entregue), então não recebem boost. *Mitigação:* documentar honestamente; fechar esse gap é escopo separado.
+
+**Why now:**
+
+A análise comparativa com o mem0 (2026-07-24) mostrou que o boost de entidade é o ÚNICO sinal estrutural em que teríamos vantagem sobre o recall deles (o OSS deles é vetorial + filtros; reranker só na plataforma paga). Nós projetamos o sinal, construímos o grafo que o alimenta (M13) e o `combineScores` soma zero — `pipeline.ts:451` diz literalmente "numLinked=0 always". É capacidade construída e não conectada.
+
+---
+
 ## State-of-the-art references
 
 Conceptual comparison peers. `` / `` / `` are already cloned under
