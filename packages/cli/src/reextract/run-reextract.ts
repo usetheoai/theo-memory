@@ -13,7 +13,6 @@
 import { rmSync } from 'node:fs';
 
 import { trace } from '@opentelemetry/api';
-
 import { PgMemoryEntityStore, PgMemoryGraphStore } from '@usetheo/memory';
 import type { Embedder, LLM } from '@usetheo/memory';
 import {

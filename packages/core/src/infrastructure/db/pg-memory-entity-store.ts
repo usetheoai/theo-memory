@@ -22,6 +22,7 @@ import type {
 import { EntityForgetScopeError } from '../../domain/dip/memory-entity-store.js';
 import { emitEvent } from '../../domain/memory-event.js';
 import type { Filters } from '../../domain/scope.js';
+
 import { queryLinkedKeysForMemories } from './pg-linked-keys.js';
 import { runInTx, scopeIds } from './pg-tx.js';
 
