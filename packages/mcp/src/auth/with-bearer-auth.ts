@@ -40,6 +40,20 @@ export interface BearerAuthOptions {
   readonly apiKey?: AuthVerifier;
   /** Verifier for non-theo_live_ Bearers (typically OidcAuthVerifier). */
   readonly oidc?: AuthVerifier;
+  /**
+   * M16 (#84) — fail-closed multi-tenant mode, mirroring the REST surface's
+   * `THEMEMORY_REQUIRE_CREDENTIAL` (`packages/api/src/server/auth/middleware.ts`).
+   *
+   * `OidcAuthVerifier` implements `verify` but not `resolvePrincipal`: introspection returns
+   * a subject, not a tenant (deferred by the #82 plan ADR D4). Without this flag the OIDC
+   * branch delegates with NO workspace attached, and `workspaceScopedMemory` falls through to
+   * its single-tenant passthrough — serving the `default` workspace to every tenant. Correct
+   * for a single-tenant deployment; the #82 leak class for a multi-tenant one.
+   *
+   * Deliberately the SAME signal the REST surface reads, not a second tenancy flag: two flags
+   * that must agree are a configuration trap.
+   */
+  readonly requireCredential?: boolean;
   /** Realm advertised in `WWW-Authenticate` (default "theo-mcp"). */
   readonly realm?: string;
   /** Path advertised as `resource_metadata` per RFC 9728. Default `/.well-known/oauth-protected-resource`. */
@@ -223,6 +237,19 @@ export function withBearerAuth(
 
     // Path B — OIDC introspection
     if (opts.oidc && (await opts.oidc.verify(token))) {
+      // M16 (#84): a verify-only verifier resolves no tenant. In fail-closed mode that must
+      // REJECT rather than collapse into the `default` workspace — the same rule the REST
+      // surface applies to a verify-only verifier under `requireCredential`.
+      if (opts.requireCredential === true) {
+        send401(
+          res,
+          realm,
+          resourceMetadataPath,
+          'invalid_token',
+          'OIDC token resolves no workspace; multi-tenant mode requires a tenant-bound credential.',
+        );
+        return;
+      }
       await delegate(req, res);
       return;
     }
