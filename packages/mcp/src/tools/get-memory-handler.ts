@@ -14,6 +14,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
 import type { Memory } from '@usetheo/memory/contract';
 import { getScope } from '@usetheo/memory-agent-core';
+import { MissingScopeError } from '@usetheo/memory/contract';
 
 import { workspaceScopedMemory } from './workspace-scoped-memory.js';
 import { INPUT_SCHEMA, TOOL_NAME } from './get-memory-schema.js';
@@ -26,16 +27,31 @@ export async function getMemoryHandler(
 ): Promise<CallToolResult> {
   const parsed = INPUT_SCHEMA.parse(args);
 
-  // Scope gate — the Principal is required; anonymous stdio cannot read arbitrary ids.
-  getScope();
+  // Scope from the Principal — identity is the credential-bound context, never the args (ADR-M14-1).
+  const ctx = getScope();
+  const userId = ctx.session?.userId;
+  if (userId === undefined || userId === '') {
+    // A user-tier read (the agent reads its own memories) requires an acting user.
+    throw new MissingScopeError('get_memory requires an active user scope.');
+  }
 
+  const notFound: CallToolResult = {
+    content: [{ type: 'text', text: `No memory found with id ${parsed.id} in the active scope.` }],
+    isError: false,
+  };
+
+  // Cross-TENANT isolation is enforced in the core (workspaceScopedMemory + LocalMemory.get,
+  // #82); cross-USER isolation is enforced HERE: a row owned by another user in the same
+  // workspace is not visible to this Principal (M14 Phase 5 DoD bullet 6, mirrors list/delete).
   const item = await workspaceScopedMemory(deps.memoryFactory()).get(parsed.id);
   if (item === null) {
-    return {
-      content: [{ type: 'text', text: `No memory found with id ${parsed.id} in the active scope.` }],
-      isError: false,
-    };
+    return notFound;
   }
+  const rowUser = item.metadata['user_id'];
+  if (typeof rowUser === 'string' && rowUser !== userId) {
+    return notFound;
+  }
+
   return {
     content: [{ type: 'text', text: JSON.stringify(item) }],
     isError: false,

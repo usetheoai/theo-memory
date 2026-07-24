@@ -31,10 +31,10 @@ export async function updateMemoryHandler(
   const parsed = INPUT_SCHEMA.parse(args);
   getScope(); // scope gate — the Principal is required
 
-  const memory = deps.memoryFactory();
-
   // STEP 1 — remember FIRST (edge EC-1). A failed remember must not have deleted anything.
-  const scoped = routeScopedMemory(memory, undefined);
+  // The factory is resolved INSIDE the binding wrapper on every memory-op line (#82 guard):
+  // routeScopedMemory delegates to workspaceScopedMemory, so remember is workspace-bound.
+  const scoped = routeScopedMemory(deps.memoryFactory(), undefined);
   const items = await scoped.remember(parsed.content, undefined);
   if (items.length === 0) {
     // Nothing was persisted (empty extraction / provider error). Do NOT forget the old
@@ -50,7 +50,7 @@ export async function updateMemoryHandler(
 
   // STEP 2 — only now retire the old memory (soft-delete; history preserved).
   try {
-    await workspaceScopedMemory(memory).forget(parsed.id);
+    await workspaceScopedMemory(deps.memoryFactory()).forget(parsed.id);
   } catch (err: unknown) {
     // Old id already gone → the new memory still stands; report success with the new id.
     if (!(err instanceof MemoryNotFound)) throw err;
