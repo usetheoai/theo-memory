@@ -1,0 +1,17 @@
+{
+  "milestone": "M15",
+  "issue": 122,
+  "corpus": {
+    "topics": 25,
+    "memoriesPerTopic": 4,
+    "total": 100
+  },
+  "k": 1,
+  "precisionAtK": {
+    "withoutBoost": 0.64,
+    "withBoost": 1
+  },
+  "delta": 0.36,
+  "recallSetChurn": 0,
+  "boostedCandidateCount": 9
+}
