@@ -26,6 +26,7 @@ import { rememberHandler, TOOL_NAME as REMEMBER } from './remember-handler.js';
 import { getMemoryHandler, TOOL_NAME as GET_MEMORY } from './get-memory-handler.js';
 import { listEntitiesHandler, TOOL_NAME as LIST_ENTITIES } from './list-entities-handler.js';
 import { updateMemoryHandler, TOOL_NAME as UPDATE_MEMORY } from './update-memory-handler.js';
+import { deleteEntitiesHandler, TOOL_NAME as DELETE_ENTITIES } from './delete-entities-handler.js';
 
 type HandlerFn = (
   args: unknown,
@@ -52,6 +53,7 @@ const HANDLERS = new Map<string, HandlerFn>([
   [LIST_ENTITIES, listEntitiesHandler],
   // M14 T2.3 — update_memory: remember-then-forget (ADD-only, edge EC-1).
   [UPDATE_MEMORY, updateMemoryHandler],
+  [DELETE_ENTITIES, deleteEntitiesHandler],
 ]);
 
 /**

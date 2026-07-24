@@ -10,6 +10,30 @@
  */
 import type { Filters } from '../scope.js';
 
+/**
+ * EntityForgetScopeError — thrown by `forgetEntity` when the scope filter does not carry
+ * a confirmed user (M14 T2.4a, fail-closed guard). The direct lesson of the theo-cloud#252
+ * cascade-delete incident: a dropped scope filter turned a targeted delete into an
+ * open-scope wipe. The guard ABORTS before any write rather than delete across an
+ * under-constrained scope (Rule 8 — fail-fast, typed). Kept in this module (not errors.ts,
+ * which is already over the size budget) for cohesion with the port that throws it.
+ */
+export class EntityForgetScopeError extends Error {
+  override readonly name = 'EntityForgetScopeError' as const;
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(`Entity forget scope not confirmed: ${message}`, options);
+    Object.setPrototypeOf(this, EntityForgetScopeError.prototype);
+  }
+}
+
+/** Result of a `forgetEntity` call — counts of what the scoped delete removed. */
+export interface ForgetEntityResult {
+  readonly entitiesRemoved: number;
+  readonly linksRemoved: number;
+  readonly edgesRemoved: number;
+}
+
 /** One entity ready to persist: type + name + its embedding vector.
  *
  * `type` is `string` (persisted to a `text` column): it carries the compromise
@@ -86,4 +110,19 @@ export interface MemoryEntityStore {
    * cross-workspace `newId` throws BEFORE any write (fail-closed).
    */
   supersedeEntity(params: { oldId: string; newId: string; workspaceId: string }): Promise<boolean>;
+
+  /**
+   * M14 T2.4a — scoped forget of an entity (node) from the graph: removes the entity row,
+   * its `memory_entities` links, and its `entity_edges`, all scoped to `(workspaceId,
+   * filters)` in ONE transaction. The source MEMORIES are untouched (only the derived,
+   * re-extractable graph is removed). FAIL-CLOSED (theo-cloud#252): if `filters` does not
+   * carry a confirmed user (`user_id`), throws `EntityForgetScopeError` BEFORE any write —
+   * an under-constrained scope never widens into an open-scope delete. Returns the counts
+   * removed (0/0/0 when the entity does not exist in scope — idempotent).
+   */
+  forgetEntity(params: {
+    name: string;
+    workspaceId: string;
+    filters: Filters;
+  }): Promise<ForgetEntityResult>;
 }

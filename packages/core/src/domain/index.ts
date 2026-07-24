@@ -264,7 +264,10 @@ export type {
   UpsertAndLinkParams,
   EntityNodeSummary,
   ListEntitiesParams,
+  ForgetEntityResult,
 } from './dip/memory-entity-store.js';
+// M14 T2.4a — value export (class) for the fail-closed forget guard (#252).
+export { EntityForgetScopeError } from './dip/memory-entity-store.js';
 
 /**
  * `MemoryGraphStore` DIP — persist + read port for relation edges (slice2).

@@ -59,6 +59,26 @@ import {
   DESCRIPTION as EXECUTE_SKILL_DESC,
   INPUT_SCHEMA as executeSkillInput,
 } from './execute-skill-schema.js';
+import {
+  TOOL_NAME as GET_MEMORY_NAME,
+  DESCRIPTION as GET_MEMORY_DESC,
+  INPUT_SCHEMA as getMemoryInput,
+} from './get-memory-schema.js';
+import {
+  TOOL_NAME as LIST_ENTITIES_NAME,
+  DESCRIPTION as LIST_ENTITIES_DESC,
+  INPUT_SCHEMA as listEntitiesInput,
+} from './list-entities-schema.js';
+import {
+  TOOL_NAME as UPDATE_MEMORY_NAME,
+  DESCRIPTION as UPDATE_MEMORY_DESC,
+  INPUT_SCHEMA as updateMemoryInput,
+} from './update-memory-schema.js';
+import {
+  TOOL_NAME as DELETE_ENTITIES_NAME,
+  DESCRIPTION as DELETE_ENTITIES_DESC,
+  INPUT_SCHEMA as deleteEntitiesInput,
+} from './delete-entities-schema.js';
 import { emitToolSchema } from './schema-emit.js';
 
 /** Spec-compliant `tools/list` response shape (no pagination for 4 static tools). */
@@ -127,6 +147,27 @@ export function buildToolsListResponse(): ToolsListResponse {
         name: EXPLAIN_RECALL_NAME,
         description: EXPLAIN_RECALL_DESC,
         inputSchema: emitToolSchema(explainRecallInput) as ToolsListResponse['tools'][number]['inputSchema'],
+      },
+      // claude-code-kit-recall-parity M14 — read/update/delete parity for the kit.
+      {
+        name: GET_MEMORY_NAME,
+        description: GET_MEMORY_DESC,
+        inputSchema: emitToolSchema(getMemoryInput) as ToolsListResponse['tools'][number]['inputSchema'],
+      },
+      {
+        name: LIST_ENTITIES_NAME,
+        description: LIST_ENTITIES_DESC,
+        inputSchema: emitToolSchema(listEntitiesInput) as ToolsListResponse['tools'][number]['inputSchema'],
+      },
+      {
+        name: UPDATE_MEMORY_NAME,
+        description: UPDATE_MEMORY_DESC,
+        inputSchema: emitToolSchema(updateMemoryInput) as ToolsListResponse['tools'][number]['inputSchema'],
+      },
+      {
+        name: DELETE_ENTITIES_NAME,
+        description: DELETE_ENTITIES_DESC,
+        inputSchema: emitToolSchema(deleteEntitiesInput) as ToolsListResponse['tools'][number]['inputSchema'],
       },
     ],
   };

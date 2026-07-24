@@ -13,10 +13,13 @@ import type { Pool } from 'pg';
 
 import type {
   EntityNodeSummary,
+  ForgetEntityResult,
   ListEntitiesParams,
   MemoryEntityStore,
   UpsertAndLinkParams,
 } from '../../domain/dip/memory-entity-store.js';
+import { EntityForgetScopeError } from '../../domain/dip/memory-entity-store.js';
+import type { Filters } from '../../domain/scope.js';
 
 /** F-L7: DO UPDATE the no-op `name = entities.name` so the conflicting row's id is
  *  RETURNED in one round-trip (a plain DO NOTHING returns no row on conflict,
@@ -211,6 +214,71 @@ export class PgMemoryEntityStore implements MemoryEntityStore {
       }
       await client.query('COMMIT');
       return true;
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+  async forgetEntity(params: {
+    name: string;
+    workspaceId: string;
+    filters: Filters;
+  }): Promise<ForgetEntityResult> {
+    const { name, workspaceId, filters } = params;
+    // FAIL-CLOSED (#252): an under-constrained scope must ABORT before ANY database work.
+    // A user-tier delete requires a confirmed user; without it we would delete every
+    // matching entity across the whole workspace — the exact open-scope wipe of the
+    // cascade-delete incident. Throw BEFORE `pool.connect()` so nothing is touched.
+    const userId = filters.user_id;
+    if (userId === undefined || userId === '') {
+      throw new EntityForgetScopeError(
+        `forgetEntity(${name}) requires filters.user_id — refusing an open-scope delete.`,
+      );
+    }
+    const sessionId = filters.session_id ?? null;
+    const agentId = filters.agent_id ?? null;
+
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      // Resolve the target entity ids by name, scoped to (workspace, user[, session, agent]).
+      const found = await client.query<{ id: string }>(
+        `SELECT id FROM entities
+          WHERE name = $1 AND workspace_id = $2
+            AND COALESCE(user_id,'') = COALESCE($3,'')
+            AND COALESCE(session_id,'') = COALESCE($4,'')
+            AND COALESCE(agent_id,'') = COALESCE($5,'')
+            AND superseded_by IS NULL`,
+        [name, workspaceId, userId, sessionId, agentId],
+      );
+      const ids = found.rows.map((r) => r.id);
+      if (ids.length === 0) {
+        await client.query('ROLLBACK');
+        return { entitiesRemoved: 0, linksRemoved: 0, edgesRemoved: 0 };
+      }
+      // Remove the derived graph (memories untouched): links, edges, then the node rows.
+      const delLinks = await client.query(
+        `DELETE FROM memory_entities WHERE entity_id = ANY($1::uuid[])`,
+        [ids],
+      );
+      const delEdges = await client.query(
+        `DELETE FROM entity_edges
+          WHERE workspace_id = $2
+            AND (source_entity_id = ANY($1::uuid[]) OR target_entity_id = ANY($1::uuid[]))`,
+        [ids, workspaceId],
+      );
+      const delEnts = await client.query(
+        `DELETE FROM entities WHERE id = ANY($1::uuid[]) AND workspace_id = $2`,
+        [ids, workspaceId],
+      );
+      await client.query('COMMIT');
+      return {
+        entitiesRemoved: delEnts.rowCount ?? 0,
+        linksRemoved: delLinks.rowCount ?? 0,
+        edgesRemoved: delEdges.rowCount ?? 0,
+      };
     } catch (err) {
       await client.query('ROLLBACK').catch(() => undefined);
       throw err;
