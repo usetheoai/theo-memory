@@ -20,7 +20,12 @@ permissions:
 
 # One run per ref — a new push cancels the in-flight run (single-trunk develop).
 concurrency:
-  group: integration-${{ github.ref }}
+  # #129: key on the BRANCH, not github.ref. A push to develop and its PR carry different
+  # github.ref values (refs/heads/develop vs refs/pull/N/merge), so the old key put them in
+  # different groups and both ran — the same work twice. head.ref (PR) and ref_name (push)
+  # both resolve to `develop`, so the PR run now cancels the push run: one run, and it's the
+  # PR's (which tests the merge commit).
+  group: integration-${{ github.event.pull_request.head.ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -114,6 +119,19 @@ jobs:
             echo "HF fetch attempt $i failed — retry in 20s"; sleep 20
           done
           echo "::error::could not pre-cache the Xenova model after 6 attempts (HF CDN unreachable)"; exit 1
+
+      - name: Run contract suite + typecheck (#104)
+        # #104 — the contract suite (1353 tests) was NOT run by CI; only test:integration was,
+        # so a contract regression stayed invisible until someone ran `npm test` locally. Run it
+        # HERE, in the integration job, reusing its Postgres + build + embedder cache: a handful
+        # of "contract" tests boot the MCP server, which opens a real Pool — without a DB those
+        # leak ECONNREFUSED as unhandled rejections (the suite is not as pure as its name). Sharing
+        # the existing Postgres service is the parsimonious fix — no second DB, no second job, and
+        # it runs first so a contract regression fails the job fast.
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          THEOMEM_EMBEDDER: openai
+        run: pnpm test
 
       - name: Run integration suite (real Postgres + real OpenAI)
         # THEOMEM_PG_URI set above; OPENAI_API_KEY from the repo secret (real

@@ -31,7 +31,8 @@ permissions:
 # One run per ref — a new push cancels the in-flight run (single self-hosted runner;
 # matches integration.yml / publish.yml).
 concurrency:
-  group: sast-${{ github.ref }}
+  # #129: key on the branch so a push and its PR share one group (see integration.yml).
+  group: sast-${{ github.event.pull_request.head.ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:

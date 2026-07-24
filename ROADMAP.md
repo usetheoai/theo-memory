@@ -511,7 +511,7 @@ milestone needs line-level study.
 
 ---
 
-## M16 — [ ] Identidade de ponta a ponta é fail-closed (#121, #84, #102)
+## M16 — [x] Identidade de ponta a ponta é fail-closed (#121, #84, #102)
 
 > Added 2026-07-24. Tracked: theo-memory#121, #84, #102. Trio de segurança de autenticação — os três falham na mesma direção: identidade ou tenancy resolvida de forma permissiva quando deveria fechar.
 
@@ -535,7 +535,7 @@ milestone needs line-level study.
 
 ---
 
-## M17 — [ ] O CI prova o que diz provar (#104, #129, #116)
+## M17 — [x] O CI prova o que diz provar (#104, #129, #116)
 
 > Added 2026-07-24. Tracked: theo-memory#104, #129, #116.
 
