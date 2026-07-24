@@ -10,22 +10,47 @@
  * stage with its own failure mode, and because the pipeline file is already far past the
  * repo's size budget (tracked separately — see the implementation log).
  */
+import type { MemoryEntityStore } from '../dip/memory-entity-store.js';
 import { emitEvent } from '../memory-event.js';
+import type { Filters } from '../scope.js';
 import { entityBoost } from '../scoring.js';
 
 import { countMatchedEntitiesPerMemory } from './entity-query-match.js';
 
+/**
+ * Ceiling for the entity lookup on the hot read path.
+ *
+ * The plan's Failure-scenarios section promised a timeout would degrade the boost, but only a
+ * THROWN error did. A query that hangs — a saturated pool, a lock, a wedged connection — has
+ * no error to catch, so it would hang every recall behind it. Recall is a read path: losing
+ * the third signal is far cheaper than blocking the caller.
+ */
+const DEFAULT_BOOST_TIMEOUT_MS = 750;
+
+/** Rejects when `promise` outruns `ms`, so the caller's catch can degrade. */
+async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error('EntityBoostTimeout'));
+        }, ms);
+        // Never hold the process open just for this guard.
+        timer.unref?.();
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
 /** The narrow slice of the pipeline's dependencies this stage needs (ISP). */
 export interface EntityBoostDeps {
-  readonly entityBoostStore?:
-    | {
-        linkedKeysForMemories(params: {
-          memoryIds: readonly string[];
-          workspaceId?: string | undefined;
-        }): Promise<ReadonlyMap<string, readonly string[]>>;
-      }
-    | undefined;
-  readonly workspaceId?: string | undefined;
+  readonly entityBoostStore?: Pick<MemoryEntityStore, 'linkedKeysForMemories'> | undefined;
+  /** Overrides {@link DEFAULT_BOOST_TIMEOUT_MS}. Exists so tests can prove the guard fires. */
+  readonly timeoutMs?: number | undefined;
   readonly tracer?: Parameters<typeof emitEvent>[0];
 }
 
@@ -49,6 +74,7 @@ export interface EntityBoostDeps {
 export async function computeEntityBoost(
   query: string,
   candidateIds: readonly string[],
+  filters: Filters,
   deps: EntityBoostDeps,
 ): Promise<Map<string, number>> {
   const boostById = new Map<string, number>();
@@ -59,10 +85,10 @@ export async function computeEntityBoost(
 
   let linkedKeys: ReadonlyMap<string, readonly string[]>;
   try {
-    linkedKeys = await store.linkedKeysForMemories({
-      memoryIds: candidateIds,
-      workspaceId: deps.workspaceId,
-    });
+    linkedKeys = await withTimeout(
+      store.linkedKeysForMemories({ memoryIds: candidateIds, filters }),
+      deps.timeoutMs ?? DEFAULT_BOOST_TIMEOUT_MS,
+    );
   } catch (err: unknown) {
     emitEvent(deps.tracer, 'entity_boost_degraded', {
       error: err instanceof Error ? err.name : 'unknown',
@@ -73,5 +99,14 @@ export async function computeEntityBoost(
   for (const [memoryId, numLinked] of countMatchedEntitiesPerMemory(query, linkedKeys)) {
     boostById.set(memoryId, entityBoost(numLinked));
   }
+
+  // Liveness, not just failure. A `boosted` of 0 is a legitimate outcome (the query mentions
+  // nothing in the graph), but a scope where it stays 0 across every recall is the dead
+  // signal of #122 coming back — and that state throws nothing, so the catch above would
+  // never see it.
+  emitEvent(deps.tracer, 'entity_boost_applied', {
+    candidates: candidateIds.length,
+    boosted: boostById.size,
+  });
   return boostById;
 }

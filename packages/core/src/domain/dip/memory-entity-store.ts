@@ -130,25 +130,29 @@ export interface MemoryEntityStore {
    * M15 T2.1 (#122) — read side of the recall entity boost: the `normalized_key` values
    * linked to each of the given memories.
    *
-   * Driven by the CANDIDATE set, not by the entity table. The candidates arrive already
-   * bounded by the pipeline's over-fetch limit and already filtered for scope and
-   * `t_invalid` by the vector search, which makes one indexed query over
-   * `memory_id = ANY(...)` both small and correct. Implementations MUST issue a single
-   * query for the whole batch — one query per candidate would put up to ~120 round-trips
-   * on the hot read path.
+   * Driven by the CANDIDATE set, not by the entity table. Implementations MUST issue a
+   * SINGLE query for the whole batch: one query per candidate would put one round-trip per
+   * candidate on the hot read path.
+   *
+   * The batch is bounded by the pipeline's over-fetch, which is the union of two
+   * `max(topK * 4, 60)` sets — so it grows with the caller's `topK`, reaching 800 through
+   * the REST surface (which caps `topK` at 100) and having no ceiling through the SDK,
+   * which does not validate it. Sizing an implementation for a small fixed batch is wrong.
    *
    * An empty `memoryIds` returns an empty map WITHOUT touching the connection pool.
    *
-   * `workspaceId` is defence in depth (the ids are already scoped); an absent value
-   * resolves to the `'default'` workspace, matching the isolation guard used elsewhere in
-   * the local runtime. Letting `undefined` reach the SQL comparison would silently match
-   * zero rows and leave the boost permanently at zero — the exact failure class #122 is.
+   * Scope is ENFORCED, not inherited. The candidate ids already passed scope filtering
+   * upstream, so no unauthorized MEMORY can appear — but `memory_entities` carries no scope
+   * column, so that argument does not extend to the entities joined onto them. Implementations
+   * MUST apply the same scope predicate the caller is running under, and MUST exclude
+   * superseded entities: a superseded row keeps its unique slot, so a later `upsertAndLink`
+   * can link a fresh memory to a retired alias that every audit surface hides.
    *
    * @returns memory id to the `normalized_key` values linked to it. Memories with no link
    *   are absent from the map rather than mapped to an empty array.
    */
   linkedKeysForMemories(params: {
     memoryIds: readonly string[];
-    workspaceId?: string | undefined;
+    filters: Filters;
   }): Promise<ReadonlyMap<string, readonly string[]>>;
 }

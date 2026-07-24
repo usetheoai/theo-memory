@@ -51,6 +51,16 @@ describe('matchEntityKeysInQuery', () => {
     expect(matchEntityKeysInQuery('paul mccartney', ['paulo'])).toHaveLength(0);
   });
 
+  it('test_key_that_is_a_prefix_of_a_query_word_does_not_match', () => {
+    // The case above can never exercise the trailing boundary check: `indexOf` already
+    // returns -1, so the guard is never reached. Deleting that guard leaves every other
+    // test in this file green while the boost starts firing on prefixes — `paul` matching
+    // inside `paulo` is a false positive that silently inflates the ranking.
+    expect(matchEntityKeysInQuery('paulo mccartney', ['paul'])).toHaveLength(0);
+    // Symmetric case for the LEADING boundary.
+    expect(matchEntityKeysInQuery('saopaulo fica longe', ['paulo'])).toHaveLength(0);
+  });
+
   it('test_case_is_ignored', () => {
     expect(matchEntityKeysInQuery('PAULO', ['paulo'])).toContain('paulo');
   });

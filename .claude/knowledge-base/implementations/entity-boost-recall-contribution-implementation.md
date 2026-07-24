@@ -132,22 +132,28 @@ Precedente do repo para dívida pré-existente registrada e não corrigida na ho
 
 | Métrica | Valor |
 |---|---|
-| precision@1 sem boost | 0.64 |
+| precision@1 sem boost | 0.64–0.68 (faixa; ver abaixo) |
 | precision@1 com boost | **1.00** |
-| delta | **+0.36** |
+| delta | **+0.32 a +0.36** |
 | `recall_set_churn` (pós-threshold) | **0** |
-| `boostedCandidateCount` | 9 de 25 tópicos |
+| `boostedCandidateCount` | medido de forma **estrutural** (ver correção do /review) |
 
 Documento com método e ressalvas: `docs/benchmarks/entity-boost-m15.md`. Bruto:
-`docs/benchmarks/entity-boost-m15.json`. Reprodução determinística — vetores fixos, sem LLM,
-sem amostragem, sem relógio.
+`docs/benchmarks/entity-boost-m15.json`.
+
+**Correção de honestidade (2026-07-24).** A primeira versão desta seção publicava valores
+pontuais (0.64 / +0.36 / 9) e afirmava reprodução exata. A segunda execução do benchmark
+desmentiu: baseline 0.68, delta +0.32, contagem 8. Sem o boost os candidatos de um tópico
+empatam exatamente e a ordem entre empatados é decidida pela ordem física das linhas no
+Postgres, que não é estável entre execuções. O lado que importa — com boost — é estável em
+1.00. A leitura honesta é uma faixa.
 
 ### Três honestidades sobre o benchmark
 
-1. **A base 0.64 não é o piso de desempate aleatório** (~0.25 com quatro empatados). A memória
+1. **A base não é o piso de desempate aleatório** (~0.25 com quatro empatados). A memória
    relevante é inserida primeiro em cada tópico e isso parece enviesar o desempate a favor
-   dela. O efeito é conservador: eleva a base e encolhe o delta, então **+0.36 é limite
-   inferior**.
+   dela. O efeito é conservador: eleva a base e encolhe o delta, então a faixa reportada é
+   **limite inferior**.
 2. **`boostedCandidateCount` é 9, não 25.** O boost mudou o resultado nos 9 tópicos onde a
    relevante ainda não estava em primeiro por sorte de desempate; nos outros 16 confirmou uma
    posição já correta. A asserção existe para que um boost morto não passe calado — que é
@@ -175,7 +181,7 @@ anterior a este cycle (último commit do arquivo é do M13). O DoD exige zero av
 | 1 | `entityBoostById` populado no Step 6 a partir de `entities` + `memory_entities`, scoped, zero vazamento cross-scope | **feito** | `entity-boost-step.ts` + `pipeline.ts` Step 6; `linked-keys.test.ts` prova que workspace estrangeiro não retorna vínculo |
 | 2 | Boost aditivo, roda DEPOIS do gate semântico; teste provando que sub-threshold NÃO é ressuscitado | **feito** | `ranking.test.ts::test_sub_threshold_candidate_is_not_resurrected_by_boost` — a memória irrelevante **é** candidata (a busca devolve as 3) e cai no threshold |
 | 3 | Normalização na mesma escala do BM25 (sigmoid) antes do `ENTITY_BOOST_WEIGHT` | **divergência registrada** | ver abaixo |
-| 4 | Benchmark obrigatório: precisão@k COM e SEM boost, delta registrado | **feito** | `docs/benchmarks/entity-boost-m15.md` — 0.64 → 1.00, delta +0.36, churn 0 |
+| 4 | Benchmark obrigatório: precisão@k COM e SEM boost, delta registrado | **feito** | `docs/benchmarks/entity-boost-m15.md` — 0.64–0.68 → 1.00, churn 0, custo +6,2 ms/busca |
 | 5 | Comentário-guarda de `recall-trace-store.ts` atualizado | **feito** | T3.4 + sentinela `recall-trace-entity-comment.test.ts` |
 | 6 | Custo controlado: sem round-trip não-bounded; medir latência antes/depois | **feito** | 1 consulta para 20 candidatos (`linked-keys.test.ts`); índice servido a 50k linhas (`query-plan.test.ts`); latência por query no JSON do benchmark, com asserção de teto |
 | 7 | ADR-0007 revisitado | **feito** | ADR-0023 — a flag passa a governar os dois lados; `CLAUDE.md` atualizado |
