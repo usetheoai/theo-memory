@@ -25,6 +25,11 @@ on:
 # a manual cancel mid-deploy with no successor left the dev host down). Tag runs get
 # their own group per ref and are never cancelled by develop pushes.
 concurrency:
+  # #129 note: publish listens on push + tag ONLY (no pull_request), so it does NOT
+  # double-run — the push/PR key-mismatch that #129 fixes for integration/sast does not
+  # apply here. Left on github.ref deliberately: a tag build (v*) and a develop push MUST
+  # stay in separate groups, and cancel-in-progress is already tag-aware below. Changing
+  # the key would risk the signed release build for zero dedup benefit.
   group: publish-${{ github.ref }}
   cancel-in-progress: ${{ github.ref_type != 'tag' }}
 permissions:
