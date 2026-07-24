@@ -11,7 +11,7 @@
  */
 import { McpError, type CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
-import type { Memory, RecallTraceStore } from '@usetheo/memory/contract';
+import type { Memory, MemoryEntityStore, RecallTraceStore } from '@usetheo/memory/contract';
 import { classifyError, UnknownToolError } from '@usetheo/memory-agent-core';
 
 import { addSkillHandler, TOOL_NAME as ADD_SKILL } from './add-skill-handler.js';
@@ -24,10 +24,11 @@ import { reflectHandler, TOOL_NAME as REFLECT } from './reflect-handler.js';
 import { explainRecallHandler, TOOL_NAME as EXPLAIN_RECALL } from './explain-recall-handler.js';
 import { rememberHandler, TOOL_NAME as REMEMBER } from './remember-handler.js';
 import { getMemoryHandler, TOOL_NAME as GET_MEMORY } from './get-memory-handler.js';
+import { listEntitiesHandler, TOOL_NAME as LIST_ENTITIES } from './list-entities-handler.js';
 
 type HandlerFn = (
   args: unknown,
-  deps: { memoryFactory: () => Memory; recallTraceStore?: RecallTraceStore },
+  deps: { memoryFactory: () => Memory; recallTraceStore?: RecallTraceStore; memoryEntityStore?: MemoryEntityStore },
 ) => Promise<CallToolResult>;
 
 const HANDLERS = new Map<string, HandlerFn>([
@@ -46,6 +47,8 @@ const HANDLERS = new Map<string, HandlerFn>([
   [EXPLAIN_RECALL, explainRecallHandler],
   // M14 T2.1 — get_memory: reuse Memory.get scoped to the Principal.
   [GET_MEMORY, getMemoryHandler],
+  // M14 T2.2 — list_entities: reuse the entity read port, scoped to the Principal.
+  [LIST_ENTITIES, listEntitiesHandler],
 ]);
 
 /**
@@ -57,7 +60,7 @@ const HANDLERS = new Map<string, HandlerFn>([
 export async function dispatch(
   toolName: string,
   args: unknown,
-  deps: { memoryFactory: () => Memory; recallTraceStore?: RecallTraceStore },
+  deps: { memoryFactory: () => Memory; recallTraceStore?: RecallTraceStore; memoryEntityStore?: MemoryEntityStore },
 ): Promise<CallToolResult> {
   try {
     const handler = HANDLERS.get(toolName);

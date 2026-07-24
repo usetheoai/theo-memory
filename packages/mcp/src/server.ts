@@ -108,6 +108,7 @@ export class McpServer {
     // Tool Execution Errors return CallToolResult.
     const memoryFactory = options.memoryFactory;
     const recallTraceStore = options.recallTraceStore; // M4 — backs explain_recall
+    const memoryEntityStore = options.memoryEntityStore; // M14 T2.2 — backs list_entities
     this.sdkServer.setRequestHandler(CallToolRequestSchema, (req) => {
       if (memoryFactory === undefined) {
         return Promise.resolve({
@@ -132,10 +133,10 @@ export class McpServer {
         // all tenants onto the same rows. Violates theo-data/CLAUDE.md invariants
         // 2 and 3 (workspace_id == tenant_id; scope from the Principal).
         return withScope({ ...outerScope, session: { userId } }, () =>
-          dispatchFn(req.params.name, req.params.arguments, { memoryFactory, ...(recallTraceStore !== undefined ? { recallTraceStore } : {}) }),
+          dispatchFn(req.params.name, req.params.arguments, { memoryFactory, ...(recallTraceStore !== undefined ? { recallTraceStore } : {}), ...(memoryEntityStore !== undefined ? { memoryEntityStore } : {}) }),
         );
       }
-      return dispatchFn(req.params.name, req.params.arguments, { memoryFactory, ...(recallTraceStore !== undefined ? { recallTraceStore } : {}) });
+      return dispatchFn(req.params.name, req.params.arguments, { memoryFactory, ...(recallTraceStore !== undefined ? { recallTraceStore } : {}), ...(memoryEntityStore !== undefined ? { memoryEntityStore } : {}) });
     });
   }
 
