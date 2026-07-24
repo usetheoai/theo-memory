@@ -89,8 +89,13 @@ ORIGEM DE HOOK, nunca inferido. Reusa o `attributed_to` da v1.1 (já shipado).
    comando).
 4. Wizard `/onboard` idempotente + guarda anti-escrita em `MEMORY.md` + distribuição via
    marketplace de plugin.
-5. **Teste de isolamento cross-tenant E cross-user PASSA** (como o M8 fez) — a prova de que o
-   recall/autoria não vaza entre tenants nem entre end-users.
+5. **Paridade de superfície MCP** (owner, follow-up 2026-07-24): `list_entities` (reusa handler
+   REST `/entities`) + `get_memory` por ID (reusa `MemoryStore.get`, já shipado), herdando o
+   Principal `(workspace,user)`. **Ladder aplicada:** `update_memory` FORA (ADR-0003 ADD-only);
+   `delete_entities` FORA (sem primitivo de forget-de-entidade no core — só `supersedeEntity` que
+   re-tipa; e toca a classe de bug do cascade-delete #252 → milestone próprio).
+6. **Teste de isolamento cross-tenant E cross-user PASSA** (como o M8 fez) — a prova de que o
+   recall/autoria/list_entities/get_memory não vaza entre tenants nem entre end-users.
 
 ## Q4 — Top 2 riscos NOVOS
 
