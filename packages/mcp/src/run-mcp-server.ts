@@ -22,7 +22,7 @@
  */
 import { Pool } from 'pg';
 
-import { runMigrations } from '@usetheo/memory';
+import { runMigrations, PgMemoryEntityStore } from '@usetheo/memory';
 import { ApiKeyAuthVerifier } from '@usetheo/memory-api';
 import { createOauth4webapiIntrospect } from '@usetheo/memory-api';
 import { OidcAuthVerifier } from '@usetheo/memory-api';
@@ -342,6 +342,8 @@ export async function runMcpServer(options?: RunMcpServerOptions): Promise<void>
       // M4 — back explain_recall with the recall-trace store, opt-in under the same
       // THEOMEM_RECALL_TRACE posture as the SDK write + REST read.
       ...(resolveRecallTraceEnabled() ? { recallTraceStore: new PgRecallTraceStore(pool) } : {}),
+      // M14 T2.2 — back list_entities with the entity read port (pool-backed).
+      memoryEntityStore: new PgMemoryEntityStore(pool),
     });
 
   // What SIGTERM must tear down differs per transport, and it is only known after

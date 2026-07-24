@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- **M14 T2.2 — list_entities MCP tool.** O agente lista as próprias entidades (que já escreve via M13) pela superfície MCP, reusando o read port do REST /entities. Scope (workspace,user) do Principal via getScope(), nunca do argumento (ADR-M14-1); schema strict rejeita args de identidade. memoryEntityStore injetado do pool no composition root. (M14)
 - **M14 T1.2/T1.3 — autoria por origem de hook + registro do prompt-recall.** `theo-remember.mjs` agora marca `attributed_to: 'assistant'` (o resumo do Stop é do assistente, impede que vire "preferência do usuário"); refatorado para função pura testável. Prompt-recall registrado no `UserPromptSubmit` (theoAdditions idempotente). (M14)
 - **M14 T1.1 — recall por-PROMPT no kit Claude Code (UserPromptSubmit).** Novo hook `theo-prompt-recall.mjs` busca pelo prompt do usuário (não pelo nome do projeto), scoped ao Principal `(workspace,user)` server-side; pula prompts < 20 chars; sem token → não busca (defesa da invariante). Fecha o gap medido (79% das memórias nunca lidas). (M14)
 - Roadmap amended: added M14 Paridade de recall do kit Claude Code (leitura contínua + autoria) (`/roadmap-feature claude-code-kit-recall-parity`)
