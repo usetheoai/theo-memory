@@ -281,7 +281,7 @@ export class PgMemoryEntityStore implements MemoryEntityStore {
    */
   async linkedKeysForMemories(params: {
     memoryIds: readonly string[];
-    workspaceId?: string | undefined;
+    filters: Filters;
   }): Promise<ReadonlyMap<string, readonly string[]>> {
     return queryLinkedKeysForMemories(this.pool, params);
   }

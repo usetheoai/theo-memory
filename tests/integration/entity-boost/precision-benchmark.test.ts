@@ -85,16 +85,28 @@ async function link(memoryId: string, key: string): Promise<void> {
   ]);
 }
 
-async function runQuery(topic: number, withBoost: boolean) {
+/**
+ * Threshold chosen so the renormalization effect CAN bite.
+ *
+ * With the boost active `maxPossible` grows by ENTITY_BOOST_WEIGHT, so an unlinked candidate
+ * at semantic 1.0 goes from 1.0/1.0 to 1.0/1.5 = 0.667. At the pipeline default (0.1) that is
+ * still 6.7x above the gate, so churn is structurally guaranteed to be 0 and measures
+ * NOTHING — which is what the first version of this benchmark did while claiming to watch the
+ * risk that ADR D1 accepted. At 0.8 the drop crosses the gate, so a churn of 0 here is a real
+ * observation instead of an arithmetic certainty.
+ */
+const SENSITIVE_THRESHOLD = 0.8;
+
+async function runQuery(topic: number, withBoost: boolean, threshold = 0.1) {
   return runRetrievalPipeline(
     `o que sabemos sobre entidade ${topic}`,
     { user_id: USER, workspace_id: WORKSPACE } as never,
     {
       vectorStore: vectorStore as never,
       embedder: topicEmbedder(topic),
-      ...(withBoost ? { entityBoostStore: entityStore, workspaceId: WORKSPACE } : {}),
+      ...(withBoost ? { entityBoostStore: entityStore } : {}),
     },
-    { topK: 200, threshold: 0.1 },
+    { topK: 200, threshold },
   );
 }
 
@@ -154,15 +166,35 @@ describe('entity boost precision benchmark', () => {
       for (const id of before) if (!after.has(id)) churn += 1;
     }
 
-    // A candidate is "boosted" when the boost moved the relevant memory to rank 1 where it
-    // was not there before; counted across topics so the benchmark cannot pass with a dead
-    // boost, which is the defect this whole milestone closes.
+    // Churn in the SENSITIVE band, where renormalization can actually remove a candidate.
+    let sensitiveChurn = 0;
+    for (let topic = 0; topic < TOPICS; topic += 1) {
+      const before = new Set((await runQuery(topic, false, SENSITIVE_THRESHOLD)).map((r) => r.id));
+      const after = new Set((await runQuery(topic, true, SENSITIVE_THRESHOLD)).map((r) => r.id));
+      for (const id of before) if (!after.has(id)) sensitiveChurn += 1;
+    }
+
+    // How many candidates the STAGE actually boosted — asked of the stage directly, not
+    // inferred from a rank delta between two runs.
+    //
+    // The first version compared ranks across runs. That could not do its job: the baseline
+    // ordering is unstable between runs (tied candidates, decided by Postgres row order), so
+    // a completely DEAD boost could still produce a non-zero count out of tie-break noise.
+    // The guard meant to prove the signal is alive was itself statistical. Reading the map
+    // the stage returns is structural: a dead boost returns an empty map, always.
+    const { computeEntityBoost } = await import(
+      '../../../packages/core/src/domain/retrieval/entity-boost-step.js'
+    );
     let boostedCandidateCount = 0;
     for (let topic = 0; topic < TOPICS; topic += 1) {
-      const rel = relevantByTopic.get(topic) as string;
-      const beforeRank = without.postThresholdSets[topic]?.indexOf(rel) ?? -1;
-      const afterRank = with_.postThresholdSets[topic]?.indexOf(rel) ?? -1;
-      if (afterRank >= 0 && (beforeRank < 0 || afterRank < beforeRank)) boostedCandidateCount += 1;
+      const ids = with_.postThresholdSets[topic] ?? [];
+      const boosts = await computeEntityBoost(
+        `o que sabemos sobre entidade ${topic}`,
+        ids,
+        { user_id: USER, workspace_id: WORKSPACE },
+        { entityBoostStore: entityStore },
+      );
+      boostedCandidateCount += [...boosts.values()].filter((b) => b > 0).length;
     }
 
     const report = {
@@ -173,6 +205,7 @@ describe('entity boost precision benchmark', () => {
       precisionAtK: { withoutBoost: without.precisionAtK, withBoost: with_.precisionAtK },
       delta: with_.precisionAtK - without.precisionAtK,
       recallSetChurn: churn,
+      recallSetChurnAtSensitiveThreshold: { threshold: SENSITIVE_THRESHOLD, churn: sensitiveChurn },
       boostedCandidateCount,
       latencyMsPerQuery: {
         withoutBoost: Number((without.elapsedMs / TOPICS).toFixed(2)),
@@ -184,15 +217,20 @@ describe('entity boost precision benchmark', () => {
 
     // The boost must not degrade precision.
     expect(report.precisionAtK.withBoost).toBeGreaterThanOrEqual(report.precisionAtK.withoutBoost);
-    // No memory may fall out of the post-threshold set.
+    // No memory may fall out of the post-threshold set at the default threshold.
     expect(report.recallSetChurn).toBe(0);
+    // And the honest measurement: at a threshold where renormalization CAN evict, record
+    // what actually happens. This assertion is deliberately an inequality, not `toBe(0)` —
+    // the number is evidence for revisiting ADR D1, and pinning it to zero would recreate
+    // the vacuous instrument this replaces.
+    expect(report.recallSetChurnAtSensitiveThreshold.churn).toBeGreaterThanOrEqual(0);
     // Without this, a dead boost would pass the two assertions above trivially.
     expect(report.boostedCandidateCount).toBeGreaterThan(0);
-    // Cost is bounded: the boost adds ONE indexed query over the candidate set, so the
-    // per-query cost must stay the same order of magnitude. A blown budget here would mean
-    // an N+1 crept back in.
-    expect(report.latencyMsPerQuery.withBoost).toBeLessThan(
-      report.latencyMsPerQuery.withoutBoost * 3 + 5,
-    );
+    // Latency is REPORTED, not asserted. `measure(false)` runs first and absorbs cold-cache
+    // and warm-up, so the two numbers are not comparable with the rigour an assertion
+    // implies — and the benchmark doc itself says to read the ratio, not the milliseconds.
+    // A number the documentation tells you not to trust must not gate a build. The bounded
+    // cost claim is proven structurally instead, by linked-keys.test.ts (one query for any
+    // candidate count) and query-plan.test.ts (index-served at 50k rows).
   }, 600_000);
 });

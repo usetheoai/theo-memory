@@ -41,7 +41,7 @@ describe('MemoryEntityStore port', () => {
       },
     });
 
-    const result = await store.linkedKeysForMemories({ memoryIds: [], workspaceId: 'default' });
+    const result = await store.linkedKeysForMemories({ memoryIds: [], filters: { workspace_id: 'default' } });
 
     expect(result.size).toBe(0);
     expect(queried).toBe(false);

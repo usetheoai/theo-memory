@@ -91,11 +91,13 @@ function recallTraceDeps(
  */
 function entityBoostDeps(ctx: RetrievalContext): {
   entityBoostStore?: LocalMemoryConfig['memoryEntityStore'];
-  workspaceId?: string;
 } {
   const store = ctx.config.memoryEntityStore;
   if (store === undefined || ctx.config.entityBoost === false) return {};
-  return { entityBoostStore: store, workspaceId: ctx.filters.workspace_id ?? DEFAULT_WORKSPACE_ID };
+  // The tenant anchor is NOT copied here: the pipeline already receives `filters`, which
+  // carries it. A second carrier could disagree with the first, and the JOIN would then match
+  // zero rows without throwing — a silently-zero boost, which is the #122 failure class.
+  return { entityBoostStore: store };
 }
 
 /**

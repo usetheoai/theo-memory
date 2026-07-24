@@ -87,7 +87,7 @@ describe('linkedKeysForMemories', () => {
 
     const result = await store.linkedKeysForMemories({
       memoryIds: [memoryId],
-      workspaceId: WORKSPACE,
+      filters: { workspace_id: WORKSPACE },
     });
 
     expect(result.get(memoryId)).toContain('paulo');
@@ -98,7 +98,7 @@ describe('linkedKeysForMemories', () => {
 
     const result = await new PgMemoryEntityStore(spy.pool).linkedKeysForMemories({
       memoryIds: [],
-      workspaceId: WORKSPACE,
+      filters: { workspace_id: WORKSPACE },
     });
 
     expect(result.size).toBe(0);
@@ -113,7 +113,7 @@ describe('linkedKeysForMemories', () => {
 
     const result = await store.linkedKeysForMemories({
       memoryIds: [foreignId],
-      workspaceId: WORKSPACE,
+      filters: { workspace_id: WORKSPACE },
     });
 
     expect(result.has(foreignId)).toBe(false);
@@ -127,7 +127,7 @@ describe('linkedKeysForMemories', () => {
       normalizedKey: 'sao_carlos',
     });
 
-    const result = await store.linkedKeysForMemories({ memoryIds: [memoryId] });
+    const result = await store.linkedKeysForMemories({ memoryIds: [memoryId], filters: {} });
 
     expect(result.get(memoryId)).toContain('sao_carlos');
   });
@@ -142,7 +142,7 @@ describe('linkedKeysForMemories', () => {
 
     const result = await new PgMemoryEntityStore(spy.pool).linkedKeysForMemories({
       memoryIds: ids,
-      workspaceId: WORKSPACE,
+      filters: { workspace_id: WORKSPACE },
     });
 
     expect(result.size).toBe(20);

@@ -76,7 +76,7 @@ async function recall(withBoost: boolean, query = 'moro em São Paulo') {
     {
       vectorStore: vectorStore as never,
       embedder: tiedEmbedder,
-      ...(withBoost ? { entityBoostStore: entityStore, workspaceId: WORKSPACE } : {}),
+      ...(withBoost ? { entityBoostStore: entityStore } : {}),
     },
     { topK: 100, threshold: 0.1 },
   );
@@ -92,8 +92,12 @@ beforeAll(async () => {
   entityStore = new PgMemoryEntityStore(db.pool);
 
   const tied = Array(DIM).fill(0.05) as number[];
-  linkedId = await seedMemory('anotacao sobre a cidade', tied);
+  // The UNLINKED memory is seeded FIRST on purpose. Postgres' ordering of exactly-tied rows
+  // favours the earlier row, so seeding the linked one first would let the test pass on
+  // insertion-order luck even with a dead boost. This way the bias runs AGAINST the
+  // hypothesis: the linked memory can only win by actually being boosted.
   unlinkedId = await seedMemory('anotacao sobre a cidade', tied);
+  linkedId = await seedMemory('anotacao sobre a cidade', tied);
   await linkEntity(linkedId, 'são_paulo');
 
   // Semantically far from the query (orthogonal vector) but linked to the same entity —
@@ -164,10 +168,12 @@ describe('computeEntityBoost against the real entity store', () => {
       '../../../packages/core/src/domain/retrieval/entity-boost-step.js'
     );
 
-    const boost = await computeEntityBoost('moro em São Paulo', [linkedId, unlinkedId], {
-      entityBoostStore: entityStore,
-      workspaceId: WORKSPACE,
-    });
+    const boost = await computeEntityBoost(
+      'moro em São Paulo',
+      [linkedId, unlinkedId],
+      { user_id: USER, workspace_id: WORKSPACE },
+      { entityBoostStore: entityStore },
+    );
 
     expect(boost.get(linkedId)).toBeGreaterThan(0);
     // A candidate with no matched entity is ABSENT, not present with zero — that is what
@@ -185,7 +191,7 @@ describe('computeEntityBoost against the real entity store', () => {
 
     const linkedKeys = await queryLinkedKeysForMemories(db.pool, {
       memoryIds: [linkedId],
-      workspaceId: WORKSPACE,
+      filters: { user_id: USER, workspace_id: WORKSPACE },
     });
 
     expect(matchEntityKeysInQuery('moro em São Paulo', linkedKeys.get(linkedId) ?? [])).toContain(
