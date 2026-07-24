@@ -22,6 +22,8 @@ import type {
 import { EntityForgetScopeError } from '../../domain/dip/memory-entity-store.js';
 import { emitEvent } from '../../domain/memory-event.js';
 import type { Filters } from '../../domain/scope.js';
+
+import { queryLinkedKeysForMemories } from './pg-linked-keys.js';
 import { runInTx, scopeIds } from './pg-tx.js';
 
 /** F-L7: DO UPDATE the no-op `name = entities.name` so the conflicting row's id is
@@ -270,5 +272,17 @@ export class PgMemoryEntityStore implements MemoryEntityStore {
       });
     }
     return result;
+  }
+
+  /**
+   * M15 T2.2 (#122) — read side of the recall entity boost. Delegates to
+   * {@link queryLinkedKeysForMemories}: it serves the hot READ path that ranks candidates,
+   * a different reason to change from the write-path methods above.
+   */
+  async linkedKeysForMemories(params: {
+    memoryIds: readonly string[];
+    filters: Filters;
+  }): Promise<ReadonlyMap<string, readonly string[]>> {
+    return queryLinkedKeysForMemories(this.pool, params);
   }
 }

@@ -75,6 +75,44 @@ function recallTraceDeps(
 }
 
 /** The cache-aware 9-step retrieval (adaptive gate → cache bypass/hit/miss). */
+
+/**
+ * M15 T3.1 (#122) — the entity-graph slice the recall pipeline needs for Step 6.
+ *
+ * Spread into BOTH pipeline call sites (cached and uncached) so the boost is not silently
+ * absent on one of the two paths. Omitted entirely when no entity store is configured, so
+ * a deployment without a populated graph behaves exactly as before.
+ *
+ * `config.entityBoost === false` also turns it off, honouring ADR-0007 on the READ side.
+ * The flag already gates the WRITE side (the factory skips instantiating the entity store),
+ * so in the default wiring "flag off" implies "no store" and this check is redundant — but a
+ * consumer who injects their own `memoryEntityStore` while setting the flag to `false` would
+ * otherwise get a boost the documented contract says is disabled.
+ */
+function entityBoostDeps(ctx: RetrievalContext): {
+  entityBoostStore?: LocalMemoryConfig['memoryEntityStore'];
+} {
+  const store = ctx.config.memoryEntityStore;
+  if (store === undefined || ctx.config.entityBoost === false) return {};
+  // The tenant anchor is NOT copied here: the pipeline already receives `filters`, which
+  // carries it. A second carrier could disagree with the first, and the JOIN would then match
+  // zero rows without throwing — a silently-zero boost, which is the #122 failure class.
+  return { entityBoostStore: store };
+}
+
+/**
+ * The dependency fragment both pipeline call sites share: recall trace, entity boost and
+ * tracer. Extracted so the cached and uncached paths cannot drift apart — a signal silently
+ * present on one path and absent on the other is the failure mode this guards against.
+ */
+function sharedPipelineDeps(ctx: RetrievalContext, options?: RecallOptions) {
+  return {
+    ...recallTraceDeps(ctx, options),
+    ...entityBoostDeps(ctx),
+    ...(ctx.config.tracer !== undefined ? { tracer: ctx.config.tracer } : {}),
+  };
+}
+
 export async function retrieveResults(
   ctx: RetrievalContext,
   query: string,
@@ -128,8 +166,7 @@ export async function retrieveResults(
       ...(ctx.config.reranker !== undefined ? { reranker: ctx.config.reranker } : {}),
       ...(ctx.config.retrievalPolicy !== undefined ? { retrievalPolicy: ctx.config.retrievalPolicy } : {}),
       ...(ctx.config.graphExpansionStore !== undefined ? { graphExpansionStore: ctx.config.graphExpansionStore } : {}),
-      ...recallTraceDeps(ctx, options),
-      ...(ctx.config.tracer !== undefined ? { tracer: ctx.config.tracer } : {}),
+      ...sharedPipelineDeps(ctx, options),
     }, options);
   }
 
@@ -145,8 +182,7 @@ export async function retrieveResults(
   const results = await runRetrievalPipeline(query, applySkillFilters(ctx.filters, options), {
     vectorStore: ctx.config.vectorStore,
     embedder: ctx.config.embedder,
-    ...recallTraceDeps(ctx, options),
-    ...(ctx.config.tracer !== undefined ? { tracer: ctx.config.tracer } : {}),
+    ...sharedPipelineDeps(ctx, options),
   }, options);
   const ttlSeconds = resolveCacheTtl(ctx.scope, ctx.config.recallCache);
   await cache.set(queryEmbedding, ctx.scope, results, ttlSeconds, ctx.filters.workspace_id ?? undefined);

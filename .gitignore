@@ -93,3 +93,6 @@ halt-loop-prompts/
 
 # JS coverage output
 coverage/
+
+# Scratch dir do ciclo — nunca versionar (bloqueou vazamento de segredo em 2026-07-24)
+.claude/tmp/

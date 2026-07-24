@@ -223,11 +223,16 @@ function composeFilters(filters: Filters | undefined, startParamIndex: number): 
   // returns NULL, no match), so passing attributedTo='' matches empty-string
   // rows only — NULL rows from pre-v1.1 stay excluded.
   // EC-5 absorbed: this single filter clause runs on the PRIMARY memory query
-  // path inside vectorStore.search; the entity-boost subquery doesn't exist as
-  // a separate SQL fragment in pgvector-store (entity store is opt-out per
-  // ADR-0007 and currently disabled), so cross-attribution isolation holds via
-  // this single clause. Future entity-store revival MUST add the same filter
-  // to its subquery — guarded by the EC-5 integration assertion in T4.1.
+  // path inside vectorStore.search.
+  //
+  // M15 (#122) UPDATE — the trigger this note anticipated has fired. The entity boost is
+  // live, and its lookup lives in `pg-linked-keys.ts`, not as a subquery here. That lookup
+  // does NOT need an `attributed_to` clause: it is keyed by candidate ids that already
+  // passed THIS filter, and it returns entity keys rather than memory rows, so no
+  // additional attribution surface is exposed. It does carry the full scope predicate
+  // (workspace + user + session + agent) and excludes superseded entities, for reasons
+  // documented there. The named T4.1 guard from the original note was never written;
+  // isolation is asserted instead in `tests/integration/entity-boost/linked-keys.test.ts`.
   if (filters.attributed_to !== undefined) {
     parts.push(`attributed_to = $${idx}`);
     params.push(filters.attributed_to);
@@ -633,16 +638,25 @@ export class PgvectorStore implements VectorStore {
   }
 
   async get(vectorId: string): Promise<VectorStoreResult | null> {
-    const result = await this.pool.query<MemoriesRow>(
+    // `t_invalid` is selected (and surfaced on the payload) but NOT filtered here: the
+    // internal callers need the row even when it is soft-deleted — `LocalMemory.forget`
+    // reads it to authorize a GDPR hard-erasure of an ALREADY-forgotten memory. The
+    // public read (`LocalMemory.get`) is what hides forgotten rows.
+    const result = await this.pool.query<MemoriesRow & { t_invalid: Date | null }>(
       `SELECT id, text, hash, payload, workspace_id, user_id, session_id, agent_id, attributed_to, category,
-              kind, code, description, code_language, derived_from, superseded_by, confirmation_count
+              kind, code, description, code_language, derived_from, superseded_by, confirmation_count, t_invalid
          FROM memories WHERE id = $1`,
       [vectorId],
     );
     if (result.rows.length === 0) {
       return null;
     }
-    return rowToResult(result.rows[0] as MemoriesRow);
+    const row = result.rows[0] as MemoriesRow & { t_invalid: Date | null };
+    const mapped = rowToResult(row);
+    if (row.t_invalid !== null && row.t_invalid !== undefined) {
+      (mapped.payload as Record<string, unknown>)['t_invalid'] = row.t_invalid;
+    }
+    return mapped;
   }
 
   async update(vectorId: string, vector: readonly number[], payload: Payload): Promise<void> {
