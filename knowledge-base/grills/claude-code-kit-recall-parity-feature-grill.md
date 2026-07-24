@@ -89,13 +89,22 @@ ORIGEM DE HOOK, nunca inferido. Reusa o `attributed_to` da v1.1 (já shipado).
    comando).
 4. Wizard `/onboard` idempotente + guarda anti-escrita em `MEMORY.md` + distribuição via
    marketplace de plugin.
-5. **Paridade de superfície MCP** (owner, follow-up 2026-07-24): `list_entities` (reusa handler
-   REST `/entities`) + `get_memory` por ID (reusa `MemoryStore.get`, já shipado), herdando o
-   Principal `(workspace,user)`. **Ladder aplicada:** `update_memory` FORA (ADR-0003 ADD-only);
-   `delete_entities` FORA (sem primitivo de forget-de-entidade no core — só `supersedeEntity` que
-   re-tipa; e toca a classe de bug do cascade-delete #252 → milestone próprio).
-6. **Teste de isolamento cross-tenant E cross-user PASSA** (como o M8 fez) — a prova de que o
-   recall/autoria/list_entities/get_memory não vaza entre tenants nem entre end-users.
+5. **Paridade das 9 tools MCP** (owner, follow-up 2026-07-24 + reafirmação: incluir
+   `update_memory` E `delete_entities`): `list_entities` (reusa handler REST `/entities`) +
+   `get_memory` por ID (reusa `MemoryStore.get`, já shipado) + `update_memory` + `delete_entities`,
+   todos herdando o Principal `(workspace,user)`.
+   **Reconciliação com contratos locked (owner reafirmou incluir os dois — proceder):**
+   - `update_memory`: nome da referência para paridade, MAS implementado como `forget(id) +
+     remember(newText)` — preserva ADR-0003 (ADD-only) + `history(memoryId)`. NÃO é UPDATE
+     in-place. (Levantei que colidia com ADD-only; owner reafirmou; reconciliado via composição.)
+   - `delete_entities`: exige primitivo NOVO de forget-de-entidade no core (hoje só
+     `supersedeEntity`, que re-tipa). Ship com GUARDA FAIL-CLOSED de filtro (lição #252: filtro
+     descartado → delete em escopo aberto), evento tipado por deleção (Princípio 3), soft-delete
+     via `t_invalid`. (Levantei o risco do cascade-delete; owner reafirmou; proceder COM a rede
+     de proteção, não sem ela.)
+6. **Teste de isolamento cross-tenant E cross-user PASSA** (como o M8 fez) — recall/autoria/
+   list_entities/get_memory/update_memory/delete_entities não vaza nem deleta entre tenants/
+   end-users; para delete_entities, inclui o cenário #252 (filtro ausente ABORTA).
 
 ## Q4 — Top 2 riscos NOVOS
 
