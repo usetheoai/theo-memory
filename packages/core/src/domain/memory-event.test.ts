@@ -8,8 +8,8 @@ import { MEMORY_EVENTS, emitEvent } from './memory-event.js';
 import type { MemoryEvent } from './memory-event.js';
 
 describe('MEMORY_EVENTS', () => {
-  test('has 48 values (47 prior + entity_forgotten, M14 delete_entities auditability)', () => {
-    expect(MEMORY_EVENTS).toHaveLength(48);
+  test('has 49 values (48 prior + entity_boost_degraded, M15 entity-boost degradation auditability)', () => {
+    expect(MEMORY_EVENTS).toHaveLength(49);
   });
 
   test('includes category_auto_assigned + category_auto_dropped (auto-categorization, Princípio 3)', () => {
