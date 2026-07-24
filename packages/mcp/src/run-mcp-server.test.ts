@@ -261,7 +261,7 @@ describe('resolveBearerAuth — requireCredential wiring (M16 #84)', () => {
     const prev = process.env['THEMEMORY_REQUIRE_CREDENTIAL'];
     process.env['THEMEMORY_REQUIRE_CREDENTIAL'] = 'true';
     try {
-      const opts = await resolveBearerAuth('api-keys', fakePool, undefined);
+      const opts = await resolveBearerAuth('api-keys', fakePool, { host: '127.0.0.1', port: 0 });
       // Without this, the #84 fail-closed gate in withBearerAuth is inert in production —
       // the operator sets the env and nothing changes.
       expect(opts?.requireCredential).toBe(true);
@@ -277,7 +277,7 @@ describe('resolveBearerAuth — requireCredential wiring (M16 #84)', () => {
     const prev = process.env['THEMEMORY_REQUIRE_CREDENTIAL'];
     delete process.env['THEMEMORY_REQUIRE_CREDENTIAL'];
     try {
-      const opts = await resolveBearerAuth('api-keys', fakePool, undefined);
+      const opts = await resolveBearerAuth('api-keys', fakePool, { host: '127.0.0.1', port: 0 });
       expect(opts?.requireCredential).toBeUndefined();
     } finally {
       if (prev !== undefined) process.env['THEMEMORY_REQUIRE_CREDENTIAL'] = prev;

@@ -34,13 +34,15 @@ describe('scopeFromRequest', () => {
     expect(scope?.workspaceId).toBe('ws-live-m14');
   });
 
-  it('test_header_is_honoured_when_principal_carries_no_user', () => {
-    // The gateway topology: a workspace-level credential, with the gateway injecting the
-    // auth-trusted user header. Ignoring the header unconditionally would break Model B.
+  it('test_header_is_ignored_for_a_workspace_key_without_the_gateway_mark', () => {
+    // /review Finding 2 corrected the original premise here: a workspace-level credential is
+    // NOT proof of a gateway. Without the explicit gateway mark the header must be ignored, or
+    // any unbound key used directly becomes a workspace-wide impersonation primitive. The
+    // gateway case is covered separately in `scopeFromRequest gateway trust` below.
     const r = req({ 'x-theo-user-id': 'gateway-injected' });
     attachWorkspace(r, 'ws-live-m14');
 
-    expect(scopeFromRequest(r)?.session?.userId).toBe('gateway-injected');
+    expect(scopeFromRequest(r)?.session).toBeUndefined();
   });
 
   it('test_principal_user_applies_when_no_header_is_sent', () => {
@@ -54,5 +56,35 @@ describe('scopeFromRequest', () => {
   it('test_no_auth_and_no_header_yields_no_scope', () => {
     // Fail-closed: handlers then see no scope and a scope-required tool call fails.
     expect(scopeFromRequest(req({}))).toBeUndefined();
+  });
+});
+
+/**
+ * M16 /review Finding 2 — "workspace-level" is not "trusted gateway".
+ *
+ * A workspace-level credential used DIRECTLY (no gateway in front, `memory:platform-admin`
+ * absent) must NOT let `X-Theo-User-Id` pick a user. Only the explicit gateway mark, set by
+ * the bearer gate when the credential carries `memory:platform-admin`, authorizes the header.
+ */
+describe('scopeFromRequest gateway trust', () => {
+  it('test_header_ignored_for_workspace_key_without_gateway_mark', async () => {
+    const { attachWorkspace } = await import('../auth/request-workspace.js');
+    const r = req({ 'x-theo-user-id': 'victim' });
+    attachWorkspace(r, 'ws');
+    // No attachUser, no markGatewayTrusted — a plain unbound key used directly.
+
+    const scope = scopeFromRequest(r);
+
+    expect(scope?.workspaceId).toBe('ws');
+    expect(scope?.session).toBeUndefined(); // fail closed, not impersonate
+  });
+
+  it('test_header_honoured_only_with_gateway_mark', async () => {
+    const { attachWorkspace, markGatewayTrusted } = await import('../auth/request-workspace.js');
+    const r = req({ 'x-theo-user-id': 'end-user' });
+    attachWorkspace(r, 'ws');
+    markGatewayTrusted(r); // the gateway credential carried memory:platform-admin
+
+    expect(scopeFromRequest(r)?.session?.userId).toBe('end-user');
   });
 });
