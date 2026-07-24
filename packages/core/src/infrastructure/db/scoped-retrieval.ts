@@ -75,6 +75,23 @@ function recallTraceDeps(
 }
 
 /** The cache-aware 9-step retrieval (adaptive gate → cache bypass/hit/miss). */
+
+/**
+ * M15 T3.1 (#122) — the entity-graph slice the recall pipeline needs for Step 6.
+ *
+ * Spread into BOTH pipeline call sites (cached and uncached) so the boost is not silently
+ * absent on one of the two paths. Omitted entirely when no entity store is configured, so
+ * a deployment without a populated graph behaves exactly as before.
+ */
+function entityBoostDeps(ctx: RetrievalContext): {
+  entityBoostStore?: LocalMemoryConfig['memoryEntityStore'];
+  workspaceId?: string;
+} {
+  const store = ctx.config.memoryEntityStore;
+  if (store === undefined) return {};
+  return { entityBoostStore: store, workspaceId: ctx.filters.workspace_id ?? DEFAULT_WORKSPACE_ID };
+}
+
 export async function retrieveResults(
   ctx: RetrievalContext,
   query: string,
@@ -129,6 +146,7 @@ export async function retrieveResults(
       ...(ctx.config.retrievalPolicy !== undefined ? { retrievalPolicy: ctx.config.retrievalPolicy } : {}),
       ...(ctx.config.graphExpansionStore !== undefined ? { graphExpansionStore: ctx.config.graphExpansionStore } : {}),
       ...recallTraceDeps(ctx, options),
+      ...entityBoostDeps(ctx),
       ...(ctx.config.tracer !== undefined ? { tracer: ctx.config.tracer } : {}),
     }, options);
   }
@@ -146,6 +164,7 @@ export async function retrieveResults(
     vectorStore: ctx.config.vectorStore,
     embedder: ctx.config.embedder,
     ...recallTraceDeps(ctx, options),
+    ...entityBoostDeps(ctx),
     ...(ctx.config.tracer !== undefined ? { tracer: ctx.config.tracer } : {}),
   }, options);
   const ttlSeconds = resolveCacheTtl(ctx.scope, ctx.config.recallCache);
