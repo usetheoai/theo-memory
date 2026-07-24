@@ -50,8 +50,11 @@ export async function listEntitiesHandler(
   const limited = parsed.limit !== undefined ? summaries.slice(0, parsed.limit) : summaries;
   const entities = limited.map((s) => ({
     id: s.name,
+    type: s.type,
     memory_count: s.memoryCount,
     last_seen_at: s.lastSeenAt,
+    // F-api-5: parity with the REST /entities read side — the on-demand relation digest.
+    summary: s.summary,
   }));
 
   return {

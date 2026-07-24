@@ -41,14 +41,15 @@ export async function getMemoryHandler(
   };
 
   // Cross-TENANT isolation is enforced in the core (workspaceScopedMemory + LocalMemory.get,
-  // #82); cross-USER isolation is enforced HERE: a row owned by another user in the same
-  // workspace is not visible to this Principal (M14 Phase 5 DoD bullet 6, mirrors list/delete).
+  // #82); cross-USER isolation is enforced HERE: a row is visible ONLY when its user_id
+  // MATCHES the acting Principal (M14 Phase 5 DoD bullet 6, mirrors list/delete). FAIL-CLOSED
+  // (review F-tests-4): any non-match — including a missing/NULL user_id — hides the row,
+  // rather than the earlier fail-open `typeof === 'string'` check that leaked null-user rows.
   const item = await workspaceScopedMemory(deps.memoryFactory()).get(parsed.id);
   if (item === null) {
     return notFound;
   }
-  const rowUser = item.metadata['user_id'];
-  if (typeof rowUser === 'string' && rowUser !== userId) {
+  if (item.metadata['user_id'] !== userId) {
     return notFound;
   }
 

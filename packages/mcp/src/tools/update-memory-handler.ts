@@ -19,7 +19,6 @@ import type { Memory } from '@usetheo/memory/contract';
 import { getScope } from '@usetheo/memory-agent-core';
 
 import { routeScopedMemory } from './route-scoped-memory.js';
-import { workspaceScopedMemory } from './workspace-scoped-memory.js';
 import { INPUT_SCHEMA, TOOL_NAME } from './update-memory-schema.js';
 
 export { TOOL_NAME };
@@ -48,11 +47,16 @@ export async function updateMemoryHandler(
     };
   }
 
-  // STEP 2 — only now retire the old memory (soft-delete; history preserved).
+  // STEP 2 — only now retire the old memory. The forget is SUBJECT-SCOPED (the same
+  // (workspace, user) `scoped` from STEP 1, ScopedMemory.forget → deleteInScope), NOT the
+  // workspace-only Memory.forget — so a foreign id (another user in the same workspace, or
+  // another workspace) is NOT in scope and MemoryNotFound is raised, never deleting another
+  // subject's row. This closes the cross-user forget IDOR the review found (symmetric to the
+  // get_memory cross-user gate; ADR-M14-1 / DoD bullet 6).
   try {
-    await workspaceScopedMemory(deps.memoryFactory()).forget(parsed.id);
+    await scoped.forget(parsed.id);
   } catch (err: unknown) {
-    // Old id already gone → the new memory still stands; report success with the new id.
+    // Old id already gone OR not in this subject scope → the new memory still stands.
     if (!(err instanceof MemoryNotFound)) throw err;
   }
 

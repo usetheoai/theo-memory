@@ -142,18 +142,21 @@ describe('dispatch handlers — happy paths (T5.1)', () => {
     expect((result.structuredContent as { results: unknown[] }).results).toEqual([]);
   });
 
-  it('forget handler with id calls top-level Memory.forget (not ScopedMemory — SEPA gotcha)', async () => {
+  it('forget handler with id calls the SUBJECT-SCOPED ScopedMemory.forget (M14 cross-user IDOR fix)', async () => {
+    // The M14 review found the workspace-only Memory.forget was a cross-user delete IDOR;
+    // forget now routes through routeScopedMemory → (workspace, user) ScopedMemory.forget so
+    // a foreign id is not in scope. The top-level Memory.forget is NO LONGER called.
     const scoped = mockScopedMemory();
     const memory = mockMemory(scoped);
-    vi.mocked(memory.forget).mockResolvedValue(undefined);
+    vi.mocked(scoped.forget).mockResolvedValue(undefined);
 
     const id = '550e8400-e29b-41d4-a716-446655440000';
     const result = await withScope(ALICE_CTX, () =>
       dispatch('forget', { id }, { memoryFactory: () => memory }),
     );
 
-    // forget is on TOP-LEVEL Memory; ScopedMemory does NOT expose forget
-    expect(vi.mocked(memory.forget)).toHaveBeenCalledWith(id);
+    expect(vi.mocked(scoped.forget)).toHaveBeenCalledWith(id);
+    expect(vi.mocked(memory.forget)).not.toHaveBeenCalled();
     expect(result.isError ?? false).toBe(false);
   });
 
@@ -174,15 +177,15 @@ describe('dispatch handlers — happy paths (T5.1)', () => {
   it('forget handler with unknown id returns idempotent success (EC-14 absorption)', async () => {
     const scoped = mockScopedMemory();
     const memory = mockMemory(scoped);
-    vi.mocked(memory.forget).mockRejectedValue(
-      new MemoryNotFound('memoryId xxx not found (EC-12: divergence from the upstream)'),
+    vi.mocked(scoped.forget).mockRejectedValue(
+      new MemoryNotFound('memoryId xxx not found in this scope (EC-14)'),
     );
 
     const result = await withScope(ALICE_CTX, () =>
       dispatch('forget', { id: '550e8400-e29b-41d4-a716-446655440000' }, { memoryFactory: () => memory }),
     );
 
-    // EC-14 contract: forget unknown-id is idempotent at the agent-tools boundary
+    // EC-14 contract: forget unknown-id (or foreign-scope id) is idempotent at the boundary
     expect(result.isError ?? false).toBe(false);
     expect((result.content as { text: string }[])[0]?.text).toMatch(/No memory found|already/i);
   });
@@ -439,16 +442,20 @@ describe('workspace isolation across all tool verbs (T3.1, #82)', () => {
     expect(vi.mocked(bound.user)).toHaveBeenCalledWith('alice'); // user tier resolved on the WS-bound memory
   });
 
-  it('forget binds withWorkspace(tn-A) before the top-level forget', async () => {
-    const { root, bound } = memoryBoundTo();
-    vi.mocked(bound.forget).mockResolvedValue(undefined);
+  it('forget binds withWorkspace(tn-A) THEN the subject (workspace,user) scope before forgetting', async () => {
+    const { root, bound, boundScoped } = memoryBoundTo();
+    vi.mocked(boundScoped.forget).mockResolvedValue(undefined);
 
     await withScope(WS_A_CTX, () =>
       dispatch('forget', { id: '550e8400-e29b-41d4-a716-446655440000' }, { memoryFactory: () => root }),
     );
 
+    // workspace bound first (tn-A), then the (workspace, user) subject scope; forget runs there —
+    // NOT on the workspace-only bound memory (the M14 cross-user IDOR fix).
     expect(vi.mocked(root.withWorkspace!)).toHaveBeenCalledWith('tn-A');
-    expect(vi.mocked(bound.forget)).toHaveBeenCalled(); // forget ran on the WS-bound memory, not root
+    expect(vi.mocked(bound.user)).toHaveBeenCalledWith('alice');
+    expect(vi.mocked(boundScoped.forget)).toHaveBeenCalled();
+    expect(vi.mocked(bound.forget)).not.toHaveBeenCalled();
   });
 
   it('add_skill binds withWorkspace(tn-A) before resolving memory.skills(repoId)', async () => {
