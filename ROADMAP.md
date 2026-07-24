@@ -535,7 +535,7 @@ milestone needs line-level study.
 
 ---
 
-## M17 — [ ] O CI prova o que diz provar (#104, #129, #116)
+## M17 — [x] O CI prova o que diz provar (#104, #129, #116)
 
 > Added 2026-07-24. Tracked: theo-memory#104, #129, #116.
 
