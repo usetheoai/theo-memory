@@ -125,4 +125,30 @@ export interface MemoryEntityStore {
     workspaceId: string;
     filters: Filters;
   }): Promise<ForgetEntityResult>;
+
+  /**
+   * M15 T2.1 (#122) — read side of the recall entity boost: the `normalized_key` values
+   * linked to each of the given memories.
+   *
+   * Driven by the CANDIDATE set, not by the entity table. The candidates arrive already
+   * bounded by the pipeline's over-fetch limit and already filtered for scope and
+   * `t_invalid` by the vector search, which makes one indexed query over
+   * `memory_id = ANY(...)` both small and correct. Implementations MUST issue a single
+   * query for the whole batch — one query per candidate would put up to ~120 round-trips
+   * on the hot read path.
+   *
+   * An empty `memoryIds` returns an empty map WITHOUT touching the connection pool.
+   *
+   * `workspaceId` is defence in depth (the ids are already scoped); an absent value
+   * resolves to the `'default'` workspace, matching the isolation guard used elsewhere in
+   * the local runtime. Letting `undefined` reach the SQL comparison would silently match
+   * zero rows and leave the boost permanently at zero — the exact failure class #122 is.
+   *
+   * @returns memory id to the `normalized_key` values linked to it. Memories with no link
+   *   are absent from the map rather than mapped to an empty array.
+   */
+  linkedKeysForMemories(params: {
+    memoryIds: readonly string[];
+    workspaceId?: string | undefined;
+  }): Promise<ReadonlyMap<string, readonly string[]>>;
 }
