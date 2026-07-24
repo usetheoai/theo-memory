@@ -10,7 +10,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildRecallContext } from './theo-prompt-recall.mjs';
+import { buildRecallContext, detectUserRememberDirective } from './theo-prompt-recall.mjs';
 
 // Stub factory: registra as chamadas a `post` e devolve um resultado canned.
 function stubPost(result = { results: [] }) {
@@ -82,4 +82,18 @@ test('test_passes_sessionId_when_present — session_id do payload vira sessionI
     env: ENV_WITH_TOKEN,
   });
   assert.equal(post.calls[0].body.sessionId, 'sess-42');
+});
+
+// M14 T1.2 — the production trigger for USER-authored capture ("remember this" → attributedTo:'user').
+test('test_detects_user_remember_directive — "remember this" (EN/PT) → true', () => {
+  assert.equal(detectUserRememberDirective('remember this: I prefer dark mode'), true);
+  assert.equal(detectUserRememberDirective('lembre disso: eu uso pnpm'), true);
+  assert.equal(detectUserRememberDirective('please save this to memory'), true);
+});
+
+test('test_ignores_ordinary_prompt — an ordinary request is NOT a capture directive', () => {
+  assert.equal(detectUserRememberDirective('how do I configure the hybrid retriever'), false);
+  assert.equal(detectUserRememberDirective('what did I say about the deploy'), false);
+  assert.equal(detectUserRememberDirective(''), false);
+  assert.equal(detectUserRememberDirective(undefined), false);
 });

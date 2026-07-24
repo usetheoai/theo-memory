@@ -24,6 +24,7 @@
 import {
   ContentTooLargeError,
   EmbedderError,
+  EntityForgetScopeError,
   MemoryStoreError,
   MissingScopeError,
   ReflectionNotConfigured,
@@ -117,6 +118,11 @@ export function classifyError(err: unknown): ClassifiedError {
     return execution(
       'Scope not bound. Caller must invoke memoryFromCtx with ctx.session before tool call (per ADR D3).',
     );
+  }
+  if (err instanceof EntityForgetScopeError) {
+    // Fail-closed #252 defense-in-depth: an entity forget reached the store without a confirmed
+    // user. Surface as a self-correctable execution error (not a -32603 protocol error, F-api-4).
+    return execution('Entity delete refused: an active user scope is required (fail-closed).');
   }
   if (err instanceof MemoryStoreError) {
     return execution('Memory store unavailable. Retry in a moment.');

@@ -19,8 +19,10 @@ function textOf(res: { content: readonly unknown[] }): string {
 }
 
 /**
- * Builds a Memory mock where `.user(id).remember` returns `rememberResult` and top-level
- * `.forget` is a spy. `order` records remember/forget invocation order (edge EC-1).
+ * Builds a Memory mock where `routeScopedMemory` resolves to `.user(id)` (the SUBJECT scope):
+ * both `remember` and the SUBJECT-SCOPED `forget` live on that scoped memory. `order` records
+ * remember/forget invocation order (edge EC-1). The subject-scoped forget is the cross-user
+ * IDOR fix — the handler no longer calls the workspace-only top-level `memory.forget`.
  */
 function mockMemory(rememberResult: { id: string }[]) {
   const order: string[] = [];
@@ -29,15 +31,16 @@ function mockMemory(rememberResult: { id: string }[]) {
     order.push('remember');
     return rememberResult as never;
   });
+  vi.mocked(scoped.forget).mockImplementation(async () => {
+    order.push('forget');
+  });
   const memory = mock<Memory>();
   vi.mocked(memory.user).mockReturnValue(scoped);
   vi.mocked(memory.session).mockReturnValue(scoped);
-  // workspaceScopedMemory returns `memory` when withWorkspace is undefined → forget on top-level.
+  // withWorkspace undefined → workspaceScopedMemory passes memory through; memoryFromCtx then
+  // resolves memory.user(authUserId) as the subject scope where both remember + forget land.
   (memory as { withWorkspace?: unknown }).withWorkspace = undefined;
-  vi.mocked(memory.forget).mockImplementation(async () => {
-    order.push('forget');
-  });
-  return { factory: () => memory, order, remember: scoped.remember, forget: memory.forget };
+  return { factory: () => memory, order, remember: scoped.remember, forget: scoped.forget };
 }
 
 describe('updateMemoryHandler (T2.3)', () => {

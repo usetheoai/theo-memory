@@ -26,9 +26,13 @@ import { createIsolatedDb } from '../_helpers/isolated-db.js';
 
 const PG_URI = process.env['THEOMEM_PG_URI'];
 
-const emptyJsonLlm: LLM = {
+// A fact-extracting LLM: `remember` yields ≥1 memory so the update_memory forget path is
+// ACTUALLY exercised (the earlier emptyJsonLlm returned [] → remember empty → forget skipped
+// → the isolation assertion was vacuous; review F-sec-3/F-api-2/F-domtest-1). generateResponse
+// is the extraction call (pipeline.ts:122); it returns the AdditiveExtractionSchema shape.
+const factLlm: LLM = {
   async generateResponse(): Promise<string> {
-    return Promise.resolve('[]');
+    return Promise.resolve(JSON.stringify({ memory: [{ id: 'm1', text: 'extracted fact' }], entities: [], relations: [] }));
   },
   async generateChat(_messages: readonly Message[]): Promise<LLMResponse> {
     return Promise.resolve({ content: '[]', role: 'assistant' });
@@ -75,7 +79,7 @@ if (PG_URI === undefined || PG_URI === '') {
       base = await createLocalMemory({
         vectorStore: new PgvectorStore(pool),
         embedder: new DeterministicStubEmbedder(),
-        llm: emptyJsonLlm,
+        llm: factLlm,
       });
       store = new PgMemoryEntityStore(pool);
     }, 30_000);
@@ -143,24 +147,30 @@ if (PG_URI === undefined || PG_URI === '') {
       expect(names).not.toContain('Yankee'); // cross-user hidden
     });
 
-    test('update_memory — (A,X) cannot replace (B) nor (A,Y) rows; targets survive intact', async () => {
+    test('update_memory — (A,X) cannot forget (B) nor (A,Y) rows; the forget path IS exercised', async () => {
       const bId = await seedMemory(B, 'Tenant B original CHARLIE');
       const ayId = await seedMemory(AY, 'User Y original DELTA');
 
-      // A,X attempts to update B's and A,Y's memories — the ADD-only remember lands in A,X's
-      // OWN scope, but the forget of the foreign id must NOT delete the target (workspace/user gate).
-      await withScope(ctxOf(AX), () => dispatch('update_memory', { id: bId, content: 'hijack B attempt long enough' }, deps())).catch(
-        () => undefined,
-      );
-      await withScope(ctxOf(AX), () => dispatch('update_memory', { id: ayId, content: 'hijack AY attempt long enough' }, deps())).catch(
-        () => undefined,
-      );
+      // A,X attempts to update B's and A,Y's memories. With factLlm the remember extracts a
+      // fact (≥1 item), so STEP-2 forget IS reached (NOT the vacuous empty-remember short-circuit).
+      // The forget is subject-scoped, so the foreign id is not in (A, user-X) → target survives.
+      await withScope(ctxOf(AX), () => dispatch('update_memory', { id: bId, content: 'hijack B attempt long enough' }, deps()));
+      await withScope(ctxOf(AX), () => dispatch('update_memory', { id: ayId, content: 'hijack AY attempt long enough' }, deps()));
 
-      // Both targets survive with their original text (nothing was forgotten cross-boundary).
+      // Both targets survive — the subject-scoped forget refused the cross-boundary delete.
       const bSurvives = await pool.query('SELECT text FROM memories WHERE id=$1 AND t_invalid IS NULL', [bId]);
       const aySurvives = await pool.query('SELECT text FROM memories WHERE id=$1 AND t_invalid IS NULL', [ayId]);
       expect(bSurvives.rows[0]?.text).toBe('Tenant B original CHARLIE');
       expect(aySurvives.rows[0]?.text).toBe('User Y original DELTA');
+
+      // Non-vacuous proof: the remember actually landed a NEW memory in the attacker's OWN
+      // (A, user-X) scope — so the forget branch was genuinely reached (NOT the empty-remember
+      // short-circuit). Both updates extract the same canned fact, so dedup collapses them to
+      // one row (confirmation_count bumped) — one row is enough to prove the path ran.
+      const attackerRows = await pool.query(
+        `SELECT count(*)::int c FROM memories WHERE workspace_id='tn-A' AND user_id='user-X' AND t_invalid IS NULL`,
+      );
+      expect(attackerRows.rows[0]?.c).toBeGreaterThanOrEqual(1);
     });
 
     test('delete_entities — (A,X) deletes ZERO of (B) and (A,Y); targets survive', async () => {

@@ -71,4 +71,42 @@ describe('PgMemoryEntityStore.forgetEntity (T2.4a)', () => {
     });
     expect(res).toEqual({ entitiesRemoved: 0, linksRemoved: 0, edgesRemoved: 0 });
   });
+
+  test('test_forget_entity_emits_typed_event — remoção > 0 → emite `entity_forgotten` com contagens (Princípio 3)', async () => {
+    const { pool } = stubPool((sql) => {
+      if (sql.includes('SELECT id FROM entities')) return { rows: [{ id: 'ent-1' }], rowCount: 1 };
+      if (sql.includes('DELETE FROM memory_entities')) return { rows: [], rowCount: 3 };
+      if (sql.includes('DELETE FROM entity_edges')) return { rows: [], rowCount: 2 };
+      if (sql.includes('DELETE FROM entities')) return { rows: [], rowCount: 1 };
+      return { rows: [], rowCount: 0 };
+    });
+    // Minimal tracer that records the emitted event name + attributes.
+    const spans: { name: string; attrs: Record<string, unknown> }[] = [];
+    const tracer = {
+      startActiveSpan: (name: string, fn: (span: unknown) => void) => {
+        const attrs: Record<string, unknown> = {};
+        fn({ setAttribute: (k: string, v: unknown) => (attrs[k] = v), end: () => undefined });
+        spans.push({ name, attrs });
+      },
+    } as never;
+    const store = new PgMemoryEntityStore(pool, tracer);
+    await store.forgetEntity({ name: 'Codex', workspaceId: 'ws-A', filters: { workspace_id: 'ws-A', user_id: 'alice' } });
+    const evt = spans.find((s) => s.name === 'entity_forgotten');
+    expect(evt).toBeDefined();
+    expect(evt?.attrs).toEqual({ entities_removed: 1, links_removed: 3, edges_removed: 2 });
+  });
+
+  test('test_forget_entity_no_event_when_nothing_removed — 0/0/0 → NÃO emite evento (mirror do IGNORE-silencioso)', async () => {
+    const { pool } = stubPool(() => ({ rows: [], rowCount: 0 }));
+    const spans: string[] = [];
+    const tracer = {
+      startActiveSpan: (name: string, fn: (span: unknown) => void) => {
+        fn({ setAttribute: () => undefined, end: () => undefined });
+        spans.push(name);
+      },
+    } as never;
+    const store = new PgMemoryEntityStore(pool, tracer);
+    await store.forgetEntity({ name: 'Ausente', workspaceId: 'ws-A', filters: { workspace_id: 'ws-A', user_id: 'alice' } });
+    expect(spans).not.toContain('entity_forgotten');
+  });
 });

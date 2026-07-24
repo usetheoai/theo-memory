@@ -13,10 +13,23 @@
 // HARD REQUIREMENT (kit-wide): em QUALQUER falha ou resultado vazio, emite NADA e exit 0.
 // Um outage de memória nunca bloqueia o turno.
 
-import { readInput, post as realPost, loadEnv } from './theo-lib.mjs';
+import { readInput, post as realPost, postDetached, loadEnv } from './theo-lib.mjs';
+import { buildRememberPayload } from './theo-remember.mjs';
 
 const MIN_PROMPT_CHARS = 20; // prompts curtos (ack/curtos) não valem recall (régua: < 20)
 const TOP_K = 5;
+
+// M14 T1.2 — an EXPLICIT user capture directive. When the user says "remember this" (etc.),
+// the resulting memory is authored by the USER (attributedTo:'user'), not the assistant — so it
+// carries the weight of a stated preference. Detection is intentionally conservative (explicit
+// verbs only) to avoid mis-attributing ordinary requests. Mirrors mem0's on_user_prompt.sh:85.
+const USER_REMEMBER_DIRECTIVE =
+  /\b(remember (this|that)|lembre(-se)? (disso|disto|que)|save (this|that) to memory|anota[er]? que)\b/i;
+
+/** True when the prompt explicitly directs the system to remember something (user-authored). */
+export function detectUserRememberDirective(prompt) {
+  return typeof prompt === 'string' && USER_REMEMBER_DIRECTIVE.test(prompt);
+}
 
 /**
  * Pure, testable core: given the hook input + injected `post`/`env`, returns the
@@ -60,6 +73,17 @@ export async function buildRecallContext({ input, post, env }) {
 async function main() {
   const input = await readInput();
   const env = loadEnv();
+
+  // M14 T1.2 — an explicit "remember this" from the user is captured as a USER-authored memory
+  // (attributedTo:'user'). Fire-and-forget (postDetached) so recall latency is untouched and a
+  // write failure never blocks the turn. Only when a token is configured (EC-2). The prompt text
+  // is mapped into the content field buildRememberPayload reads (last_assistant_message).
+  if (env && env.token !== null && env.token !== undefined && detectUserRememberDirective(input.prompt)) {
+    const captureInput = { ...input, last_assistant_message: input.prompt };
+    const payload = buildRememberPayload({ input: captureInput, env, attributedTo: 'user' });
+    if (payload !== null) postDetached(payload.path, payload.body);
+  }
+
   const out = await buildRecallContext({ input, post: realPost, env });
   if (out !== null) process.stdout.write(out);
 }
