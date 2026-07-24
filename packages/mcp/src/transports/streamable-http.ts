@@ -28,7 +28,7 @@ import type { ScopedContext } from '@usetheo/memory/contract';
 import { withScope } from '@usetheo/memory-agent-core';
 
 import { withBearerAuth, type BearerAuthOptions } from '../auth/with-bearer-auth.js';
-import { workspaceFromRequest } from '../auth/request-workspace.js';
+import { isGatewayTrusted, userFromRequest, workspaceFromRequest } from '../auth/request-workspace.js';
 import type { McpServer } from '../server.js';
 import { McpSessionRegistry } from './mcp-session-registry.js';
 import type { McpServerFactory } from './mcp-session-registry.js';
@@ -75,10 +75,23 @@ export function scopeFromHeaders(
 export function scopeFromRequest(req: IncomingMessage): ScopedContext | undefined {
   const headerScope = scopeFromHeaders(req.headers);
   const workspaceId = workspaceFromRequest(req);
-  if (workspaceId === undefined && headerScope === undefined) return undefined;
+  // M16 (#121) + /review Finding 2 — three cases, precedence in order:
+  //  1. an auth-resolved user (user-bound key) IS the identity; the header is ignored.
+  //  2. no auth user BUT the request is gateway-trusted (a workspace-level credential bearing
+  //     `memory:platform-admin`) → honour `X-Theo-User-Id`, the gateway's injected signal.
+  //  3. otherwise → NO session. A workspace-level key used directly cannot pick a user via a
+  //     header; a scope-required tool call then fails closed instead of impersonating.
+  const authUser = userFromRequest(req);
+  const session =
+    authUser !== undefined
+      ? { userId: authUser }
+      : isGatewayTrusted(req)
+        ? headerScope?.session
+        : undefined;
+  if (workspaceId === undefined && session === undefined) return undefined;
   return {
     ...(workspaceId !== undefined ? { workspaceId } : {}),
-    ...(headerScope ?? {}),
+    ...(session !== undefined ? { session } : {}),
   };
 }
 

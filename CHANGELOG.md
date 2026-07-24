@@ -16,6 +16,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Security
 
+## [0.45.0] - 2026-07-24
+
+### Added
+- **Roadmap M16–M20 — o backlog de issues abertas virou plano rastreável.** Cinco milestones agrupando as 13 issues que exigem trabalho, por coesão técnica: identidade fail-closed, CI que prova o que diz provar, qualidade do sinal de entidades, dívida do caminho de recall, e higiene de dependências (#121, #84, #102, #104, #129, #116, #125, #127, #124, #123, #118).
+
+
+### Fixed
+- **Segurança: no modo multi-tenant, um token OIDC sem tenant era servido no workspace padrão.** O caminho OIDC do servidor MCP não resolvia workspace e caía no `default`, o que num deployment multi-tenant serviria dados de outro tenant. Agora, com o mesmo sinal de fail-closed que a API REST já usa, um token que não resolve tenant é recusado em vez de servido — deployments single-tenant seguem funcionando por padrão (#84). O sinal de fail-closed (`THEMEMORY_REQUIRE_CREDENTIAL`) agora é lido também pelo servidor MCP, não só pela API REST — antes a guarda existia mas nenhum caminho de produção a ativava.
+- **Segurança: uma chave de workspace usada direto ainda permitia impersonação; agora exige sinal de gateway.** O `/review` mostrou que tratar "chave sem usuário" como "veio do gateway" era falso — um operador pode emitir uma chave de workspace e usá-la direto. O cabeçalho `X-Theo-User-Id` agora só é honrado quando a credencial carrega o escopo `memory:platform-admin` (que só a credencial do gateway tem); e uma chave ligada a um usuário com dado corrompido é recusada, em vez de silenciosamente rebaixada para confiar no cabeçalho (#121).
+- **Segurança: uma chave de API podia operar como outro usuário do mesmo workspace.** Com o servidor MCP exposto direto (sem gateway), o cabeçalho `X-Theo-User-Id` — controlado por quem chama — sobrepunha a identidade da credencial, permitindo ler, escrever e apagar no escopo alheio. A identidade agora vem sempre da credencial autenticada; o cabeçalho só é honrado quando a credencial é de workspace e não carrega usuário, que é o caso legítimo do gateway (#121).
+
 ## [0.44.0] - 2026-07-24
 
 ### Added
