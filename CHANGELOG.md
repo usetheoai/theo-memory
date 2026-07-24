@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- **M15 T3.2/T3.3 — evidência de que o ganho é real e não custa nada.** Contra Postgres real: duas memórias com o mesmo texto e o mesmo embedding, uma ligada à entidade da busca — a ligada vem primeiro. E as duas guardas: uma memória irrelevante ligada à entidade **não** é ressuscitada, e nenhuma memória some do resultado por efeito do impulso (M15, #122).
 - **M15 T3.1 — o terceiro sinal do recall deixa de ser inerte.** Uma memória ligada às entidades citadas na busca passa a ranquear acima de uma memória equivalente sem esse vínculo. Desde a v0.1 o componente existia na fórmula e valia sempre zero: o que a documentação chamava de "semântico + BM25 + entidades" era, na prática, "semântico + BM25". Instalações sem grafo populado continuam com o comportamento anterior (M15, #122).
 - **M15 T2.1/T2.2 — leitura dos vínculos de entidade dos candidatos.** O sistema passa a saber, em uma única consulta, quais entidades estão ligadas às memórias que uma busca recuperou — a fonte do sinal estrutural que faltava ao ranking (M15, #122).
 - **M15 T1.2 — contagem de entidades por memória.** Cada memória recuperada agora sabe quantas das entidades citadas na busca estão ligadas a ela, que é o número que alimenta o peso do sinal estrutural no ranking (M15, #122).
