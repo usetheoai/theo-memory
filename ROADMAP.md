@@ -509,6 +509,122 @@ milestone needs line-level study.
 - **Adding a milestone:** append `## M3 …` via `/roadmap-feature` (inserts before the `---` above `## State-of-the-art references`). Never renumber/reorder existing milestones.
 - **Removing a milestone:** mark `~~## M<N> — [-] <name> (cancelled YYYY-MM-DD — reason)~~` rather than deleting.
 
+---
+
+## M16 — [ ] Identidade de ponta a ponta é fail-closed (#121, #84, #102)
+
+> Added 2026-07-24. Tracked: theo-memory#121, #84, #102. Trio de segurança de autenticação — os três falham na mesma direção: identidade ou tenancy resolvida de forma permissiva quando deveria fechar.
+
+**Objective:** Garantir que a identidade (`user`) e o tenant (`workspace`) venham SEMPRE do Principal resolvido no servidor, nunca de entrada controlada pelo cliente e nunca de um default silencioso — fechando a impersonação cross-user do transport MCP, o fallback para o workspace default no caminho OIDC, e a divergência que faz uma key legítima ser rejeitada com 401.
+
+**Definition of done:**
+
+- [ ] `withBearerAuth` anexa o `principal.userId` ao request, espelhando o `attachWorkspace` existente; `scopeFromRequest` prefere o user do auth e só honra `X-Theo-User-Id` quando o Principal NÃO carrega user (#121).
+- [ ] Teste de integração que reproduz o repro do #121 e FALHA sem o fix: key da alice + header `X-Theo-User-Id: live-bob` não pode escrever no escopo do bob.
+- [ ] O caminho `--auth=both`/OIDC deixa de resolver para o workspace default quando o token não carrega tenancy — passa a falhar fechado com erro tipado (#84).
+- [ ] Teste de caso negativo asseverando o erro tipado e a mensagem, não apenas "lança" (per `.claude/rules/testing.md` § 4.1).
+- [ ] A key mintada pelo dashboard é aceita pela API do mesmo host — causa da divergência identificada e provada por teste, não por inspeção (#102).
+- [ ] Nenhum dos três caminhos degrada em silêncio: toda recusa emite evento tipado observável (Princípio 3).
+
+**Dependencies:** M8 (isolamento `(workspace, user)`, shipado), M14 (ADR-M14-1 — identidade sempre do Principal, shipado).
+
+**Top risks:**
+
+1. **Quebrar a topologia com gateway.** O gateway injeta o header auth-trusted hoje; se o fix passar a ignorá-lo sempre, a topologia Model B quebra. *Mitigação:* o header só é ignorado quando o Principal JÁ carrega user — exatamente o caso da exposição direta.
+2. **#102 pode ser ambiental, não de código.** O issue descreve split-brain entre dois planos. *Mitigação:* o DoD exige provar a causa por teste antes de mudar código; se for ambiental, o desfecho honesto é documentar e fechar sem patch.
+
+---
+
+## M17 — [ ] O CI prova o que diz provar (#104, #129, #116)
+
+> Added 2026-07-24. Tracked: theo-memory#104, #129, #116.
+
+**Objective:** Fazer o CI executar a suíte que hoje ele ignora, parar de rodar o mesmo trabalho duas vezes, e derrubar o tempo de esteira — nessa ordem de prioridade, porque cobertura invisível é pior que esteira lenta.
+
+**Definition of done:**
+
+- [ ] O CI executa a suíte de contrato (1342 testes) além da de integração — hoje só `test:integration` roda, e as falhas de contrato são invisíveis (#104).
+- [ ] Evidência: um commit com falha deliberada de contrato é BARRADO pelo CI (prova de que o gate morde).
+- [ ] `Integration` e `Security SAST` deixam de rodar em dobro por commit; o run remanescente é o do evento `pull_request`, que testa o merge commit (#129).
+- [ ] Tempo de esteira `develop→deploy` medido antes e depois, com o número registrado (#116). Sem medida, não há entrega.
+- [ ] Nenhuma suíte é removida ou enfraquecida para ganhar tempo.
+
+**Dependencies:** nenhuma.
+
+**Top risks:**
+
+1. **Adicionar a suíte de contrato piora o #116.** As duas metas competem. *Mitigação:* o ganho do #129 (metade dos runs) compensa; a ordem do DoD deixa explícito que cobertura vence tempo se houver conflito.
+2. **`cancel-in-progress` cancelando o run errado.** *Mitigação:* a chave normalizada preserva o run do `pull_request`, que é o mais informativo.
+
+---
+
+## M18 — [ ] O impulso de entidades ranqueia sem eliminar (#125, #127)
+
+> Added 2026-07-24. Tracked: theo-memory#125, #127. Ambos os desdobramentos do M15 tocam `scoring.ts` — tratados juntos para não medir duas vezes.
+
+**Objective:** Corrigir as duas impropriedades do sinal de entidades que o `/review` do M15 expôs: a curva é decrescente em `numLinked` (casar mais entidades rende menos impulso) e, em threshold alto, ligar o impulso ELIMINA candidatos sem vínculo.
+
+**Definition of done:**
+
+- [ ] `entityBoost` passa a ser não-decrescente em `numLinked` — casar 3 entidades da query nunca rende menos que casar 1 (#125).
+- [ ] Em threshold alto, ligar o impulso não remove candidato que o mesmo corte retornava sem ele (#127).
+- [ ] **Benchmark obrigatório**, com o mesmo instrumento do M15 estendido: precision@k COM e SEM, e `recall_set_churn` medido na banda SENSÍVEL (não no threshold padrão, onde o efeito é aritmeticamente impossível). Sem ganho medido e sem churn zerado na banda sensível, a mudança não entra.
+- [ ] O ADR D1 do plano do M15 é revisitado por ADR próprio, com o número que ele não tinha na mesa quando rejeitou as alternativas.
+- [ ] Corpus do benchmark ganha tópicos com número VARIÁVEL de entidades casadas — hoje todos casam exatamente uma, então a diferença do #125 sequer aparece na métrica.
+
+**Dependencies:** M15 (shipado em v0.44.0).
+
+**Top risks:**
+
+1. **Saturação do topo.** A forma numerador-only satura em 1.0 e perde discriminação entre os melhores. *Mitigação:* a forma de headroom evita isso; o benchmark decide entre elas por medida, não por gosto.
+2. **Mudar `scoring.ts` afeta todo recall.** *Mitigação:* é o caminho mais crítico do produto; o gate é o benchmark com as duas métricas, e o `/review` com agente de domínio.
+
+---
+
+## M19 — [ ] O caminho de recall volta a ser editável (#124)
+
+> Added 2026-07-24. Tracked: theo-memory#124.
+
+**Objective:** Decompor `packages/core/src/domain/retrieval/pipeline.ts` (732 linhas contra teto de 300) em estágios coesos, sem mudar comportamento — hoje o gate de qualidade bloqueia QUALQUER edição no caminho de leitura mais crítico do produto.
+
+**Definition of done:**
+
+- [ ] `pipeline.ts` abaixo do teto de 300 linhas do `check_quality.py`.
+- [ ] Zero mudança de comportamento: a suíte inteira passa sem alteração em nenhuma asserção.
+- [ ] Os blocos duplicados que o hook aponta (linhas 197, 354, 481, 589) extraídos.
+- [ ] Fronteiras de extração seguem as já mapeadas no #124 (rerank, threshold, trace, expansion).
+- [ ] Benchmark do M15 re-executado antes e depois, com os mesmos números — prova de que o refactor não mexeu no ranking.
+
+**Dependencies:** M18 (tocar `scoring.ts` antes evita refatorar duas vezes o mesmo caminho).
+
+**Top risks:**
+
+1. **Bug sutil de ranking introduzido por refactor.** É exatamente o risco que fez este trabalho ser adiado no M15. *Mitigação:* comportamento congelado por benchmark antes/depois, além da suíte.
+
+---
+
+## M20 — [ ] Dependências e runtime sem surpresa (#123, #118)
+
+> Added 2026-07-24. Tracked: theo-memory#123, #118.
+
+**Objective:** Zerar os advisories que tocam runtime e impedir que um binário obsoleto sirva silenciosamente em produção.
+
+**Definition of done:**
+
+- [ ] Os 4 advisories que tocam runtime (`hono` ×3, `@hono/node-server`) resolvidos por upgrade, com a suíte de integração do servidor REST verde (#123).
+- [ ] Os 3 HIGH transitivos (`brace-expansion` ×2, `js-yaml`) resolvidos ou explicitamente allowlistados com sunset e justificativa (#123).
+- [ ] `themory serve` recusa iniciar com `dist/` mais antigo que o fonte, com erro tipado e mensagem que diz o que fazer (#118).
+- [ ] Teste de caso negativo asseverando o erro tipado, não apenas que falha.
+- [ ] `pnpm audit` re-executado, com o antes e o depois registrados.
+
+**Dependencies:** nenhuma.
+
+**Top risks:**
+
+1. **Upgrade de `hono` quebrar o servidor REST.** *Mitigação:* a suíte de integração do servidor é o gate; se quebrar, o desfecho é allowlist com sunset em vez de upgrade forçado.
+
+---
+
 ## Unresolved at inception
 
 - M1 is intentionally gated on a demonstrated need (YAGNI) — resolve that gate before starting M1.
