@@ -253,3 +253,34 @@ describe('T4.1 — resolveMcpModes 14-cell precedence matrix (ADR D1 + ADR D2 + 
     expect(result.auth).toBe(expected.auth);
   });
 });
+
+describe('resolveBearerAuth — requireCredential wiring (M16 #84)', () => {
+  it('test_env_require_credential_reaches_bearer_options', async () => {
+    const { resolveBearerAuth } = await import('./run-mcp-server.js');
+    const fakePool = {} as unknown as import('pg').Pool;
+    const prev = process.env['THEMEMORY_REQUIRE_CREDENTIAL'];
+    process.env['THEMEMORY_REQUIRE_CREDENTIAL'] = 'true';
+    try {
+      const opts = await resolveBearerAuth('api-keys', fakePool, undefined);
+      // Without this, the #84 fail-closed gate in withBearerAuth is inert in production —
+      // the operator sets the env and nothing changes.
+      expect(opts?.requireCredential).toBe(true);
+    } finally {
+      if (prev === undefined) delete process.env['THEMEMORY_REQUIRE_CREDENTIAL'];
+      else process.env['THEMEMORY_REQUIRE_CREDENTIAL'] = prev;
+    }
+  });
+
+  it('test_require_credential_absent_by_default', async () => {
+    const { resolveBearerAuth } = await import('./run-mcp-server.js');
+    const fakePool = {} as unknown as import('pg').Pool;
+    const prev = process.env['THEMEMORY_REQUIRE_CREDENTIAL'];
+    delete process.env['THEMEMORY_REQUIRE_CREDENTIAL'];
+    try {
+      const opts = await resolveBearerAuth('api-keys', fakePool, undefined);
+      expect(opts?.requireCredential).toBeUndefined();
+    } finally {
+      if (prev !== undefined) process.env['THEMEMORY_REQUIRE_CREDENTIAL'] = prev;
+    }
+  });
+});
