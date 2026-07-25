@@ -646,6 +646,31 @@ milestone needs line-level study.
 1. **Não-determinismo do LLM torna o eval flaky.** *Mitigação:* `temperature=0`, banda de tolerância no baseline em vez de igualdade exata, e ≥ 3 runs quando a métrica ficar perto do limite. Um eval flaky é um bug — corrigir ou remover a métrica instável.
 2. **Custo/segredo no CI + baseline vira teatro.** *Mitigação:* gate estritamente condicional à presença da chave (SKIP honesto sem ela, jamais fabricar verde — Regra 3); secret apenas via env do CI, nunca commitado; e mexer no baseline exige justificativa explícita no PR para que uma regressão real não seja silenciada como "atualização de baseline".
 
+
+---
+
+## M22 — [ ] Recall honra most-recent-wins em duplicatas ADD-only + disciplina de abstenção do harness (#141, #140)
+
+> Added 2026-07-25. Tracked: theo-memory#141, #140. Blueprint: `.claude/knowledge-base/discoveries/blueprints/stale-recall-and-abstention-blueprint.md`.
+
+**Objective:** Fechar as 2 fraquezas que a contra-prova REDACTED (LongMemEval) revelou. **#141 (core):** quando duas memórias ADD-only descrevem o mesmo fato com valores diferentes e nenhuma foi superseded (reflect não rodou), o recall pode ranquear a antiga — o ranking não tem sinal de recência. Fix mínimo: `recencyCollapse` opt-in no seam pós-threshold do recall (colapsa near-duplicates mantendo a mais recente, drop auditável via recall-trace), sem tocar a fórmula de score (não regride entity-boost M18/#127), honrando ADD-only (ADR-0003). **#140 (harness + decline honesto):** o recall foi honesto; quem alucinou foi o *answerer* do harness. O sinal de cobertura já existe (`MemoryItemWithScore.score`) — campo core novo é YAGNI e cruza o override "memory layer, não agent runtime". Fix: coverage-gate helper determinístico no harness e2e-qa; parte core declinada com rationale.
+
+**Definition of done:**
+
+- [ ] `RecallOptions.recencyCollapse?` opt-in; default OFF ⇒ recall byte-idêntico (teste de não-regressão). No conjunto de mutual-exclusion (`RerankerConflict`) + cache-bypass.
+- [ ] Fixture determinística **sem LLM** em `packages/eval/src/stages/knowledge-update/`: 2 memórias (valor antigo → novo) com `createdAt` monotônico via clock injetado; recall com `recencyCollapse` retorna a mais recente — **RED antes, GREEN depois** do fix; drop antigo aparece como `superseded_recency` no recall-trace.
+- [ ] Coverage-gate helper no harness e2e-qa (`abstém quando recalled.length===0 || max(score) < τ`), função pura testada unitariamente sem chave; regra de abstenção do answerer reforçada.
+- [ ] #140: parte core (campo `coverage` dedicado) **declinada explicitamente** com rationale (YAGNI + boundary) comentado no issue.
+- [ ] Suíte completa verde; recall existente não-regride (recencyCollapse OFF).
+- [ ] Benchmark/evidência determinística registrada em `docs/benchmarks/`.
+
+**Dependencies:** M21 (`packages/eval` + e2e-qa harness) — [x].
+
+**Top risks:**
+
+1. **Regressão de precisão no recall.** *Mitigação:* `recencyCollapse` age SÓ em clusters near-duplicate após o combine (queries sem duplicata intocadas), opt-in, τ conservador (≥ 0.9); teste de não-regressão com a flag OFF prova recall byte-idêntico.
+2. **Cache poisoning.** *Mitigação:* `recencyCollapse` entra na lista de cache-bypass (re-ordena o pool), como `scopes`/`diversify`/`rerank`.
+
 ---
 
 ## Unresolved at inception
