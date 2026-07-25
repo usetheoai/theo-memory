@@ -41,5 +41,19 @@ allowlist fallback was therefore NOT needed.
 | low | 2 |
 
 **All 4 runtime advisories (hono ×3 + node-server) and all 3 HIGH transitive (brace-expansion ×2,
-js-yaml) are cleared.** The residual 1 high + 5 moderate are dev/build-tooling advisories outside
-#123's scope (not runtime-reachable) — tracked separately, not part of this milestone's DoD.
+js-yaml) are cleared.** The residual 1 high (postcss, dev via vite) + 5 moderate are **outside
+#123's scope and tracked separately** — this milestone's DoD is the 4 runtime + 3 HIGH targets only.
+Note (honesty, `/review` F4): some residuals ARE runtime-reachable (`@opentelemetry/core` is a
+direct runtime dep; `body-parser`/`protobufjs`/`mongoose` are runtime-transitive) — they are simply
+not in #123's scope, not "unreachable". They get their own follow-up.
+
+The Before→After HIGH count went 6 → 1 (5 removed): 3 were the #123 targets (brace-expansion ×2,
+js-yaml); the other 2 were stale transitive HIGH (old `brace-expansion@1.1.15`/`5.0.6` +
+`balanced-match` chains) that the lockfile regeneration dropped alongside the override.
+
+### js-yaml override note (`/review` F3)
+
+`"js-yaml": ">=4.3.0"` resolves to **js-yaml@5.2.2** (a major-5 jump — 5.x dropped YAML merge-key
+support). This is **intentional and safe here**: js-yaml is consumed ONLY by devDependencies
+(`@apidevtools/swagger-parser` in `openapi.test.ts` + eslint), so it is NOT in the runtime bundle,
+and the full contract suite (which runs `openapi.test.ts`) passes green under js-yaml 5.2.2.
