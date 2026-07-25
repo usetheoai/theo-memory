@@ -174,6 +174,12 @@ export const MEMORY_EVENTS = [
   // recall degraded to the non-graph pool and NEVER crashed. Attribute
   // `{error}`. Mirrors recall_rerank_failed / retrieval_policy_failed.
   'recall_graph_failed',
+  // M22 recency-collapse (#141) — the opt-in recall-time most-recent-wins collapse
+  // pruned N older near-duplicate candidates. Attribute `{collapsed_count, pool_size}`.
+  // Emitted whenever the stage runs (collapsed_count MAY be 0), so the IGNORE decision
+  // is observable even without a recall-trace store wired. Princípio 3; mirrors
+  // scope_reweight_applied.
+  'recency_collapse_applied',
   // extraction-language-determinism-fixes-cycle-1 T3.1 / ADR D3 — the post-extraction
   // language guard detected (over the JOINED fact text) that the persisted facts are in
   // a different language than the deterministically-detected input language (EG-4
