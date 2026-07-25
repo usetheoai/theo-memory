@@ -485,7 +485,7 @@ O owner enviou a doc do plugin de memória de referência do Claude Code e pediu
 A análise comparativa com o REDACTED (2026-07-24) mostrou que o boost de entidade é o ÚNICO sinal estrutural em que teríamos vantagem sobre o recall deles (o OSS deles é vetorial + filtros; reranker só na plataforma paga). Nós projetamos o sinal, construímos o grafo que o alimenta (M13) e o `combineScores` soma zero — `pipeline.ts:451` diz literalmente "numLinked=0 always". É capacidade construída e não conectada.
 
 
-## M24 — [ ] Bounded per-anchor consolidation que move o caso real 6a1eabeb (#146, fix real de #144; +#145 quarantine)
+## M24 — [x] Bounded per-anchor consolidation que move o caso real 6a1eabeb (#146, fix real de #144; +#145 quarantine)
 
 **Objetivo:** mover o caso real de knowledge-update `6a1eabeb` de stale (`27:12`) para fresh (`25:50`) no bench e2e-qa via consolidação bounded per-anchor (o par de contradição alcança o LLM judge sem abstain), elevando o bench acima do baseline 91.7%.
 
