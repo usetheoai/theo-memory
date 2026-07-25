@@ -50,6 +50,23 @@ const PERCEPTION_DESIRE_VERB = new Set<string>([
 ]);
 
 /**
+ * Closed-class function words (PT + EN articles / prepositions / conjunctions / the PT negation)
+ * that carry no entity content. A name whose EVERY token is one of these is noise (#111 — the
+ * PT import surfaced `Não`, `o de`, `o` as top entities). DELIBERATELY excludes ambiguous words
+ * that can be content ("são" = the verb "are" / part of "São Paulo"; "sim") so multilingual
+ * surface names survive. Only names where ALL tokens are function words are dropped, so any
+ * single content token ("de Souza", "para Deus") keeps the name.
+ */
+const FUNCTION_WORDS = new Set<string>([
+  // PT
+  'o', 'a', 'os', 'as', 'um', 'uma', 'uns', 'umas', 'de', 'do', 'da', 'dos', 'das', 'em', 'no',
+  'na', 'nos', 'nas', 'e', 'ou', 'que', 'com', 'por', 'para', 'pra', 'ao', 'aos', 'à', 'às',
+  'não', 'mais', 'como', 'mas', 'ou', 'num', 'numa',
+  // EN
+  'the', 'of', 'an', 'and', 'or', 'to', 'in', 'on', 'at', 'for', 'with', 'by', 'from',
+]);
+
+/**
  * Returns `true` when `name` should be DROPPED as a noise node. Pure + total:
  * never throws for any input; always returns a boolean.
  */
@@ -57,10 +74,19 @@ export function isEntityNoise(name: string): boolean {
   const s = name.trim().toLowerCase();
   if (s.length === 0) return true;
 
+  // #111 deny-list: a scrub redaction marker that survived tokenization as a bare token
+  // ("REDACTEDhighentropy" had 158 refs). The extractor strips `[REDACTED:…]` before extraction;
+  // this is defense-in-depth for any residual (e.g. re-extracting legacy rows).
+  if (s.startsWith('redacted')) return true;
+
   // Whole-name contraction match ("i'm", "we're") regardless of token count.
   if (PRONOUN_CONTRACTIONS.has(s)) return true;
 
   const tokens = s.split(/\s+/).filter(Boolean);
+
+  // #111: every token is a closed-class function word (PT/EN) ⇒ no entity content ("não",
+  // "o de", "para o"). A single content token anywhere keeps the name (recall over precision).
+  if (tokens.every((t) => FUNCTION_WORDS.has(t))) return true;
 
   if (tokens.length === 1) {
     // Generic-role + contraction remnants are noise regardless of case
