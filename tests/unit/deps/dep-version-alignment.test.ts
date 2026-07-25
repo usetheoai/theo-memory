@@ -39,9 +39,12 @@ describe('T0.1 — NEW dep version alignment per ADR D14 (sunset 2026-09-01)', (
     expect(pkg.dependencies['hono']).toMatch(/^(>=4\.(1[1-9]|[2-9][0-9])\.[4-9]|>=4\.(1[1-9]|[2-9][0-9])\.[1-9][0-9]+|>=4\.(1[2-9]|[2-9][0-9])\.|>=[5-9]\.|\^4\.(1[1-9]|[2-9][0-9])\.[4-9]|\^4\.(1[2-9]|[2-9][0-9])\.)/);
   });
 
-  test('@hono/node-server pinned at ^1.13 (dependencies; v2 deferred per ADR D14)', () => {
+  test('@hono/node-server pinned at ^2.0.5+ (dependencies; M20 #123 CVE upgrade supersedes ADR D14 v2-deferral)', () => {
     const pkg = readPackageJson();
-    expect(pkg.dependencies['@hono/node-server']).toMatch(/^\^1\.(1[3-9]|[2-9][0-9])\./);
+    // M20 (#123): the v2-deferral of ADR D14 is superseded by the path-traversal CVE
+    // (patched >=2.0.5). The v1→v2 compat is proven by the REST server integration suite
+    // (47/47 vs real pgvector); a drift back to ^1 or up to ^3 requires an ADR amendment.
+    expect(pkg.dependencies['@hono/node-server']).toMatch(/^\^2\.(0\.[5-9]|0\.[1-9][0-9]|[1-9])/);
   });
 
   test('@hono/zod-openapi pinned at ^0.18 (dependencies; 1.x deferred per ADR D14)', () => {
@@ -66,16 +69,16 @@ describe('T0.1 — NEW dep version alignment per ADR D14 (sunset 2026-09-01)', (
 });
 
 describe('EC-18 — hono + @hono adapter major-version compat smoke', () => {
-  test('hono major 4 + @hono/node-server major ^1 + @hono/zod-openapi major ^0 known-compatible', () => {
+  test('hono major 4 + @hono/node-server major ^2 + @hono/zod-openapi major ^0 known-compatible', () => {
     const pkg = readPackageJson();
     // Per plan ADR D1 of standalone-p0 + ADR D4 of theo-memory-faang-auth-lifecycle:
-    // hono pin shape evolved from `^4.6.x` (D14) to `>=4.11.4` (D4 — CVE-driven).
-    // The COMPAT smoke pins the MAJOR to 4 regardless of the pin shape — major drift
-    // (to 5) still requires an ADR amendment.
+    // hono pin shape evolved from `^4.6.x` (D14) to `>=4.11.4` (D4 — CVE-driven), then to
+    // `>=4.12.27` (M20 #123 — the 3 hono moderate CVEs). node-server moved 1→2 (M20 #123 —
+    // path-traversal CVE). The COMPAT smoke pins the MAJORs; drift beyond requires an ADR.
     const honoRange = pkg.dependencies['hono'];
     expect(honoRange).toBeDefined();
     expect(honoRange?.startsWith('^4.') || honoRange?.startsWith('>=4.')).toBe(true);
-    expect(pkg.dependencies['@hono/node-server']?.startsWith('^1.')).toBe(true);
+    expect(pkg.dependencies['@hono/node-server']?.startsWith('^2.')).toBe(true);
     expect(pkg.dependencies['@hono/zod-openapi']?.startsWith('^0.')).toBe(true);
   });
 });
