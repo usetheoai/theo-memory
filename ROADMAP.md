@@ -625,6 +625,29 @@ milestone needs line-level study.
 
 ---
 
+## M21 — [ ] Eval de qualidade das etapas LLM (extraction · reflect · distill · conflict)
+
+> Added 2026-07-25. Tracked: (novo — sem issue ainda).
+
+**Objective:** Dar às etapas de maior variância do sistema — as que chamam LLM (extração de fatos, reflect/consolidação, distill episódico→semântico, resolução de conflito) — um eval versionado e repetível que falha o CI quando um PR (mudança de prompt ou troca de modelo) regride a qualidade abaixo de um baseline. Hoje essa qualidade só é medida por fixtures one-off dentro de testes unitários; não há guard de regressão para a parte mais frágil do pipeline. **Escopo honesto (ADR-0020):** eval INTERNO de qualidade, NÃO um benchmark comparativo "faster-than" — não reintroduz o benchmark removido em v0.35.0 nem faz claim público comparativo (`public-copy.md § 4` intocado).
+
+**Definition of done:**
+
+- [ ] Datasets golden anotados à mão para cada etapa LLM em escopo (extraction, reflect, distill, conflict-resolution), com ≥ N casos por etapa incluindo casos negativos, versionados no repo (`eval/datasets/*.json`).
+- [ ] Runner de eval que executa cada etapa contra seu golden e emite precision / recall / accuracy por etapa, determinístico o suficiente para gate (temperature=0).
+- [ ] Baseline versionado no repo; regressão abaixo do baseline (com banda de tolerância, não igualdade exata) FALHA o gate; mudar o baseline exige justificativa no PR.
+- [ ] Gate de CI condicional: roda quando a chave LLM (`OPENAI_API_KEY` / `OPENROUTER_API_KEY`) está presente no ambiente do CI; **SKIP honesto** (nunca verde fabricado) quando ausente. Segredos só via env do CI.
+- [ ] README/doc de reprodução com o comando exato para rodar o eval localmente + antes/depois de uma execução registrados.
+
+**Dependencies:** nenhuma (M13 é âncora semântica — o pipeline LLM que o eval observa já está shipado e estável; o eval é read-only sobre ele).
+
+**Top risks:**
+
+1. **Não-determinismo do LLM torna o eval flaky.** *Mitigação:* `temperature=0`, banda de tolerância no baseline em vez de igualdade exata, e ≥ 3 runs quando a métrica ficar perto do limite. Um eval flaky é um bug — corrigir ou remover a métrica instável.
+2. **Custo/segredo no CI + baseline vira teatro.** *Mitigação:* gate estritamente condicional à presença da chave (SKIP honesto sem ela, jamais fabricar verde — Regra 3); secret apenas via env do CI, nunca commitado; e mexer no baseline exige justificativa explícita no PR para que uma regressão real não seja silenciada como "atualização de baseline".
+
+---
+
 ## Unresolved at inception
 
 - M1 is intentionally gated on a demonstrated need (YAGNI) — resolve that gate before starting M1.
