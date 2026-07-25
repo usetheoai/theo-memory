@@ -289,6 +289,9 @@ Ver `## Failure scenarios`.
 #### Files to edit
 
 - `tests/integration/entity-boost/precision-benchmark.test.ts`
+- `docs/benchmarks/entity-boost-m18.json`
+
+(o `.json` é escrito pelo próprio benchmark ao rodar — os três números medidos.)
 
 #### Deep file dependency analysis
 
@@ -329,8 +332,11 @@ RED: test_precision_not_regressed — expect(report.precisionAtK.newBoost).toBeG
 
 #### Files to edit
 
-- `docs/benchmarks/entity-boost-m18.md` (NEW)
+- `docs/benchmarks/entity-boost-m18.md`
+- `tests/unit/docs/entity-boost-m18-doc.test.ts`
 - `CHANGELOG.md`
+
+(o `.md` é NOVO; o teste sentinela NOVO trava o antes/depois no doc.)
 
 #### Deep file dependency analysis
 
