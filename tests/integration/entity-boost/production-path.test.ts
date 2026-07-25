@@ -54,11 +54,21 @@ beforeAll(async () => {
     memoryEntityStore: new PgMemoryEntityStore(db.pool),
   });
 
-  // Both memories carry the QUERY's own embedding, so each scores a perfect semantic match
-  // and the two tie exactly — only the entity link can separate them. Seeding a different
-  // text's vector would leave both below the threshold and the test would prove nothing.
-  // The unlinked one is seeded FIRST so insertion-order bias runs against the hypothesis.
-  const vec = [...(await embedder.embed(QUERY))];
+  // Both memories carry the SAME vector — at cosine 0.9 to the query, NOT the query's own vector.
+  // The two therefore tie in semantic (only the entity link can separate them) but sit BELOW the
+  // 1.0 clamp: post-M18 the boost is numerator-only, so a saturated 1.0 corpus would tie the
+  // linked and unlinked candidates at the clamp and hide the boost (the M18 headroom precondition).
+  // 0.9 leaves room for the boost to promote the linked one. The unlinked one is seeded FIRST so
+  // insertion-order bias runs against the hypothesis.
+  const qv = [...(await embedder.embed(QUERY))];
+  const dot = (a: number[], b: number[]): number => a.reduce((s, x, i) => s + x * (b[i] as number), 0);
+  const aux = qv.map((x, i) => (i === 0 ? x + 1 : x)); // not parallel to qv
+  const proj = dot(aux, qv) / dot(qv, qv);
+  const orth = aux.map((x, i) => x - proj * (qv[i] as number)); // orthogonal to qv (Gram-Schmidt)
+  const qNorm = Math.sqrt(dot(qv, qv));
+  const oNorm = Math.sqrt(dot(orth, orth));
+  const g = 0.9;
+  const vec = qv.map((x, i) => g * (x / qNorm) + Math.sqrt(1 - g * g) * ((orth[i] as number) / oNorm));
   unlinkedId = await seed('anotacao sobre a cidade', vec);
   linkedId = await seed('anotacao sobre a cidade', vec);
 

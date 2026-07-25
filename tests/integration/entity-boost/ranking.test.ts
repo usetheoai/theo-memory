@@ -24,10 +24,40 @@ const DIM = 384;
 const WORKSPACE = 'default';
 const USER = 'u-boost';
 
-/** Every text embeds to the same vector, so semantic score can never break the tie. */
-const tiedEmbedder: Embedder = {
-  embed: async () => Array(DIM).fill(0.05),
-  embedBatch: async (texts) => texts.map(() => Array(DIM).fill(0.05)),
+/**
+ * Both relevant candidates are seeded with this vector, so their semantic scores tie exactly
+ * and the entity link is the only thing that can separate them.
+ */
+const CANDIDATE_VEC = ((): number[] => {
+  const v = Array(DIM).fill(0) as number[];
+  v[0] = 1;
+  return v;
+})();
+
+/**
+ * The query embeds to a vector at cosine 0.9 to CANDIDATE_VEC — semantic HEADROOM below the
+ * 1.0 clamp. A saturated 1.0 corpus (the pre-M18 `tiedEmbedder`) ties the linked and unlinked
+ * candidates at the clamp once the boost is numerator-only (#127), hiding the fix; 0.9 leaves
+ * room for the boost to discriminate AND for the sensitive-threshold eviction test to bite.
+ */
+const QUERY_VEC = ((): number[] => {
+  const v = Array(DIM).fill(0) as number[];
+  v[0] = 0.9;
+  v[1] = Math.sqrt(1 - 0.81); // 0.4359 → |v|=1, cos(v, e0)=0.9
+  return v;
+})();
+
+/** Orthogonal to the query — semantic 0, below any threshold. The boost must NOT resurrect it. */
+const ORTHOGONAL_VEC = ((): number[] => {
+  const v = Array(DIM).fill(0) as number[];
+  v[2] = 1;
+  return v;
+})();
+
+/** The pipeline embeds only the QUERY; candidates are seeded with explicit vectors above. */
+const headroomEmbedder: Embedder = {
+  embed: async () => QUERY_VEC,
+  embedBatch: async (texts) => texts.map(() => QUERY_VEC),
 };
 
 let db: IsolatedDb;
@@ -69,16 +99,16 @@ async function linkEntity(memoryId: string, normalizedKey: string): Promise<void
 }
 
 /** topK is deliberately far above the corpus so the returned set IS the post-threshold set. */
-async function recall(withBoost: boolean, query = 'moro em São Paulo') {
+async function recall(withBoost: boolean, query = 'moro em São Paulo', threshold = 0.1) {
   return runRetrievalPipeline(
     query,
     { user_id: USER, workspace_id: WORKSPACE } as never,
     {
       vectorStore: vectorStore as never,
-      embedder: tiedEmbedder,
+      embedder: headroomEmbedder,
       ...(withBoost ? { entityBoostStore: entityStore } : {}),
     },
-    { topK: 100, threshold: 0.1 },
+    { topK: 100, threshold },
   );
 }
 
@@ -91,20 +121,18 @@ beforeAll(async () => {
   vectorStore = new PgvectorStore(db.pool, { embeddingDim: DIM });
   entityStore = new PgMemoryEntityStore(db.pool);
 
-  const tied = Array(DIM).fill(0.05) as number[];
   // The UNLINKED memory is seeded FIRST on purpose. Postgres' ordering of exactly-tied rows
   // favours the earlier row, so seeding the linked one first would let the test pass on
   // insertion-order luck even with a dead boost. This way the bias runs AGAINST the
-  // hypothesis: the linked memory can only win by actually being boosted.
-  unlinkedId = await seedMemory('anotacao sobre a cidade', tied);
-  linkedId = await seedMemory('anotacao sobre a cidade', tied);
+  // hypothesis: the linked memory can only win by actually being boosted. Both share
+  // CANDIDATE_VEC, so their semantic scores tie at cosine 0.9 (headroom below the clamp).
+  unlinkedId = await seedMemory('anotacao sobre a cidade', CANDIDATE_VEC);
+  linkedId = await seedMemory('anotacao sobre a cidade', CANDIDATE_VEC);
   await linkEntity(linkedId, 'são_paulo');
 
   // Semantically far from the query (orthogonal vector) but linked to the same entity —
   // the candidate the boost must NOT resurrect.
-  const orthogonal = Array(DIM).fill(0) as number[];
-  orthogonal[0] = 1;
-  irrelevantLinkedId = await seedMemory('assunto totalmente distinto', orthogonal);
+  irrelevantLinkedId = await seedMemory('assunto totalmente distinto', ORTHOGONAL_VEC);
   await linkEntity(irrelevantLinkedId, 'são_paulo');
 }, 180_000);
 
@@ -151,6 +179,26 @@ describe('entity boost ranking', () => {
 
     expect(withBoost).toEqual(expect.arrayContaining(withoutBoost));
   });
+
+  test('test_high_threshold_does_not_evict_unlinked_candidate', async () => {
+    // T2.2 (#127) at the SENSITIVE band. The unlinked candidate's semantic (0.9) clears the
+    // 0.8 threshold's semantic gate. Under the PRE-M18 renormalization, activating the entity
+    // signal (the linked candidate links são_paulo) inflated the shared denominator to 1.5, so
+    // its combined dropped to 0.9/1.5 = 0.6 < 0.8 and it was evicted — purely because ANOTHER
+    // candidate was linked. Numerator-only keeps its combined at 0.9/1.0 = 0.9 ≥ 0.8. This test
+    // fails against the pre-T2.1 maxPossible and passes after it — churn zero at the band where
+    // the eviction was measured (75 in the M15 review).
+    const THRESHOLD = 0.8;
+    const withoutBoost = (await recall(false, 'moro em São Paulo', THRESHOLD)).map((r) => r.id);
+    const withBoost = (await recall(true, 'moro em São Paulo', THRESHOLD)).map((r) => r.id);
+
+    // Baseline: without the entity signal, the unlinked candidate passes at 0.8.
+    expect(withoutBoost).toContain(unlinkedId);
+    // #127: it is STILL present once the entity signal fires for the linked candidate.
+    expect(withBoost).toContain(unlinkedId);
+    // No candidate that survived without the boost is dropped by turning it on.
+    expect(withBoost).toEqual(expect.arrayContaining(withoutBoost));
+  });
 });
 
 /**
@@ -163,7 +211,7 @@ describe('entity boost ranking', () => {
  * failure above could be anywhere in the nine steps.
  */
 describe('computeEntityBoost against the real entity store', () => {
-  test('test_stage_returns_attenuated_boost_for_linked_candidate', async () => {
+  test('test_stage_returns_positive_boost_for_linked_candidate', async () => {
     const { computeEntityBoost } = await import(
       '../../../packages/core/src/domain/retrieval/entity-boost-step.js'
     );

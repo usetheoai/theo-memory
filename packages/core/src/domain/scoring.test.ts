@@ -47,18 +47,41 @@ describe('sigmoidBm25', () => {
   });
 });
 
-describe('entityBoost', () => {
-  test('zero links returns zero', () => {
+describe('entityBoost (non-decreasing + saturating — #125)', () => {
+  test('zero links returns exactly zero', () => {
+    // Preserved invariant: an unlinked candidate contributes nothing (exact 0, not epsilon).
     expect(entityBoost(0)).toBe(0);
   });
 
-  test('one link returns ENTITY_BOOST_WEIGHT (no attenuation when numLinked=1)', () => {
-    expect(entityBoost(1)).toBeCloseTo(ENTITY_BOOST_WEIGHT, 3);
+  test('is non-decreasing in numLinked (#125 regression)', () => {
+    // The M15 semantics feed numLinked the query<->memory intersection count: more matched
+    // entities MUST mean at least as much boost. The old curve W/(1+0.001*(n-1)^2) DECREASED.
+    for (let n = 1; n <= 25; n += 1) {
+      expect(entityBoost(n + 1)).toBeGreaterThanOrEqual(entityBoost(n));
+    }
   });
 
-  test('attenuates as numLinked grows beyond 1', () => {
-    expect(entityBoost(10)).toBeLessThan(entityBoost(2));
-    expect(entityBoost(2)).toBeLessThan(entityBoost(1));
+  test('more matched entities never scores less (#125 concrete case)', () => {
+    expect(entityBoost(3)).toBeGreaterThan(entityBoost(1));
+  });
+
+  test('saturates at ENTITY_BOOST_WEIGHT (ceiling preserved, no domination)', () => {
+    // Two magnitudes (EC-1): approaches the ceiling monotonically and never crosses it, staying
+    // finite (no NaN/Infinity) — the W·n/(n+c) form is numerically stable across the range.
+    for (const n of [100, 10000]) {
+      expect(entityBoost(n)).toBeLessThanOrEqual(ENTITY_BOOST_WEIGHT);
+      expect(Number.isFinite(entityBoost(n))).toBe(true);
+    }
+    expect(entityBoost(10000)).toBeGreaterThan(entityBoost(100));
+    expect(entityBoost(10000)).toBeGreaterThan(ENTITY_BOOST_WEIGHT * 0.9);
+  });
+
+  test('negative numLinked returns 0 (defensive guard — never negative boost)', () => {
+    // Negative case (`.claude/rules/testing.md` § 4.1): numLinked comes from a Map size and is
+    // non-negative by construction, but the `n<=0` guard must return exact 0, not a negative
+    // value the `n/(n+c)` formula would produce at n<0 (or a divide near n=-c).
+    expect(entityBoost(-1)).toBe(0);
+    expect(entityBoost(-100)).toBe(0);
   });
 });
 
@@ -71,18 +94,44 @@ describe('maxPossible', () => {
     expect(maxPossible({ semantic: true, bm25: true, entity: false })).toBe(2.0);
   });
 
-  test('semantic + entity → 1.5', () => {
-    expect(maxPossible({ semantic: true, bm25: false, entity: true })).toBe(1.5);
+  test('semantic + entity → 1.0 (entity is numerator-only; does NOT inflate the denominator — #127)', () => {
+    expect(maxPossible({ semantic: true, bm25: false, entity: true })).toBe(1.0);
   });
 
-  test('all three signals → 2.5', () => {
-    expect(maxPossible({ semantic: true, bm25: true, entity: true })).toBe(2.5);
+  test('all three signals → 2.0 (entity excluded from maxPossible — #127)', () => {
+    expect(maxPossible({ semantic: true, bm25: true, entity: true })).toBe(2.0);
+  });
+});
+
+describe('numerator-only entity boost — no candidate eviction (#127)', () => {
+  test('unlinked candidate score is unchanged whether or not entity is active for others', () => {
+    // Semantic headroom BELOW the 1.0 clamp so the effect is measurable (SEPA precondition:
+    // a saturated 1.0 corpus would tie everything at the clamp and hide the fix).
+    const withEntityActive = combineScores(
+      { semantic: 0.85, bm25: 0, entityBoostScore: 0 },
+      maxPossible({ semantic: true, bm25: false, entity: true }),
+    );
+    const withoutEntity = combineScores(
+      { semantic: 0.85, bm25: 0, entityBoostScore: 0 },
+      maxPossible({ semantic: true, bm25: false, entity: false }),
+    );
+    // #127: turning the entity signal on for OTHER candidates must not lower this one's score.
+    expect(withEntityActive).toBeCloseTo(withoutEntity, 6);
+    expect(withEntityActive).toBeCloseTo(0.85, 6);
+  });
+
+  test('linked candidate still ranks above unlinked when both have semantic headroom', () => {
+    const denom = maxPossible({ semantic: true, bm25: false, entity: true });
+    const linked = combineScores({ semantic: 0.85, bm25: 0, entityBoostScore: 0.25 }, denom);
+    const unlinked = combineScores({ semantic: 0.85, bm25: 0, entityBoostScore: 0 }, denom);
+    // The M15 gain is preserved: the boost still discriminates (does not tie at the clamp).
+    expect(linked).toBeGreaterThan(unlinked);
   });
 });
 
 describe('combineScores', () => {
   test('caps at 1.0 even when raw sum exceeds maxPossible', () => {
-    expect(combineScores({ semantic: 1, bm25: 1, entityBoostScore: 0.5 }, 2.5)).toBeCloseTo(1.0, 3);
+    expect(combineScores({ semantic: 1, bm25: 1, entityBoostScore: 0.5 }, 2.0)).toBeCloseTo(1.0, 3);
   });
 
   test('normalizes by maxPossible', () => {

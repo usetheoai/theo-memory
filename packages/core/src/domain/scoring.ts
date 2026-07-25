@@ -16,6 +16,16 @@
 /** ENTITY_BOOST_WEIGHT — upstream additive constant. Hardcoded; surfaceable via config at v1.x only if measurement demands tuning. */
 export const ENTITY_BOOST_WEIGHT = 0.5;
 
+/**
+ * Saturation constant of the entity-boost curve `W·n/(n+c)` (#125). Internal tuning
+ * parameter — NOT part of the public surface (KISS: only `entityBoost` reads it).
+ * n=1 yields `W/(1+c)`; smaller c keeps the common single-match case nearer the
+ * legacy 0.5 magnitude while the curve stays monotone-increasing and saturates at W.
+ * c=0.25 → n=1 boost 0.40 (chosen for n=1 magnitude; validated non-regressing by the
+ * M18 precision benchmark, docs/benchmarks/entity-boost-m18.md).
+ */
+const ENTITY_BOOST_SATURATION_C = 0.25;
+
 /** Sigmoid params tuned by query length (scoring.ts:23-42). Short queries (≤3 tokens) center on raw=4; longer center on raw=8. */
 function sigmoidParams(queryLength: number): { steepness: number; midpoint: number } {
   if (queryLength <= 3) {
@@ -35,19 +45,21 @@ export function sigmoidBm25(raw: number, queryLength: number): number {
 }
 
 /**
- * Spread-attenuated entity boost — prevents a single memory with many entity
- * matches from dominating the ranking. Formula:
- *   `numLinked = 0  →  0`
- *   `numLinked = 1  →  ENTITY_BOOST_WEIGHT (peak; no attenuation)`
- *   `numLinked > 1  →  ENTITY_BOOST_WEIGHT * 1 / (1 + 0.001 * (numLinked - 1)^2)`
- * Citation: scoring.ts:50-72.
+ * Non-decreasing, saturating entity boost (#125). `numLinked` is the count of
+ * DISTINCT query entities linked to a memory (the query<->memory intersection),
+ * so MORE matched entities means at least as much boost — never less. Formula:
+ *   `entityBoost(n) = ENTITY_BOOST_WEIGHT * n / (n + ENTITY_BOOST_SATURATION_C)`
+ *   `n = 0  →  0` (exact; numerator is n)
+ *   `n = 1  →  W / (1 + c)` (0.40 at c=0.25)
+ *   `n → ∞  →  ENTITY_BOOST_WEIGHT` (saturation ceiling — no single memory dominates)
+ * Monotone non-decreasing for any c > 0. Replaces the pre-M18 spread-attenuated
+ * curve `W/(1 + 0.001*(n-1)^2)`, which was DECREASING and inverted the intent (#125).
  */
 export function entityBoost(numLinked: number): number {
   if (numLinked <= 0) {
     return 0;
   }
-  const spread = 1 / (1 + 0.001 * Math.pow(numLinked - 1, 2));
-  return ENTITY_BOOST_WEIGHT * spread;
+  return (ENTITY_BOOST_WEIGHT * numLinked) / (numLinked + ENTITY_BOOST_SATURATION_C);
 }
 
 /** Which signals are active in this query. */
@@ -58,9 +70,19 @@ export interface ActiveSignals {
 }
 
 /**
- * Maximum possible combined score given which signals are active.
- * Returns one of {0, 1.0, 1.5, 2.0, 2.5} per scoring.ts:108-130.
- * Semantic contributes up to 1.0; BM25 contributes up to 1.0; entity contributes up to ENTITY_BOOST_WEIGHT.
+ * Maximum possible combined score given which signals are active — the normalization
+ * denominator. Returns one of {0, 1.0, 2.0}: semantic up to 1.0, BM25 up to 1.0.
+ *
+ * The entity boost is NUMERATOR-ONLY (#127): it is added to the combined sum in
+ * {@link combineScores} (which clamps at 1.0) but is NOT counted here. Counting it inflated
+ * the shared denominator whenever ANY candidate in the query was entity-linked, which pushed
+ * UNLINKED candidates — that had passed the semantic gate — below the combined-score gate in
+ * `retrieval/pipeline.ts`, evicting them purely because other candidates were linked. Keeping
+ * the denominator on semantic+BM25 makes an unlinked candidate's normalized score identical
+ * whether or not the entity signal fired for others, while a linked candidate still rides
+ * higher via the numerator (bounded by the clamp). The `entity` field is retained on
+ * {@link ActiveSignals} for interface stability (the pipeline still computes it) but is
+ * intentionally unread here — numerator-only means the denominator ignores it.
  */
 export function maxPossible(signals: ActiveSignals): number {
   let total = 0;
@@ -70,9 +92,7 @@ export function maxPossible(signals: ActiveSignals): number {
   if (signals.bm25) {
     total += 1.0;
   }
-  if (signals.entity) {
-    total += ENTITY_BOOST_WEIGHT;
-  }
+  // signals.entity is intentionally NOT summed — the boost is numerator-only (#127).
   return total;
 }
 
