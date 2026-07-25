@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+- **#148: o bench e2e-qa não marca mais uma abstenção como correta numa pergunta não-abstenção.** Guarda determinística `abstentionIsMiss` (pura, testada) faz short-circuit ANTES do LLM-judge: responder "I don't have that information" numa pergunta que exige resposta concreta é miss por definição. Fecha o falso-positivo que inflava o `6a1eabeb` e tornava o bench incapaz de validar fixes de knowledge-update. (#148)
 - **#145: um único draft de reflect com provenance inválida não aborta mais o reflect inteiro.** O antigo `validateProvenance` lançava `ReflectionProvenanceMissingError` no PRIMEIRO draft ruim, descartando todos os drafts bons (o bench M23 bateu nisto 2x). Agora a validação é por-draft: o draft inválido é pulado (evento + counter), os válidos persistem; se TODOS forem inválidos, retorna `no-consolidation` sem lançar (Rule 8 recuperável). (M24, #145)
 
 ### Security
