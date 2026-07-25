@@ -14,8 +14,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
-
 ### Security
+- **Novo gate de secret-scanning (gitleaks) no CI bloqueia uma chave `theo_live_` hardcoded no código de produção.** Motivado por #126 (2 chaves reais chegaram ao histórico do develop): um `theo_live_<hex>` literal na árvore de `packages/` agora falha o build. Escaneia a árvore de trabalho (não o histórico), então não re-sinaliza as chaves já expostas — cuja neutralização é a ROTAÇÃO pelo owner, não reescrita de histórico (Regra 4). Fixtures de teste (chaves sintéticas via template) são allowlistadas (#126).
 
 ## [0.46.4] - 2026-07-25
 
