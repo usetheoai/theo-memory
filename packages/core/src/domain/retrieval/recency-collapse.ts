@@ -20,7 +20,10 @@
  * @see CLAUDE.md § IMPORTANTE Princípio 1 (most-recent-wins) + Princípio 3 (auditable drop)
  * @see blueprint stale-recall-and-abstention § "#141 — the fix (weighed)" option (b)
  */
+import type { Tracer } from '@opentelemetry/api';
+
 import type { Embedder } from '../dip/embedder.js';
+import { emitEvent } from '../memory-event.js';
 
 import { cosineSimilarity } from './cosine.js';
 import {
@@ -63,30 +66,42 @@ function preferAsRepresentative(a: RecencyCollapseCandidate, b: RecencyCollapseC
 }
 
 /**
- * Greedy near-duplicate collapse. Walks the candidates in the given order
- * (score-desc from the pipeline), keeping one representative per cluster (cosine
- * ≥ `threshold`) — the newest by {@link preferAsRepresentative}. O(k²) over the
- * bounded pool the caller passes. Returns only the dropped ids; the caller maps
- * them back to the survivor pool + the recall trace.
+ * Near-duplicate collapse via STABLE-SEED single-linkage clustering. Each
+ * candidate joins the first cluster whose SEED (the first member, fixed at
+ * cluster creation) it matches (cosine ≥ `threshold`); otherwise it seeds a new
+ * cluster. Per cluster, the newest member by {@link preferAsRepresentative}
+ * survives and the rest are dropped.
+ *
+ * Why a fixed seed (not a mutable "current representative"): comparing against a
+ * representative that gets replaced by each newer member causes transitive drift
+ * — in a chain A~B, B~C, A≁C the survivor would walk to C and wrongly drop A
+ * even though A is NOT a near-duplicate of C (review F-1). A stable seed keeps A
+ * and C in separate clusters, so only genuine near-duplicates of the same seed
+ * collapse. This is strictly MORE conservative (drops ≤ the mutable variant),
+ * which also lowers precision-regression risk. O(k·clusters) ≤ O(k²) over the
+ * bounded pool the caller passes.
  */
 export function collapseByRecency(
   candidates: readonly RecencyCollapseCandidate[],
   threshold: number,
 ): RecencyCollapseResult {
-  const kept: RecencyCollapseCandidate[] = [];
-  const droppedIds: string[] = [];
+  const clusters: RecencyCollapseCandidate[][] = [];
   for (const cand of candidates) {
-    const dupIndex = kept.findIndex((rep) => cosineSimilarity(cand.embedding, rep.embedding) >= threshold);
-    if (dupIndex === -1) {
-      kept.push(cand);
-      continue;
+    const cluster = clusters.find(
+      (c) => cosineSimilarity(cand.embedding, (c[0] as RecencyCollapseCandidate).embedding) >= threshold,
+    );
+    if (cluster === undefined) clusters.push([cand]);
+    else cluster.push(cand);
+  }
+  const droppedIds: string[] = [];
+  for (const cluster of clusters) {
+    if (cluster.length === 1) continue;
+    let survivor = cluster[0] as RecencyCollapseCandidate;
+    for (const member of cluster.slice(1)) {
+      if (preferAsRepresentative(member, survivor)) survivor = member;
     }
-    const rep = kept[dupIndex] as RecencyCollapseCandidate;
-    if (preferAsRepresentative(cand, rep)) {
-      droppedIds.push(rep.id);
-      kept[dupIndex] = cand;
-    } else {
-      droppedIds.push(cand.id);
+    for (const member of cluster) {
+      if (member.id !== survivor.id) droppedIds.push(member.id);
     }
   }
   return { droppedIds };
@@ -122,6 +137,7 @@ export async function applyRecencyCollapseStage(
   topK: number,
   threshold: number,
   drops: DroppedCandidate[],
+  tracer?: Tracer,
 ): Promise<ScoredRow[]> {
   const tau = config.threshold ?? DEFAULT_RECENCY_COLLAPSE_THRESHOLD;
   const pool = scored.slice(0, topK * 3);
@@ -140,5 +156,12 @@ export async function applyRecencyCollapseStage(
     const cand = droppedSet.has(c.id) ? candidates.get(c.id) : undefined;
     if (cand !== undefined) recordDrop(drops, c.id, cand, threshold, c.score, 'superseded_recency');
   }
+  // Princípio 3 — the collapse is an IGNORE decision (older near-dups pruned), so
+  // make it observable even when no recall-trace store is wired. No-op when the
+  // tracer is undefined. Mirrors `scope_reweight_applied`.
+  emitEvent(tracer, 'recency_collapse_applied', {
+    collapsed_count: droppedSet.size,
+    pool_size: pool.length,
+  });
   return scored.filter((c) => !droppedSet.has(c.id));
 }
