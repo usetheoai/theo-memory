@@ -70,9 +70,18 @@ export interface ActiveSignals {
 }
 
 /**
- * Maximum possible combined score given which signals are active.
- * Returns one of {0, 1.0, 1.5, 2.0, 2.5} per scoring.ts:108-130.
- * Semantic contributes up to 1.0; BM25 contributes up to 1.0; entity contributes up to ENTITY_BOOST_WEIGHT.
+ * Maximum possible combined score given which signals are active — the normalization
+ * denominator. Returns one of {0, 1.0, 2.0}: semantic up to 1.0, BM25 up to 1.0.
+ *
+ * The entity boost is NUMERATOR-ONLY (#127): it is added to the combined sum in
+ * {@link combineScores} (which clamps at 1.0) but is NOT counted here. Counting it inflated
+ * the shared denominator whenever ANY candidate in the query was entity-linked, which pushed
+ * UNLINKED candidates — that had passed the semantic gate — below the combined-score gate in
+ * `retrieval/pipeline.ts`, evicting them purely because other candidates were linked. Keeping
+ * the denominator on semantic+BM25 makes an unlinked candidate's normalized score identical
+ * whether or not the entity signal fired for others, while a linked candidate still rides
+ * higher via the numerator (bounded by the clamp). The `entity` field is retained on
+ * {@link ActiveSignals} for callers/telemetry but intentionally unread here.
  */
 export function maxPossible(signals: ActiveSignals): number {
   let total = 0;
@@ -82,9 +91,7 @@ export function maxPossible(signals: ActiveSignals): number {
   if (signals.bm25) {
     total += 1.0;
   }
-  if (signals.entity) {
-    total += ENTITY_BOOST_WEIGHT;
-  }
+  // signals.entity is intentionally NOT summed — the boost is numerator-only (#127).
   return total;
 }
 
