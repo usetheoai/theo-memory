@@ -4,6 +4,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+- **Honest attribution correction (docs) for the v0.49.0 knowledge-update fix.** The no-reflect + #148 baseline (7/12=58.3%) vs reflect+#149 (8/12=66.7%) confirms reflect-ON does NOT regress (dominates, net +1). BUT knowledge-update is 2/2 in BOTH configs: the e2e-qa answer-LLM reads memories sorted newest-first and answers the fresh `25:50` with or without reflect, so the end-to-end bench does NOT isolate the reflect contribution to #144. The reflect-specific proven value is the memory-layer supersession (keyless T4: stale row gets `t_invalid`, top-k recall returns only the fresh value) plus the #149 regression fix (25%->66.7%). See `docs/benchmarks/m24d-149-conservative-consolidation.md` section Addendum. (#144)
+
 ### Added
 
 ### Changed
