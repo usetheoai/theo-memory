@@ -16,6 +16,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Security
 
+## [0.46.2] - 2026-07-25
+
+### Changed
+- **O caminho de leitura (`pipeline.ts`) voltou a ser editável.** O arquivo tinha 726 linhas (teto 300), então o gate de qualidade bloqueava qualquer edição no caminho mais crítico do produto. Foi decomposto em módulos de estágio coesos (threshold-filter, rerank, recall-trace, adaptive-relax, graph-expansion, row-mapping, candidate-assembly) sem NENHUMA mudança de comportamento — a suíte inteira passa sem editar asserção e o benchmark de ranking reproduz os mesmos números antes/depois (#124).
+
 ## [0.46.1] - 2026-07-25
 
 ### Fixed
