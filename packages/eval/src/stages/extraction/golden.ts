@@ -5,8 +5,10 @@
  *  - `hard`      — clear ground-truth entities; scored for precision/recall.
  *  - `negative`  — noise-only text that MUST yield zero entities (the #111
  *                  function-word case); scored as noise-rejection accuracy.
- *  - `ambiguous` — genuinely uncertain extraction; excluded from the
- *                  deterministic gate (the LLM-measured tier's job).
+ *  - `ambiguous` — genuinely uncertain extraction. NOT scored by any tier today
+ *                  (documentation-only): reserved as ground truth for a future
+ *                  LLM-measured consumer. The deterministic gate's non-vacuity
+ *                  comes from `hard` + `negative`, not `ambiguous`.
  *
  * The schema enforces the negative contract (a negative fixture declaring
  * expected entities is a malformed fixture) so vacuous fixtures cannot slip in.

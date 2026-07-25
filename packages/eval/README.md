@@ -51,12 +51,15 @@ fires.
 **A green score over categorically-trivial fixtures proves nothing.** The eval
 is only as honest as its golden set:
 
-- The **extraction** golden carries **negative cases** (noise-only text → zero
-  entities, the #111 function-word case) and **ambiguous cases**, not just easy
-  proper-noun hits. The negative-case contract is schema-enforced (a `negative`
-  fixture declaring entities is rejected at load). This is what makes the
-  extraction score non-vacuous — the numbers are mid-range (precision ≈ 0.64,
-  recall ≈ 0.72, noise-rejection accuracy = 0.75), not a fabricated 1.0.
+- The **extraction** deterministic score is made non-vacuous by its **hard**
+  cases (real proper-noun ground truth, not input echo) and **negative cases**
+  (noise-only text → zero entities, the #111 function-word case). The
+  negative-case contract is schema-enforced (a `negative` fixture declaring
+  entities is rejected at load). The numbers are mid-range (precision ≈ 0.64,
+  recall ≈ 0.72, noise-rejection accuracy = 0.75), not a fabricated 1.0. The
+  golden also carries **ambiguous** fixtures, but those are **not scored by any
+  tier today** — they are documentation-only ground truth reserved for a future
+  LLM-measured consumer, and contribute nothing to the current score.
 - The **consolidation** LLM-free score is `1.0` **by construction** — it measures
   HARNESS WIRING (synthetic perfect decisions), **not** LLM judgment quality.
   The real consolidation quality signal is the key-gated LLM-measured tier.

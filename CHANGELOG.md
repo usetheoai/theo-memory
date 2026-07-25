@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 - Roadmap amended: added M21 Eval de qualidade das etapas LLM (`/roadmap-feature system-llm-eval`)
-- **M21 — Novo pacote privado `@usetheo/memory-eval` para eval por-estágio das etapas LLM.** Pontua extração + consolidação (reflect/distill/conflict) contra golden fixtures versionados, com um baseline commitado e um gate de regressão fail-closed por-métrica (banda de tolerância `ε`). Tier LLM-measured é key-gated (SKIP honesto sem chave). Pacote é `"private": true` — nunca publicado (guard test). (#136)
+- **M21 — Novo pacote privado `@usetheo/memory-eval` para eval por-estágio das etapas LLM.** Pontua extração + consolidação (reflect/distill/conflict) contra golden fixtures versionados, com um baseline commitado e um gate de regressão fail-closed por-métrica (banda de tolerância `ε`). Tier LLM-measured é key-gated (SKIP honesto sem chave). Pacote é `"private": true` — nunca publicado (guard test). (M21)
 
 ### Changed
 
