@@ -66,8 +66,22 @@ describe('entityBoost (non-decreasing + saturating — #125)', () => {
   });
 
   test('saturates at ENTITY_BOOST_WEIGHT (ceiling preserved, no domination)', () => {
-    expect(entityBoost(10000)).toBeLessThanOrEqual(ENTITY_BOOST_WEIGHT);
+    // Two magnitudes (EC-1): approaches the ceiling monotonically and never crosses it, staying
+    // finite (no NaN/Infinity) — the W·n/(n+c) form is numerically stable across the range.
+    for (const n of [100, 10000]) {
+      expect(entityBoost(n)).toBeLessThanOrEqual(ENTITY_BOOST_WEIGHT);
+      expect(Number.isFinite(entityBoost(n))).toBe(true);
+    }
+    expect(entityBoost(10000)).toBeGreaterThan(entityBoost(100));
     expect(entityBoost(10000)).toBeGreaterThan(ENTITY_BOOST_WEIGHT * 0.9);
+  });
+
+  test('negative numLinked returns 0 (defensive guard — never negative boost)', () => {
+    // Negative case (`.claude/rules/testing.md` § 4.1): numLinked comes from a Map size and is
+    // non-negative by construction, but the `n<=0` guard must return exact 0, not a negative
+    // value the `n/(n+c)` formula would produce at n<0 (or a divide near n=-c).
+    expect(entityBoost(-1)).toBe(0);
+    expect(entityBoost(-100)).toBe(0);
   });
 });
 

@@ -100,7 +100,7 @@ A superfície é pequena e inteiramente dentro do domínio — nenhum consumidor
 
 ### D1 — `entityBoost` passa a ser não-decrescente e saturante, não penalizado por espalhamento
 
-**Decisão:** substituir `ENTITY_BOOST_WEIGHT * 1/(1 + 0.001·(n-1)²)` (decrescente) pela forma **`ENTITY_BOOST_WEIGHT * n/(n+c)`** — não-decrescente, satura em `ENTITY_BOOST_WEIGHT`, com `c` uma constante de módulo. `n=0 → 0` (preserva o zero exato, pois o numerador é `n`); monótona para qualquer `c>0`; `n=1 → W/(1+c)`. O benchmark de T3.1 varre `c ∈ {0.25, 0.5, 1}` e escolhe o de maior precisão; o default tende ao `c` pequeno (~0.25 → n=1 rende 0.40) para preservar a magnitude do caso comum `n=1`.
+**Decisão:** substituir `ENTITY_BOOST_WEIGHT * 1/(1 + 0.001·(n-1)²)` (decrescente) pela forma **`ENTITY_BOOST_WEIGHT * n/(n+c)`** — não-decrescente, satura em `ENTITY_BOOST_WEIGHT`, com `c` uma constante de módulo. `n=0 → 0` (preserva o zero exato, pois o numerador é `n`); monótona para qualquer `c>0`; `n=1 → W/(1+c)`. `c=0.25` é escolhido pelo critério de **magnitude do caso comum `n=1`** (→ 0.40, o mais próximo do pico legado 0.50 mantendo monotonicidade). Nota de honestidade (reconciliada no `/review`, F-tests-1): a precisão do benchmark é **c-invariante** neste corpus — qualquer `c>0` produz boost positivo, promove o relevante acima dos distractors empatados e dá precision 1.0, então uma varredura por precisão não discrimina `c`. O benchmark portanto **confirma não-regressão** em `c=0.25` (precision 1.0), não elege `c` por precisão; a magnitude é o critério real.
 
 **Rationale:** a fórmula atual veio de OUTRA semântica de `numLinked` ("quantas entidades a memória tem no total", onde penalizar genéricas faz sentido). O M15 passou a alimentá-la com a INTERSEÇÃO query↔memória, onde mais é melhor. A curva decrescente é o oposto da intenção (`scoring.ts:45`, medido em #125). `W·n/(n+c)` mantém a proteção contra dominação (teto em `ENTITY_BOOST_WEIGHT`) sem inverter a monotonicidade, e o parâmetro `c` deixa o benchmark arbitrar a magnitude do caso comum em vez de fixá-la a priori (SEPA initial brief, 2026-07-24).
 
@@ -299,7 +299,7 @@ O corpus atual liga cada relevante a UMA entidade (`link(relevant, ...)` uma vez
 
 1. **Headroom semântico (PRECONDIÇÃO CRÍTICA, SEPA):** os candidatos NÃO podem ter cosine=1.0. Sob numerador-only, distractor sem vínculo e relevante com vínculo ambos batem no clamp 1.0 → empate → o benchmark fica vacuamente verde. Dar ao relevante headroom (~0.85) para o boost discriminar: distractor 0.85, relevante `min(0.85+boost, 1.0)`. Sem isso o benchmark não mede nada.
 2. **numLinked variável:** tópicos onde a relevante casa 1, 2, 3 entidades da query — incluindo o caso comum `numLinked=1` (subsume EC-2).
-3. **Varredura de `c`:** medir precision@k para `c ∈ {0.25, 0.5, 1}` da curva `W·n/(n+c)`; escolher o de maior precisão (default ~0.25).
+3. **Escolha de `c`:** `c=0.25` fixo, pelo critério de magnitude `n=1` (0.40). A precisão é c-invariante neste corpus (qualquer `c>0` → precision 1.0), então o benchmark confirma não-regressão em 0.25, não elege `c` por precisão (F-tests-1 reconciliado no `/review`).
 
 Mede `monotonic_violations`, `recall_set_churn_sensitive` (threshold 0.8), e precision@k novo-vs-antigo.
 
@@ -377,7 +377,7 @@ O caminho de produção do boost já tem o timeout e a degradação observável 
 
 | Risco | Por que é real | Mitigação / posição |
 |---|---|---|
-| A nova curva enfraquece o caso comum (`numLinked=1`) | `W·n/(n+c)` dá `W/(1+c)` em n=1 (c=1→0.25, c=0.25→0.40) vs 0.50 hoje; a maioria casa 1 entidade | A curva é parametrizada por `c`; o benchmark de T3.1 varre `c ∈ {0.25,0.5,1}` e escolhe o de maior precisão. O Goal exige não-regressão. |
+| A nova curva enfraquece o caso comum (`numLinked=1`) | `W·n/(n+c)` dá `W/(1+c)` em n=1 (c=1→0.25, c=0.25→0.40) vs 0.50 hoje; a maioria casa 1 entidade | `c=0.25` escolhido pela magnitude n=1 (0.40, mais próximo de 0.50). O benchmark de T3.1 confirma precision não-regredida (1.0) em 0.25; precision é c-invariante aqui, então a magnitude é o critério. O Goal exige não-regressão — atingido. |
 | **Corpus saturado torna o fix intestável (SEPA CRITICAL)** | No corpus M15 todo cosine=1.0; sob numerador-only distractor e relevante empatam no clamp 1.0 → benchmark vacuamente verde | PRECONDIÇÃO absorvida em T2.1/T3.1: fixture e corpus DEVEM ter headroom semântico (~0.85), não 1.0. Sem isso o boost é inerte e o teste não mede nada. |
 | Numerador-only satura o topo | Vários candidatos grudam em 1.0 e perdem discriminação | ADR D2 deixa a escolha para o benchmark; se saturar, a forma headroom é a alternativa medida. |
 | Mexer em `scoring.ts` afeta todo recall | É o caminho mais crítico do produto | Superfície mínima (um caller cada), suíte de contrato + integração + `/review` com agente de domínio. O M15-D1 evitou justamente isso; agora há o número que justifica. |
