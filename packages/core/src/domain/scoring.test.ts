@@ -47,18 +47,27 @@ describe('sigmoidBm25', () => {
   });
 });
 
-describe('entityBoost', () => {
-  test('zero links returns zero', () => {
+describe('entityBoost (non-decreasing + saturating — #125)', () => {
+  test('zero links returns exactly zero', () => {
+    // Preserved invariant: an unlinked candidate contributes nothing (exact 0, not epsilon).
     expect(entityBoost(0)).toBe(0);
   });
 
-  test('one link returns ENTITY_BOOST_WEIGHT (no attenuation when numLinked=1)', () => {
-    expect(entityBoost(1)).toBeCloseTo(ENTITY_BOOST_WEIGHT, 3);
+  test('is non-decreasing in numLinked (#125 regression)', () => {
+    // The M15 semantics feed numLinked the query<->memory intersection count: more matched
+    // entities MUST mean at least as much boost. The old curve W/(1+0.001*(n-1)^2) DECREASED.
+    for (let n = 1; n <= 25; n += 1) {
+      expect(entityBoost(n + 1)).toBeGreaterThanOrEqual(entityBoost(n));
+    }
   });
 
-  test('attenuates as numLinked grows beyond 1', () => {
-    expect(entityBoost(10)).toBeLessThan(entityBoost(2));
-    expect(entityBoost(2)).toBeLessThan(entityBoost(1));
+  test('more matched entities never scores less (#125 concrete case)', () => {
+    expect(entityBoost(3)).toBeGreaterThan(entityBoost(1));
+  });
+
+  test('saturates at ENTITY_BOOST_WEIGHT (ceiling preserved, no domination)', () => {
+    expect(entityBoost(10000)).toBeLessThanOrEqual(ENTITY_BOOST_WEIGHT);
+    expect(entityBoost(10000)).toBeGreaterThan(ENTITY_BOOST_WEIGHT * 0.9);
   });
 });
 
