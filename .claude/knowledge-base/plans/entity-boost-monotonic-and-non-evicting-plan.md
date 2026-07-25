@@ -100,9 +100,9 @@ A superfície é pequena e inteiramente dentro do domínio — nenhum consumidor
 
 ### D1 — `entityBoost` passa a ser não-decrescente e saturante, não penalizado por espalhamento
 
-**Decisão:** substituir `ENTITY_BOOST_WEIGHT * 1/(1 + 0.001·(n-1)²)` (decrescente) por uma forma **não-decrescente que satura em `ENTITY_BOOST_WEIGHT`** — casar mais entidades da query rende mais impulso, com teto.
+**Decisão:** substituir `ENTITY_BOOST_WEIGHT * 1/(1 + 0.001·(n-1)²)` (decrescente) pela forma **`ENTITY_BOOST_WEIGHT * n/(n+c)`** — não-decrescente, satura em `ENTITY_BOOST_WEIGHT`, com `c` uma constante de módulo. `n=0 → 0` (preserva o zero exato, pois o numerador é `n`); monótona para qualquer `c>0`; `n=1 → W/(1+c)`. O benchmark de T3.1 varre `c ∈ {0.25, 0.5, 1}` e escolhe o de maior precisão; o default tende ao `c` pequeno (~0.25 → n=1 rende 0.40) para preservar a magnitude do caso comum `n=1`.
 
-**Rationale:** a fórmula atual veio de OUTRA semântica de `numLinked` ("quantas entidades a memória tem no total", onde penalizar genéricas faz sentido). O M15 passou a alimentá-la com a INTERSEÇÃO query↔memória, onde mais é melhor. A curva decrescente é o oposto da intenção (`scoring.ts:45`, medido em #125). A forma saturante mantém a proteção contra dominação (teto em `ENTITY_BOOST_WEIGHT`) sem inverter a monotonicidade.
+**Rationale:** a fórmula atual veio de OUTRA semântica de `numLinked` ("quantas entidades a memória tem no total", onde penalizar genéricas faz sentido). O M15 passou a alimentá-la com a INTERSEÇÃO query↔memória, onde mais é melhor. A curva decrescente é o oposto da intenção (`scoring.ts:45`, medido em #125). `W·n/(n+c)` mantém a proteção contra dominação (teto em `ENTITY_BOOST_WEIGHT`) sem inverter a monotonicidade, e o parâmetro `c` deixa o benchmark arbitrar a magnitude do caso comum em vez de fixá-la a priori (SEPA initial brief, 2026-07-24).
 
 **Alternativas rejeitadas:**
 
@@ -112,9 +112,13 @@ A superfície é pequena e inteiramente dentro do domínio — nenhum consumidor
 
 ### D2 — Revisitar ADR-M15-D1: o denominador para de eliminar candidatos
 
-**Decisão:** eliminar o efeito de renormalização do #127. A forma exata (somar entity só ao numerador com clamp; OU manter o denominador mas garantir que o gate rode antes da renormalização) é decidida por benchmark em T2.1, não a priori.
+**Decisão:** eliminar o efeito de renormalização do #127 via **numerador-only**: `maxPossible` deixa de somar `ENTITY_BOOST_WEIGHT` (remove o bloco entity, `scoring.ts:73-75`); `combineScores` fica INALTERADO (já soma `entityBoostScore` ao numerador e faz clamp em 1.0, `scoring.ts:99-100`). Assim o denominador não infla, e um candidato sem vínculo tem score idêntico com/sem o sinal entity ativo para outros. Confirmado contra o código real (SEPA initial brief): `maxPossible` é chamado uma única vez (`pipeline.ts:501`) e o mesmo `maxScore` alimenta os dois passes de filtro (inicial `:511`, adaptive-relax `:325`) consistentemente — não há denominador separado a corrigir.
 
-**Rationale:** o ADR-M15-D1 aceitou o efeito NA CONDIÇÃO de que seria medido. Foi medido: 75 exclusões no threshold 0.8. O número que faltava à decisão original agora existe. Um candidato sem vínculo de entidade não deveria SUMIR só porque o boost ligou para outros — ele não ficou pior, o denominador é que mudou. As alternativas que o M15-D1 rejeitou (numerador-only, headroom) são reavaliadas com o número.
+**PRECONDIÇÃO CRÍTICA (SEPA initial brief):** o corpus de teste (T2.1 unit + T3.1 benchmark) NÃO pode ter semantic saturado em 1.0. No corpus M15 todos os candidatos têm cosine=1.0; sob numerador-only o distractor sem vínculo E o relevante com vínculo AMBOS batem no clamp 1.0 → empate → discriminação perdida (a discriminação do M15 era comprada pela própria renormalização que o #127 remove). O relevante DEVE ter headroom semântico abaixo de 1.0 (distractors ~0.85, relevante ~0.85 mas linkado) para o boost discriminar: distractor 0.85, relevante `min(0.85+0.25, 1.0)` = 1.0. Sem headroom, T3.1 fica VACUAMENTE verde (churn=0 e new≥old triviais no empate). Isso subsume EC-2.
+
+**Rationale:** o ADR-M15-D1 aceitou o efeito NA CONDIÇÃO de que seria medido. Foi medido: 75 exclusões no threshold 0.8. Um candidato sem vínculo de entidade não deveria SUMIR só porque o boost ligou para outros — ele não ficou pior, o denominador é que mudou.
+
+**Alternativa headroom rejeitada:** `base + (1-base)·boost_normalizado` reescreve `combineScores` (precisa de `W`/boost normalizado passado), é mais invasiva, e FALHA identicamente no corpus saturado (base=1.0 → 0 headroom). Numerador-only é a escolha parcimoniosa e a mudança de superfície mínima (uma função).
 
 **Alternativas rejeitadas:**
 
@@ -143,7 +147,7 @@ A superfície é pequena e inteiramente dentro do domínio — nenhum consumidor
 
 RED: test_entity_boost_is_non_decreasing_in_num_linked — para n de 1 a 25, expect(entityBoost(n+1)).toBeGreaterThanOrEqual(entityBoost(n)). Falha contra a fórmula decrescente atual.
 
-RED: test_entity_boost_saturates_at_weight — expect(entityBoost(1000)).toBeLessThanOrEqual(ENTITY_BOOST_WEIGHT) e toBeGreaterThan(ENTITY_BOOST_WEIGHT * 0.9). O teto é preservado.
+RED: test_entity_boost_saturates_at_weight — expect(entityBoost(10000)).toBeLessThanOrEqual(ENTITY_BOOST_WEIGHT) e toBeGreaterThan(ENTITY_BOOST_WEIGHT * 0.9). O teto de `W·n/(n+c)` é preservado (n grande → W).
 
 RED: test_more_matched_entities_never_scores_less — expect(entityBoost(3)).toBeGreaterThan(entityBoost(1)). O caso concreto do #125.
 
@@ -208,19 +212,21 @@ RED: test_step_signature_unchanged — `entityBoost` continua sendo `(numLinked:
 
 #### Deep file dependency analysis
 
-`maxPossible` (`scoring.ts:66`) soma `ENTITY_BOOST_WEIGHT` quando entity liga; `combineScores` divide por ele. `pipeline.ts:501` chama `maxPossible`, `pipeline.ts:205` chama `combineScores`. A forma escolhida (numerador-only OU headroom, per ADR D2) muda uma dessas duas funções; o benchmark de T3.1 arbitra qual.
+`maxPossible` (`scoring.ts:66`) soma `ENTITY_BOOST_WEIGHT` quando entity liga; `combineScores` divide por ele. Numerador-only (ADR D2): remover o bloco entity de `maxPossible` (`scoring.ts:73-75`); `combineScores` fica inalterado. Isso também invalida os testes unitários de `maxPossible` (`scoring.test.ts:74-80`, "semantic+entity→1.5", "all three→2.5") e o JSDoc (`scoring.ts:62`, set {0,1.0,1.5,2.0,2.5}) — ambos DEVEM ser atualizados nesta task, não deixados mortos.
 
 #### Why this step
 
-**Ação:** implementar a forma que não elimina candidato, com teste unitário provando que um candidato sem vínculo mantém o mesmo score normalizado com e sem o boost ligado para OUTROS. **Raciocínio:** é o núcleo do #127; a escolha entre as duas formas (ADR D2) é decidida pelo churn medido, não a priori.
+**Ação:** implementar o numerador-only, com teste unitário provando que um candidato sem vínculo mantém o mesmo score normalizado com e sem o boost ligado para OUTROS, usando fixture com headroom semântico (semantic < 1.0). **Raciocínio:** é o núcleo do #127; a precondição de headroom (SEPA CRITICAL) evita que o teste fique vacuamente verde no clamp.
 
 #### TDD
 
-RED: test_unlinked_candidate_score_unchanged_when_boost_active_for_others — dado um candidato com semantic=1.0 e boost=0, seu score normalizado com o sinal entity ativo (para outros) é IGUAL ao score sem o sinal entity. Falha contra a renormalização atual (0.667 vs 1.0).
+RED: test_unlinked_candidate_score_unchanged_when_boost_active_for_others — candidato com semantic=0.85 e boost=0. Seu score com o denominador numerador-only (maxPossible = semantic+bm25, SEM entity) é IGUAL com e sem o sinal entity ativo para OUTROS. Falha contra a renormalização atual (0.85/1.0=0.85 vs 0.85/1.5=0.567).
 
-RED: test_linked_candidate_still_ranks_above — o candidato COM boost continua acima do sem (a correção do #127 não pode desfazer o ganho do M15).
+RED: test_linked_candidate_ranks_above_unlinked_with_headroom — dois candidatos com semantic=0.85; o linkado (boost 0.25) fica ACIMA do não-linkado. `min(0.85+0.25,1.0)=1.0 > 0.85`. Prova que numerador-only discrimina COM headroom (não empata no clamp).
 
-RED: test_combined_score_never_exceeds_one — clamp preservado.
+RED: test_maxPossible_excludes_entity_term — `maxPossible({semantic:true, bm25:true, entity:true})` retorna 2.0 (não 2.5); `maxPossible({semantic:true, entity:true})` retorna 1.0 (não 1.5). Substitui os testes antigos que assertavam 2.5/1.5.
+
+RED: test_combined_score_never_exceeds_one — clamp preservado (semantic=1.0+bm25=1.0+boost, /2.0, clampa em 1.0).
 
 #### Concurrency tests
 
@@ -232,8 +238,9 @@ RED: test_combined_score_never_exceeds_one — clamp preservado.
 
 #### Acceptance criteria
 
-- `npm test -- scoring` exit 0 com os 3 REDs.
-- O candidato sem vínculo tem score idêntico com/sem o sinal entity ativo para outros.
+- `npm test -- scoring` exit 0 com os 4 REDs.
+- O candidato sem vínculo tem score idêntico com/sem o sinal entity ativo para outros (fixture com headroom, semantic < 1.0).
+- Os testes antigos de `maxPossible` (2.5/1.5) foram SUBSTITUÍDOS por 2.0/1.0, não deixados mortos; o JSDoc foi atualizado.
 
 #### DoD
 
@@ -283,7 +290,13 @@ Ver `## Failure scenarios`.
 
 #### Deep file dependency analysis
 
-O corpus atual liga cada relevante a UMA entidade (`link(relevant, ...)` uma vez, linha 143). O #125 só aparece com `numLinked` variável. Adiciona tópicos onde a relevante casa 1, 2, 3 entidades da query, e mede `monotonic_violations`, `recall_set_churn_sensitive`, e precision@k novo-vs-antigo. O corpus DEVE conter tópicos onde o relevante casa EXATAMENTE 1 entidade — o caso comum, e onde a nova curva mais diverge da antiga (0.25 vs 0.50); sem esse caso, o teste de não-regressão de precisão não exercita o risco real da nova curva (EC-2 do edge-case review).
+O corpus atual liga cada relevante a UMA entidade (`link(relevant, ...)` uma vez, linha 143) E fixa todos os candidatos em cosine=1.0 (distractors compartilham o vetor hot-dim do relevante). O #125 só aparece com `numLinked` variável; e o #127 só é TESTÁVEL com headroom semântico. Mudanças:
+
+1. **Headroom semântico (PRECONDIÇÃO CRÍTICA, SEPA):** os candidatos NÃO podem ter cosine=1.0. Sob numerador-only, distractor sem vínculo e relevante com vínculo ambos batem no clamp 1.0 → empate → o benchmark fica vacuamente verde. Dar ao relevante headroom (~0.85) para o boost discriminar: distractor 0.85, relevante `min(0.85+boost, 1.0)`. Sem isso o benchmark não mede nada.
+2. **numLinked variável:** tópicos onde a relevante casa 1, 2, 3 entidades da query — incluindo o caso comum `numLinked=1` (subsume EC-2).
+3. **Varredura de `c`:** medir precision@k para `c ∈ {0.25, 0.5, 1}` da curva `W·n/(n+c)`; escolher o de maior precisão (default ~0.25).
+
+Mede `monotonic_violations`, `recall_set_churn_sensitive` (threshold 0.8), e precision@k novo-vs-antigo.
 
 #### Why this step
 
@@ -356,7 +369,8 @@ O caminho de produção do boost já tem o timeout e a degradação observável 
 
 | Risco | Por que é real | Mitigação / posição |
 |---|---|---|
-| A nova curva enfraquece o caso comum (`numLinked=1`) | `W·(1-1/(1+n))` dá 0.25 em n=1 vs 0.50 hoje; a maioria casa 1 entidade | O benchmark de T3.1 mede precision@k novo-vs-antigo; se regredir, a constante da forma é ajustada até não regredir. O Goal exige não-regressão. |
+| A nova curva enfraquece o caso comum (`numLinked=1`) | `W·n/(n+c)` dá `W/(1+c)` em n=1 (c=1→0.25, c=0.25→0.40) vs 0.50 hoje; a maioria casa 1 entidade | A curva é parametrizada por `c`; o benchmark de T3.1 varre `c ∈ {0.25,0.5,1}` e escolhe o de maior precisão. O Goal exige não-regressão. |
+| **Corpus saturado torna o fix intestável (SEPA CRITICAL)** | No corpus M15 todo cosine=1.0; sob numerador-only distractor e relevante empatam no clamp 1.0 → benchmark vacuamente verde | PRECONDIÇÃO absorvida em T2.1/T3.1: fixture e corpus DEVEM ter headroom semântico (~0.85), não 1.0. Sem isso o boost é inerte e o teste não mede nada. |
 | Numerador-only satura o topo | Vários candidatos grudam em 1.0 e perdem discriminação | ADR D2 deixa a escolha para o benchmark; se saturar, a forma headroom é a alternativa medida. |
 | Mexer em `scoring.ts` afeta todo recall | É o caminho mais crítico do produto | Superfície mínima (um caller cada), suíte de contrato + integração + `/review` com agente de domínio. O M15-D1 evitou justamente isso; agora há o número que justifica. |
 | O corpus do benchmark pode não representar produção | `numLinked` real pode ser quase sempre 1 | Honestidade: o benchmark isola o comportamento sob `numLinked` variável; o documento registra que é medição de propriedade, não de distribuição de produção. |
