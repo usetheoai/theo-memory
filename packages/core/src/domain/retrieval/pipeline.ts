@@ -190,7 +190,7 @@ export async function runRetrievalPipeline(
   // near-duplicates (older → `superseded_recency` drop); mutually exclusive w/ reranks.
   if (options?.recencyCollapse !== undefined) {
     scored = await applyRecencyCollapseStage(
-      scored, candidates, deps.embedder, options.recencyCollapse, topK, threshold, recallDrops,
+      scored, candidates, deps.embedder, options.recencyCollapse, topK, threshold, recallDrops, tracer,
     );
   }
 

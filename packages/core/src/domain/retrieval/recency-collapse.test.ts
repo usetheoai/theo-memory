@@ -18,7 +18,7 @@ import type { VectorStore, VectorStoreResult } from '../dip/vector-store.js';
 import { RerankerConflict } from '../errors.js';
 import type { Filters } from '../scope.js';
 
-import { collapseByRecency } from './recency-collapse.js';
+import { collapseByRecency, type RecencyCollapseCandidate } from './recency-collapse.js';
 import type { DroppedCandidate } from './stages/threshold-filter.js';
 import type { RecallTraceStore, RecallTraceBatch } from '../dip/recall-trace-store.js';
 import { runRetrievalPipeline } from './pipeline.js';
@@ -111,52 +111,64 @@ describe('collapseByRecency — T1.2 pure stage', () => {
   const NEAR_A = [1, 0, 0.0001] as const;
   const NEAR_B = [1, 0, -0.0001] as const;
   const ORTHO = [0, 1, 0] as const;
+  // Shared helper — all pure-stage cases collapse at the default τ=0.9.
+  const dropped = (cands: readonly RecencyCollapseCandidate[]): readonly string[] =>
+    collapseByRecency(cands, 0.9).droppedIds;
 
   test('test_recency_collapse_keeps_newest_and_drops_older', () => {
     // stale (higher relevance, OLDER) + fresh (lower relevance, NEWER), near-duplicates.
-    const { droppedIds } = collapseByRecency(
-      [
+    // The OLDER row is dropped regardless of its higher relevance (most-recent-wins).
+    expect(
+      dropped([
         { id: 'stale', score: 0.9, embedding: NEAR_A, createdAtMs: 1000 },
         { id: 'fresh', score: 0.7, embedding: NEAR_B, createdAtMs: 5000 },
-      ],
-      0.9,
-    );
-    // The OLDER row is dropped regardless of its higher relevance (most-recent-wins).
-    expect(droppedIds).toEqual(['stale']);
+      ]),
+    ).toEqual(['stale']);
   });
 
   test('non-duplicates are untouched (no collapse below threshold)', () => {
-    const { droppedIds } = collapseByRecency(
-      [
+    expect(
+      dropped([
         { id: 'a', score: 0.9, embedding: NEAR_A, createdAtMs: 1000 },
         { id: 'b', score: 0.7, embedding: ORTHO, createdAtMs: 5000 },
-      ],
-      0.9,
-    );
-    expect(droppedIds).toEqual([]);
+      ]),
+    ).toEqual([]);
   });
 
   test('equal createdAt → deterministic tiebreak (higher score kept)', () => {
-    const { droppedIds } = collapseByRecency(
-      [
+    // Same timestamp → keep the higher-scored 'b', drop 'a'.
+    expect(
+      dropped([
         { id: 'a', score: 0.5, embedding: NEAR_A, createdAtMs: 1000 },
         { id: 'b', score: 0.9, embedding: NEAR_B, createdAtMs: 1000 },
-      ],
-      0.9,
-    );
-    // Same timestamp → keep the higher-scored 'b', drop 'a'.
-    expect(droppedIds).toEqual(['a']);
+      ]),
+    ).toEqual(['a']);
   });
 
   test('equal createdAt AND equal score → lower id kept (deterministic)', () => {
-    const { droppedIds } = collapseByRecency(
-      [
+    expect(
+      dropped([
         { id: 'a', score: 0.5, embedding: NEAR_A, createdAtMs: 1000 },
         { id: 'b', score: 0.5, embedding: NEAR_B, createdAtMs: 1000 },
-      ],
-      0.9,
-    );
-    expect(droppedIds).toEqual(['b']);
+      ]),
+    ).toEqual(['b']);
+  });
+
+  test('F-1: stable-seed clustering does not transitively drop a non-duplicate (A~B, B~C, A≁C)', () => {
+    // A·B = cos25° ≈ 0.906 ≥ τ; B·C = cos25° ≈ 0.906 ≥ τ; A·C = cos50° ≈ 0.643 < τ.
+    // A mutable-representative walk would drop BOTH a and b (survivor drifts to c);
+    // stable-seed keeps {a,b} in one cluster (survivor b) and c in its own — so c,
+    // which is NOT a near-duplicate of the seed a, is NEVER dropped.
+    const A = [1, 0, 0] as const;
+    const B = [0.9063, 0.4226, 0] as const;
+    const C = [0.6428, 0.766, 0] as const;
+    expect(
+      dropped([
+        { id: 'a', score: 0.9, embedding: A, createdAtMs: 1000 },
+        { id: 'b', score: 0.8, embedding: B, createdAtMs: 2000 },
+        { id: 'c', score: 0.7, embedding: C, createdAtMs: 3000 },
+      ]),
+    ).toEqual(['a']);
   });
 });
 
@@ -195,6 +207,7 @@ describe('recency-collapse — T1.2 pipeline wiring', () => {
   test.each([
     ['diversify', { diversify: { lambda: 0.5 } }],
     ['rerank', { rerank: {} }],
+    ['scopes', { scopes: {} }],
   ])('recencyCollapse + %s → RerankerConflict (fail-fast, mutual exclusion)', async (_label, extra) => {
     const deps = collapseDeps(makeStore([{ id: 'a', text: 'stale', semanticScore: 0.9 }]));
     await expect(

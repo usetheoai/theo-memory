@@ -235,8 +235,11 @@ export interface RecallOptions {
    *
    * DEFAULT OFF: omit ⇒ recall is byte-identical to today (opt-in per ADR D1).
    *
-   * MUTUALLY EXCLUSIVE with `rerank` / `diversify` / `scopes` — all four occupy the
-   * same post-threshold seam; setting more than one throws `RerankerConflict`.
+   * MUTUALLY EXCLUSIVE with `rerank` / `diversify` / `scopes` — all four re-order
+   * the SAME post-threshold pool; setting more than one throws `RerankerConflict`.
+   * It COMPOSES (by pipeline order, no conflict) with `graphExpand` and `adaptive`,
+   * which change the pool's MEMBERSHIP (add / re-filter candidates) rather than its
+   * ordering — the collapse then prunes near-duplicates from whatever pool results.
    * Setting `recencyCollapse` also BYPASSES the recall cache (ADR D3) — it
    * re-orders the pool, so a cached plain result would poison a collapse request.
    *

@@ -75,7 +75,7 @@ call, plus a strengthened answerer abstention rule. Unit-tested keyless
 
 ## Gates (this env)
 
-- Core contract suite: `npm test` → **1373 passed, 3 skipped, 0 type errors**
+- Core contract suite: `npm test` → **1374 passed, 3 skipped, 0 type errors**
   (+8 over the 1365 baseline; the byte-identical-OFF guard stays green).
 - Eval suite: `pnpm --filter @usetheo/memory-eval test` → **26 passed, 1 skipped**
   (+4 over the 22 baseline: knowledge-update ×2, coverage-gate ×2).
