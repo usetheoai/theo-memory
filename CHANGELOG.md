@@ -5,14 +5,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- **M24 (#146): consolidação bounded per-anchor — supersede a mesmo escala > clusterCap (o fix real do #144, onde o M23 abstinha).** O `reflect({ conflictResolution })` agora agrupa os candidatos em clusters disjuntos de ≤ `DEFAULT_CLUSTER_CAP` (20) via a função pura `clusterByProximity` (greedy nearest-neighbor por cosseno, determinística) antes de julgar cada cluster. Numa conversa real (> 20 linhas `extracted`) o par de contradição chega ao juiz num sub-cluster ≤ cap, em vez de o escopo inteiro virar um único cluster que o `LlmJudgedMerge` abstém. Promoção M9 (session→global) continua whole-scope; store sem embeddings degrada para whole-scope (backward-compatible). Provado keyless contra `ankane/pgvector:v0.5.1`: 27 linhas (> cap) → a linha velha `27:12` recebe `t_invalid`, o recall passa a devolver `25:50`, guarda de precisão (mesmo-entidade/atributo-diferente) intacta. O bench real com LLM (T5) é medido separadamente pelo owner. (M24, #146)
+- **Evento tipado `reflection_draft_quarantined` (#145) — Princípio 3.** Emitido (+ counter `theo.memory.reflection.draft_quarantined`) quando um draft de reflect com `derivedFrom` inválido/alucinado é posto em quarentena em vez de abortar o reflect inteiro.
 
 ### Changed
+- **`PgvectorStore.recallConsolidationCandidates` agora projeta o `embedding`** (parseado do literal `[a,b,c]` do pgvector via novo `parseVectorLiteral`) para alimentar o clustering bounded do M24. Campo opcional e backward-compatible. (M24, #146)
 
 ### Deprecated
 
 ### Removed
 
 ### Fixed
+- **#145: um único draft de reflect com provenance inválida não aborta mais o reflect inteiro.** O antigo `validateProvenance` lançava `ReflectionProvenanceMissingError` no PRIMEIRO draft ruim, descartando todos os drafts bons (o bench M23 bateu nisto 2x). Agora a validação é por-draft: o draft inválido é pulado (evento + counter), os válidos persistem; se TODOS forem inválidos, retorna `no-consolidation` sem lançar (Rule 8 recuperável). (M24, #145)
 
 ### Security
 
