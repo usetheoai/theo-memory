@@ -688,7 +688,12 @@ milestone needs line-level study.
 
 ---
 
-## M23 — [ ] Knowledge-update supersession que move o caso real (#144, follow-up de #141)
+## M23 — [x] Knowledge-update supersession que move o caso real (#144, follow-up de #141)
+
+> **Delivered in v0.49.0** — the goal (move `6a1eabeb` from stale `27:12` to fresh `25:50`) is
+> achieved. M23's own read-time approach (v0.48.2) was an honest negative; the working fix landed
+> via M24 bounded consolidation + the #149 conservative-consolidation prompt. Measured with real
+> gpt-4o-mini: `6a1eabeb` answers `25:50`, knowledge-update 2/2 (`docs/benchmarks/m24d-149-*.md`).
 
 > Added 2026-07-25. Tracked: theo-memory#144. Blueprint: `.claude/knowledge-base/discoveries/blueprints/knowledge-update-supersession-blueprint.md`.
 
