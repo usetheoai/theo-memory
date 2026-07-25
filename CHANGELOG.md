@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- **Benchmark: M22 e2e-qa re-run (REDACTED-LongMemEval) = 11/12 (91.7%) vs 75% baseline**, with recencyCollapse + coverage-gate ON. Honest attribution (`docs/benchmarks/m22-e2e-qa-longmemeval.md`): the genuine code-attributable gain is ~1 example (#140 coverage-gate abstention); one flip is likely LLM-judge variance; **#141 recencyCollapse did NOT fix the real knowledge-update case** (differently-worded same-fact values are not cosine-near at τ=0.9) → follow-up #144. N=12, illustrative.
 
 ### Changed
 - **e2e-qa benchmark harness now enables `recencyCollapse` on recall** so the REDACTED-LongMemEval counter-proof exercises the shipped M22 #141 capability (was recall-default, which left the collapse invisible end-to-end). Measures TheMemory with the recommended config for knowledge-update scenarios. (M22, #141)
