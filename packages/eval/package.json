@@ -1,0 +1,22 @@
+{
+  "name": "@usetheo/memory-eval",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Private per-stage LLM eval harness for @usetheo/memory (extraction + consolidation) with a versioned baseline + regression gate. Never published.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "scripts": {
+    "test": "vitest run --config vitest.config.ts",
+    "eval": "tsx src/run.ts"
+  },
+  "dependencies": {
+    "@usetheo/memory": "workspace:*",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "natural": "^8.1.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.4.0",
+    "vitest": "^4.0.0"
+  }
+}

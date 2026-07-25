@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.contract.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "noEmit": true,
+    "paths": {
+      "@usetheo/memory": ["../core/src/index.ts"],
+      "@usetheo/memory/llms": ["../core/src/infrastructure/llms/index.ts"],
+      "@usetheo/memory/llms/openai": ["../core/src/infrastructure/llms/openai.ts"]
+    }
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}
