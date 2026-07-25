@@ -23,7 +23,7 @@ import { emitEvent } from '../../domain/memory-event.js';
 import type { Filters } from '../../domain/scope.js';
 
 import { PgvectorSkillStore } from './pgvector-skill-store.js';
-import { vectorLiteral } from './pgvector-vector-literal.js';
+import { parseVectorLiteral, vectorLiteral } from './pgvector-vector-literal.js';
 import type {
   InsertDerivedSkillArgs,
   InsertSkillArgs,
@@ -1160,7 +1160,15 @@ export class PgvectorStore implements VectorStore {
    */
   async recallConsolidationCandidates(
     filters: Filters,
-  ): Promise<readonly { memoryId: string; text: string; createdAt: Date; confirmationCount?: number }[]> {
+  ): Promise<
+    readonly {
+      memoryId: string;
+      text: string;
+      createdAt: Date;
+      confirmationCount?: number;
+      embedding?: readonly number[];
+    }[]
+  > {
     // /review v0-7 F-C2: filter `kind = 'extracted'` to preserve the
     // episodic→semantic boundary. Without this guard, v0.6 procedural
     // skill rows (kind='skill') AND already-consolidated rows (kind='derived')
@@ -1207,9 +1215,12 @@ export class PgvectorStore implements VectorStore {
       text: string;
       created_at: Date;
       confirmation_count: number;
+      embedding: string;
     }>(
       // M9: confirmation_count is the durability signal the SessionToGlobalConsolidationPolicy reads.
-      `SELECT id, text, created_at, confirmation_count FROM memories WHERE ${where.join(' AND ')}`,
+      // M24 T1.1: project embedding so the bounded `clusterByProximity` domain fn can group
+      // candidates by cosine (pgvector returns the vector type as a `[a,b,c]` text literal).
+      `SELECT id, text, created_at, confirmation_count, embedding FROM memories WHERE ${where.join(' AND ')}`,
       params,
     );
     return rows.map((r) => ({
@@ -1217,6 +1228,7 @@ export class PgvectorStore implements VectorStore {
       text: r.text,
       createdAt: r.created_at,
       confirmationCount: r.confirmation_count,
+      embedding: parseVectorLiteral(r.embedding),
     }));
   }
 

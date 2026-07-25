@@ -16,6 +16,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Security
 
+## [0.49.0] - 2026-07-25
+
+### Added
+- **M24 (#146): consolidação bounded per-anchor — supersede a mesmo escala > clusterCap (o fix real do #144, onde o M23 abstinha).** O `reflect({ conflictResolution })` agora agrupa os candidatos em clusters disjuntos de ≤ `DEFAULT_CLUSTER_CAP` (20) via a função pura `clusterByProximity` (greedy nearest-neighbor por cosseno, determinística) antes de julgar cada cluster. Numa conversa real (> 20 linhas `extracted`) o par de contradição chega ao juiz num sub-cluster ≤ cap, em vez de o escopo inteiro virar um único cluster que o `LlmJudgedMerge` abstém. Promoção M9 (session→global) continua whole-scope; store sem embeddings degrada para whole-scope (backward-compatible). Provado keyless contra `ankane/pgvector:v0.5.1`: 27 linhas (> cap) → a linha velha `27:12` recebe `t_invalid`, o recall para de surfar o stale, guarda de precisão (mesmo-entidade/atributo-diferente) intacta. **Bench real-LLM (2026-07-25, `docs/benchmarks/m24d-149-conservative-consolidation.md`): #144/#146 RESOLVIDOS end-to-end** junto com #148 (guard honesto) + #149 (prompt conservador). `6a1eabeb` agora responde o valor FRESCO (`"Your personal best time in the charity 5K run is 25:50."`), knowledge-update 2/2. Com reflect ON, o bench honesto (guard #148) subiu de 25% (tudo abstinha — a regressão do #149) para 66.7% (8/12). O canonical-merge planejado foi desnecessário: a consolidação conservadora + a síntese do answer LLM bastaram (KISS). (M24, #144, #146)
+- **Evento tipado `reflection_draft_quarantined` (#145) — Princípio 3.** Emitido (+ counter `theo.memory.reflection.draft_quarantined`) quando um draft de reflect com `derivedFrom` inválido/alucinado é posto em quarentena em vez de abortar o reflect inteiro.
+
+### Changed
+- **`PgvectorStore.recallConsolidationCandidates` agora projeta o `embedding`** (parseado do literal `[a,b,c]` do pgvector via novo `parseVectorLiteral`) para alimentar o clustering bounded do M24. Campo opcional e backward-compatible. (M24, #146)
+
+### Deprecated
+
+### Removed
+
+### Fixed
+- **#149: a consolidação (LlmJudgedMerge) não descarta mais fatos DISTINTOS.** O prompt do juiz dizia "Pick ONE fact to keep ... and reject the rest" (winner-take-all), assumindo que o cluster era do mesmo assunto. Como o `clusterByProximity` (M24) agrupa por proximidade (fatos distintos juntos), o juiz setava `t_invalid` em fatos distintos e o recall os perdia — end-to-end, com reflect ON, o harness passou a abster em TODAS as perguntas substantivas (recall max-score < τ). Prova keyless (diag-149): superseder o fato-resposta o remove do recall; superseder um par não-relacionado é inócuo. O prompt agora é conservador: clusters MISTURAM fatos distintos; `rejected_ids` contém APENAS stale-duplicates genuínos do MESMO atributo/assunto de `kept_id`; fatos distintos são mantidos. (#149)
+- **#148: o bench e2e-qa não marca mais uma abstenção como correta numa pergunta não-abstenção.** Guarda determinística `abstentionIsMiss` (pura, testada) faz short-circuit ANTES do LLM-judge: responder "I don't have that information" numa pergunta que exige resposta concreta é miss por definição. Fecha o falso-positivo que inflava o `6a1eabeb` e tornava o bench incapaz de validar fixes de knowledge-update. (#148)
+- **#145: um único draft de reflect com provenance inválida não aborta mais o reflect inteiro.** O antigo `validateProvenance` lançava `ReflectionProvenanceMissingError` no PRIMEIRO draft ruim, descartando todos os drafts bons (o bench M23 bateu nisto 2x). Agora a validação é por-draft: o draft inválido é pulado (evento + counter), os válidos persistem; se TODOS forem inválidos, retorna `no-consolidation` sem lançar (Rule 8 recuperável). (M24, #145)
+
+### Security
+
 ## [0.48.2] - 2026-07-25
 
 ### Added

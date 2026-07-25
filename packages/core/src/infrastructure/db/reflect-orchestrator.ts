@@ -11,21 +11,27 @@
  * module.
  *
  */
+import { DEFAULT_CLUSTER_CAP } from '../../domain/conflict-resolution/llm-judged-merge.js';
 import { SESSION_TO_GLOBAL_KIND } from '../../domain/consolidation/session-to-global-policy.js';
-import type { ConflictResolutionResult } from '../../domain/dip/conflict-resolution-policy.js';
 import type { RecallCacheStore } from '../../domain/dip/recall-cache-store.js';
 import type { ReflectionPolicy } from '../../domain/dip/reflection-policy.js';
-import { recordRoutingDecision, type RoutingAuditStore } from '../../domain/dip/routing-audit-store.js';
+import type { RoutingAuditStore } from '../../domain/dip/routing-audit-store.js';
 import { ReflectionNotConfigured } from '../../domain/errors.js';
-import { emitEvent } from '../../domain/memory-event.js';
 import type { MemoryItem } from '../../domain/memory-item.js';
 import type { ReflectOptions } from '../../domain/options.js';
 import { executeReflection } from '../../domain/reflection/execute.js';
-import { validateProvenance } from '../../domain/reflection/provenance.js';
 import type { ReflectionResult } from '../../domain/reflection-result.js';
 import type { Filters, Scope } from '../../domain/scope.js';
 
 import type { LocalMemoryConfig } from './config.js';
+import {
+  runConsolidationPhase,
+  type VectorStoreWithConsolidation,
+} from './reflect-consolidation.js';
+import {
+  persistDraftsWithQuarantine,
+  type VectorStoreWithDerivedInsert,
+} from './reflect-drafts.js';
 
 /**
  * Map a Scope onto the (userId, sessionId, agentId) column tuple persisted by
@@ -51,29 +57,27 @@ export function scopeToCounterTuple(scope: Scope): {
   }
 }
 
-interface VectorStoreWithDerivedInsert {
-  insertDerivedMemory(args: {
-    text: string;
-    hash: string;
-    embedding: readonly number[];
-    derivedFrom: readonly string[];
-    scope: {
-      workspaceId?: string | null;
-      userId?: string | null;
-      sessionId?: string | null;
-      agentId?: string | null;
-    };
-  }): Promise<string>;
-}
-
-interface VectorStoreWithConsolidation {
-  recallConsolidationCandidates?: (
-    filters: Filters,
-  ) => Promise<readonly { memoryId: string; text: string; createdAt: Date; confirmationCount?: number }[]>;
-  persistConsolidations?: (
-    results: readonly ConflictResolutionResult[],
-    options?: { readonly promote?: boolean },
-  ) => Promise<number>;
+/**
+ * Build + fire-and-return a zero-derivation reflection result. Shared by the
+ * three early-exit paths (empty source scope, LLM produced no drafts, every
+ * draft quarantined) so the `onReflectionEnd` hook + result shape live once.
+ */
+async function finishEmptyReflection(
+  reflectionPolicy: ReflectionPolicy,
+  scope: Scope,
+  sourceIds: readonly string[],
+  reason: 'no-source-memories' | 'no-consolidation',
+): Promise<ReflectionResult> {
+  const result: ReflectionResult = {
+    higherOrderMemories: [],
+    sourceIds,
+    derivedMemoriesCreated: 0,
+    reason,
+  };
+  if (reflectionPolicy.onReflectionEnd !== undefined) {
+    await reflectionPolicy.onReflectionEnd(scope, result);
+  }
+  return result;
 }
 
 /**
@@ -122,16 +126,7 @@ export async function runReflection(
 
   // EC-5: empty-source short-circuit
   if (sourceMemories.length === 0) {
-    const result: ReflectionResult = {
-      higherOrderMemories: [],
-      sourceIds: [],
-      derivedMemoriesCreated: 0,
-      reason: 'no-source-memories',
-    };
-    if (reflectionPolicy.onReflectionEnd !== undefined) {
-      await reflectionPolicy.onReflectionEnd(scope, result);
-    }
-    return result;
+    return finishEmptyReflection(reflectionPolicy, scope, [], 'no-source-memories');
   }
 
   // Run policy hook
@@ -158,60 +153,22 @@ export async function runReflection(
       conflictPolicy?.kind === SESSION_TO_GLOBAL_KIND && scope.kind === 'session';
     const minSources = isM9Promotion ? 1 : 2;
     if (conflictPolicy !== undefined && sourceMemories.length >= minSources) {
-      const storeWithConsolidate = config.vectorStore as unknown as VectorStoreWithConsolidation;
-      if (
-        typeof storeWithConsolidate.recallConsolidationCandidates !== 'function' ||
-        typeof storeWithConsolidate.persistConsolidations !== 'function'
-      ) {
-        throw new Error(
-          'reflect: conflictResolution requires a vector store with ' +
-            'recallConsolidationCandidates() + persistConsolidations() — ' +
-            'use PgvectorStore from @usetheo/memory/local.',
-        );
-      }
-      const candidates = await storeWithConsolidate.recallConsolidationCandidates(
+      // M24 (#146): bounded per-anchor consolidation. `runConsolidationPhase`
+      // recalls the candidates, splits them into clusters of <= DEFAULT_CLUSTER_CAP
+      // (so the LLM judge never abstains at scale — the M23 wall), judges each,
+      // persists supersessions, and audits an M9 promotion.
+      await runConsolidationPhase({
+        store: config.vectorStore as unknown as VectorStoreWithConsolidation,
+        conflictPolicy,
         filters,
-      );
-      const consolidationResults = await conflictPolicy.consolidate(
-        candidates,
-        { scope, observationDate: new Date() },
-      );
-      if (consolidationResults.length > 0) {
-        // M9 (T3.1): the SessionToGlobalConsolidationPolicy on a session scope PROMOTES the
-        // durable representative to global (session_id→NULL). Any other policy (v0.7
-        // distillation) keeps the kept row in place. Never crosses (workspace, user) (the
-        // store's candidate scoping guards that).
-        const promotedCount = await storeWithConsolidate.persistConsolidations(
-          consolidationResults,
-          isM9Promotion ? { promote: true } : undefined,
-        );
-        // pillar (c) — observe only ACTUAL promotions (F-arch-3: persistConsolidations returns
-        // the rows truly flipped, so an idempotent re-run reports 0, never over-counts).
-        if (isM9Promotion && promotedCount > 0) {
-          emitEvent(config.tracer, 'consolidation_promoted', {
-            scope_tier: scope.kind,
-            promoted_count: promotedCount,
-          });
-          // M11 F-tests-1 — audit the PROMOTION decision (session→global). Best-effort/fail-soft
-          // (Rule 8): a failed audit never fails the promotion. Keyed by the same (workspace, user)
-          // the promoted rows live under, so it is retrievable via the same audit surface as routing.
-          if (deps.routingAuditStore !== undefined) {
-            await recordRoutingDecision(
-              deps.routingAuditStore,
-              {
-                workspaceId: filters.workspace_id ?? 'default',
-                userId: filters.user_id ?? (scope.kind === 'session' ? scope.userId ?? 'system' : 'system'),
-                chosenScope: 'global',
-                attribution: 'agent',
-                decidedBy: 'm9-promotion',
-                why: 'promotion-confirmation-threshold',
-                at: new Date(),
-              },
-              config.tracer,
-            );
-          }
-        }
-      }
+        scope,
+        cap: DEFAULT_CLUSTER_CAP,
+        isM9Promotion,
+        tracer: config.tracer,
+        ...(deps.routingAuditStore !== undefined
+          ? { routingAuditStore: deps.routingAuditStore }
+          : {}),
+      });
     }
 
     // Execute reflection LLM call
@@ -225,22 +182,12 @@ export async function runReflection(
 
     // EC-13: LLM returned empty array (no consolidation)
     if (drafts.length === 0) {
-      const result: ReflectionResult = {
-        higherOrderMemories: [],
-        sourceIds,
-        derivedMemoriesCreated: 0,
-        reason: 'no-consolidation',
-      };
-      if (reflectionPolicy.onReflectionEnd !== undefined) {
-        await reflectionPolicy.onReflectionEnd(scope, result);
-      }
-      return result;
+      return finishEmptyReflection(reflectionPolicy, scope, sourceIds, 'no-consolidation');
     }
 
-    // Provenance validation (throws ReflectionProvenanceMissingError on fail)
-    validateProvenance(drafts, sourceIds);
-
-    // Embed + persist drafts. Store extension provides insertDerivedMemory.
+    // M24 T3.2 (#145): embed + persist drafts, QUARANTINING any provenance-invalid
+    // draft (empty/hallucinated derivedFrom) rather than throwing — one bad row of
+    // many must not abort an otherwise-good reflect (Rule 8 recoverable).
     const storeWithDerived = config.vectorStore as unknown as VectorStoreWithDerivedInsert;
     if (typeof storeWithDerived.insertDerivedMemory !== 'function') {
       throw new Error(
@@ -249,32 +196,20 @@ export async function runReflection(
       );
     }
 
-    const counterTuple = scopeToCounterTuple(scope);
-    const persisted: MemoryItem[] = [];
-    for (const draft of drafts) {
-      const embedding = await config.embedder.embed(draft.text);
-      const hash = `derived-${String(Date.now())}-${String(Math.random()).slice(2, 8)}`;
-      const id = await storeWithDerived.insertDerivedMemory({
-        text: draft.text,
-        hash,
-        embedding,
-        derivedFrom: draft.derivedFrom,
-        // multi-tenant-workspace-isolation /review F-dom-api-2: the reflection-
-        // derived row stays in the SAME workspace as its sources (the bound
-        // workspace flows in via filters.workspace_id), not the 'default' tenant.
-        scope: { ...counterTuple, workspaceId: filters.workspace_id ?? null },
-      });
-      persisted.push({
-        id,
-        text: draft.text,
-        hash,
-        scope,
-        metadata: { kind: 'derived' },
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        tValid: new Date(),
-        tInvalid: null,
-      });
+    const { persisted } = await persistDraftsWithQuarantine({
+      drafts,
+      sourceIds,
+      embedder: config.embedder,
+      store: storeWithDerived,
+      scope,
+      counterTuple: scopeToCounterTuple(scope),
+      workspaceId: filters.workspace_id ?? null,
+      tracer: config.tracer,
+    });
+
+    // Every draft was quarantined → nothing to persist (no-consolidation, no throw).
+    if (persisted.length === 0) {
+      return finishEmptyReflection(reflectionPolicy, scope, sourceIds, 'no-consolidation');
     }
 
     const result: ReflectionResult = {
