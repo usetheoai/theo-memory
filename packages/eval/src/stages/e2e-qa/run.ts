@@ -146,18 +146,17 @@ async function runExample(
     }
   }
 
-  // Phase 1.5 — Consolidate (#144, M23): reflect BEFORE recall so a same-fact update
-  // expressed with different wording ("personal best 27:12" → "PB 25:50") is superseded
-  // (LLM-judged; sets t_invalid) — read-time recencyCollapse cannot bridge cosine-far
-  // paraphrases (blueprint: cos 0.51 ≪ τ). Fails LOUD (never fabricates a supersession):
-  // a reflect error is surfaced + the example proceeds on the un-consolidated state so
-  // the bench measures the honest outcome. NOTE: a >20-extracted-row scope makes
-  // LlmJudgedMerge abstain (clusterCap 20) — the disclosed scaling gap (see
-  // docs/benchmarks/m23-knowledge-update.md); the deterministic fixture is the CI gate.
-  try {
-    await scoped.reflect({ conflictResolution: conflictPolicy });
-  } catch (err) {
-    console.error(`[e2e-qa] reflect failed for ${ex.question_id}:`, err);
+  // Phase 1.5 — Consolidate (#144, M23): OPT-IN reflect before recall. DEFAULT OFF —
+  // the empirical bench (E2E_QA_REFLECT=1) is a NET REGRESSION: whole-scope reflect did
+  // NOT move `6a1eabeb` (real cluster > clusterCap 20 → abstain), regressed 1 example,
+  // and threw ReflectionProvenanceMissingError on 2 clusters. NOT the #144 fix — see
+  // docs/benchmarks/m23-knowledge-update.md + follow-ups. Fails LOUD when it runs.
+  if (process.env['E2E_QA_REFLECT'] === '1') {
+    try {
+      await scoped.reflect({ conflictResolution: conflictPolicy });
+    } catch (err) {
+      console.error(`[e2e-qa] reflect failed for ${ex.question_id}:`, err);
+    }
   }
 
   // Phase 2 — Search.

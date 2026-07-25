@@ -88,3 +88,28 @@ say so — do not paper over.
 |---|---|---|---|
 | `6a1eabeb` returns gold `25:50` | no (`27:12`) | _TODO_ | orchestrator, real LLM |
 | overall N=12 accuracy | 11/12 | _TODO_ | illustrative |
+
+## Real-LLM bench outcome (E2E_QA_REFLECT=1, gpt-4o-mini) — HONEST: reflect made it WORSE
+
+Ran the e2e-qa bench (N=12) with `reflect({ conflictResolution: LlmJudgedMerge })` wired
+in (Phase 1.5, real gpt-4o-mini). **Result: 10/12 = 83.3% — a NET REGRESSION vs the
+default (M22 run: 11/12 = 91.7%), and the target `6a1eabeb` did NOT move (still `27:12`).**
+
+| Signal | Outcome |
+|---|---|
+| **Target `6a1eabeb` (knowledge-update)** | STILL FAILS — returns stale `27:12`. Reflect ran without throwing but did NOT supersede (the real conversation cluster > `clusterCap` 20 → `LlmJudgedMerge` abstains, OR the LLM did not judge the paraphrase as a contradiction). |
+| **Net accuracy** | 91.7% → **83.3%** (−1 example). `0a995998` (multi-session) regressed True→False — reflect superseded a fact that was needed (false supersession / precision loss). |
+| **Reflect errors** | `ReflectionProvenanceMissingError: draft.derivedFrom references unknown ids` thrown on 2 real clusters (`6d550036`, `e47becba`) — caught (fail-loud, example proceeds), no verdict change, but a genuine reflect-robustness bug on real data. |
+
+### Conclusion (no false-fix, no shipped regression)
+
+Whole-scope reflect wired into the bench is **NOT** the #144 fix: it abstains on the real
+target, regresses precision on another, and surfaces a reflect bug. Therefore the harness
+reflect is **OPT-IN (default OFF)** — the bench default stays at the honest 91.7% with no
+regression. The deterministic fixture (above) proves the supersession MECHANISM on a
+bounded cluster; making it move the real case end-to-end requires **bounded / per-write
+consolidation** (REDACTED-shape: retrieve top-k related on each `remember`, judge ADD/UPDATE/
+DELETE) so the contradiction pair reaches the judge without abstaining — a larger effort,
+filed as a follow-up. The `ReflectionProvenanceMissingError` on real clusters is filed
+separately. **#144's read-time symptom is proven unfixable at read time; the write-time
+mechanism is proven in isolation; the production-viable end-to-end fix is tracked, not shipped as a false green.**
