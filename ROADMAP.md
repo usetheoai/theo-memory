@@ -649,7 +649,7 @@ milestone needs line-level study.
 
 ---
 
-## M22 — [ ] Recall honra most-recent-wins em duplicatas ADD-only + disciplina de abstenção do harness (#141, #140)
+## M22 — [x] Recall honra most-recent-wins em duplicatas ADD-only + disciplina de abstenção do harness (#141, #140)
 
 > Added 2026-07-25. Tracked: theo-memory#141, #140. Blueprint: `.claude/knowledge-base/discoveries/blueprints/stale-recall-and-abstention-blueprint.md`.
 
