@@ -211,7 +211,7 @@ describe('entity boost ranking', () => {
  * failure above could be anywhere in the nine steps.
  */
 describe('computeEntityBoost against the real entity store', () => {
-  test('test_stage_returns_attenuated_boost_for_linked_candidate', async () => {
+  test('test_stage_returns_positive_boost_for_linked_candidate', async () => {
     const { computeEntityBoost } = await import(
       '../../../packages/core/src/domain/retrieval/entity-boost-step.js'
     );

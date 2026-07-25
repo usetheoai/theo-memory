@@ -81,7 +81,8 @@ export interface ActiveSignals {
  * the denominator on semantic+BM25 makes an unlinked candidate's normalized score identical
  * whether or not the entity signal fired for others, while a linked candidate still rides
  * higher via the numerator (bounded by the clamp). The `entity` field is retained on
- * {@link ActiveSignals} for callers/telemetry but intentionally unread here.
+ * {@link ActiveSignals} for interface stability (the pipeline still computes it) but is
+ * intentionally unread here — numerator-only means the denominator ignores it.
  */
 export function maxPossible(signals: ActiveSignals): number {
   let total = 0;
