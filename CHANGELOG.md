@@ -5,7 +5,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
-- **e2e-qa stage** em `@usetheo/memory-eval`: eval end-to-end estilo REDACTED (LongMemEval, 4 fases ingest→recall→generate→LLM-judge) como contra-prova do eval por-estágio. Key-gated (SKIP honesto sem chave/dataset, nunca roda keyless). Resultado registrado: 75% (9/12) com gpt-4o-mini — corrobora extração p/r 0.64/0.72. NÃO comparável ao leaderboard do REDACTED (gpt-5). (M21)
 
 ### Changed
 
@@ -16,6 +15,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 ### Security
+
+## [0.47.1] - 2026-07-25
+
+### Added
+- **e2e-qa stage** em `@usetheo/memory-eval`: eval end-to-end estilo REDACTED (LongMemEval, 4 fases ingest→recall→generate→LLM-judge) como contra-prova do eval por-estágio. Key-gated (SKIP honesto sem chave/dataset, nunca roda keyless). Resultado registrado: 75% (9/12) com gpt-4o-mini — corrobora extração p/r 0.64/0.72. NÃO comparável ao leaderboard do REDACTED (gpt-5). (M21)
 
 ## [0.47.0] - 2026-07-25
 
