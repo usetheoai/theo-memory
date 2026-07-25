@@ -172,7 +172,9 @@ RED: test_zero_links_still_returns_zero — expect(entityBoost(0)).toBe(0). Pres
 
 #### Files to edit
 
-- (nenhum — verificação; `entity-boost-step.ts` já chama `entityBoost(numLinked)`)
+- `packages/core/src/domain/retrieval/entity-boost-step.test.ts`
+
+(NEW — unit test co-locado provando a monotonicidade end-to-end através do step. Nenhuma mudança de produção: `entity-boost-step.ts` já chama `entityBoost(numLinked)` com um argumento.)
 
 #### Deep file dependency analysis
 
