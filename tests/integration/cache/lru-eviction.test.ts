@@ -38,6 +38,14 @@ function vec(seed: number): number[] {
   return out.map((x) => x / norm);
 }
 
+/** Row count in alice's recall-cache scope (DRY — several tests assert it equals the cap). */
+async function aliceCount(pool: pg.Pool): Promise<string | undefined> {
+  const { rows } = await pool.query<{ count: string }>(
+    `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'ws:default|user:alice'`,
+  );
+  return rows[0]?.count;
+}
+
 describe.skipIf(ROOT_PG_URI === '')(
   'T1.2 — LRU eviction (integration)',
   () => {
@@ -73,10 +81,7 @@ describe.skipIf(ROOT_PG_URI === '')(
       for (let i = 0; i < SMALL_CAP + 1; i++) {
         await store.set(vec(i + 1), ALICE, SAMPLE, 600);
       }
-      const { rows } = await pool.query<{ count: string }>(
-        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'ws:default|user:alice'`,
-      );
-      expect(rows[0]?.count).toBe(String(SMALL_CAP));
+      expect(await aliceCount(pool)).toBe(String(SMALL_CAP));
     });
 
     it('T1.2-RED-2 — after eviction, the oldest created_at row is gone', async () => {
@@ -125,12 +130,26 @@ describe.skipIf(ROOT_PG_URI === '')(
         store.set(vec(201), ALICE, SAMPLE, 600),
         store.set(vec(202), ALICE, SAMPLE, 600),
       ]);
-      const { rows } = await pool.query<{ count: string }>(
-        `SELECT count(*)::text AS count FROM recall_cache WHERE scope_key = 'ws:default|user:alice'`,
-      );
       // Final count must equal cap exactly — concurrent eviction did NOT under-evict
       // (final < cap means we deleted too many) NOR over-insert (final > cap means we missed an eviction).
-      expect(rows[0]?.count).toBe(String(SMALL_CAP));
+      expect(await aliceCount(pool)).toBe(String(SMALL_CAP));
+    });
+
+    it('#132 — high contention (6 concurrent set()s) still ends exactly at cap AND none fail', async () => {
+      // The pre-M20 wrapper retried a serialization_failure (40001) only ONCE. Under 6 concurrent
+      // writers on a full scope, PG aborts several to break the dependency cycle; a once-retried
+      // transaction can collide again on its single retry and THROW — silently dropping a cache
+      // write and corrupting the count. Bounded retries + jitter serialize them reliably. Every
+      // set() must RESOLVE (no throw) and the final count must be exactly the cap.
+      for (let i = 0; i < SMALL_CAP; i++) {
+        await store.set(vec(i + 1), ALICE, SAMPLE, 600);
+      }
+      const results = await Promise.allSettled(
+        Array.from({ length: 6 }, (_, i) => store.set(vec(300 + i), ALICE, SAMPLE, 600)),
+      );
+      const rejected = results.filter((r) => r.status === 'rejected');
+      expect(rejected).toHaveLength(0); // no set() gave up under contention (the #132 bug)
+      expect(await aliceCount(pool)).toBe(String(SMALL_CAP));
     });
   },
 );
