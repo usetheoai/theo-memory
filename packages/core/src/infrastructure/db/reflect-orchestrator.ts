@@ -69,7 +69,18 @@ interface VectorStoreWithDerivedInsert {
 interface VectorStoreWithConsolidation {
   recallConsolidationCandidates?: (
     filters: Filters,
-  ) => Promise<readonly { memoryId: string; text: string; createdAt: Date; confirmationCount?: number }[]>;
+  ) => Promise<
+    readonly {
+      memoryId: string;
+      text: string;
+      createdAt: Date;
+      confirmationCount?: number;
+      // M24 T1.1 — candidate vector for bounded `clusterByProximity`. Optional +
+      // backward-compatible: a store that does not project it degrades to a single
+      // whole-scope cluster (pre-M24 behaviour).
+      embedding?: readonly number[];
+    }[]
+  >;
   persistConsolidations?: (
     results: readonly ConflictResolutionResult[],
     options?: { readonly promote?: boolean },
