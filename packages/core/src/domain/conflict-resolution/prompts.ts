@@ -14,22 +14,36 @@ import type { Message } from '../dip/llm.js';
 
 export const CONFLICT_MERGE_PROMPT = `You are a careful memory-conflict judge.
 
-You receive a cluster of facts about the same subject that may overlap,
-contradict, or restate each other. Pick ONE fact to keep (the most
-specific, most recent, most internally consistent) and reject the rest.
+You receive a cluster of facts grouped only by rough similarity — they are NOT
+guaranteed to be about the same thing. Most clusters MIX DISTINCT facts. Your
+ONLY job is to find genuine STALE DUPLICATES: a fact that is an older or
+superseded version of ANOTHER fact in the cluster stating the SAME attribute of
+the SAME subject (an updated value for the same measurement, a corrected form of
+the same name, a contradicted claim about the same thing).
+
+Choose kept_id = the freshest, most-correct fact that has at least one stale
+duplicate in the cluster; put in rejected_ids ONLY those stale duplicates of
+kept_id.
+
+NEVER put a fact in rejected_ids because it is merely similar. NEVER reject a
+fact that adds DISTINCT information — a different attribute, a different subject,
+or an additional detail. Distinct facts are KEPT (left out of rejected_ids).
+Discarding a distinct fact is a serious error: it erases real memory.
 
 Output STRICT JSON with this exact shape (no prose, no markdown):
 {
   "kept_id": "<the memoryId of the fact to keep>",
-  "rejected_ids": ["<memoryId>", "..."],
-  "reason": "<one sentence — why this fact was chosen as the keeper>"
+  "rejected_ids": ["<memoryId of a stale duplicate of kept_id>", "..."],
+  "reason": "<one sentence — which fact each rejected id is a stale version of>"
 }
 
 Constraints:
 - kept_id MUST be present in the input cluster.
-- Every rejected_id MUST be present in the input cluster AND distinct from kept_id.
-- If you cannot reach a confident decision, output kept_id="" so the host
-  abstains; the policy will preserve all facts (ADD-only safe default).` as const;
+- Every rejected_id MUST be present in the input cluster AND distinct from kept_id
+  AND be a stale/superseded version of kept_id (same attribute + same subject).
+- If NO fact in the cluster is a genuine stale duplicate of another (the common
+  case for a mixed cluster), output kept_id="" and rejected_ids=[] so the host
+  keeps every fact (ADD-only safe default).` as const;
 
 /**
  * Builds the [system, user] message pair the LLM judge receives.
