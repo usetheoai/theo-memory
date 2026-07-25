@@ -28,8 +28,8 @@ import { appendFileSync, existsSync } from 'node:fs';
 import pg from 'pg';
 import OpenAI from 'openai';
 
-import { createLocalMemory, PgvectorStore, runMigrations } from '@usetheo/memory';
-import type { DisposableMemory } from '@usetheo/memory';
+import { createLocalMemory, LlmJudgedMergeConflictPolicy, PgvectorStore, runMigrations } from '@usetheo/memory';
+import type { ConflictResolutionPolicy, DisposableMemory } from '@usetheo/memory';
 import { LocalTransformerEmbedder } from '@usetheo/memory/embedders/local';
 import { OpenAILLM } from '@usetheo/memory/llms/openai';
 
@@ -131,6 +131,7 @@ async function runExample(
   memory: DisposableMemory,
   client: OpenAI,
   ex: LongMemEvalExample,
+  conflictPolicy: ConflictResolutionPolicy,
 ): Promise<ExampleResult> {
   const scoped = memory.user(`lme_${ex.question_id}`);
   const turns = chronologicalTurns(ex);
@@ -145,8 +146,28 @@ async function runExample(
     }
   }
 
+  // Phase 1.5 — Consolidate (#144, M23): OPT-IN reflect before recall. DEFAULT OFF —
+  // the empirical bench (E2E_QA_REFLECT=1) is a NET REGRESSION: whole-scope reflect did
+  // NOT move `6a1eabeb` (real cluster > clusterCap 20 → abstain), regressed 1 example,
+  // and threw ReflectionProvenanceMissingError on 2 clusters. NOT the #144 fix — see
+  // docs/benchmarks/m23-knowledge-update.md + follow-ups. Fails LOUD when it runs.
+  if (process.env['E2E_QA_REFLECT'] === '1') {
+    try {
+      await scoped.reflect({ conflictResolution: conflictPolicy });
+    } catch (err) {
+      console.error(`[e2e-qa] reflect failed for ${ex.question_id}:`, err);
+    }
+  }
+
   // Phase 2 — Search.
-  const recalled = await scoped.recall(ex.question, { topK: RECALL_TOP_K });
+  // M22 #141: exercise the shipped most-recent-wins collapse — the benchmark
+  // should measure TheMemory used with the recommended config for multi-value /
+  // knowledge-update scenarios (opt-in; near-duplicate stale values are pruned so
+  // a fresh update stops being crowded out of the top-k).
+  const recalled = await scoped.recall(ex.question, {
+    topK: RECALL_TOP_K,
+    recencyCollapse: {},
+  });
   const memoriesBlock =
     recalled.length === 0
       ? '(no memories found)'
@@ -244,12 +265,18 @@ async function main(): Promise<void> {
     embedder: new LocalTransformerEmbedder(),
     llm: new OpenAILLM(),
     embeddingDim: EMBEDDING_DIM,
-    reflectionPolicy: { kind: 'manual' },
+    // reflectionPolicy omitted → factory default `{ kind: 'manual' }` (auto-reflect off);
+    // Phase 1.5 drives reflect() explicitly. #144, M23.
   })) as DisposableMemory;
+
+  // #144 (M23): the LLM-judged supersession policy used by the Phase 1.5 reflect. Reuses
+  // the same OpenAILLM (key-gated at main); the judge picks a keeper + rejects the stale
+  // duplicates → persistConsolidations sets t_invalid → recall stops surfacing them.
+  const conflictPolicy = new LlmJudgedMergeConflictPolicy({ llm: new OpenAILLM() });
 
   const results: ExampleResult[] = [];
   for (const [idx, ex] of subset.entries()) {
-    const r = await runExample(memory, client, ex);
+    const r = await runExample(memory, client, ex, conflictPolicy);
     results.push(r);
     if (OUT_JSONL !== '') appendFileSync(OUT_JSONL, JSON.stringify(r) + '\n');
     console.log(
