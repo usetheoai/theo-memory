@@ -21,3 +21,34 @@ export function vectorLiteral(vector: readonly number[]): string {
   }
   return `[${vector.join(',')}]`;
 }
+
+/**
+ * Inverse of {@link vectorLiteral}: parse pgvector's text output form
+ * (`[v1,v2,...]`) back into a `number[]`. `node-pg` returns the `vector` type
+ * as this string (no native parser), so any read that SELECTs an `embedding`
+ * column parses it here (DRY — M24 consolidation candidates share this rule).
+ *
+ * Throws on a malformed literal (missing brackets, non-numeric component) so a
+ * corrupt vector fails loudly at the boundary rather than yielding NaN.
+ */
+export function parseVectorLiteral(literal: string): number[] {
+  const trimmed = literal.trim();
+  if (trimmed.length < 2 || trimmed[0] !== '[' || trimmed[trimmed.length - 1] !== ']') {
+    throw new Error(
+      `parseVectorLiteral: expected a "[...]" pgvector literal, got ${JSON.stringify(literal)}`,
+    );
+  }
+  const body = trimmed.slice(1, -1).trim();
+  if (body === '') {
+    return [];
+  }
+  return body.split(',').map((part, i) => {
+    const n = Number(part);
+    if (!Number.isFinite(n)) {
+      throw new Error(
+        `parseVectorLiteral: component ${String(i)} is not finite (${JSON.stringify(part)})`,
+      );
+    }
+    return n;
+  });
+}
