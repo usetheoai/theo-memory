@@ -137,6 +137,9 @@ export const MEMORY_EVENTS = [
   // `error` carries the error name. Mirrors history_persist_failed.
   // @see CLAUDE.md § IMPORTANTE Princípio 3
   'recall_rerank_failed',
+  // #132 — the recall-cache write (a write-behind optimization) failed; recall returned its
+  // freshly-computed results anyway. A cache-write failure must NEVER break the read path.
+  'recall_cache_write_failed',
   // domain-ontologies T2.2 / ADR D2 (Item 15) — an LLM-extracted entity type fell
   // outside the configured domain ontology vocabulary and was coerced to OTHER.
   // Attributes `{ontology, from, to, entity}`. Every coercion is observable so a
