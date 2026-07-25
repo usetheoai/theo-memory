@@ -22,6 +22,8 @@
  */
 import { InvalidScope } from '../errors.js';
 
+import { cosineSimilarity as cosine } from './cosine.js';
+
 export interface MmrCandidate {
   readonly id: string;
   readonly score: number;
@@ -82,26 +84,4 @@ export function mmrRerank<C extends MmrCandidate>(
     remaining.splice(bestIdx, 1);
   }
   return selected;
-}
-
-/**
- * Cosine similarity over two equal-length number vectors. Returns 0 when
- * either norm is 0 (defensive — zero-norm vectors have no direction).
- */
-function cosine(a: readonly number[], b: readonly number[]): number {
-  const n = Math.min(a.length, b.length);
-  let dot = 0;
-  let normA = 0;
-  let normB = 0;
-  for (let i = 0; i < n; i += 1) {
-    const x = a[i] ?? 0;
-    const y = b[i] ?? 0;
-    dot += x * y;
-    normA += x * x;
-    normB += y * y;
-  }
-  if (normA === 0 || normB === 0) {
-    return 0;
-  }
-  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
 }

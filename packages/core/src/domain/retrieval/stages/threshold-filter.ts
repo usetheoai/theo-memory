@@ -40,8 +40,11 @@ export type DroppedCandidate = Omit<
  * returning the surviving rows (unsorted). Same logic for both call sites so the corrective
  * re-filter is byte-consistent with the initial filter (EC-1 + DRY).
  */
-/** Records one dropped candidate with its component breakdown (DRY — both gates use it). */
-function recordDrop(
+/**
+ * Records one dropped candidate with its component breakdown (DRY — the threshold
+ * gates AND the post-threshold recency-collapse stage all funnel drops through here).
+ */
+export function recordDrop(
   drops: DroppedCandidate[] | undefined,
   id: string,
   c: Candidate,
