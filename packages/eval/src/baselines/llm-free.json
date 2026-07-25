@@ -1,0 +1,22 @@
+{
+  "generatedAt": "2026-07-25T07:51:16.341Z",
+  "model": "llm-free",
+  "stages": [
+    {
+      "stage": "extraction",
+      "precision": 0.6407407407407406,
+      "recall": 0.7222222222222221,
+      "accuracy": 0.75,
+      "n": 9,
+      "runtimeMs": 18
+    },
+    {
+      "stage": "consolidation",
+      "precision": 1,
+      "recall": 1,
+      "accuracy": 1,
+      "n": 50,
+      "runtimeMs": 8
+    }
+  ]
+}

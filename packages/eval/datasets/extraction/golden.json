@@ -1,0 +1,105 @@
+[
+  {
+    "id": "hard-01-sarah-google",
+    "kind": "hard",
+    "text": "Sarah works at Google in Mountain View.",
+    "expectedEntities": ["Sarah", "Google", "Mountain View"]
+  },
+  {
+    "id": "hard-02-obama-hawaii",
+    "kind": "hard",
+    "text": "Barack Obama was born in Hawaii.",
+    "expectedEntities": ["Barack Obama", "Hawaii"]
+  },
+  {
+    "id": "hard-03-claude-saopaulo",
+    "kind": "hard",
+    "text": "Claude Code runs on São Paulo servers.",
+    "expectedEntities": ["Claude Code", "São Paulo"]
+  },
+  {
+    "id": "hard-04-curie-nobel",
+    "kind": "hard",
+    "text": "Marie Curie won the Nobel Prize in Physics.",
+    "expectedEntities": ["Marie Curie", "Nobel Prize", "Physics"]
+  },
+  {
+    "id": "hard-05-eiffel-paris",
+    "kind": "hard",
+    "text": "The Eiffel Tower is located in Paris, France.",
+    "expectedEntities": ["Eiffel Tower", "Paris", "France"]
+  },
+  {
+    "id": "hard-06-musk-spacex",
+    "kind": "hard",
+    "text": "Elon Musk founded SpaceX and Tesla.",
+    "expectedEntities": ["Elon Musk", "SpaceX", "Tesla"]
+  },
+  {
+    "id": "hard-07-amazon-river",
+    "kind": "hard",
+    "text": "The Amazon River flows through Brazil and Peru.",
+    "expectedEntities": ["Amazon River", "Brazil", "Peru"]
+  },
+  {
+    "id": "hard-08-nintendo-switch",
+    "kind": "hard",
+    "text": "Nintendo released the Switch console in Japan.",
+    "expectedEntities": ["Nintendo", "Switch", "Japan"]
+  },
+  {
+    "id": "hard-09-merkel-germany",
+    "kind": "hard",
+    "text": "Angela Merkel served as Chancellor of Germany.",
+    "expectedEntities": ["Angela Merkel", "Germany"]
+  },
+  {
+    "id": "neg-01-english-function-words",
+    "kind": "negative",
+    "text": "is a the on and of to at in",
+    "expectedEntities": [],
+    "note": "Noise-only: all closed-class function words -> zero entities (#111)."
+  },
+  {
+    "id": "neg-02-english-prepositions",
+    "kind": "negative",
+    "text": "the of an and or to in on for with by",
+    "expectedEntities": [],
+    "note": "Prepositions/articles only -> zero entities."
+  },
+  {
+    "id": "neg-03-portuguese-function-words",
+    "kind": "negative",
+    "text": "não o de o para o e com",
+    "expectedEntities": [],
+    "note": "PT function words incl. 'não' -> zero entities (#111 regression case)."
+  },
+  {
+    "id": "neg-04-conjunctions",
+    "kind": "negative",
+    "text": "and but or so yet for nor",
+    "expectedEntities": [],
+    "note": "Conjunctions only -> should be zero (currently leaks 'yet', an honest known noise-rejection miss)."
+  },
+  {
+    "id": "amb-01-coffee-tea",
+    "kind": "ambiguous",
+    "text": "I love coffee but I prefer tea today.",
+    "expectedEntities": ["coffee", "tea"],
+    "note": "Preference contradiction; common nouns, not proper. LLM-tier judgment required."
+  },
+  {
+    "id": "amb-02-good-day",
+    "kind": "ambiguous",
+    "text": "It was a good day for a walk.",
+    "expectedEntities": [],
+    "note": "No clear entity; extraction is genuinely debatable. LLM-tier."
+  },
+  {
+    "id": "amb-03-might-rain",
+    "kind": "ambiguous",
+    "text": "They said it might rain later.",
+    "expectedEntities": ["rain"],
+    "note": "Weather event vs verb; ambiguous. LLM-tier."
+  }
+]

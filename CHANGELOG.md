@@ -14,8 +14,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+### Security
+
+## [0.47.0] - 2026-07-25
+
+### Added
+- Roadmap amended: added M21 Eval de qualidade das etapas LLM (`/roadmap-feature system-llm-eval`)
+- **M21 — Novo pacote privado `@usetheo/memory-eval` para eval por-estágio das etapas LLM.** Pontua extração + consolidação (reflect/distill/conflict) contra golden fixtures versionados, com um baseline commitado e um gate de regressão fail-closed por-métrica (banda de tolerância `ε`). Tier LLM-measured é key-gated (SKIP honesto sem chave). Pacote é `"private": true` — nunca publicado (guard test). (M21)
 
 ### Security
+- **Novo gate de secret-scanning (gitleaks) no CI bloqueia uma chave `theo_live_` hardcoded no código de produção.** Motivado por #126 (2 chaves reais chegaram ao histórico do develop): um `theo_live_<hex>` literal na árvore de `packages/` agora falha o build. Escaneia a árvore de trabalho (não o histórico), então não re-sinaliza as chaves já expostas — cuja neutralização é a ROTAÇÃO pelo owner, não reescrita de histórico (Regra 4). Fixtures de teste (chaves sintéticas via template) são allowlistadas (#126).
 
 ## [0.46.4] - 2026-07-25
 

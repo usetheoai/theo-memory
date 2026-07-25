@@ -240,6 +240,28 @@ importers:
         specifier: ^4.77.0
         version: 4.104.0(zod@3.25.76)
 
+  packages/eval:
+    dependencies:
+      '@usetheo/memory':
+        specifier: workspace:*
+        version: link:../core
+      zod:
+        specifier: ^3.25.0
+        version: 3.25.76
+    devDependencies:
+      natural:
+        specifier: ^8.1.0
+        version: 8.1.1(@opentelemetry/api@1.9.1)
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.4
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.0
+        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@20.19.43)(@vitest/coverage-v8@4.1.8)(vite@8.0.16(@types/node@20.19.43)(esbuild@0.28.0)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+
   packages/mcp:
     dependencies:
       '@modelcontextprotocol/sdk':
@@ -3942,7 +3964,6 @@ snapshots:
   '@mongodb-js/saslprep@1.4.11':
     dependencies:
       sparse-bitfield: 3.0.3
-    optional: true
 
   '@napi-rs/wasm-runtime@1.1.5(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)':
     dependencies:
@@ -4012,29 +4033,24 @@ snapshots:
   '@redis/bloom@5.12.1(@redis/client@5.12.1(@opentelemetry/api@1.9.1))':
     dependencies:
       '@redis/client': 5.12.1(@opentelemetry/api@1.9.1)
-    optional: true
 
   '@redis/client@5.12.1(@opentelemetry/api@1.9.1)':
     dependencies:
       cluster-key-slot: 1.1.2
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
-    optional: true
 
   '@redis/json@5.12.1(@redis/client@5.12.1(@opentelemetry/api@1.9.1))':
     dependencies:
       '@redis/client': 5.12.1(@opentelemetry/api@1.9.1)
-    optional: true
 
   '@redis/search@5.12.1(@redis/client@5.12.1(@opentelemetry/api@1.9.1))':
     dependencies:
       '@redis/client': 5.12.1(@opentelemetry/api@1.9.1)
-    optional: true
 
   '@redis/time-series@5.12.1(@redis/client@5.12.1(@opentelemetry/api@1.9.1))':
     dependencies:
       '@redis/client': 5.12.1(@opentelemetry/api@1.9.1)
-    optional: true
 
   '@rolldown/binding-android-arm64@1.0.3':
     optional: true
@@ -4137,13 +4153,11 @@ snapshots:
       pg-protocol: 1.14.0
       pg-types: 2.2.0
 
-  '@types/webidl-conversions@7.0.3':
-    optional: true
+  '@types/webidl-conversions@7.0.3': {}
 
   '@types/whatwg-url@13.0.0':
     dependencies:
       '@types/webidl-conversions': 7.0.3
-    optional: true
 
   '@typescript-eslint/eslint-plugin@8.61.0(@typescript-eslint/parser@8.61.0(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3))(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3)':
     dependencies:
@@ -4316,11 +4330,9 @@ snapshots:
 
   acorn@8.16.0: {}
 
-  afinn-165-financialmarketnews@3.0.0:
-    optional: true
+  afinn-165-financialmarketnews@3.0.0: {}
 
-  afinn-165@2.0.2:
-    optional: true
+  afinn-165@2.0.2: {}
 
   agentkeepalive@4.6.0:
     dependencies:
@@ -4357,7 +4369,6 @@ snapshots:
   apparatus@0.0.10:
     dependencies:
       sylvester: 0.0.21
-    optional: true
 
   argparse@2.0.1: {}
 
@@ -4451,8 +4462,7 @@ snapshots:
     dependencies:
       fill-range: 7.1.1
 
-  bson@7.2.0:
-    optional: true
+  bson@7.2.0: {}
 
   buffer-from@1.1.2: {}
 
@@ -4486,8 +4496,7 @@ snapshots:
       ansi-styles: 4.3.0
       supports-color: 7.2.0
 
-  cluster-key-slot@1.1.2:
-    optional: true
+  cluster-key-slot@1.1.2: {}
 
   code-block-writer@11.0.3: {}
 
@@ -4595,8 +4604,7 @@ snapshots:
     dependencies:
       esutils: 2.0.3
 
-  dotenv@17.4.2:
-    optional: true
+  dotenv@17.4.2: {}
 
   drizzle-kit@0.31.10:
     dependencies:
@@ -5349,8 +5357,7 @@ snapshots:
 
   json5@2.2.3: {}
 
-  kareem@3.3.0:
-    optional: true
+  kareem@3.3.0: {}
 
   keyv@4.5.4:
     dependencies:
@@ -5442,11 +5449,9 @@ snapshots:
 
   media-typer@1.1.0: {}
 
-  memjs@1.3.2:
-    optional: true
+  memjs@1.3.2: {}
 
-  memory-pager@1.5.0:
-    optional: true
+  memory-pager@1.5.0: {}
 
   merge-descriptors@2.0.0: {}
 
@@ -5485,14 +5490,12 @@ snapshots:
     dependencies:
       '@types/whatwg-url': 13.0.0
       whatwg-url: 14.2.0
-    optional: true
 
   mongodb@7.2.0:
     dependencies:
       '@mongodb-js/saslprep': 1.4.11
       bson: 7.2.0
       mongodb-connection-string-url: 7.0.1
-    optional: true
 
   mongoose@9.7.0:
     dependencies:
@@ -5510,13 +5513,10 @@ snapshots:
       - mongodb-client-encryption
       - snappy
       - socks
-    optional: true
 
-  mpath@0.9.0:
-    optional: true
+  mpath@0.9.0: {}
 
-  mquery@6.0.0:
-    optional: true
+  mquery@6.0.0: {}
 
   ms@2.1.3: {}
 
@@ -5551,7 +5551,6 @@ snapshots:
       - pg-native
       - snappy
       - socks
-    optional: true
 
   negotiator@1.0.0: {}
 
@@ -5827,7 +5826,6 @@ snapshots:
     transitivePeerDependencies:
       - '@node-rs/xxhash'
       - '@opentelemetry/api'
-    optional: true
 
   reflect.getprototypeof@1.0.10:
     dependencies:
@@ -5920,8 +5918,7 @@ snapshots:
       es-errors: 1.3.0
       is-regex: 1.2.1
 
-  safe-stable-stringify@2.5.0:
-    optional: true
+  safe-stable-stringify@2.5.0: {}
 
   safer-buffer@2.1.2: {}
 
@@ -6047,8 +6044,7 @@ snapshots:
       side-channel-map: 1.0.1
       side-channel-weakmap: 1.0.2
 
-  sift@17.1.3:
-    optional: true
+  sift@17.1.3: {}
 
   siginfo@2.0.0: {}
 
@@ -6064,7 +6060,6 @@ snapshots:
   sparse-bitfield@3.0.3:
     dependencies:
       memory-pager: 1.5.0
-    optional: true
 
   split2@4.2.0: {}
 
@@ -6079,8 +6074,7 @@ snapshots:
       es-errors: 1.3.0
       internal-slot: 1.1.0
 
-  stopwords-iso@1.1.0:
-    optional: true
+  stopwords-iso@1.1.0: {}
 
   string.prototype.trim@1.2.11:
     dependencies:
@@ -6123,8 +6117,7 @@ snapshots:
 
   supports-preserve-symlinks-flag@1.0.0: {}
 
-  sylvester@0.0.21:
-    optional: true
+  sylvester@0.0.21: {}
 
   tinybench@2.9.0: {}
 
@@ -6148,7 +6141,6 @@ snapshots:
   tr46@5.1.1:
     dependencies:
       punycode: 2.3.1
-    optional: true
 
   true-myth@4.1.1: {}
 
@@ -6253,8 +6245,7 @@ snapshots:
       has-symbols: 1.1.0
       which-boxed-primitive: 1.1.1
 
-  underscore@1.13.8:
-    optional: true
+  underscore@1.13.8: {}
 
   undici-types@5.26.5: {}
 
@@ -6266,8 +6257,7 @@ snapshots:
     dependencies:
       punycode: 2.3.1
 
-  uuid@13.0.2:
-    optional: true
+  uuid@13.0.2: {}
 
   vary@1.1.2: {}
 
@@ -6325,14 +6315,12 @@ snapshots:
 
   webidl-conversions@3.0.1: {}
 
-  webidl-conversions@7.0.0:
-    optional: true
+  webidl-conversions@7.0.0: {}
 
   whatwg-url@14.2.0:
     dependencies:
       tr46: 5.1.1
       webidl-conversions: 7.0.0
-    optional: true
 
   whatwg-url@5.0.0:
     dependencies:
@@ -6391,8 +6379,7 @@ snapshots:
 
   word-wrap@1.2.5: {}
 
-  wordnet-db@3.1.14:
-    optional: true
+  wordnet-db@3.1.14: {}
 
   wrappy@1.0.2: {}
 

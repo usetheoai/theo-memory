@@ -34,8 +34,9 @@
     "compose:up": "docker compose up -d pgvector",
     "compose:down": "docker compose down",
     "publish:check": "npm publish --dry-run --tag next",
-    "eval:forgetting": "tsx tests/eval/forgetting/run.ts",
-    "eval:distillation": "tsx tests/eval/distillation/run.ts",
+    "eval": "pnpm --filter @usetheo/memory-eval eval",
+    "eval:forgetting": "pnpm --filter @usetheo/memory-eval run eval:forgetting",
+    "eval:distillation": "pnpm --filter @usetheo/memory-eval run eval:consolidation",
     "test:all": "pnpm -r test && pnpm test",
     "postbuild:copy-import": "node -e \"const{cpSync,existsSync,mkdirSync}=require('node:fs');const src='packages/cli/src/import',dest='dist/agent-tools/import';if(existsSync(src)){mkdirSync(dest,{recursive:true});cpSync(src,dest,{recursive:true});console.error('[cli] import engine (.mjs) copied to '+dest);}\""
   },
