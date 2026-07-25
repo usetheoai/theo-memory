@@ -5,6 +5,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.49.0] - 2026-07-25
+
+### Added
 - **M24 (#146): consolidação bounded per-anchor — supersede a mesmo escala > clusterCap (o fix real do #144, onde o M23 abstinha).** O `reflect({ conflictResolution })` agora agrupa os candidatos em clusters disjuntos de ≤ `DEFAULT_CLUSTER_CAP` (20) via a função pura `clusterByProximity` (greedy nearest-neighbor por cosseno, determinística) antes de julgar cada cluster. Numa conversa real (> 20 linhas `extracted`) o par de contradição chega ao juiz num sub-cluster ≤ cap, em vez de o escopo inteiro virar um único cluster que o `LlmJudgedMerge` abstém. Promoção M9 (session→global) continua whole-scope; store sem embeddings degrada para whole-scope (backward-compatible). Provado keyless contra `ankane/pgvector:v0.5.1`: 27 linhas (> cap) → a linha velha `27:12` recebe `t_invalid`, o recall para de surfar o stale, guarda de precisão (mesmo-entidade/atributo-diferente) intacta. **Bench real-LLM (2026-07-25, `docs/benchmarks/m24d-149-conservative-consolidation.md`): #144/#146 RESOLVIDOS end-to-end** junto com #148 (guard honesto) + #149 (prompt conservador). `6a1eabeb` agora responde o valor FRESCO (`"Your personal best time in the charity 5K run is 25:50."`), knowledge-update 2/2. Com reflect ON, o bench honesto (guard #148) subiu de 25% (tudo abstinha — a regressão do #149) para 66.7% (8/12). O canonical-merge planejado foi desnecessário: a consolidação conservadora + a síntese do answer LLM bastaram (KISS). (M24, #144, #146)
 - **Evento tipado `reflection_draft_quarantined` (#145) — Princípio 3.** Emitido (+ counter `theo.memory.reflection.draft_quarantined`) quando um draft de reflect com `derivedFrom` inválido/alucinado é posto em quarentena em vez de abortar o reflect inteiro.
 
