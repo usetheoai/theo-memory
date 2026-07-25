@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+- **O reforço por entidades voltou a crescer com o número de entidades casadas.** Uma memória que casava mais entidades da busca recebia MENOS reforço, não mais — a curva era decrescente, o oposto da intenção. Agora o reforço é monótono não-decrescente e satura num teto: casar mais entidades nunca diminui o sinal, e nenhuma memória isolada domina o ranking (#125).
 - **O job de contrato do CI passou a rodar dentro do job de integração, reusando o Postgres.** Ao ligar a suíte de contrato no CI (#104), alguns testes que inicializam o servidor tentavam abrir conexão sem banco e vazavam erros não-tratados; rodá-los junto do Postgres que a integração já sobe elimina a instabilidade sem um segundo banco (#104).
 
 ### Security
