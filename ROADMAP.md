@@ -558,7 +558,7 @@ milestone needs line-level study.
 
 ---
 
-## M18 — [ ] O impulso de entidades ranqueia sem eliminar (#125, #127)
+## M18 — [x] O impulso de entidades ranqueia sem eliminar (#125, #127)
 
 > Added 2026-07-24. Tracked: theo-memory#125, #127. Ambos os desdobramentos do M15 tocam `scoring.ts` — tratados juntos para não medir duas vezes.
 
