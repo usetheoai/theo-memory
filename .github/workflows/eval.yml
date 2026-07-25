@@ -61,4 +61,7 @@ jobs:
         if: ${{ secrets.OPENROUTER_KEY != '' }}
         env:
           OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
-        run: pnpm --filter @usetheo/memory-eval test
+        # Target ONLY the measured tests (vitest path filter) — the LLM-free step
+        # above already ran the full suite; rerunning it here would double the
+        # compute and bury the measured pass/fail in a full-suite rerun.
+        run: pnpm --filter @usetheo/memory-eval test -- llm-measured
