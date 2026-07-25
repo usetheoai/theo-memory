@@ -7,7 +7,9 @@
   "license": "Apache-2.0",
   "scripts": {
     "test": "vitest run --config vitest.config.ts",
-    "eval": "tsx src/run.ts"
+    "eval": "tsx src/run.ts",
+    "eval:consolidation": "tsx src/stages/consolidation/run.ts",
+    "eval:forgetting": "tsx src/stages/forgetting/run.ts"
   },
   "dependencies": {
     "@usetheo/memory": "workspace:*",
