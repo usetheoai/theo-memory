@@ -39,6 +39,7 @@ import {
   isAbstention,
   type LongMemEvalExample,
 } from './longmemeval-loader.js';
+import { shouldAbstain } from './coverage-gate.js';
 import { buildAnswerPrompt, buildJudgePrompt, parseJudgeVerdict } from './prompts.js';
 import { report, type ExampleResult } from './report.js';
 
@@ -51,6 +52,11 @@ const ISOLATED_DB = 'themem_e2e_qa';
 const EMBEDDING_DIM = 384; // Xenova/all-MiniLM-L6-v2
 const TURN_CAP = 40; // max turns ingested per example (cost bound)
 const RECALL_TOP_K = 10;
+// #140 — conservative pre-answer coverage gate: abstain when the best recalled
+// memory scores below this. Provisional (blueprint: the abstention subset is too
+// small to tune τ with confidence); env-overridable for experiments.
+const COVERAGE_TAU = Number(process.env['E2E_QA_COVERAGE_TAU'] ?? '0.15');
+const ABSTAIN_ANSWER = "I don't have that information.";
 const CHAT_MODEL = process.env['OPENAI_CHAT_MODEL'] ?? 'openai/gpt-4o-mini';
 const DATASET_PATH =
   '.claude/knowledge-base/references/REDACTED/tests/evals/data/longmemeval_data/longmemeval_oracle.json';
@@ -149,17 +155,22 @@ async function runExample(
           .map((m) => `- ${m.text}`)
           .join('\n');
 
-  // Phase 3 — Generate.
-  const modelAnswer = extractAnswerText(
-    await chatComplete(
-      client,
-      buildAnswerPrompt({
-        question: ex.question,
-        questionDate: ex.question_date,
-        memories: memoriesBlock,
-      }),
-    ),
-  );
+  // Phase 3 — Generate. #140: abstain deterministically when recall coverage is
+  // thin (empty OR best score < τ) BEFORE the LLM call, so the answerer cannot
+  // fabricate an answer from insufficient evidence (recall was honest; the
+  // answerer discipline is the fix — blueprint D2).
+  const modelAnswer = shouldAbstain(recalled, COVERAGE_TAU)
+    ? ABSTAIN_ANSWER
+    : extractAnswerText(
+        await chatComplete(
+          client,
+          buildAnswerPrompt({
+            question: ex.question,
+            questionDate: ex.question_date,
+            memories: memoriesBlock,
+          }),
+        ),
+      );
 
   // Phase 4 — Judge.
   const correct = parseJudgeVerdict(
