@@ -1,27 +1,17 @@
 /**
- * M15 T4.1 (#122) — deterministic precision@k benchmark for the entity boost.
+ * M18 (#125, #127) — deterministic benchmark for the entity boost. Descends from the M15
+ * precision@k benchmark; the corpus now has semantic HEADROOM (query at cosine 0.85, not the
+ * saturated 1.0 that ties every candidate at the clamp once the boost is numerator-only) and
+ * numLinked-variable monotonicity fixtures.
  *
- * ## What this measures, and what it does not
+ * Each topic: one RELEVANT memory linked to the topic's entity + three distractors with the
+ * IDENTICAL embedding and no link — so within a topic the semantic signal ties and only the
+ * boost can separate them (D2: isolate the boost's contribution; compare the system to itself).
  *
- * Each topic gets one RELEVANT memory linked to the topic's entity, plus three distractors
- * carrying the IDENTICAL embedding and no entity link. The semantic signal therefore cannot
- * discriminate within a topic at all — by construction, every candidate ties.
- *
- * That is deliberate: the plan's D2 asks the benchmark to isolate the boost's contribution.
- * A corpus where the embedding already separates the answer would measure the embedder, and
- * the boost's effect would vanish into the noise.
- *
- * So this reports the boost's discriminating power **when the semantic signal is ambiguous**
- * — the situation the feature exists for. It is NOT a general end-to-end retrieval-quality
- * claim, and it is not comparable to any other system's published numbers. It compares this
- * system against itself, with the feature off and on.
- *
- * Three numbers are produced, per plan D2:
- *   - precision@k without boost / with boost
- *   - recall_set_churn on the POST-THRESHOLD set (never post-topK — a successful promotion
- *     necessarily evicts the last-ranked item, so measuring after truncation would report
- *     the feature's success as a regression and make the target of 0 unreachable)
- *   - boostedCandidateCount, which fails the run if the boost never actually fired
+ * Four numbers, per plan T3.1: precision@k off/on; recall_set_churn on the POST-THRESHOLD set
+ * (never post-topK — a promotion evicts the last-ranked item, so post-truncation churn would
+ * read success as regression); recall_set_churn at the SENSITIVE threshold (0); monotonic
+ * violations across numLinked (0). boostedCandidateCount fails the run if the boost never fired.
  */
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -47,15 +37,41 @@ let entityStore: PgMemoryEntityStore;
 
 /** Relevant memory id per topic index. */
 const relevantByTopic = new Map<number, string>();
-/** Deterministic per-topic vector: one hot dimension, so topics never bleed into each other. */
+/** Highest numLinked value exercised by the monotonicity fixtures (#125). */
+const MONO_MAX = 6;
+/** Memory id whose relevant links exactly N distinct query-matched entities. */
+const monoMemoryByN = new Map<number, string>();
+/** Deterministic per-topic candidate vector: one hot dimension, so topics never bleed. */
 function topicVector(topic: number): number[] {
   const v = Array(DIM).fill(0) as number[];
   v[topic % DIM] = 1;
   return v;
 }
 
+/**
+ * Shared orthogonal dimension for every query vector — chosen ABOVE the topic range so it
+ * never collides with a topic's hot dim (topics use dims 0..TOPICS-1).
+ */
+const QUERY_ORTHO_DIM = DIM - 1;
+const SEMANTIC_HEADROOM = 0.85;
+
+/**
+ * The query embeds at cosine SEMANTIC_HEADROOM (0.85) to the topic vector — BELOW the 1.0
+ * clamp (M18 / SEPA precondition). The pre-M18 benchmark embedded the query to the topic
+ * vector itself (cosine 1.0); once the boost became numerator-only (#127), the relevant and
+ * its distractors all clamped to 1.0 and tied, making precision@k a coin-flip and the number
+ * vacuous. With 0.85 headroom the boost promotes the linked relevant to min(0.85+boost,1.0)=1.0
+ * above the distractors at 0.85 — a real, measured separation.
+ */
+function queryVector(topic: number): number[] {
+  const v = Array(DIM).fill(0) as number[];
+  v[topic % DIM] = SEMANTIC_HEADROOM;
+  v[QUERY_ORTHO_DIM] = Math.sqrt(1 - SEMANTIC_HEADROOM * SEMANTIC_HEADROOM);
+  return v;
+}
+
 function topicEmbedder(topic: number): Embedder {
-  const vec = topicVector(topic);
+  const vec = queryVector(topic);
   return { embed: async () => vec, embedBatch: async (t) => t.map(() => vec) };
 }
 
@@ -147,6 +163,21 @@ beforeAll(async () => {
       await seed(`nota distratora ${d} do topico ${topic}`, vec);
     }
   }
+
+  // Monotonicity fixtures (#125): one memory per numLinked value, each linked to exactly n
+  // distinct entities that the corresponding query mentions, so `computeEntityBoost` reads
+  // numLinked = n. The M15 corpus linked every relevant to exactly ONE entity, so a decreasing
+  // curve was invisible; these expose it.
+  for (let n = 1; n <= MONO_MAX; n += 1) {
+    // Dedicated dim 200 — no topic (dims 0..24) uses it, so these fixtures stay orthogonal to
+    // every topic query and never pollute a topic's candidate pool. Their embedding is irrelevant
+    // to the measurement anyway (computeEntityBoost reads only the entity links, not the vector).
+    const id = await seed(`nota monotonic com ${n} entidades`, topicVector(200));
+    for (let e = 0; e < n; e += 1) {
+      await link(id, `mono_${n}_e${e}`);
+    }
+    monoMemoryByN.set(n, id);
+  }
 }, 300_000);
 
 afterAll(async () => {
@@ -197,15 +228,39 @@ describe('entity boost precision benchmark', () => {
       boostedCandidateCount += [...boosts.values()].filter((b) => b > 0).length;
     }
 
+    // Monotonicity (#125): the boost the STAGE assigns must be non-decreasing in numLinked.
+    // Read straight from computeEntityBoost on the mono fixtures — a memory linked to n entities
+    // the query mentions. The M15 corpus (numLinked always 1) could not see the regression.
+    const boostByNumLinked: number[] = [];
+    for (let n = 1; n <= MONO_MAX; n += 1) {
+      const query = Array.from({ length: n }, (_, e) => `mono ${n} e${e}`).join(' ');
+      const boosts = await computeEntityBoost(
+        query,
+        [monoMemoryByN.get(n) as string],
+        { user_id: USER, workspace_id: WORKSPACE },
+        { entityBoostStore: entityStore },
+      );
+      boostByNumLinked.push(boosts.get(monoMemoryByN.get(n) as string) ?? 0);
+    }
+    let monotonicViolations = 0;
+    for (let i = 1; i < boostByNumLinked.length; i += 1) {
+      if ((boostByNumLinked[i] as number) < (boostByNumLinked[i - 1] as number)) monotonicViolations += 1;
+    }
+
     const report = {
-      milestone: 'M15',
-      issue: 122,
-      corpus: { topics: TOPICS, memoriesPerTopic: DISTRACTORS_PER_TOPIC + 1, total: TOPICS * (DISTRACTORS_PER_TOPIC + 1) },
+      milestone: 'M18',
+      issues: [125, 127],
+      curve: 'W*n/(n+c)',
+      saturationC: 0.25,
+      semanticHeadroom: SEMANTIC_HEADROOM,
+      corpus: { topics: TOPICS, memoriesPerTopic: DISTRACTORS_PER_TOPIC + 1, monotonicityFixtures: MONO_MAX },
       k: K,
       precisionAtK: { withoutBoost: without.precisionAtK, withBoost: with_.precisionAtK },
       delta: with_.precisionAtK - without.precisionAtK,
       recallSetChurn: churn,
-      recallSetChurnAtSensitiveThreshold: { threshold: SENSITIVE_THRESHOLD, churn: sensitiveChurn },
+      recallSetChurnSensitive: { threshold: SENSITIVE_THRESHOLD, churn: sensitiveChurn },
+      monotonicViolations,
+      boostByNumLinked: boostByNumLinked.map((b) => Number(b.toFixed(4))),
       boostedCandidateCount,
       latencyMsPerQuery: {
         withoutBoost: Number((without.elapsedMs / TOPICS).toFixed(2)),
@@ -213,18 +268,25 @@ describe('entity boost precision benchmark', () => {
       },
     };
     mkdirSync('docs/benchmarks', { recursive: true });
-    writeFileSync('docs/benchmarks/entity-boost-m15.json', `${JSON.stringify(report, null, 2)}\n`);
+    writeFileSync('docs/benchmarks/entity-boost-m18.json', `${JSON.stringify(report, null, 2)}\n`);
 
-    // The boost must not degrade precision.
+    // The boost must not degrade precision — on the headroom corpus it strictly IMPROVES it
+    // (the linked relevant is promoted above the tied distractors instead of coin-flipping).
     expect(report.precisionAtK.withBoost).toBeGreaterThanOrEqual(report.precisionAtK.withoutBoost);
     // No memory may fall out of the post-threshold set at the default threshold.
     expect(report.recallSetChurn).toBe(0);
-    // And the honest measurement: at a threshold where renormalization CAN evict, record
-    // what actually happens. This assertion is deliberately an inequality, not `toBe(0)` —
-    // the number is evidence for revisiting ADR D1, and pinning it to zero would recreate
-    // the vacuous instrument this replaces.
-    expect(report.recallSetChurnAtSensitiveThreshold.churn).toBeGreaterThanOrEqual(0);
-    // Without this, a dead boost would pass the two assertions above trivially.
+    // #127: numerator-only leaves the denominator identical with and without the boost, so an
+    // unlinked candidate's score is invariant to the entity signal and can NEVER be evicted.
+    // This is now a structural 0 (was 75 in the M15 review's saturated corpus), so the honest
+    // assertion is toBe(0), not the >= 0 the vacuous instrument had to use.
+    expect(report.recallSetChurnSensitive.churn).toBe(0);
+    // #125: casar mais entidades nunca reduz o reforço, medido através do step.
+    expect(report.monotonicViolations).toBe(0);
+    // ...and the boost genuinely VARIES with numLinked end-to-end — a numLinked that silently
+    // collapsed to a constant would also have zero "decreasing" violations, so `toBe(0)` alone
+    // is vacuous. The stage must read a real, rising numLinked (n=6 boost > n=1 boost).
+    expect(report.boostByNumLinked[MONO_MAX - 1]).toBeGreaterThan(report.boostByNumLinked[0]);
+    // Without this, a dead boost would pass the assertions above trivially.
     expect(report.boostedCandidateCount).toBeGreaterThan(0);
     // Latency is REPORTED, not asserted. `measure(false)` runs first and absorbs cold-cache
     // and warm-up, so the two numbers are not comparable with the rigour an assertion
