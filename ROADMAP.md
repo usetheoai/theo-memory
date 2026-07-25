@@ -625,7 +625,7 @@ milestone needs line-level study.
 
 ---
 
-## M21 — [ ] Eval de qualidade das etapas LLM (extraction · reflect · distill · conflict)
+## M21 — [x] Eval de qualidade das etapas LLM (extraction · reflect · distill · conflict)
 
 > Added 2026-07-25. Tracked: (novo — sem issue ainda).
 
