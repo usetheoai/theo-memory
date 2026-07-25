@@ -40,6 +40,7 @@ import {
   type LongMemEvalExample,
 } from './longmemeval-loader.js';
 import { shouldAbstain } from './coverage-gate.js';
+import { abstentionIsMiss } from './scoring.js';
 import { buildAnswerPrompt, buildJudgePrompt, parseJudgeVerdict } from './prompts.js';
 import { report, type ExampleResult } from './report.js';
 
@@ -146,11 +147,8 @@ async function runExample(
     }
   }
 
-  // Phase 1.5 — Consolidate (#144, M23): OPT-IN reflect before recall. DEFAULT OFF —
-  // the empirical bench (E2E_QA_REFLECT=1) is a NET REGRESSION: whole-scope reflect did
-  // NOT move `6a1eabeb` (real cluster > clusterCap 20 → abstain), regressed 1 example,
-  // and threw ReflectionProvenanceMissingError on 2 clusters. NOT the #144 fix — see
-  // docs/benchmarks/m23-knowledge-update.md + follow-ups. Fails LOUD when it runs.
+  // Phase 1.5 — Consolidate (#144, M24): OPT-IN reflect before recall (bounded
+  // per-anchor consolidation supersedes stale values). See docs/benchmarks/m24-*.md.
   if (process.env['E2E_QA_REFLECT'] === '1') {
     try {
       await scoped.reflect({ conflictResolution: conflictPolicy });
@@ -159,11 +157,7 @@ async function runExample(
     }
   }
 
-  // Phase 2 — Search.
-  // M22 #141: exercise the shipped most-recent-wins collapse — the benchmark
-  // should measure TheMemory used with the recommended config for multi-value /
-  // knowledge-update scenarios (opt-in; near-duplicate stale values are pruned so
-  // a fresh update stops being crowded out of the top-k).
+  // Phase 2 — Search. M22 #141: recencyCollapse prunes near-duplicate stale values.
   const recalled = await scoped.recall(ex.question, {
     topK: RECALL_TOP_K,
     recencyCollapse: {},
@@ -193,17 +187,21 @@ async function runExample(
         ),
       );
 
-  // Phase 4 — Judge.
-  const correct = parseJudgeVerdict(
-    await chatComplete(
-      client,
-      buildJudgePrompt({
-        question: ex.question,
-        answer: ex.answer,
-        response: modelAnswer,
-      }),
-    ),
-  );
+  // Phase 4 — Judge. #148: an abstention on a NON-abstention question is a miss
+  // by definition (the model did not produce the gold value) — score it NO
+  // deterministically, WITHOUT the demonstrably-lenient LLM judge.
+  const correct = abstentionIsMiss(isAbstention(ex), modelAnswer, ABSTAIN_ANSWER)
+    ? false
+    : parseJudgeVerdict(
+        await chatComplete(
+          client,
+          buildJudgePrompt({
+            question: ex.question,
+            answer: ex.answer,
+            response: modelAnswer,
+          }),
+        ),
+      );
 
   return {
     questionId: ex.question_id,
