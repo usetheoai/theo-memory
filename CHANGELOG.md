@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 ### Changed
+- **e2e-qa benchmark harness now enables `recencyCollapse` on recall** so the REDACTED-LongMemEval counter-proof exercises the shipped M22 #141 capability (was recall-default, which left the collapse invisible end-to-end). Measures TheMemory with the recommended config for knowledge-update scenarios. (M22, #141)
 
 ### Deprecated
 
