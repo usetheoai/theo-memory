@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Benchmark: M22 e2e-qa re-run (mem0-LongMemEval) = 11/12 (91.7%) vs 75% baseline**, with recencyCollapse + coverage-gate ON. Honest attribution (`docs/benchmarks/m22-e2e-qa-longmemeval.md`): the genuine code-attributable gain is ~1 example (#140 coverage-gate abstention); one flip is likely LLM-judge variance; **#141 recencyCollapse did NOT fix the real knowledge-update case** (differently-worded same-fact values are not cosine-near at τ=0.9) → follow-up #144. N=12, illustrative.
 
 ### Changed
+- **e2e-qa harness agora consolida (`reflect({ conflictResolution: LlmJudgedMerge })`) ANTES do recall (#144, M23).** Fase 1.5 entre ingest e recall, para que um update de mesmo-fato com wording diferente seja superseded (`t_invalid`) em vez de continuar ofuscando o valor fresco. Falha ALTO (loga o erro, nunca fabrica supersessão) e segue no estado não-consolidado — o bench mede o resultado honesto. Continua key-gated (SKIP sem chave). Divulgação honesta (docs/benchmarks/m23-knowledge-update.md § T3): um escopo com > 20 linhas `extracted` faz o `LlmJudgedMerge` abster (clusterCap 20) — o gate de CI é a fixture determinística, não o bench.
 - **e2e-qa benchmark harness now enables `recencyCollapse` on recall** so the mem0-LongMemEval counter-proof exercises the shipped M22 #141 capability (was recall-default, which left the collapse invisible end-to-end). Measures TheMemory with the recommended config for knowledge-update scenarios. (M22, #141)
 
 ### Deprecated
@@ -16,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+- **#144: update de mesmo-fato com wording diferente ("personal best … 27:12" → "PB … 25:50") agora é superseded em tempo de `reflect`, e o recall passa a devolver o valor fresco.** O `recencyCollapse` do M22 (cosseno @ 0.9) NÃO alcançava paráfrases cosseno-distantes (real: 0.5117) — divulgação honesta do M22 que o #144 fecha. O caminho robusto é a supersessão em tempo de escrita/reflect (LLM-judged → `t_invalid` → filtro `t_invalid IS NULL` no recall), já ~90% construída; o gap fechado é o consumidor (harness) nunca chamar `reflect`. Provado por fixture keyless nas strings REAIS (embeddings congelados; LLM stubbado) contra pgvector real. Gap de escala honesto: escopos com > 20 linhas `extracted` ainda abstêm (clusterCap 20) — bound deferido (docs/benchmarks/m23-knowledge-update.md § T3). (M23, #144)
 
 ### Security
 
