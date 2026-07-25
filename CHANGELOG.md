@@ -13,6 +13,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+
+### Security
+
+## [0.46.3] - 2026-07-25
+
+### Fixed
 - **`themory server` recusa iniciar com um build (`dist/`) mais antigo que o fonte de produção.** No host-run em dev, um `dist/` obsoleto servia silenciosamente código pré-build (o bug do #118 — entidades pré-M13). Agora a inicialização falha rápido com um erro tipado `StaleDistError` e mensagem acionável (`pnpm build`). A comparação olha só o fonte de produção (ignora `*.test.ts`/`*.d.ts`); num pacote publicado (sem `src/`) é no-op (#118).
 
 ### Security
