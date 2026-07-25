@@ -33,8 +33,18 @@ import { InvalidRecallTraceConfig } from '../errors.js';
  *   - `nan`            — the composite came out NaN (degenerate scoring input).
  *   - `mmr_redundant`  — survived the threshold but MMR-diversify did not select
  *                        it (only when `RecallOptions.diversify` is on).
+ *   - `superseded_recency` — survived the threshold but a NEWER near-duplicate
+ *                        (cosine ≥ τ, higher `createdAt`) superseded it at recall
+ *                        time (only when `RecallOptions.recencyCollapse` is on;
+ *                        M22 / #141 most-recent-wins collapse). ADD-only safe:
+ *                        the row still persists and is `asOf`-recoverable.
  */
-export type DropReason = 'semantic_gate' | 'sub_threshold' | 'nan' | 'mmr_redundant';
+export type DropReason =
+  | 'semantic_gate'
+  | 'sub_threshold'
+  | 'nan'
+  | 'mmr_redundant'
+  | 'superseded_recency';
 
 /**
  * One persisted trace row — a single dropped candidate of a recall.

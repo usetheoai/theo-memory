@@ -8,12 +8,16 @@ import { MEMORY_EVENTS, emitEvent } from './memory-event.js';
 import type { MemoryEvent } from './memory-event.js';
 
 describe('MEMORY_EVENTS', () => {
-  test('has 51 values (50 prior + recall_cache_write_failed, #132 cache-write fail-soft auditability)', () => {
-    expect(MEMORY_EVENTS).toHaveLength(51);
+  test('has 52 values (51 prior + recency_collapse_applied, M22 #141 collapse observability)', () => {
+    expect(MEMORY_EVENTS).toHaveLength(52);
   });
 
   test('includes recall_cache_write_failed (#132 — cache write is best-effort, never breaks recall)', () => {
     expect(MEMORY_EVENTS).toContain('recall_cache_write_failed');
+  });
+
+  test('includes recency_collapse_applied (M22 #141 — collapse IGNORE decision is observable)', () => {
+    expect(MEMORY_EVENTS).toContain('recency_collapse_applied');
   });
 
   test('includes category_auto_assigned + category_auto_dropped (auto-categorization, Princípio 3)', () => {

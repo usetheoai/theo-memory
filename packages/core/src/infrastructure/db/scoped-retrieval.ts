@@ -150,6 +150,9 @@ export async function retrieveResults(
   // skip the reweight and a MISS would store the reweighted order under a scopes-blind key,
   // poisoning a later plain recall (breaking "default byte-identical"). It MUST bypass too.
   const cache = ctx.recallCacheStore;
+  // M22 / #141 (ADR D3): recencyCollapse re-orders/prunes the pool like scopes/rerank/
+  // graphExpand and is NOT in the cache key, so it MUST bypass too (else a cached plain
+  // result poisons a collapse request, and vice-versa).
   const cacheApplicable =
     cache !== undefined &&
     options?.asOf === undefined &&
@@ -157,6 +160,7 @@ export async function retrieveResults(
     options?.rerank === undefined &&
     options?.graphExpand === undefined &&
     options?.scopes === undefined &&
+    options?.recencyCollapse === undefined &&
     ctx.config.retrievalPolicy === undefined;
 
   if (!cacheApplicable || cache === undefined) {
