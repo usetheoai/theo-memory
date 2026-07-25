@@ -581,7 +581,7 @@ milestone needs line-level study.
 
 ---
 
-## M19 — [ ] O caminho de recall volta a ser editável (#124)
+## M19 — [x] O caminho de recall volta a ser editável (#124)
 
 > Added 2026-07-24. Tracked: theo-memory#124.
 
