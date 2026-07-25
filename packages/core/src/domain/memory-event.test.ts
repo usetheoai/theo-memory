@@ -8,8 +8,12 @@ import { MEMORY_EVENTS, emitEvent } from './memory-event.js';
 import type { MemoryEvent } from './memory-event.js';
 
 describe('MEMORY_EVENTS', () => {
-  test('has 50 values (48 prior + entity_boost_degraded + entity_boost_applied, M15 entity-boost auditability)', () => {
-    expect(MEMORY_EVENTS).toHaveLength(50);
+  test('has 51 values (50 prior + recall_cache_write_failed, #132 cache-write fail-soft auditability)', () => {
+    expect(MEMORY_EVENTS).toHaveLength(51);
+  });
+
+  test('includes recall_cache_write_failed (#132 — cache write is best-effort, never breaks recall)', () => {
+    expect(MEMORY_EVENTS).toContain('recall_cache_write_failed');
   });
 
   test('includes category_auto_assigned + category_auto_dropped (auto-categorization, Princípio 3)', () => {
