@@ -24,7 +24,17 @@ export class StaleDistError extends Error {
   }
 }
 
-/** Newest `.ts` mtime (ms) under `dir`, recursively. `null` if the tree can't be read. */
+/** A production `.ts` source file — excludes tests/specs/decls that never become dist output. */
+function isProductionTs(name: string): boolean {
+  return (
+    name.endsWith('.ts') &&
+    !name.endsWith('.test.ts') &&
+    !name.endsWith('.spec.ts') &&
+    !name.endsWith('.d.ts')
+  );
+}
+
+/** Newest production `.ts` mtime (ms) under `dir`, recursively. `null` if the tree can't be read. */
 function newestTsMtime(dir: string): number | null {
   let newest = 0;
   const walk = (d: string): void => {
@@ -33,7 +43,7 @@ function newestTsMtime(dir: string): number | null {
       const full = join(d, entry.name);
       if (entry.isDirectory()) {
         walk(full);
-      } else if (entry.name.endsWith('.ts')) {
+      } else if (isProductionTs(entry.name)) {
         const m = statSync(full).mtimeMs;
         if (m > newest) newest = m;
       }

@@ -70,6 +70,21 @@ describe('checkStaleDist (#118)', () => {
     expect(() => checkStaleDist(distFile, join(root, 'src'))).not.toThrow();
   });
 
+  test('ignores newer test/decl files — only production source triggers staleness', () => {
+    const { distFile, srcFile } = seed();
+    touchAt(srcFile, 1000); // production source older than dist
+    touchAt(distFile, 2000);
+    // A test file edited AFTER the build must NOT mark the build stale (it never becomes dist output).
+    const testFile = join(root, 'src', 'cli.test.ts');
+    writeFileSync(testFile, '// test');
+    touchAt(testFile, 3000);
+    const declFile = join(root, 'src', 'types.d.ts');
+    writeFileSync(declFile, '// decl');
+    touchAt(declFile, 3000);
+
+    expect(() => checkStaleDist(distFile, join(root, 'src'))).not.toThrow();
+  });
+
   test('is a no-op when src/ is absent (published package — ADR D2)', () => {
     const { distFile } = seed();
     touchAt(distFile, 1000);
