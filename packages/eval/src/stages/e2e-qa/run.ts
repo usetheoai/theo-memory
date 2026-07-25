@@ -146,7 +146,14 @@ async function runExample(
   }
 
   // Phase 2 — Search.
-  const recalled = await scoped.recall(ex.question, { topK: RECALL_TOP_K });
+  // M22 #141: exercise the shipped most-recent-wins collapse — the benchmark
+  // should measure TheMemory used with the recommended config for multi-value /
+  // knowledge-update scenarios (opt-in; near-duplicate stale values are pruned so
+  // a fresh update stops being crowded out of the top-k).
+  const recalled = await scoped.recall(ex.question, {
+    topK: RECALL_TOP_K,
+    recencyCollapse: {},
+  });
   const memoriesBlock =
     recalled.length === 0
       ? '(no memories found)'
