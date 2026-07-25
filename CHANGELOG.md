@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- **Eval `@usetheo/memory-eval`: fixture keyless `knowledge-update-supersession` (#144, M23) — prova o fix do #144 nas strings REAIS.** Substitui os stub-vectors quase-idênticos do M22 (o erro "passa no unit, falha no real") por embeddings congelados do `LocalTransformerEmbedder(384)` sobre as duas frases reais ("personal best … 27:12" vs "PB … 25:50", cosseno **0.5117** ≪ 0.9). Três casos: (1) contraprova de leitura — `recall({ recencyCollapse: {} })` AINDA devolve o valor velho `27:12` (leitura não corrige wording diferente); (2) `reflect({ conflictResolution: LlmJudgedMerge })` com LLM STUBBADO (sem chave) marca `t_invalid` na linha velha e o recall passa a devolver `25:50`; (3) guarda de precisão — mesmo-entidade/atributo-diferente (Google função vs. tenure) NÃO é superseded. Casos com `t_invalid` rodam contra pgvector real (gated em `THEOMEM_PG_URI`, SKIP limpo sem DB); a contraprova de leitura é in-memory e sempre roda. (M23, #144)
 - **Benchmark: M22 e2e-qa re-run (REDACTED-LongMemEval) = 11/12 (91.7%) vs 75% baseline**, with recencyCollapse + coverage-gate ON. Honest attribution (`docs/benchmarks/m22-e2e-qa-longmemeval.md`): the genuine code-attributable gain is ~1 example (#140 coverage-gate abstention); one flip is likely LLM-judge variance; **#141 recencyCollapse did NOT fix the real knowledge-update case** (differently-worded same-fact values are not cosine-near at τ=0.9) → follow-up #144. N=12, illustrative.
 
 ### Changed
