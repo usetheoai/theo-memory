@@ -47,6 +47,18 @@ describe('CONFLICT_MERGE_PROMPT + generateConflictMergePrompt (T1.3 / ADR D2)', 
     expect(messages[1]?.content).toContain('Paulo likes milk');
   });
 
+  test('#149: prompt instructs to KEEP distinct facts — only genuine stale duplicates go in rejected_ids', () => {
+    // Regression guard. The old prompt said "Pick ONE fact to keep ... and reject the rest",
+    // so a clusterByProximity group of DISTINCT facts had its answer-bearing rows superseded
+    // (t_invalid) → recall lost them → the harness abstained on every substantive question (#149).
+    // The prompt MUST tell the judge that clusters mix distinct facts and to reject ONLY stale
+    // duplicates of the same fact/attribute; distinct facts are kept.
+    const p = CONFLICT_MERGE_PROMPT.toLowerCase();
+    expect(p).toMatch(/distinct/);
+    expect(p).toMatch(/stale duplicate|superseded|older|same (attribute|fact|subject)/);
+    expect(p).not.toMatch(/reject the rest/);
+  });
+
   test('generateConflictMergePrompt handles empty cluster (returns system+user with no candidates section)', () => {
     const messages = generateConflictMergePrompt([], ctx);
     expect(messages).toHaveLength(2);

@@ -238,6 +238,12 @@ export const MEMORY_EVENTS = [
   // Rule 8). Attributes `{workspace_tier, error}`. Princípio 3 — even the audit's own failure is
   // observable, never a silent swallow.
   'routing_audit_write_failed',
+  // M24 T3.2 (#145) — a reflect draft failed per-draft provenance validation
+  // (empty or hallucinated `derivedFrom`) and was QUARANTINED (skipped) rather
+  // than thrown, so one bad row of many never aborts an otherwise-good reflect
+  // (Rule 8 recoverable). Attributes `{scope_tier, draft_index}`. Princípio 3 —
+  // the IGNORE decision is observable, never a silent swallow.
+  'reflection_draft_quarantined',
 ] as const;
 
 export type MemoryEvent = (typeof MEMORY_EVENTS)[number];
