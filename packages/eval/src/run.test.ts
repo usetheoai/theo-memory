@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 
 import { RegressionError } from './regression.js';
 import type { Baseline } from './schema.js';
-import { assertGate, collectStageScores, loadBaseline } from './run.js';
+import { assertGate, collectStageScores, loadBaseline, main } from './run.js';
 
 describe('eval orchestrator gate', () => {
   it('test_orchestrator_gate_passes_baseline_and_fails_seeded_regression', async () => {
@@ -30,5 +30,11 @@ describe('eval orchestrator gate', () => {
 
   it('FAILURE: a missing baseline file fails-closed', () => {
     expect(() => loadBaseline('/nonexistent/baseline.json')).toThrow();
+  });
+
+  it('FAILURE: an unknown --stage fails-closed instead of passing vacuously', async () => {
+    // A mistyped stage filters to an empty set; without the guard the gate would
+    // "PASS" over nothing (false green). It must throw naming the known stages.
+    await expect(main(['--stage', 'typo-not-a-stage'])).rejects.toThrow(/unknown --stage/);
   });
 });

@@ -96,7 +96,14 @@ function parseArgs(argv: readonly string[]): CliOptions {
 /** Returns a process exit code (0 = ok, 1 = regression). */
 export async function main(argv: readonly string[] = process.argv.slice(2)): Promise<number> {
   const opts = parseArgs(argv);
-  const scores = filterStage(await collectStageScores(), opts.stage);
+  const allScores = await collectStageScores();
+  const scores = filterStage(allScores, opts.stage);
+  // Fail-closed (Princípio 3): a mistyped --stage filters to an empty set, which
+  // would otherwise pass the gate vacuously (no regression on nothing). Reject it.
+  if (opts.stage !== undefined && scores.length === 0) {
+    const known = allScores.map((s) => s.stage).join(', ');
+    throw new Error(`unknown --stage '${opts.stage}' (known stages: ${known})`);
+  }
   console.log(renderMatrix(scores));
 
   if (opts.updateBaseline) {
