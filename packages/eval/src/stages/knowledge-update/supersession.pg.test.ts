@@ -70,7 +70,7 @@ describe.skipIf(ADMIN_PG_URI === '')(
         embedder: realFixtureEmbedder(),
         llm: reflectNoopLlm,
         embeddingDim: DIM,
-        reflectionPolicy: { kind: 'manual' },
+        // reflectionPolicy omitted → factory default `{ kind: 'manual' }`; tests call reflect() explicitly.
       })) as DisposableMemory;
     }, 60_000);
 
