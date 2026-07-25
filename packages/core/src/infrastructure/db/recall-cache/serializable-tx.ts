@@ -17,8 +17,10 @@
  * corrupting the LRU count (the #132 flaky test was this real bug, not test noise).
  * `MAX_ATTEMPTS` retries with a small randomized backoff de-synchronize the
  * retriers so they do not immediately re-collide. The bound (not infinite) still
- * caps connection-pool pressure during a genuine incident; on exhaustion the
- * failure mode is unchanged — the caller degrades to a cache MISS (benign).
+ * caps connection-pool pressure during a genuine incident; on exhaustion this throws,
+ * and the caller (`scoped-retrieval.ts` — the recall write-behind) guards the `set()` in a
+ * try/catch that emits `recall_cache_write_failed` and returns the already-computed results,
+ * so a cache-write failure degrades to an observable cache MISS and NEVER breaks recall.
  *
  * @see https://www.postgresql.org/docs/current/transaction-iso.html#XACT-SERIALIZABLE
  */

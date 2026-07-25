@@ -185,7 +185,17 @@ export async function retrieveResults(
     ...sharedPipelineDeps(ctx, options),
   }, options);
   const ttlSeconds = resolveCacheTtl(ctx.scope, ctx.config.recallCache);
-  await cache.set(queryEmbedding, ctx.scope, results, ttlSeconds, ctx.filters.workspace_id ?? undefined);
+  // The cache write is a write-behind optimization — best-effort. A failure (SERIALIZABLE retry
+  // exhaustion under contention #132, connection reset, …) must NEVER reject the recall: the
+  // results are already computed. Degrade to an observable cache MISS and return them (#132).
+  try {
+    await cache.set(queryEmbedding, ctx.scope, results, ttlSeconds, ctx.filters.workspace_id ?? undefined);
+  } catch (err) {
+    emitEvent(ctx.config.tracer, 'recall_cache_write_failed', {
+      scope_tier: ctx.scope.kind,
+      error: err instanceof Error ? err.name : 'unknown',
+    });
+  }
   const { getRecallCacheMissDurationHistogram } = await import('./recall-cache/recall-cache-metrics.js');
   getRecallCacheMissDurationHistogram().record(performance.now() - missStart, {
     scope_tier: ctx.scope.kind,

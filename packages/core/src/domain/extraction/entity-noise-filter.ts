@@ -61,7 +61,7 @@ const FUNCTION_WORDS = new Set<string>([
   // PT
   'o', 'a', 'os', 'as', 'um', 'uma', 'uns', 'umas', 'de', 'do', 'da', 'dos', 'das', 'em', 'no',
   'na', 'nos', 'nas', 'e', 'ou', 'que', 'com', 'por', 'para', 'pra', 'ao', 'aos', 'à', 'às',
-  'não', 'mais', 'como', 'mas', 'ou', 'num', 'numa',
+  'não', 'mas', 'num', 'numa',
   // EN
   'the', 'of', 'an', 'and', 'or', 'to', 'in', 'on', 'at', 'for', 'with', 'by', 'from',
 ]);
