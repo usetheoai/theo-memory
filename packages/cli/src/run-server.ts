@@ -1,27 +1,12 @@
 /**
  * REST server composition root for `themory server` (Roadmap Item 16-18).
  *
- * Absorbs three edge cases from plan T2.3:
- *  - EC-31 EADDRINUSE → stderr `Port ${port} already in use` + exit 1.
- *  - EC-32 SIGTERM/SIGINT → idempotent graceful shutdown: HTTP server close
- *    → pool.end() → exit 0. Re-entrant guard via `shuttingDown` boolean so
- *    a double signal does not double-call `pool.end()` (which would throw).
- *  - EC-33 readiness gate: while `createLocalMemory()` is warming, the
- *    `serve()` call has already bound the port BUT `/v1/health` answers
- *    503 `warming_up`. Flag flips when the factory resolves.
- *
- * ADR D8 (migrate-on-startup): runMigrations runs BEFORE the port binds.
- * Skipped when `THEMEMORY_SKIP_MIGRATIONS === 'true'` (positive opt-in;
- * fail-safe default = run). Replaces deleted docker-entrypoint.sh per
- * EC-47 / ADR D13 distroless discipline.
- *
- * DIP discipline: src/agent-tools/run-server.ts IS the composition root
- * (per ADR D8 + architecture.md § 3) — it imports both src/server/ (REST
- * surface) and src/local/ (pg pool + Memory factory). src/server/ itself
- * stays pg-free.
- *
- * EC-7 reuse: identical THEOMEM_PG_URI hard-fail discipline as
- * runMcpServer — exit 2 + stderr example URI when env var missing.
+ * The composition root (ADR D8 + architecture.md § 3): imports both the REST surface and the pg
+ * pool + Memory factory; the REST layer itself stays pg-free. Migrate-on-startup runs BEFORE the
+ * port binds (skipped only when `THEMEMORY_SKIP_MIGRATIONS === 'true'`). Absorbs EC-31 (EADDRINUSE
+ * → exit 1), EC-32 (SIGTERM/SIGINT idempotent graceful shutdown), and EC-33 (readiness gate: the
+ * port binds eagerly while the Memory factory warms; `/v1/health` answers 503 `warming_up` until
+ * ready). Env-fail is a hard boundary (fail-closed; never a silent stub fallback).
  *
  * @see Plan theo-memory-standalone-p0 § T2.3 + ADR D8 + EC-31/32/33 + EC-47
  */
@@ -60,6 +45,7 @@ import { createServer, parseRequireCredentialEnv } from '@usetheo/memory-api';
 import { Pool } from 'pg';
 
 import { installServerLifecycle, type ServerListenerLike } from './server-lifecycle.js';
+import { assertDistNotStale } from './stale-dist-guard.js';
 
 // fix-cycle-2 hotfix M2: LOCAL_EMBEDDER_DIM imported from agent-tools-memory.ts
 // (single source of truth — was triplicated across CLI factory + 2 runners).
@@ -110,13 +96,11 @@ function shouldSkipMigrations(): boolean {
 }
 
 export async function runServer(options?: RunServerOptions): Promise<void> {
-  // verbs-as-cli-fixes-cycle-1 T2.1 / ADR D3: env-fail boundary now goes
-  // through the shared `assertEnvOrExit` helper at agent-tools-memory.ts.
-  // Single source of truth for `Error: THEOMEM_PG_URI required ...` and
-  // `Error: OPENAI_API_KEY required ...` stderr strings (closes F-arch-2 +
-  // F-wire-1). PRIORITY 0 hardening + T3.2 (p0-api-sdk-mcp-correctness-audit)
-  // rationale preserved at the shared helper — see agent-tools-memory.ts
-  // § OPENAI_API_KEY_ENV_SPEC. Fail-closed; never silent stub fallback.
+  // M20 (#118): fail FAST before anything else if the running dist/ is older than src/ (dev
+  // host-run) — a stale build silently serves pre-build code. No-op for a published package.
+  assertDistNotStale();
+  // Env-fail boundary via the shared `assertEnvOrExit` helper (single source of the
+  // THEOMEM_PG_URI / OPENAI_API_KEY stderr strings). Fail-closed; never silent stub fallback.
   assertEnvOrExit([PG_URI_ENV_SPEC, OPENAI_API_KEY_ENV_SPEC]);
   const pgUri = process.env['THEOMEM_PG_URI']!;
 
