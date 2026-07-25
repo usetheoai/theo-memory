@@ -22,7 +22,8 @@ import {
 
 import { StageScoreSchema, type StageScore } from '../../schema.js';
 
-import { KNOWLEDGE_UPDATE_FIXTURE } from './golden.js';
+import { KNOWLEDGE_UPDATE_FIXTURE, KNOWLEDGE_UPDATE_REAL_FIXTURE } from './golden.js';
+import { realFixtureEmbedder } from './supersession-support.js';
 
 /** Maps each fixture text to its hand-chosen vector; any other text → probe vector. */
 function fixtureEmbedder(): Embedder {
@@ -95,6 +96,48 @@ export async function runKnowledgeUpdate(): Promise<KnowledgeUpdateResult> {
  * bug is present) AND the collapse surfaces the FRESH value with the older row
  * pruned as a `superseded_recency` drop (the fix works). Any deviation → 0.
  */
+export interface RealReadTimeCounterProof {
+  /** Texts returned by `recall({ recencyCollapse: {} })` over the REAL fixture. */
+  readonly collapsedTexts: readonly string[];
+  /** True when the STALE "27:12" value is STILL present after recencyCollapse. */
+  readonly staleStillPresent: boolean;
+  /** True when the FRESH "25:50" value is present. */
+  readonly freshPresent: boolean;
+}
+
+/**
+ * knowledge-update-supersession (#144, M23) — the honest READ-TIME COUNTER-PROOF the
+ * M22 fixture lacked. In-memory, keyless, real strings + FROZEN real embeddings
+ * (cos(older,newer)=0.5117 ≪ 0.9). `recall({ recencyCollapse: {} })` CANNOT collapse
+ * the different-wording pair, so the STALE "27:12" survives — proving read-time collapse
+ * structurally cannot fix the #144 case (only reflect-time LLM supersession can).
+ */
+export async function runRealReadTimeCounterProof(): Promise<RealReadTimeCounterProof> {
+  const f = KNOWLEDGE_UPDATE_REAL_FIXTURE;
+  const memory = (await createLocalMemory({
+    vectorStore: new InMemoryVectorStore(),
+    embedder: realFixtureEmbedder(),
+    llm: new StubLLM(),
+    embeddingDim: f.embeddingDim,
+  })) as DisposableMemory;
+
+  try {
+    const scope = memory.user('m23_readtime');
+    await scope.remember(f.older.text, { infer: false, metadata: { created_at: f.older.createdAt } });
+    await scope.remember(f.newer.text, { infer: false, metadata: { created_at: f.newer.createdAt } });
+
+    const collapsed = await scope.recall(f.query5k, { recencyCollapse: {} });
+    const collapsedTexts = collapsed.map((m) => m.text);
+    return {
+      collapsedTexts,
+      staleStillPresent: collapsedTexts.some((t) => t.includes('27:12')),
+      freshPresent: collapsedTexts.some((t) => t.includes('25:50')),
+    };
+  } finally {
+    await memory.dispose();
+  }
+}
+
 export async function knowledgeUpdateStageScore(): Promise<StageScore> {
   const start = Date.now();
   const r = await runKnowledgeUpdate();
