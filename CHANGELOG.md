@@ -5,14 +5,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- **`RecallOptions.recencyCollapse` — colapso most-recent-wins em tempo de recall (opt-in, #141).** Entre candidatos quase-duplicados (cosseno ≥ τ, default 0.9) DEPOIS da combinação de score, mantém só o de `createdAt` mais novo; os mais antigos viram drops `superseded_recency` no recall-trace (Princípio 3, auditável). NÃO toca na fórmula de score (`scoring.ts`, ADR D1) — no-op quando ausente, então recall é byte-idêntico por padrão. Mutuamente exclusivo com `rerank`/`diversify`/`scopes` (`RerankerConflict`) e faz bypass do cache de recall (ADR D3). ADD-only: ambas as linhas persistem, a mais antiga continua recuperável via `asOf`. (M22, #141)
+- **Eval `@usetheo/memory-eval`: fixture keyless `knowledge-update` (#141) + coverage-gate de abstenção (#140).** `knowledge-update` prova RED→GREEN deterministicamente sem chave (dois duplicados ADD-only com relógio `created_at` injetado; recall default devolve o valor velho — o bug —, `recall({ recencyCollapse: {} })` devolve o novo + registra o drop `superseded_recency`). `shouldAbstain(items, τ)` no harness e2e-qa abstém ANTES da chamada ao LLM quando a cobertura é fina (`MemoryItemWithScore.score`), com a regra de abstenção do answerer reforçada. (M22)
 
 ### Changed
+- **#140 (abstenção) resolvido no HARNESS, não no core — decline honesto (Regra 3 + Regra 11).** O sinal de cobertura que o consumidor precisa já existe como `MemoryItemWithScore.score` ∈ [0,1]; um campo `coverage`/`confidence` dedicado no core é YAGNI + DRY e cruza a fronteira LOCKED "camada de memória, NÃO runtime de agente". O recall era honesto — o defeito era o answerer over-committar; a correção é disciplina do answerer, que vive no `packages/eval`. Nenhuma superfície pública do core cresce. (M22, #140)
 
 ### Deprecated
 
 ### Removed
 
 ### Fixed
+- **Recall para de deixar um duplicado ADD-only obsoleto ofuscar/ultrapassar o valor fresco do mesmo fato (#141, opt-in).** Quando duas asserções vivas do mesmo fato coexistem (update ADD-only ainda não reconciliado por `reflect`), o ranking por relevância pura podia surfacar o valor velho. Com `recall({ recencyCollapse: {} })` o mais recente ganha entre quase-duplicados. Mitigação em tempo de LEITURA: a supersessão durável do lado da ESCRITA ainda requer `reflect` (divulgação honesta). (M22, #141)
 
 ### Security
 
