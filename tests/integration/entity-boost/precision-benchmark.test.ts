@@ -169,7 +169,10 @@ beforeAll(async () => {
   // numLinked = n. The M15 corpus linked every relevant to exactly ONE entity, so a decreasing
   // curve was invisible; these expose it.
   for (let n = 1; n <= MONO_MAX; n += 1) {
-    const id = await seed(`nota monotonic com ${n} entidades`, topicVector(0));
+    // Dedicated dim 200 — no topic (dims 0..24) uses it, so these fixtures stay orthogonal to
+    // every topic query and never pollute a topic's candidate pool. Their embedding is irrelevant
+    // to the measurement anyway (computeEntityBoost reads only the entity links, not the vector).
+    const id = await seed(`nota monotonic com ${n} entidades`, topicVector(200));
     for (let e = 0; e < n; e += 1) {
       await link(id, `mono_${n}_e${e}`);
     }
@@ -279,6 +282,10 @@ describe('entity boost precision benchmark', () => {
     expect(report.recallSetChurnSensitive.churn).toBe(0);
     // #125: casar mais entidades nunca reduz o reforço, medido através do step.
     expect(report.monotonicViolations).toBe(0);
+    // ...and the boost genuinely VARIES with numLinked end-to-end — a numLinked that silently
+    // collapsed to a constant would also have zero "decreasing" violations, so `toBe(0)` alone
+    // is vacuous. The stage must read a real, rising numLinked (n=6 boost > n=1 boost).
+    expect(report.boostByNumLinked[MONO_MAX - 1]).toBeGreaterThan(report.boostByNumLinked[0]);
     // Without this, a dead boost would pass the assertions above trivially.
     expect(report.boostedCandidateCount).toBeGreaterThan(0);
     // Latency is REPORTED, not asserted. `measure(false)` runs first and absorbs cold-cache

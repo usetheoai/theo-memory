@@ -54,8 +54,22 @@ was invisible; the M18 fixtures link 1..6 query-matched entities to expose it.
 
 `entityBoost(n) = W·n/(n+c)` gives `n=1 → W/(1+c)`. Smaller `c` keeps the common single-match
 case nearer the legacy peak of 0.50: c=0.25 → 0.40, c=0.5 → 0.33, c=1 → 0.25. c=0.25 was chosen
-to preserve the n=1 magnitude while staying monotone; the benchmark confirms it does not regress
-precision (boost-ON stays 1.00).
+by the **n=1 magnitude** criterion. Precision on this corpus is **c-invariant**: any `c>0` produces
+a positive boost that promotes the linked relevant above the tied distractors, so precision is 1.00
+for every candidate `c` and a precision sweep cannot discriminate them. The benchmark therefore
+*confirms non-regression* at c=0.25 (boost-ON stays 1.00), it does not *elect* c by precision —
+magnitude is the operative criterion. (Reconciled in `/review`, finding F-tests-1.)
+
+### On the "75 → 0" churn comparison
+
+The 75 is the M15 measurement on its **saturated** (cosine-1.0) corpus; the 0 is M18 on the
+**headroom** corpus. They are not the same instrument re-run, so read the row as *"the defect
+produced 75 evictions where it was first measured; the fix produces 0"* — not as a paired A/B on
+one corpus. The stronger claim is structural and corpus-independent: numerator-only makes an
+unlinked candidate's score identical with and without the entity signal (the denominator no longer
+moves), so churn is 0 on **any** corpus, which is why the M18 assertion is `toBe(0)`, not `>= 0`.
+The `semantic-domination.test.ts` companion proves the other side — the boost's influence is
+bounded by `W`, so it cannot resurrect a candidate more than `W` below an unlinked rival.
 
 ## Reproduction
 
