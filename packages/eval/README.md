@@ -67,3 +67,20 @@ is only as honest as its golden set:
 
 If you add fixtures, add negative and ambiguous ones — a suite that only tests
 the happy path is half a suite.
+
+## e2e-qa stage — mem0 LongMemEval counter-proof (key-gated)
+
+`src/stages/e2e-qa/` faithfully replicates mem0's `memory-benchmarks/longmemeval`
+end-to-end QA methodology (ingest → recall → generate → binary LLM-judge → accuracy),
+wired to TheMemory. It is a **counter-proof**: an independent methodology that
+cross-validates the per-stage extraction eval.
+
+```bash
+# .env.local: OPENAI_API_KEY=<sk-or-…> + OPENAI_BASE_URL=https://openrouter.ai/api/v1 + OPENAI_CHAT_MODEL=openai/gpt-4o-mini
+export THEOMEM_PG_URI=postgresql://themem:themem@localhost:5442/themem
+pnpm --filter @usetheo/memory-eval eval:e2e-qa   # SKIPs cleanly without a key or the dataset
+```
+
+Key-gated (no keyless CI run), heavy (~2.5 min/example, LLM-bound), and NOT wired into the
+automatic CI gate. Recorded result + honest disclosure: `docs/benchmarks/m21-e2e-qa-longmemeval.md`
+(75% / 9-of-12 on gpt-4o-mini — NOT leaderboard-comparable to mem0's gpt-5 figure).
