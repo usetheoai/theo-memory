@@ -603,7 +603,7 @@ milestone needs line-level study.
 
 ---
 
-## M20 — [ ] Dependências e runtime sem surpresa (#123, #118)
+## M20 — [x] Dependências e runtime sem surpresa (#123, #118)
 
 > Added 2026-07-24. Tracked: theo-memory#123, #118.
 
