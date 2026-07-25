@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+- **O cache de recall parou de perder gravações concorrentes sob contenção.** Sob `SERIALIZABLE`, o wrapper de transação retentava um `serialization_failure` (40001) UMA única vez; com 3+ `set()` concorrentes no mesmo escopo, uma transação abortada podia colidir de novo no seu único retry e desistir, largando silenciosamente uma escrita de cache e corrompendo a contagem do LRU (era o teste flaky #132 — bug real, não ruído). Agora são retries limitados (8) com backoff aleatório que de-sincroniza os retriers; na exaustão o modo de falha é o mesmo de antes (cache MISS benigno) (#132).
 
 ### Security
 
