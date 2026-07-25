@@ -80,18 +80,44 @@ describe('maxPossible', () => {
     expect(maxPossible({ semantic: true, bm25: true, entity: false })).toBe(2.0);
   });
 
-  test('semantic + entity → 1.5', () => {
-    expect(maxPossible({ semantic: true, bm25: false, entity: true })).toBe(1.5);
+  test('semantic + entity → 1.0 (entity is numerator-only; does NOT inflate the denominator — #127)', () => {
+    expect(maxPossible({ semantic: true, bm25: false, entity: true })).toBe(1.0);
   });
 
-  test('all three signals → 2.5', () => {
-    expect(maxPossible({ semantic: true, bm25: true, entity: true })).toBe(2.5);
+  test('all three signals → 2.0 (entity excluded from maxPossible — #127)', () => {
+    expect(maxPossible({ semantic: true, bm25: true, entity: true })).toBe(2.0);
+  });
+});
+
+describe('numerator-only entity boost — no candidate eviction (#127)', () => {
+  test('unlinked candidate score is unchanged whether or not entity is active for others', () => {
+    // Semantic headroom BELOW the 1.0 clamp so the effect is measurable (SEPA precondition:
+    // a saturated 1.0 corpus would tie everything at the clamp and hide the fix).
+    const withEntityActive = combineScores(
+      { semantic: 0.85, bm25: 0, entityBoostScore: 0 },
+      maxPossible({ semantic: true, bm25: false, entity: true }),
+    );
+    const withoutEntity = combineScores(
+      { semantic: 0.85, bm25: 0, entityBoostScore: 0 },
+      maxPossible({ semantic: true, bm25: false, entity: false }),
+    );
+    // #127: turning the entity signal on for OTHER candidates must not lower this one's score.
+    expect(withEntityActive).toBeCloseTo(withoutEntity, 6);
+    expect(withEntityActive).toBeCloseTo(0.85, 6);
+  });
+
+  test('linked candidate still ranks above unlinked when both have semantic headroom', () => {
+    const denom = maxPossible({ semantic: true, bm25: false, entity: true });
+    const linked = combineScores({ semantic: 0.85, bm25: 0, entityBoostScore: 0.25 }, denom);
+    const unlinked = combineScores({ semantic: 0.85, bm25: 0, entityBoostScore: 0 }, denom);
+    // The M15 gain is preserved: the boost still discriminates (does not tie at the clamp).
+    expect(linked).toBeGreaterThan(unlinked);
   });
 });
 
 describe('combineScores', () => {
   test('caps at 1.0 even when raw sum exceeds maxPossible', () => {
-    expect(combineScores({ semantic: 1, bm25: 1, entityBoostScore: 0.5 }, 2.5)).toBeCloseTo(1.0, 3);
+    expect(combineScores({ semantic: 1, bm25: 1, entityBoostScore: 0.5 }, 2.0)).toBeCloseTo(1.0, 3);
   });
 
   test('normalizes by maxPossible', () => {
