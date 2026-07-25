@@ -16,6 +16,25 @@ import { ReflectionProvenanceMissingError } from '../errors.js';
 import type { DerivedMemoryDraft } from './types.js';
 
 /**
+ * M24 T3.2 (#145) — non-throwing per-draft provenance predicate.
+ *
+ * A draft is valid iff its `derivedFrom` is non-empty AND every cited id is in
+ * the source set. Same rule `validateProvenance` enforces, expressed as a
+ * boolean so the reflect path can QUARANTINE one bad draft (skip + emit event)
+ * instead of aborting the whole reflect (Rule 8 recoverable-vs-unrecoverable).
+ */
+export function isDraftProvenanceValid(
+  draft: DerivedMemoryDraft,
+  sourceIds: readonly string[],
+): boolean {
+  if (draft.derivedFrom.length === 0) {
+    return false;
+  }
+  const sourceSet = new Set(sourceIds);
+  return draft.derivedFrom.every((id) => sourceSet.has(id));
+}
+
+/**
  * Validates every draft's `derivedFrom` array against the source-set IDs.
  *
  * Throws on the FIRST violation found. Returns void on success.

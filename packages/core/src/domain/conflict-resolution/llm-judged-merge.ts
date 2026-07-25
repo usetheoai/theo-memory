@@ -25,7 +25,13 @@ import type { LLM } from '../dip/llm.js';
 import { generateConflictMergePrompt } from './prompts.js';
 
 const POLICY_NAME = 'llm-judged-merge' as const;
-const DEFAULT_CLUSTER_CAP = 20;
+/**
+ * Max candidates the LLM judges in one cluster; above it the policy abstains
+ * (no LLM call). Exported so the M24 bounded consolidation loop
+ * (`reflect-consolidation.ts`) clusters to the SAME bound — single source of
+ * truth, no drift between the abstain threshold and the cluster size.
+ */
+export const DEFAULT_CLUSTER_CAP = 20;
 const CTR = {
   KEPT: 'distillation.consolidation.kept',
   REJECTED: 'distillation.consolidation.rejected',
