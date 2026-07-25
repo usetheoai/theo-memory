@@ -13,11 +13,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+
+### Security
+
+## [0.46.1] - 2026-07-25
+
+### Fixed
 - **O reforço por entidades voltou a crescer com o número de entidades casadas.** Uma memória que casava mais entidades da busca recebia MENOS reforço, não mais — a curva era decrescente, o oposto da intenção. Agora o reforço é monótono não-decrescente e satura num teto: casar mais entidades nunca diminui o sinal, e nenhuma memória isolada domina o ranking (#125).
 - **Ligar o reforço por entidades deixou de eliminar do resultado memórias sem vínculo.** O reforço entrava no denominador da normalização, então quando QUALQUER candidato da busca tinha entidade ligada, o denominador crescia para TODOS — e um candidato sem vínculo, que já passara o corte semântico, caía abaixo do corte final e sumia do resultado, só porque outros tinham vínculo. Agora o reforço é somente numerador: uma memória sem vínculo tem exatamente o mesmo score com ou sem o sinal ativo para outras, enquanto a memória com vínculo continua subindo (#127).
 - **O job de contrato do CI passou a rodar dentro do job de integração, reusando o Postgres.** Ao ligar a suíte de contrato no CI (#104), alguns testes que inicializam o servidor tentavam abrir conexão sem banco e vazavam erros não-tratados; rodá-los junto do Postgres que a integração já sobe elimina a instabilidade sem um segundo banco (#104).
-
-### Security
 
 ## [0.46.0] - 2026-07-24
 
