@@ -16,6 +16,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Security
 
+## [0.48.1] - 2026-07-25
+
+### Changed
+- **deps: scoped brace-expansion override desbloqueia `npm run lint` (#138, ADR-0024).** O override blanket `brace-expansion>=5.0.8` do #123 forçava o `minimatch@3` do eslint (que precisa do export-função CJS 1.x) sobre o ESM 5.x → `expand is not a function` no carregamento do config. Fix cirúrgico: `minimatch@3>brace-expansion: 1.1.16` (só o path dev do eslint) mantendo `>=5.0.8` na produção. Advisory residual GHSA-mh99-v99m-4gvg fica SÓ no path dev-only do lint (ReDoS via glob = input confiável do próprio config), allowlistado com sunset 2026-10-23.
+
+### Fixed
+- **`npm run lint` volta a funcionar (#138).** Estava 100% quebrado (`TypeError: expand is not a function`) desde o #123 — o gate de lint do repo inteiro não protegia nada. Config carrega + 0 violações no tree atual.
+
 ## [0.48.0] - 2026-07-25
 
 ### Added
