@@ -5,7 +5,7 @@
 import { describe, expect, test } from 'vitest';
 
 import { ReflectionProvenanceMissingError } from './errors.js';
-import { validateProvenance } from './reflection/provenance.js';
+import { isDraftProvenanceValid, validateProvenance } from './reflection/provenance.js';
 import type { DerivedMemoryDraft } from './reflection/types.js';
 
 describe('validateProvenance (T4.2)', () => {
@@ -92,5 +92,25 @@ describe('validateProvenance (T4.2)', () => {
       const e = err as ReflectionProvenanceMissingError;
       expect(e.unknownIds).toEqual(['unknown']);
     }
+  });
+});
+
+describe('isDraftProvenanceValid (M24 T3.2 — per-draft quarantine predicate)', () => {
+  const sourceIds = ['m1', 'm2', 'm3'];
+
+  test('true when every derivedFrom id is in the source set', () => {
+    expect(isDraftProvenanceValid({ text: 'ok', derivedFrom: ['m1', 'm3'] }, sourceIds)).toBe(true);
+  });
+
+  test('false when derivedFrom is empty (no citation)', () => {
+    expect(isDraftProvenanceValid({ text: 'orphan', derivedFrom: [] }, sourceIds)).toBe(false);
+  });
+
+  test('false when any derivedFrom id is unknown (hallucinated)', () => {
+    expect(isDraftProvenanceValid({ text: 'bad', derivedFrom: ['m1', 'ghost'] }, sourceIds)).toBe(false);
+  });
+
+  test('does not throw (predicate, not a fail-fast validator)', () => {
+    expect(() => isDraftProvenanceValid({ text: 'x', derivedFrom: ['ghost'] }, sourceIds)).not.toThrow();
   });
 });
