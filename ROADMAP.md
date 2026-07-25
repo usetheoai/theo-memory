@@ -671,6 +671,30 @@ milestone needs line-level study.
 1. **Regressão de precisão no recall.** *Mitigação:* `recencyCollapse` age SÓ em clusters near-duplicate após o combine (queries sem duplicata intocadas), opt-in, τ conservador (≥ 0.9); teste de não-regressão com a flag OFF prova recall byte-idêntico.
 2. **Cache poisoning.** *Mitigação:* `recencyCollapse` entra na lista de cache-bypass (re-ordena o pool), como `scopes`/`diversify`/`rerank`.
 
+
+---
+
+## M23 — [ ] Knowledge-update supersession que move o caso real (#144, follow-up de #141)
+
+> Added 2026-07-25. Tracked: theo-memory#144. Blueprint: `.claude/knowledge-base/discoveries/blueprints/knowledge-update-supersession-blueprint.md`.
+
+**Objective:** Fechar o gap real que a contra-prova mem0 revelou: `recencyCollapse` (read-time, cosine@0.9) **estruturalmente não pega** updates do mesmo fato com fraseado diferente ("personal best 27:12" vs "PB 25:50" → 0 entidades compartilhadas, cosseno 0.51). Provado empiricamente que o fix sugerido no #144 (entity-gate) é um false-fix + regride precisão. O fix robusto é **write/reflect-time supersession** (o que o mem0 faz), cuja máquina o TheMemory já tem ~90% (`LlmJudgedMergeConflictPolicy` + `persistConsolidations` seta `t_invalid` + recall filtra `t_invalid IS NULL`); os gaps são (a) não-wired no harness/consumo, (b) escala (`clusterCap`=20 abstém em conversas reais). O cluster de consolidação NÃO é cosine-gated → julga fraseados diferentes juntos.
+
+**Definition of done:**
+
+- [ ] Fixture determinística **keyless** com as DUAS frases REAIS + embeddings reais (LocalTransformer 384, determinístico) — não vetores stub near-idênticos (o erro do M22): (1) counter-proof read-time (recall+recencyCollapse ainda devolve o stale 27:12 — trava que read-time não resolve), (2) prova write/reflect com LLM STUBBADO (`reflect({conflictResolution})` seta `t_invalid` no antigo → recall devolve 25:50), (3) guarda de precisão negativa (par "Google role vs tenure" — mesma entidade, atributos diferentes — NÃO é superseded).
+- [ ] Se a escala abstém (cluster>20 no caso real), bound `recallConsolidationCandidates` a um top-k semântico ao redor do fato (forma mem0), sem abstain silencioso.
+- [ ] Harness e2e-qa chama `reflect({conflictResolution})` (remember-tudo → reflect → recall) — legítimo "medir o TheMemory bem usado".
+- [ ] **Bench re-rodado (LLM real):** reportar HONESTAMENTE se `6a1eabeb` muda de desfecho (devolve 25:50) — mudança de desfecho no bench, não fixture verde. Se LLM/escala não moverem, reportar sem maquiar.
+- [ ] Suíte completa verde; recall byte-idêntico quando reflect não roda.
+
+**Dependencies:** M22 (recencyCollapse + e2e-qa harness) — [x].
+
+**Top risks:**
+
+1. **O LLM real pode não pegar a contradição no bench** (ou a escala abstém). *Mitigação:* a prova determinística (LLM stubbado, strings reais) é o gate primário do DoD; o bench é validação de caso-real reportada honestamente (mover ou não). Sem false-fix.
+2. **Regressão de precisão ao supersedir demais.** *Mitigação:* guarda negativa (Google role vs tenure) no teste; a supersession é LLM-julgada (não string/cosine), e ADD-only preserva o antigo via `asOf`.
+
 ---
 
 ## Unresolved at inception
