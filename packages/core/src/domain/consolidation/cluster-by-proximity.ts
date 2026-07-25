@@ -6,8 +6,11 @@
  * live scope as one cluster — so on a real (>20-row) conversation the
  * contradiction pair never reached the judge. This function turns that flat
  * candidate list into disjoint clusters of ≤ `cap`, each a focused group of
- * mutually-near memories, so every contradiction pair lands in a cluster the
- * judge will actually inspect.
+ * mutually-near memories, so a MUTUALLY-NEAREST contradiction pair (the shape a
+ * real same-fact update takes — a near-duplicate) lands in a cluster the judge
+ * will actually inspect. Greedy anchor-by-id does NOT guarantee co-location for
+ * an arbitrary pair split across a cap boundary; it holds for the near-duplicate
+ * case this targets (validated end-to-end in docs/benchmarks/m24d-149-*.md).
  *
  * PURE domain logic per `architecture.md`: no store/LLM import, no `Date`, no
  * `Math.random`. Determinism is load-bearing — the M24 tests prove co-location

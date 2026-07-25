@@ -1,3 +1,8 @@
+> **SUPERSEDED (2026-07-25) by `m24d-149-conservative-consolidation.md`.** This doc records the
+> pre-#149 state (Goal not met, #144 open). The #149 conservative-consolidation prompt fix landed
+> afterward and RESOLVED #144 end-to-end (`6a1eabeb` returns `25:50`, knowledge-update 2/2). Read the
+> m24d doc for the final result; this one is kept for the honest audit trail of the intermediate state.
+
 # M24 bounded-consolidation bench — genuine partial progress, Goal NOT met
 
 Real-LLM e2e-qa run (REDACTED LongMemEval counter-proof harness, `packages/eval/src/stages/e2e-qa/`)
