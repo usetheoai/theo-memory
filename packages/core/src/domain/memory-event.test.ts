@@ -8,8 +8,12 @@ import { MEMORY_EVENTS, emitEvent } from './memory-event.js';
 import type { MemoryEvent } from './memory-event.js';
 
 describe('MEMORY_EVENTS', () => {
-  test('has 52 values (51 prior + recency_collapse_applied, M22 #141 collapse observability)', () => {
-    expect(MEMORY_EVENTS).toHaveLength(52);
+  test('has 53 values (52 prior + reflection_draft_quarantined, M24 #145 quarantine observability)', () => {
+    expect(MEMORY_EVENTS).toHaveLength(53);
+  });
+
+  test('includes reflection_draft_quarantined (M24 #145 — draft quarantine IGNORE decision is observable)', () => {
+    expect(MEMORY_EVENTS).toContain('reflection_draft_quarantined');
   });
 
   test('includes recall_cache_write_failed (#132 — cache write is best-effort, never breaks recall)', () => {
