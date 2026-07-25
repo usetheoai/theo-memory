@@ -5,6 +5,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.48.2] - 2026-07-25
+
+### Added
 - **Benchmark honesto M23: ligar reflect no bench é uma REGRESSÃO (91.7% → 83.3%), NÃO o fix do #144.** O bench real (E2E_QA_REFLECT=1, gpt-4o-mini) NÃO moveu `6a1eabeb` (cluster real > clusterCap 20 → `LlmJudgedMerge` abstém), regrediu 1 exemplo (supersessão falsa) e lançou `ReflectionProvenanceMissingError` em 2 clusters reais. Por isso o reflect no harness é **opt-in (default OFF)** — o bench default fica nos 91.7% honestos, sem regressão. A fixture determinística prova o MECANISMO num cluster bounded; o fix end-to-end real precisa de consolidação bounded/per-write (REDACTED-shape) → follow-ups #146 (escala) + #145 (bug de provenance do reflect). Sem false-fix, sem regressão shipada. (M23, #144)
 - **Eval `@usetheo/memory-eval`: fixture keyless `knowledge-update-supersession` (#144, M23) — prova o fix do #144 nas strings REAIS.** Substitui os stub-vectors quase-idênticos do M22 (o erro "passa no unit, falha no real") por embeddings congelados do `LocalTransformerEmbedder(384)` sobre as duas frases reais ("personal best … 27:12" vs "PB … 25:50", cosseno **0.5117** ≪ 0.9). Três casos: (1) contraprova de leitura — `recall({ recencyCollapse: {} })` AINDA devolve o valor velho `27:12` (leitura não corrige wording diferente); (2) `reflect({ conflictResolution: LlmJudgedMerge })` com LLM STUBBADO (sem chave) marca `t_invalid` na linha velha e o recall passa a devolver `25:50`; (3) guarda de precisão — mesmo-entidade/atributo-diferente (Google função vs. tenure) NÃO é superseded. Casos com `t_invalid` rodam contra pgvector real (gated em `THEOMEM_PG_URI`, SKIP limpo sem DB); a contraprova de leitura é in-memory e sempre roda. (M23, #144)
 - **Benchmark: M22 e2e-qa re-run (REDACTED-LongMemEval) = 11/12 (91.7%) vs 75% baseline**, with recencyCollapse + coverage-gate ON. Honest attribution (`docs/benchmarks/m22-e2e-qa-longmemeval.md`): the genuine code-attributable gain is ~1 example (#140 coverage-gate abstention); one flip is likely LLM-judge variance; **#141 recencyCollapse did NOT fix the real knowledge-update case** (differently-worded same-fact values are not cosine-near at τ=0.9) → follow-up #144. N=12, illustrative.
@@ -13,14 +27,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **e2e-qa harness agora consolida (`reflect({ conflictResolution: LlmJudgedMerge })`) ANTES do recall (#144, M23).** Fase 1.5 entre ingest e recall, para que um update de mesmo-fato com wording diferente seja superseded (`t_invalid`) em vez de continuar ofuscando o valor fresco. Falha ALTO (loga o erro, nunca fabrica supersessão) e segue no estado não-consolidado — o bench mede o resultado honesto. Continua key-gated (SKIP sem chave). Divulgação honesta (docs/benchmarks/m23-knowledge-update.md § T3): um escopo com > 20 linhas `extracted` faz o `LlmJudgedMerge` abster (clusterCap 20) — o gate de CI é a fixture determinística, não o bench.
 - **e2e-qa benchmark harness now enables `recencyCollapse` on recall** so the REDACTED-LongMemEval counter-proof exercises the shipped M22 #141 capability (was recall-default, which left the collapse invisible end-to-end). Measures TheMemory with the recommended config for knowledge-update scenarios. (M22, #141)
 
-### Deprecated
-
-### Removed
-
 ### Fixed
 - **#144: update de mesmo-fato com wording diferente ("personal best … 27:12" → "PB … 25:50") agora é superseded em tempo de `reflect`, e o recall passa a devolver o valor fresco.** O `recencyCollapse` do M22 (cosseno @ 0.9) NÃO alcançava paráfrases cosseno-distantes (real: 0.5117) — divulgação honesta do M22 que o #144 fecha. O caminho robusto é a supersessão em tempo de escrita/reflect (LLM-judged → `t_invalid` → filtro `t_invalid IS NULL` no recall), já ~90% construída; o gap fechado é o consumidor (harness) nunca chamar `reflect`. Provado por fixture keyless nas strings REAIS (embeddings congelados; LLM stubbado) contra pgvector real. Gap de escala honesto: escopos com > 20 linhas `extracted` ainda abstêm (clusterCap 20) — bound deferido (docs/benchmarks/m23-knowledge-update.md § T3). (M23, #144)
-
-### Security
 
 ## [0.48.1] - 2026-07-25
 
