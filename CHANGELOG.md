@@ -13,10 +13,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
-- **O grafo de entidades para de encher de ruído com texto PT/técnico.** Fragmentos onde TODOS os tokens são palavras funcionais (artigos/preposições/conjunções PT+EN, ex. `Não` com 140 refs, `o de`) e marcadores de scrub que vazaram como token (`REDACTED*`, 158 refs) agora são descartados no filtro de ruído — junto do gate de idioma (`eld`) que roteia texto não-inglês para longe do extrator EN-only e do descarte de spans QUOTED longos, ambos já presentes. Palavras de conteúdo PT (`engenheiro`, `São Paulo`) sobrevivem (#111).
-- **O cache de recall parou de perder gravações concorrentes sob contenção.** Sob `SERIALIZABLE`, o wrapper de transação retentava um `serialization_failure` (40001) UMA única vez; com 3+ `set()` concorrentes no mesmo escopo, uma transação abortada podia colidir de novo no seu único retry e desistir, largando silenciosamente uma escrita de cache e corrompendo a contagem do LRU (era o teste flaky #132 — bug real, não ruído). Agora são retries limitados (8) com backoff aleatório que de-sincroniza os retriers; na exaustão a escrita do cache (agora guardada em try/catch no caminho de recall, emitindo `recall_cache_write_failed`) degrada para um cache MISS observável e NUNCA quebra o recall — os resultados já computados são retornados (#132).
+
 
 ### Security
+
+## [0.46.4] - 2026-07-25
+
+### Fixed
+- **O grafo de entidades para de encher de ruído com texto PT/técnico.** Fragmentos onde TODOS os tokens são palavras funcionais (artigos/preposições/conjunções PT+EN, ex. `Não` com 140 refs, `o de`) e marcadores de scrub que vazaram como token (`REDACTED*`, 158 refs) agora são descartados no filtro de ruído — junto do gate de idioma (`eld`) que roteia texto não-inglês para longe do extrator EN-only e do descarte de spans QUOTED longos, ambos já presentes. Palavras de conteúdo PT (`engenheiro`, `São Paulo`) sobrevivem (#111).
+- **O cache de recall parou de perder gravações concorrentes sob contenção.** Sob `SERIALIZABLE`, o wrapper de transação retentava um `serialization_failure` (40001) UMA única vez; com 3+ `set()` concorrentes no mesmo escopo, uma transação abortada podia colidir de novo no seu único retry e desistir, largando silenciosamente uma escrita de cache e corrompendo a contagem do LRU (era o teste flaky #132 — bug real, não ruído). Agora são retries limitados (8) com backoff aleatório que de-sincroniza os retriers; na exaustão a escrita do cache (agora guardada em try/catch no caminho de recall, emitindo `recall_cache_write_failed`) degrada para um cache MISS observável e NUNCA quebra o recall — os resultados já computados são retornados (#132).
 
 ## [0.46.3] - 2026-07-25
 
