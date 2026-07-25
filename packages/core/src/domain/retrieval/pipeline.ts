@@ -31,6 +31,7 @@ import { sigmoidBm25 } from '../scoring.js';
 
 import { computeEntityBoost } from './entity-boost-step.js';
 import { mmrRerank } from './mmr.js';
+import { applyRecencyCollapseStage } from './recency-collapse.js';
 import type { RetrievalDeps } from './retrieval-deps.js';
 import { scopeAwareReweight } from './scope-reweight.js';
 import { applyAdaptiveAssessStage } from './stages/adaptive-relax.js';
@@ -170,8 +171,7 @@ export async function runRetrievalPipeline(
         filters,
         options.graphExpand,
         topK,
-        scope.kind,
-        tracer,
+        scope.kind, tracer,
       )),
     ];
   }
@@ -179,11 +179,19 @@ export async function runRetrievalPipeline(
   // cross-encoder-reranker T2.2 / ADR D3 + M10 T3.1 — diversify, rerank, and the M10
   // scope-aware reweight are mutually exclusive post-threshold reranks of the same pool.
   // Fail-loud BEFORE any inference (Princípio 3 + Inquebrável Rule 8).
-  const postThresholdStages = [options?.rerank, options?.diversify, options?.scopes].filter(
+  const postThresholdStages = [options?.rerank, options?.diversify, options?.scopes, options?.recencyCollapse].filter(
     (s) => s !== undefined,
   ).length;
   if (postThresholdStages > 1) {
     throw new RerankerConflict();
+  }
+
+  // Step 8.5b — M22 recency-collapse (#141): opt-in most-recent-wins collapse of
+  // near-duplicates (older → `superseded_recency` drop); mutually exclusive w/ reranks.
+  if (options?.recencyCollapse !== undefined) {
+    scored = await applyRecencyCollapseStage(
+      scored, candidates, deps.embedder, options.recencyCollapse, topK, threshold, recallDrops, tracer,
+    );
   }
 
   // Step 8.5c — M10 scope-aware reweight (opt-in via options.scopes). Maps the threshold-
