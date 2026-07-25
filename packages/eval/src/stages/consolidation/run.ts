@@ -23,6 +23,7 @@ import {
   recall,
   type ConflictResolutionDecision,
 } from '../../metrics/index.js';
+import { StageScoreSchema, type StageScore } from '../../schema.js';
 
 export interface PolicyResult {
   readonly policyName: string;
@@ -84,6 +85,29 @@ function runPolicyHarness(
 export function runConsolidationEval(): Promise<PolicyResult[]> {
   const handSet = handAuthoredOnly(loadGoldSet());
   return Promise.resolve(POLICIES.map((p) => runPolicyHarness(p, handSet)));
+}
+
+/**
+ * The consolidation stage's LLM-free StageScore (T3.2). Represented by the
+ * deterministic `last-write-wins` policy over the hand-authored gold set. This
+ * measures HARNESS WIRING (the synthetic decisions are perfect by construction),
+ * not LLM judgment quality — the real signal is the key-gated LLM-measured tier
+ * (see the F-M5 caveat in the README). The gate still guards it: if the harness
+ * breaks, the numbers drop and the regression fires.
+ */
+export async function consolidationStageScore(): Promise<StageScore> {
+  const start = Date.now();
+  const handSet = handAuthoredOnly(loadGoldSet());
+  const lww = runPolicyHarness('last-write-wins', handSet);
+  const score: StageScore = {
+    stage: 'consolidation',
+    precision: lww.precision,
+    recall: lww.recall,
+    accuracy: lww.conflictAccuracy,
+    n: handSet.length,
+    runtimeMs: Date.now() - start,
+  };
+  return Promise.resolve(StageScoreSchema.parse(score));
 }
 
 /** Pure matrix renderer — DB-free, unit-tested. */
