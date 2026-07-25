@@ -484,6 +484,20 @@ O owner enviou a doc do plugin de memória de referência do Claude Code e pediu
 
 A análise comparativa com o REDACTED (2026-07-24) mostrou que o boost de entidade é o ÚNICO sinal estrutural em que teríamos vantagem sobre o recall deles (o OSS deles é vetorial + filtros; reranker só na plataforma paga). Nós projetamos o sinal, construímos o grafo que o alimenta (M13) e o `combineScores` soma zero — `pipeline.ts:451` diz literalmente "numLinked=0 always". É capacidade construída e não conectada.
 
+
+## M24 — [ ] Bounded per-anchor consolidation que move o caso real 6a1eabeb (#146, fix real de #144; +#145 quarantine)
+
+**Objetivo:** mover o caso real de knowledge-update `6a1eabeb` de stale (`27:12`) para fresh (`25:50`) no bench e2e-qa via consolidação bounded per-anchor (o par de contradição alcança o LLM judge sem abstain), elevando o bench acima do baseline 91.7%.
+
+**Dependencies:** M23 [ ] (investigação que provou o whole-scope regredir).
+
+**Definition of done:**
+- [ ] `clusterByProximity` (domínio puro, determinístico) co-loca o par PB (embeddings reais congelados, cos 0.5117).
+- [ ] Orquestrador consolida por cluster bounded (sem abstain a >clusterCap).
+- [ ] #145: draft de reflect com provenance inválida é quarentenada (evento + counter), não aborta o reflect.
+- [ ] Prova keyless vs pgvector real: escopo >clusterCap supersede a PB stale (recall → `25:50`); precision guard segura.
+- [ ] THE GOAL TEST: bench real-LLM move `6a1eabeb` para `25:50` e overall ≥ 91.7% (senão, `[ ]` honesto + follow-up).
+
 ---
 
 ## State-of-the-art references
