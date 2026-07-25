@@ -12,10 +12,7 @@ import { createLocalMemory } from './../infrastructure/db/index.js';
 import { MAX_EMBEDDING_DIM } from './constants.js';
 import type { Embedder } from './dip/embedder.js';
 import type { LLM } from './dip/llm.js';
-import {
-  ReflectionNotConfigured,
-  ReflectionProvenanceMissingError,
-} from './errors.js';
+import { ReflectionNotConfigured } from './errors.js';
 import type { LLMResponse, Message } from './message.js';
 
 function stubEmbedder(): Embedder {
@@ -137,7 +134,7 @@ describe('Memory.reflect() (T4.3)', () => {
     expect(result.sourceIds).toContain('src-1');
   });
 
-  test('provenance failure: LLM cites unknown id → throws ReflectionProvenanceMissingError', async () => {
+  test('provenance failure: LLM cites unknown id → draft is quarantined, reflect does NOT throw (M24 #145)', async () => {
     const store = new InMemoryVectorStore();
     await store.insert(
       [Array.from({ length: MAX_EMBEDDING_DIM }, () => 0.1)],
@@ -158,7 +155,11 @@ describe('Memory.reflect() (T4.3)', () => {
         },
       },
     });
-    await expect(memory.user('alice').reflect()).rejects.toThrow(ReflectionProvenanceMissingError);
+    // M24 #145: the single provenance-invalid draft is QUARANTINED (skipped), not
+    // thrown; with no valid drafts left the result is a clean no-consolidation.
+    const result = await memory.user('alice').reflect();
+    expect(result.derivedMemoriesCreated).toBe(0);
+    expect(result.reason).toBe('no-consolidation');
   });
 
   test('policy.onReflectionStart + onReflectionEnd are invoked', async () => {
