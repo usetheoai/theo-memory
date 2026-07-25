@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+- **`themory server` recusa iniciar com um build (`dist/`) mais antigo que o fonte.** No host-run em dev, um `dist/` obsoleto servia silenciosamente código pré-build (o bug do #118 — entidades pré-M13). Agora a inicialização falha rápido com um erro tipado `StaleDistError` e mensagem acionável (`pnpm build`); num pacote publicado (sem `src/`) é no-op (#118).
 
 ### Security
 - **Fechados os advisories de segurança que tocavam o runtime do servidor REST.** `hono` (3 CVEs moderados: drop de request no adapter de gateway, contexto de JSX não isolado por request, XSS via escaping de JSX) e `@hono/node-server` (path-traversal no `serve`) foram atualizados (hono ≥4.12.27, node-server ≥2.0.5); os 3 HIGH transitivos (`brace-expansion` ×2, `js-yaml`) foram fixados via override. A suíte de integração do servidor (47/47 vs Postgres real) prova que o major bump do node-server não quebrou nada. Antes/depois em `docs/security/m20-audit.md` (#123).
