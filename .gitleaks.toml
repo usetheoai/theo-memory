@@ -1,0 +1,25 @@
+# Secret-scan config (motivated by #126 — 2 real theo_live_ keys reached develop history).
+# Prevents RECURRENCE: a hardcoded real API key added to the working tree fails CI. Scans the
+# tree (not git history), so it does not re-flag the already-exposed keys #126 tracks for the
+# owner to ROTATE (history rewrite is forbidden — Rule 4; rotation neutralizes the exposed keys).
+title = "theo-memory secret scan"
+
+# Targeted gate: ONLY the project's own `theo_live_` API-key format. The generic default
+# ruleset false-positives heavily on this repo's reference clones + fixtures; #126 is specifically
+# about theo_live_ keys, so this rule alone is the precise, low-noise preventive gate.
+
+[[rules]]
+id = "theo-live-api-key"
+description = "Hardcoded theo_live_ API key (a real key is a long hex string, not a template literal)"
+# A real key is `theo_live_` + a long hex secret. Test fixtures build keys with a template
+# (`theo_live_${randomUUID()...}`), so the char after the prefix is `$` — this regex never matches
+# them; only a genuinely hardcoded hex secret trips it.
+regex = '''theo_live_[a-f0-9]{20,}'''
+keywords = ["theo_live_"]
+
+[rules.allowlist]
+description = "Test fixtures generate SYNTHETIC keys via template literals — not hardcoded secrets."
+paths = [
+  '''.*\.(test|spec)\.ts$''',
+  '''.*/__tests__/.*''',
+]
