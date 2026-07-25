@@ -1,0 +1,40 @@
+{
+  "milestone": "M18",
+  "issues": [
+    125,
+    127
+  ],
+  "curve": "W*n/(n+c)",
+  "saturationC": 0.25,
+  "semanticHeadroom": 0.85,
+  "corpus": {
+    "topics": 25,
+    "memoriesPerTopic": 4,
+    "monotonicityFixtures": 6
+  },
+  "k": 1,
+  "precisionAtK": {
+    "withoutBoost": 0.08,
+    "withBoost": 1
+  },
+  "delta": 0.92,
+  "recallSetChurn": 0,
+  "recallSetChurnSensitive": {
+    "threshold": 0.8,
+    "churn": 0
+  },
+  "monotonicViolations": 0,
+  "boostByNumLinked": [
+    0.4,
+    0.4444,
+    0.4615,
+    0.4706,
+    0.4762,
+    0.48
+  ],
+  "boostedCandidateCount": 25,
+  "latencyMsPerQuery": {
+    "withoutBoost": 43.49,
+    "withBoost": 51.99
+  }
+}
