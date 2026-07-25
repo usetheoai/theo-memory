@@ -24,10 +24,27 @@ Replace the blanket override with a **surgical, scoped** pair:
 
 `1.1.16` is the latest `maintenance-v1` release (1.x line, CJS function export), so `minimatch@3` works and lint runs. Every other path keeps `>=5.0.8`.
 
-The residual GHSA-mh99-v99m-4gvg finding then remains on **exactly one path**: `.>eslint>minimatch>brace-expansion`. It is **accepted** via `deps-audit-allowlist.txt` (sunset 2026-10-23) because:
+The residual GHSA-mh99-v99m-4gvg finding then remains on the `minimatch@3` dev paths.
+`pnpm audit` collapses this to **one representative path** (`.>eslint>minimatch>brace-expansion`),
+but the graph actually reaches `brace-expansion@1.1.16` via **two dev-only chains** (both
+through `minimatch@3.1.5`): (a) the eslint family (`eslint`, `@eslint/config-array`,
+`@eslint/eslintrc`, `eslint-plugin-import`) and (b) `ts-prune → ts-morph → @ts-morph/common →
+minimatch@3.1.5`. It is **accepted** via `deps-audit-allowlist.txt` (sunset 2026-10-23) because:
 
-1. **Dev-only.** `eslint` is a devDependency; brace-expansion 1.1.16 never ships in any published package or Docker image (production paths are 5.0.8).
-2. **Trusted input.** The advisory is a ReDoS/OOM triggered by an attacker-controlled **glob pattern**. ESLint expands only the **project's own** config globs (`packages/*/src/**/*.ts`), never untrusted external input — the attack vector is not reachable.
+1. **Dev-only.** Every consumer of `minimatch@3.1.5` is a **devDependency** (eslint family +
+   ts-prune, the dead-code auditor). No workspace runtime package (`packages/*/package.json`)
+   declares minimatch / ts-morph / ts-prune / eslint as a runtime dep, so brace-expansion 1.1.16
+   never ships in any published package or Docker image (production paths are all 5.0.8).
+2. **Trusted input.** The advisory is a ReDoS/OOM triggered by an attacker-controlled **glob
+   pattern**. eslint/ts-prune expand only the **project's own** config globs
+   (`packages/*/src/**/*.ts`), never untrusted external input — the attack vector is not reachable.
+
+**Scope caveat.** The override key `"minimatch@3>brace-expansion"` scopes by **dependency edge**
+(any `minimatch@3.x` consumer), not by dev-vs-prod. Today every `minimatch@3` consumer is a
+devDependency (verified), so no production path is downgraded. If a FUTURE production/runtime
+dependency ever resolves `minimatch@3.x` it would silently receive the vulnerable brace-expansion
+1.1.16 — the 90-day sunset forces a re-review before that can go unnoticed, and the deps-audit
+gate re-fires the finding at full severity once the entry expires.
 
 ## Alternatives considered
 
