@@ -2,10 +2,13 @@
  * M25 T3.2 — resolve `THEOMEM_PG_URI` through the layered config resolver.
  *
  * The real consumer wiring (DoD bullet 3): `themory server` (run-server.ts)
- * calls this instead of reading `process.env['THEOMEM_PG_URI']` directly, so an
- * operator can pin the DB URI in `./.themory.json` or `~/.themory/config.json`.
- * Env still wins over any file (ADR-2) → env-only deployments are byte-identical
- * to the pre-M25 behavior. Secrets are unaffected (the PG URI is non-secret).
+ * calls this instead of reading `process.env['THEOMEM_PG_URI']` directly.
+ * File-pinning the DB URI in `./.themory.json` / `~/.themory/config.json` is honored
+ * by the resolver and by `themory config get/list`. NOTE for `themory server`
+ * specifically: `assertEnvOrExit` still requires the env var to be present (exit 2
+ * if unset), so on the server path env is always set and env wins (ADR-2) —
+ * env-only deployments are byte-identical to the pre-M25 behavior. Secrets are
+ * unaffected (the PG URI is non-secret).
  *
  * @see .claude/knowledge-base/plans/layered-config-cli-plan.md § T3.2
  */
