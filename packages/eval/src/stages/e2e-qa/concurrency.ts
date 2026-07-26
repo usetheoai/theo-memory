@@ -30,3 +30,21 @@ export async function mapWithConcurrency<T, R>(
   await Promise.all(Array.from({ length: width }, () => worker()));
   return results;
 }
+
+/**
+ * Run `fn`; on throw, return `onError(message)` instead of propagating. For the
+ * benchmark this converts a single example's recall/answer/judge failure (a
+ * transient 5xx, a context-length overflow on one huge conversation) into a
+ * scored miss with an `error` field — one bad example never aborts a 500-question
+ * run. The message is stringified defensively (Error → .message, else String()).
+ */
+export async function runSafely<R>(
+  fn: () => Promise<R>,
+  onError: (message: string) => R,
+): Promise<R> {
+  try {
+    return await fn();
+  } catch (err) {
+    return onError(err instanceof Error ? err.message : String(err));
+  }
+}

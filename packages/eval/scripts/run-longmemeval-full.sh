@@ -21,16 +21,21 @@ echo "[lme] model=${OPENAI_CHAT_MODEL:-?} runs=$RUNS concurrency=$CONC outdir=$O
 
 for r in $(seq 1 "$RUNS"); do
   jsonl="$OUTDIR/run${r}.jsonl"
-  rm -f "$jsonl"
+  : > "$jsonl"
   echo "[lme] === run $r/$RUNS → $jsonl ==="
+  # Per-example fail-safe lives IN the harness (runSafely); a run that still exits
+  # non-zero (infra/DB) must not abort the whole driver — keep going, aggregate what we have.
+  set +e
   E2E_QA_LIMIT=full \
   E2E_QA_CONCURRENCY="$CONC" \
   E2E_QA_REFLECT=1 \
   E2E_QA_DB="themem_lme_run${r}" \
   E2E_QA_JSONL="$jsonl" \
-    pnpm exec tsx packages/eval/src/stages/e2e-qa/run.ts 2>&1 \
-    | grep -avE 'sk-or-' | tail -3
-  echo "[lme] run $r done: $(wc -l < "$jsonl") examples"
+    pnpm exec tsx packages/eval/src/stages/e2e-qa/run.ts \
+    > "$OUTDIR/run${r}.log" 2>&1
+  rc=$?
+  set -e
+  echo "[lme] run $r done (exit $rc): $(wc -l < "$jsonl") examples; $(grep -c 'ERROR=' "$OUTDIR/run${r}.log" 2>/dev/null || echo 0) per-example errors"
 done
 
 echo "[lme] === aggregating ==="
