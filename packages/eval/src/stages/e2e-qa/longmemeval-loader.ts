@@ -101,3 +101,22 @@ export function selectDeterministicSubset(
 
   return selected;
 }
+
+/**
+ * Select the run subset honoring the `E2E_QA_LIMIT` env mode:
+ * - `''` (unset) → the deterministic 12-example smoke subset (backward-compatible default).
+ * - `'full'`     → the whole LongMemEval_oracle set (the REDACTED-comparable run).
+ * - `'<n>'`      → the first n examples in dataset order (a cheaper smoke/sample).
+ *
+ * Scoring, judge guard, and coverage-gate are identical across modes — only the
+ * example set changes. Keeps run.ts free of the mode branching (SRP).
+ */
+export function selectRunSubset(
+  dataset: LongMemEvalExample[],
+  limitEnv: string,
+): LongMemEvalExample[] {
+  const mode = limitEnv.trim().toLowerCase();
+  if (mode === '') return selectDeterministicSubset(dataset);
+  if (mode === 'full') return dataset;
+  return dataset.slice(0, Math.max(1, Number.parseInt(mode, 10) || 1));
+}
