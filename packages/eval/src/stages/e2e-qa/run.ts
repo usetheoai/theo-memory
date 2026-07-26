@@ -41,9 +41,9 @@ import {
 } from './longmemeval-loader.js';
 import { shouldAbstain } from './coverage-gate.js';
 import { abstentionIsMiss } from './scoring.js';
-import { mapWithConcurrency } from './concurrency.js';
+import { mapWithConcurrency, runSafely } from './concurrency.js';
 import { buildAnswerPrompt, buildJudgePrompt, parseJudgeVerdict } from './prompts.js';
-import { report, type ExampleResult } from './report.js';
+import { report, failedResult, type ExampleResult } from './report.js';
 
 // ---- Config -----------------------------------------------------------------
 
@@ -245,12 +245,7 @@ async function main(): Promise<void> {
   const mode = limitEnv.trim() === '' ? 'subset-12' : limitEnv.trim().toLowerCase();
   const absN = subset.filter(isAbstention).length;
   console.log(
-    `[e2e-qa] loaded ${String(dataset.length)} oracle examples; selected ${String(subset.length)} (${String(absN)} abstention) [mode=${mode}].`,
-  );
-  console.log(
-    `[e2e-qa] model=${CHAT_MODEL} embedder=LocalTransformer(${String(
-      EMBEDDING_DIM,
-    )}) turn_cap=${String(TURN_CAP)} top_k=${String(RECALL_TOP_K)}`,
+    `[e2e-qa] loaded ${String(dataset.length)} examples; selected ${String(subset.length)} (${String(absN)} abstention) [mode=${mode}] model=${CHAT_MODEL} dim=${String(EMBEDDING_DIM)} turn_cap=${String(TURN_CAP)} top_k=${String(RECALL_TOP_K)} conc=${String(CONCURRENCY)}`,
   );
 
   await provisionIsolatedDb();
@@ -278,12 +273,17 @@ async function main(): Promise<void> {
 
   let done = 0;
   const results = await mapWithConcurrency(subset, CONCURRENCY, async (ex) => {
-    const r = await runExample(memory, client, ex, conflictPolicy);
+    // Fail-safe per example: a transient 5xx / context overflow scores a miss with
+    // an `error` field, never aborting the whole run (a bench must survive one bad row).
+    const r = await runSafely(
+      () => runExample(memory, client, ex, conflictPolicy),
+      (message) => failedResult(ex, message),
+    );
     done += 1;
     if (OUT_JSONL !== '') appendFileSync(OUT_JSONL, JSON.stringify(r) + '\n');
-    const errs = r.ingestErrors > 0 ? ` (ingestErrors=${String(r.ingestErrors)})` : '';
+    const tag = r.error !== undefined ? ` ERROR=${r.error.slice(0, 60)}` : '';
     console.log(
-      `[e2e-qa] (${String(done)}/${String(subset.length)}) ${r.questionId} type=${r.questionType} recalled=${String(r.recalledCount)} → ${r.correct ? 'YES' : 'no'}${errs}`,
+      `[e2e-qa] (${String(done)}/${String(subset.length)}) ${r.questionId} type=${r.questionType} recalled=${String(r.recalledCount)} → ${r.correct ? 'YES' : 'no'}${tag}`,
     );
     return r;
   });
