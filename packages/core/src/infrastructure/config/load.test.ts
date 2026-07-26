@@ -42,6 +42,16 @@ afterEach(() => {
   tmps.length = 0;
 });
 
+/** Assert `read()` throws a ConfigParseError whose message names `path`. */
+function expectConfigParseError(read: () => unknown, path: string): void {
+  expect(read).toThrow(ConfigParseError);
+  try {
+    read();
+  } catch (err) {
+    expect((err as ConfigParseError).message).toContain(path);
+  }
+}
+
 describe('file helpers', () => {
   it('reads_global_and_project: both files parsed', () => {
     const home = tmp();
@@ -60,13 +70,7 @@ describe('file helpers', () => {
   it('malformed_json_throws_typed: bad JSON → ConfigParseError naming the file', () => {
     const cwd = tmp();
     writeProject(cwd, '{ not valid json ');
-    try {
-      readProjectConfig(cwd);
-      throw new Error('expected ConfigParseError');
-    } catch (err) {
-      expect(err).toBeInstanceOf(ConfigParseError);
-      expect((err as ConfigParseError).message).toContain(projectConfigPath(cwd));
-    }
+    expectConfigParseError(() => readProjectConfig(cwd), projectConfigPath(cwd));
   });
 
   it('save_writes_project_file: round-trips {k:v}', () => {
@@ -76,6 +80,24 @@ describe('file helpers', () => {
     expect(readProjectConfig(cwd)).toEqual({ HOST: '1.2.3.4' });
     // sanity: it is real JSON on disk.
     expect(JSON.parse(readFileSync(projectConfigPath(cwd), 'utf8'))).toEqual({ HOST: '1.2.3.4' });
+  });
+
+  it('non_object_json_throws_typed: valid-but-non-object JSON → ConfigParseError (fail loud)', () => {
+    const cwd = tmp();
+    writeProject(cwd, '[1,2,3]'); // valid JSON, wrong shape — must NOT be coerced to {}
+    expectConfigParseError(() => readProjectConfig(cwd), projectConfigPath(cwd));
+  });
+
+  it('save_strips_secrets: a secret hand-edited into the file is purged on save (ADR-3 defense-in-depth)', () => {
+    const cwd = tmp();
+    // Simulate an operator who hand-wrote a secret into the file.
+    writeProject(cwd, JSON.stringify({ HOST: 'h', OPENAI_API_KEY: 'sk-leaked' }));
+    // A later save (e.g. `config set HOST x`) must NOT re-persist the secret.
+    saveProjectConfig(cwd, { ...readProjectConfig(cwd), HOST: 'x' });
+    const onDisk = readFileSync(projectConfigPath(cwd), 'utf8');
+    expect(onDisk).not.toContain('OPENAI_API_KEY');
+    expect(onDisk).not.toContain('sk-leaked');
+    expect(readProjectConfig(cwd)).toEqual({ HOST: 'x' });
   });
 });
 

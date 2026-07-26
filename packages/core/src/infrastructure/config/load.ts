@@ -80,9 +80,12 @@ function readJsonFile(path: string): Record<string, unknown> {
   }
   try {
     const parsed: unknown = JSON.parse(raw);
-    return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : {};
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      // Valid JSON but not an object (array/primitive/null) — fail LOUD, not a silent
+      // `{}`; a config file must be a JSON object so an operator sees the real mistake.
+      throw new ConfigParseError(path, new Error('config file must be a JSON object'));
+    }
+    return parsed as Record<string, unknown>;
   } catch (err) {
     throw new ConfigParseError(path, err);
   }
@@ -100,8 +103,12 @@ export function readProjectConfig(cwd: string = process.cwd()): Record<string, u
 
 /** Persist `values` to the project config file as pretty JSON (overwrites). */
 export function saveProjectConfig(cwd: string, values: Record<string, unknown>): void {
+  // Defense-in-depth (ADR-3): NEVER persist a secret to the file, even if one was
+  // hand-edited into it — stripping on save purges an accidentally-added secret
+  // rather than rewriting it verbatim.
+  const safe = stripSecrets(values);
   mkdirSync(cwd, { recursive: true });
-  writeFileSync(projectConfigPath(cwd), `${JSON.stringify(values, null, 2)}\n`, 'utf8');
+  writeFileSync(projectConfigPath(cwd), `${JSON.stringify(safe, null, 2)}\n`, 'utf8');
 }
 
 /** Drop secret keys — file layers must never contribute a secret value (ADR-3). */
