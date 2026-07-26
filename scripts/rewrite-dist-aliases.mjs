@@ -42,6 +42,10 @@ const EXACT = {
   // Must be mapped here or the fail-loud postbuild aborts `pnpm build` → docker build
   // → the publish CI goes red. Add any new such subpath in the SAME change that imports it.
   '@usetheo/memory/recall-trace-pg': 'core/src/infrastructure/db/recall-trace/index.js',
+  // M25 — `@usetheo/memory/config` subpath imported by the dist CLI (run-server
+  // resolves THEOMEM_PG_URI via loadConfig). Must be mapped or the fail-loud
+  // postbuild aborts pnpm build / publish CI (known subpath gotcha).
+  '@usetheo/memory/config': 'core/src/config-entry.js',
 };
 // Wildcard prefix -> dist-root-relative directory the rest maps into.
 const PREFIX = {
