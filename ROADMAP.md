@@ -498,6 +498,23 @@ A análise comparativa com o REDACTED (2026-07-24) mostrou que o boost de entida
 - [ ] Prova keyless vs pgvector real: escopo >clusterCap supersede a PB stale (recall → `25:50`); precision guard segura.
 - [ ] THE GOAL TEST: bench real-LLM move `6a1eabeb` para `25:50` e overall ≥ 91.7% (senão, `[ ]` honesto + follow-up).
 
+## M25 — [ ] Config em camadas + `themory config` CLI (paridade REDACTED)
+
+**Objetivo:** resolver a config do TheMemory por deep-merge em camadas (defaults → `~/.themory/config.json` global → `./.themory.json` projeto → env → flags CLI) e expor `themory config init/set/get/list`, centralizando a config hoje espalhada em env-vars — fechando o gap de paridade mais claro com o REDACTED (o CLI deles tem config; o nosso não) e a dimensão mais baixa da cross-validation (Configuration 2.5/5).
+
+**Dependencies:** o CLI consolidado `themory` (shipped, M18-era). Todos os milestones já `[x]` → sem bloqueio real; começa agora.
+
+**Definition of done:**
+- [ ] `loadConfig()` faz deep-merge defaults→global→project→env→flags; PRECEDÊNCIA unit-testada (env > project, flag > env).
+- [ ] `themory config init/set/get/list` funciona; `get`/`list` mostram a FONTE (camada) de cada chave resolvida.
+- [ ] ≥1 consumidor real wired (ex.: `themory server` resolve `THEOMEM_PG_URI` via `loadConfig`).
+- [ ] SECRETS: `config list` mascara; `config set` recusa gravar chaves-secret no arquivo (env-only, precedente ADR D4); env continua camada 4 com a MESMA semântica (back-compat).
+- [ ] Testes unit (precedência/deep-merge) + integração (round-trip do subcomando CLI) verdes; CHANGELOG atualizado.
+
+**Riscos novos:**
+- R1 (HIGH) Vazamento de secret: `.themory.json` com API key em plaintext, commitado. Mitig: `config set` recusa secret-keys (env-only); `config list` mascara; `init` avisa/gitignora.
+- R2 (MED) Confusão de precedência: arquivo sobrescreve env silenciosamente. Mitig: `config get`/`list` SEMPRE mostram a fonte; precedência testada + documentada.
+
 ---
 
 ## State-of-the-art references
