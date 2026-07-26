@@ -498,7 +498,7 @@ A análise comparativa com o mem0 (2026-07-24) mostrou que o boost de entidade �
 - [ ] Prova keyless vs pgvector real: escopo >clusterCap supersede a PB stale (recall → `25:50`); precision guard segura.
 - [ ] THE GOAL TEST: bench real-LLM move `6a1eabeb` para `25:50` e overall ≥ 91.7% (senão, `[ ]` honesto + follow-up).
 
-## M25 — [ ] Config em camadas + `themory config` CLI (paridade mem0)
+## M25 — [x] Config em camadas + `themory config` CLI (paridade mem0)
 
 **Objetivo:** resolver a config do TheMemory por deep-merge em camadas (defaults → `~/.themory/config.json` global → `./.themory.json` projeto → env → flags CLI) e expor `themory config init/set/get/list`, centralizando a config hoje espalhada em env-vars — fechando o gap de paridade mais claro com o mem0 (o CLI deles tem config; o nosso não) e a dimensão mais baixa da cross-validation (Configuration 2.5/5).
 
