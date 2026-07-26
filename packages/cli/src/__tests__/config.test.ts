@@ -85,6 +85,14 @@ describe('themory config get', () => {
     expect(printed).toContain('9.9.9.9');
     expect(printed).toContain('project');
   });
+
+  it('get_masks_secret: a secret value is never printed in the clear', () => {
+    const { ctx, out } = makeCtx({ env: { OPENAI_API_KEY: 'sk-super-secret' } });
+    expect(runConfigGet(ctx, 'OPENAI_API_KEY')).toBe(0);
+    const printed = out.join('');
+    expect(printed).toContain('••••');
+    expect(printed).not.toContain('sk-super-secret');
+  });
 });
 
 describe('themory config list', () => {
