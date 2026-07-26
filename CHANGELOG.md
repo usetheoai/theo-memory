@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- **Full LongMemEval reproduction harness (dev eval, mem0-comparable).** The e2e-qa stage gained an `E2E_QA_LIMIT` mode (`full` → all 500 oracle questions; `<n>` → first-n sample; unset → the 12-example smoke subset, unchanged), a bounded-concurrency example runner (`E2E_QA_CONCURRENCY`, default 1 = serial; examples are scope-isolated so parallel runs produce identical per-example scores and only cut wall-clock), an `E2E_QA_DB` isolated-DB override for multi-run variance, plus `packages/eval/scripts/{run-longmemeval-full.sh,aggregate-longmemeval.py}` (multi-run driver + mean±std / per-type / vs-mem0-94.4 report with honest comparability caveats). Private `@usetheo/memory-eval` only; no public API change. (benchmark reproduction)
 
 ### Changed
 
