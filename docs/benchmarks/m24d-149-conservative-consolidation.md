@@ -63,9 +63,10 @@ a future coverage-gate / multi-hop improvement, independent of #144/#149.
 - Model `openai/gpt-4o-mini` (NOT REDACTED's gpt-5) → NOT leaderboard-comparable.
 - N=12 deterministic subset; single run. knowledge-update 2/2 is a strong signal (the
   answer literally contains `25:50`, not judge noise).
-- The full **no-reflect + #148** baseline did not complete (OpenRouter throttling), so the exact
-  no-regression delta on the non-knowledge-update questions is not quantified here — what IS
-  measured: reflect-ON 25%→66.7% (the #149 fix) and knowledge-update 0/2→2/2 (#144 fixed).
+- The **no-reflect + #148** baseline is now measured (see § Addendum): 7/12 (58.3%) vs reflect+#149
+  8/12 (66.7%), no regression (reflect-ON dominates, net +1). Note the honest attribution caveat in
+  the Addendum — knowledge-update is answered in both configs by the newest-first answer-LLM, so the
+  end-to-end bench does not isolate reflect's #144 contribution (the keyless T4 test does).
 - Reproduce: `.env.local` with an OpenRouter key + run `packages/eval/.../e2e-qa/run.ts` from
   the repo ROOT (cwd — DATASET_PATH is cwd-relative) with `E2E_QA_REFLECT=1`.
 
