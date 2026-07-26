@@ -27,6 +27,7 @@ export default defineConfig({
       // back to its src entry. Subpaths are listed BEFORE the base specifier so
       // the exact subpath match wins over the base prefix match (rollup-alias
       // matches the first entry whose find equals or prefixes the importee).
+      '@usetheo/memory/config': new URL('./packages/core/src/config-entry.ts', import.meta.url).pathname,
       '@usetheo/memory/contract': new URL('./packages/core/src/domain/index.ts', import.meta.url).pathname,
       '@usetheo/memory/recall-trace-pg': new URL('./packages/core/src/infrastructure/db/recall-trace/index.ts', import.meta.url).pathname,
       '@usetheo/memory/theokit': new URL('./packages/core/src/infrastructure/theokit/index.ts', import.meta.url).pathname,

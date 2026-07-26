@@ -1,0 +1,19 @@
+{
+  // Typecheck-only config for the eval package (the ONE package the root
+  // `tsc -p tsconfig.contract.json` does not include). Distinct from tsconfig.json:
+  //   - `paths: {}` overrides the contract's source-paths so `@usetheo/memory` resolves
+  //     via node_modules -> core's built dist/*.d.ts (a real consumer), NOT core source.
+  //     => requires `pnpm build:core` first (dist must exist / be fresh).
+  //   - no `rootDir` (noEmit makes it pointless; it only flagged test-fixture imports).
+  //   - `verbatimModuleSyntax: false` silences a third-party `natural` .ts quirk; the eval
+  //     harness runs under tsx which ignores verbatimModuleSyntax, so this is safe here.
+  // The runtime (tsx) still uses tsconfig.json (source paths) — unchanged.
+  "extends": "../../tsconfig.contract.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "paths": {},
+    "verbatimModuleSyntax": false
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

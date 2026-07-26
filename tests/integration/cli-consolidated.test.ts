@@ -70,12 +70,17 @@ describe.skipIf(!existsSync(CLI_DIST))(
 
       // No THEOMEM_PG_URI → runMcpServer will exit(2) quickly after the
       // deprecation warning fires. We only assert the warning landed.
-      const result = await spawnCli(aliasBin, { THEOMEM_PG_URI: '' }, 5_000);
+      // killAfterMs is a SAFETY NET for a genuine hang, NOT the expected path:
+      // the CLI exits(2) on its own in <1s once the dist module graph loads.
+      // A generous 20s ceiling absorbs cold-boot variance on a loaded CI box
+      // (parallel Node processes) so the SIGTERM never fires prematurely and
+      // truncates stderr to '' — the flake this replaces. Happy path unaffected.
+      const result = await spawnCli(aliasBin, { THEOMEM_PG_URI: '' }, 20_000);
 
       expect(result.stderr).toMatch(/DEPRECATED/i);
       expect(result.stderr).toMatch(/themory[- ]mcp/i);
       expect(result.stderr).toMatch(/themory mcp/);
-    }, 10_000);
+    }, 30_000);
 
     test('38. themory-mcp alias still runs MCP server bootstrap (v0.3 regression)', async () => {
       // Same alias path, this time with a clearly-invalid pg URI so the
@@ -88,8 +93,12 @@ describe.skipIf(!existsSync(CLI_DIST))(
       symlinkSync(CLI_DIST, aliasBin);
 
       // Empty THEOMEM_PG_URI → runMcpServer EC-7 path: exit(2) + stderr
-      // message containing the example postgres:// URI.
-      const result = await spawnCli(aliasBin, { THEOMEM_PG_URI: '' }, 5_000);
+      // message containing the example postgres:// URI. killAfterMs is a
+      // SAFETY NET for a genuine hang, NOT the expected path: the EC-7 guard
+      // fires and exit(2)s in <1s once the dist module graph loads. A generous
+      // 20s ceiling absorbs cold-boot variance on a loaded CI box so the
+      // SIGTERM never truncates stderr to '' (the flake this replaces).
+      const result = await spawnCli(aliasBin, { THEOMEM_PG_URI: '' }, 20_000);
 
       // EC-7 hard-fail evidence — proves runMcpServer was invoked, NOT a
       // not-implemented stub (which would write "not yet implemented").
@@ -97,7 +106,7 @@ describe.skipIf(!existsSync(CLI_DIST))(
       expect(result.stderr).toMatch(/postgres:\/\//);
       expect(result.stderr).not.toMatch(/not yet implemented/);
       expect(result.exitCode).toBe(2);
-    }, 10_000);
+    }, 30_000);
   },
 );
 
