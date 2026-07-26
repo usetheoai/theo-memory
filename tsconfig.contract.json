@@ -21,6 +21,7 @@
     "verbatimModuleSyntax": true,
     "paths": {
       "@usetheo/memory": ["./packages/core/src/index.ts"],
+      "@usetheo/memory/config": ["./packages/core/src/config-entry.ts"],
       "@usetheo/memory/contract": ["./packages/core/src/domain/index.ts"],
       "@usetheo/memory/recall-trace-pg": ["./packages/core/src/infrastructure/db/recall-trace/index.ts"],
       "@usetheo/memory/embedders/*": ["./packages/core/src/infrastructure/embedders/*"],
