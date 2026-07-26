@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- Roadmap amended: added M25 Config em camadas + `themory config` CLI (`/roadmap-feature layered-config-cli`)
 - **Keyless demonstration that multi-session aggregation ("how many") belongs to the agent, not core** (`packages/eval/src/stages/aggregation/agent-count.pg.test.ts`). Resolves the scope question the reverted harness experiment left open: against real pgvector + real `LocalTransformerEmbedder` (no key), TheMemory `recall` SURFACES every relevant memory (the 3 clothing items — the memory layer's job is complete), and counting them is a TRIVIAL agent-side step over `recall()`. So the fix lives in the consumer/agent (TheoKit), NOT TheMemory core, per the locked "memory layer, NOT agent runtime" boundary (like G1/G4). Also aliased `@usetheo/memory/embedders/local` in the eval `vitest.config.ts` so keyless embedder tests resolve the subpath under vitest (matching the tsx paths).
 
 ### Changed
