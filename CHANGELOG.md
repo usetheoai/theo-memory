@@ -16,6 +16,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Security
 
+## [0.50.0] - 2026-07-26
+
+### Added
+- **M25 — layered config resolution + `themory config` CLI.** A 5-layer resolver (defaults < `~/.themory/config.json` < `./.themory.json` < env < CLI flags; later wins) with per-key source-attribution, exposed at the new `@usetheo/memory/config` subpath (`resolveConfig`, `loadConfig`, `isSecretKey`, `maskSecret`, `ConfigParseError`). New `themory config init|set|get|list`: `set` REFUSES secret keys (env-only), `get`/`list` show the winning source layer and mask secret values. `themory server` now resolves `THEOMEM_PG_URI` through the resolver (env still wins — env-only deployments are unchanged; a `.themory.json` value is honored only when env is unset). Malformed config files fail loud with a typed `ConfigParseError` naming the file, never a silent empty. (M25)
+- Roadmap amended: added M25 Config em camadas + `themory config` CLI (`/roadmap-feature layered-config-cli`)
+- **Keyless demonstration that multi-session aggregation ("how many") belongs to the agent, not core** (`packages/eval/src/stages/aggregation/agent-count.pg.test.ts`). Resolves the scope question the reverted harness experiment left open: against real pgvector + real `LocalTransformerEmbedder` (no key), TheMemory `recall` SURFACES every relevant memory (the 3 clothing items — the memory layer's job is complete), and counting them is a TRIVIAL agent-side step over `recall()`. So the fix lives in the consumer/agent (TheoKit), NOT TheMemory core, per the locked "memory layer, NOT agent runtime" boundary (like G1/G4). Also aliased `@usetheo/memory/embedders/local` in the eval `vitest.config.ts` so keyless embedder tests resolve the subpath under vitest (matching the tsx paths).
+
+### Changed
+- **`@usetheo/memory-eval` now has a typecheck gate (dev tooling).** The eval package was the only package not covered by the root `tsc -p tsconfig.contract.json` (its source-paths pull core source + third-party `natural`/`eld` type quirks). New `packages/eval/tsconfig.typecheck.json` resolves `@usetheo/memory` via node_modules -> core `dist/*.d.ts` (a real consumer), giving a green `pnpm --filter @usetheo/memory-eval typecheck` (builds core first). The tsx runtime (bench) is unchanged — it still uses the source-paths `tsconfig.json`. Verified: the gate catches a real eval type error (TS2322) and tsx resolution stays intact.
+- **Honest attribution correction (docs) for the v0.49.0 knowledge-update fix.** The no-reflect + #148 baseline (7/12=58.3%) vs reflect+#149 (8/12=66.7%) confirms reflect-ON does NOT regress (dominates, net +1). BUT knowledge-update is 2/2 in BOTH configs: the e2e-qa answer-LLM reads memories sorted newest-first and answers the fresh `25:50` with or without reflect, so the end-to-end bench does NOT isolate the reflect contribution to #144. The reflect-specific proven value is the memory-layer supersession (keyless T4: stale row gets `t_invalid`, top-k recall returns only the fresh value) plus the #149 regression fix (25%->66.7%). See `docs/benchmarks/m24d-149-conservative-consolidation.md` section Addendum. (#144)
+
+### Added
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
 ## [0.49.0] - 2026-07-25
 
 ### Added

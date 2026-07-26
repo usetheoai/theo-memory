@@ -44,6 +44,7 @@ import { OidcAuthVerifier } from '@usetheo/memory-api';
 import { createServer, parseRequireCredentialEnv } from '@usetheo/memory-api';
 import { Pool } from 'pg';
 
+import { resolvePgUri } from './resolve-pg-uri.js';
 import { installServerLifecycle, type ServerListenerLike } from './server-lifecycle.js';
 import { assertDistNotStale } from './stale-dist-guard.js';
 
@@ -102,7 +103,13 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
   // Env-fail boundary via the shared `assertEnvOrExit` helper (single source of the
   // THEOMEM_PG_URI / OPENAI_API_KEY stderr strings). Fail-closed; never silent stub fallback.
   assertEnvOrExit([PG_URI_ENV_SPEC, OPENAI_API_KEY_ENV_SPEC]);
-  const pgUri = process.env['THEOMEM_PG_URI']!;
+  // M25 T3.2 — resolve the DB URI through the layered config resolver (real
+  // consumer / wiring triad). assertEnvOrExit above already guarantees the env
+  // var is present, and env outranks any file (ADR-2), so an env-only boot is
+  // byte-identical to the pre-M25 behavior; a `.themory.json` value is honored
+  // only when env is unset. The `??` keeps the exact previous value as a
+  // defense-in-depth fallback should resolution ever return undefined.
+  const pgUri = resolvePgUri() ?? process.env['THEOMEM_PG_URI']!;
 
   const port = resolvePort(options?.port);
   const host = resolveHost(options?.host);

@@ -43,6 +43,7 @@ import { runMcpServer } from '@usetheo/memory-mcp';
 import type { RunMcpServerOptions } from '@usetheo/memory-mcp';
 import { Command, InvalidArgumentError, Option } from 'commander';
 
+import { registerConfigCommand } from './run-config.js';
 import { runForget } from './run-forget.js';
 import { runHealth } from './run-health.js';
 import {
@@ -353,6 +354,10 @@ export function buildProgram(): Command {
       const code = await runKeysRotate(ctx, id, opts.graceHours);
       process.exit(code);
     });
+
+  // ─── M25: `themory config init/set/get/list` (layered config) ────────────
+  // Registered via a helper in run-config.ts so the router stays thin (SRP).
+  registerConfigCommand(program);
 
   // ─── 4-verb subcommands per plan verbs-as-cli v1.1 + ADR D2 ──────────────
   // remember / recall / reflect: 3-tier mutually-exclusive scope flags.
