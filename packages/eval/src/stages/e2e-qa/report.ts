@@ -15,6 +15,29 @@ export interface ExampleResult {
   readonly ingestedTurns: number;
   readonly recalledCount: number;
   readonly ingestErrors: number;
+  /** Set when the recall/answer/judge phase threw — the example scores as a miss
+   *  (never silently dropped) so one bad example can't abort a 500-question run. */
+  readonly error?: string;
+}
+
+/** Build a scored-miss result for an example whose pipeline threw (carries `error`). */
+export function failedResult(
+  ex: { question_id: string; question_type: string; question: string; answer: string },
+  message: string,
+): ExampleResult {
+  return {
+    questionId: ex.question_id,
+    questionType: ex.question_type,
+    abstention: ex.question_id.endsWith('_abs'),
+    question: ex.question,
+    goldAnswer: ex.answer,
+    modelAnswer: '',
+    correct: false,
+    ingestedTurns: 0,
+    recalledCount: 0,
+    ingestErrors: 0,
+    error: message,
+  };
 }
 
 export function report(results: ExampleResult[]): void {

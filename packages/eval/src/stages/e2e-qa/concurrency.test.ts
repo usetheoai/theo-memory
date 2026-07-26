@@ -1,7 +1,7 @@
 /** Unit tests for the bounded-concurrency map used to make the full LongMemEval run feasible. */
 import { describe, expect, it } from 'vitest';
 
-import { mapWithConcurrency } from './concurrency.js';
+import { mapWithConcurrency, runSafely } from './concurrency.js';
 
 describe('mapWithConcurrency', () => {
   it('preserves input order (result[i] ↔ items[i]) regardless of completion order', async () => {
@@ -42,5 +42,27 @@ describe('mapWithConcurrency', () => {
       await new Promise((r) => setTimeout(r, 1));
     });
     expect(order).toEqual([1, 2, 3]);
+  });
+});
+
+describe('runSafely', () => {
+  it('returns fn result when it resolves', async () => {
+    expect(await runSafely(() => Promise.resolve(42), () => -1)).toBe(42);
+  });
+
+  it('routes an Error to onError with its message (never propagates)', async () => {
+    const out = await runSafely<{ v: string }>(
+      () => Promise.reject(new Error('context_length_exceeded')),
+      (m) => ({ v: m }),
+    );
+    expect(out.v).toBe('context_length_exceeded');
+  });
+
+  it('stringifies a non-Error throw defensively', async () => {
+    const out = await runSafely<string>(
+      () => Promise.reject('raw-string-failure'),
+      (m) => m,
+    );
+    expect(out).toBe('raw-string-failure');
   });
 });
