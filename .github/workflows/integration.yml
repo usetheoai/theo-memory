@@ -31,8 +31,13 @@ concurrency:
 jobs:
   integration:
     name: integration (pgvector + test:integration)
-    # Self-hosted (theo-ci-theo-memory) — GitHub-hosted minutes are billing-blocked
-    # for the org, so ubuntu-latest jobs never dispatch.
+    # RUNNER — Blacksmith pilot ATTEMPTED and REVERTED 2026-07-27 (see #156). The label
+    # `blacksmith-2vcpu-ubuntu-2404` was applied correctly but NO runner ever picked the job up:
+    # 40+ min queued with `runner_name` empty. Reverted to keep CI functional. The open question the
+    # pilot existed to answer — does an ephemeral runner provision `services:`? — is still UNANSWERED.
+    # Re-applying is one line once Blacksmith actually serves the label for this repo.
+    #
+    # Self-hosted (theo-ci-theo-memory) — GitHub-hosted minutes are billing-blocked for the org.
     runs-on: [self-hosted, linux, x64]
 
     services:
