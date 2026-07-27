@@ -40,9 +40,9 @@ concurrency:
 
 jobs:
   actionlint:
-    # Blacksmith (#156) — ver integration.yml para a causa raiz das 2 tentativas falhas.
-    # A label literal EXIGE `.github/actionlint.yaml`, senão ESTE gate rejeita a si mesmo
-    # e a todos os outros workflows ("label ... is unknown").
+    # Blacksmith (#156) — ver integration.yml para as duas pré-condições que atrasaram a migração.
+    # A label literal EXIGE `.github/actionlint.yaml`: sem ele ESTE gate rejeita a si mesmo e a
+    # todos os outros workflows ("label ... is unknown").
     runs-on: blacksmith-8vcpu-ubuntu-2404
     # O scan leva segundos; a folga é para o pull da imagem num runner frio.
     timeout-minutes: 10
