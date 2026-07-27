@@ -23,8 +23,9 @@ const SALIENCE_MIN_CHARS = 40;
  */
 export function buildRememberPayload({ input, env, attributedTo }) {
   const project = projectOf(input.cwd);
-  // M6-SEC-01: scrub secrets BEFORE the write. The server stores infer=false verbatim,
-  // so this client scrub is the only chance to keep a secret out of the store.
+  // M6-SEC-01: scrub secrets BEFORE the write. The server runs LLM fact-extraction
+  // (`infer: true`, set explicitly below), but a secret could still surface in an
+  // extracted fact, so this client scrub is the last chance to keep it out of the store.
   const text = scrubText((input.last_assistant_message || '').trim());
   // Salience floor — a short turn is rarely a durable fact worth a write.
   if (text.length < SALIENCE_MIN_CHARS) return null;
@@ -38,6 +39,11 @@ export function buildRememberPayload({ input, env, attributedTo }) {
     body: {
       ...(sessionId ? { sessionId } : env.userId ? { userId: env.userId } : {}),
       text,
+      // M27 T3.1 — extract durable facts from the turn (the REDACTED-grade distillation
+      // discipline + backstop gate live server-side). Explicit, not defaulted: the
+      // stale "stores verbatim" comment was wrong, and the kit must never dump raw
+      // narration as one memory.
+      infer: true,
       attributedTo,
       metadata: { source: 'claude-code', project },
     },

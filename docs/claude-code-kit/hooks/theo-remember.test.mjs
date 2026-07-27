@@ -33,6 +33,16 @@ test('test_user_remember_attributed_to_user — captura do usuário vai com attr
   assert.equal(payload.body.attributedTo, 'user');
 });
 
+test('test_payload_sets_infer_true — M27 T3.1: o write do kit pede extração explícita', () => {
+  const payload = buildRememberPayload({
+    input: { last_assistant_message: 'Migrei a auth de sessões para JWT tokens neste turno.', cwd: '/p/x' },
+    env: ENV,
+    attributedTo: 'assistant',
+  });
+  assert.notEqual(payload, null);
+  assert.equal(payload.body.infer, true);
+});
+
 test('test_salience_floor_drops_short_turn — turno curto (< 40 chars) não gera payload', () => {
   const payload = buildRememberPayload({
     input: { last_assistant_message: 'ok', cwd: '/p/x' },

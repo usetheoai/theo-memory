@@ -19,7 +19,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   drops CLEAR non-facts (a pure question or a first-person conversational opener) the prompt may still
   let through, emitting a typed `extraction_fact_gate_dropped` audit event per drop (Princípio 3);
   the `infer:false` verbatim path is never gated. Conservative by design (only trailing-`?` or a small
-  set of first-person openers) to avoid over-filtering.
+  set of first-person openers) to avoid over-filtering. The `infer:false` verbatim path is proven
+  byte-identical (a question stored unchanged). The Claude Code kit Stop-hook now sets `infer: true`
+  explicitly (correcting a stale "stores verbatim" comment) so raw narration is always distilled
+  server-side. Extraction-response normalization gained REDACTED `normalize_facts` parity
+  (`extraction/normalize.ts`, extracted from `pipeline.ts`): a fact returned under `fact` or with a
+  missing sequential `id` self-heals before the strict parse.
 
 ### Changed
 
