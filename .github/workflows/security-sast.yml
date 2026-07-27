@@ -41,6 +41,8 @@ jobs:
     # Self-hosted (theo-ci-theo-memory) — GitHub-hosted minutes are billing-blocked
     # for the org.
     runs-on: [self-hosted, linux, x64]
+    # Medido: max ~3 min (semgrep + gitleaks em container). 15 cobre pull de imagem em runner frio.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - name: Run semgrep

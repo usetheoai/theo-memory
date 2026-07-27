@@ -30,6 +30,8 @@ jobs:
     # Self-hosted (GitHub-hosted minutes are billing-blocked for the org),
     # matching security-sast.yml / integration.yml.
     runs-on: [self-hosted, linux, x64]
+    # Medido: max 1,3 min. 15 e' folga larga para o tier LLM-measured, que so roda com a chave presente.
+    timeout-minutes: 15
 
     # #155 — the key MUST be lifted to job-level `env` here, NOT read as `secrets.*` in the
     # step `if:` below. The `secrets` context does not exist in `if:` expressions (only in
