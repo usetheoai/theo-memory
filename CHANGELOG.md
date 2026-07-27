@@ -4,6 +4,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- Roadmap amended: added M26 Auditoria da suíte de testes (coverage seams) (`/roadmap-feature test-suite-audit`)
+
 ### Fixed
 - **Extraction-path attribution authority — assistant-produced memories no longer masquerade as user facts.** When a caller passes `RememberOptions.attributedTo` (the Claude Code Stop hook sets it to `'assistant'` for its session summary, per turn ORIGIN), the LLM extraction path now treats it as AUTHORITATIVE for every extracted fact, instead of letting the LLM's content-inferred per-fact `attributed_to` guess win. Previously an assistant summary was stored with `attributed_to='user'` (the LLM guessed the perspective owner from the text) — so Claude's own output polluted the user's stated preferences, exactly the failure Mem0's integration warns against ("what Claude produces is the assistant's; its suggestions never become your stated preferences"). The LLM per-fact `attributed_to` remains the FALLBACK for attribution-agnostic multi-peer ingestion (v1.1 preserved). Now consistent with the `infer:false` verbatim path (`infer-false-path.ts`) — both write paths agree. `packages/core/src/domain/extraction/pipeline.ts`; regression suite `extraction-attribution.test.ts` (3 cases: origin-overrides-guess, multi-peer-fallback, no-fabricated-owner).
 

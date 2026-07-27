@@ -517,6 +517,25 @@ A análise comparativa com o mem0 (2026-07-24) mostrou que o boost de entidade �
 
 ---
 
+## M26 — [ ] Auditoria da suíte de testes (coverage seams)
+
+**Objetivo:** auditar a suíte INTEIRA caçando GAPS DE COSTURA entre features — interações não-testadas, verde-enganoso, e falta de teste do consumidor real — motivado pelo bug de atribuição (memória produzida pelo assistente gravada como fato do `user`) que passou numa suíte 100% verde. A raiz era um seam: `RememberOptions.attributedTo` (origem do request) vs. o palpite per-fato `attributed_to` do LLM, no caminho `infer:true`; cada feature foi unit-testada do seu lado do seam, a interação nunca; e nenhum teste end-to-end exercitava o consumidor real (hook Stop do Claude Code → `/v1/remember` → extração → atribuição gravada). Só apareceu no dogfood. Este milestone sistematiza achar essa classe de gap.
+
+**Dependencies:** nenhuma — todos os M0–M25 já `[x]`. É uma auditoria transversal da suíte existente, não presa a uma feature; começa imediatamente.
+
+**Definition of done:**
+- [ ] Inventário de features cujo comportamento cruza caminhos (atribuição/estado através de `infer:true`/`infer:false`, tiers de escopo, hooks de captura) — o mapa de seams.
+- [ ] Cada seam sem teste de interação ganha 1 teste (RED-first — prova que falha contra o comportamento pré-fix antes de contar).
+- [ ] ≥ 1 teste de integração do consumidor real por hook de captura (payload do hook → `/v1/remember` → store real → assert da atribuição/escopo gravados), não só paridade de recall.
+- [ ] Suíte completa verde + typecheck + lint.
+- [ ] Relatório listando seams achados + fechados (artefato de auditoria).
+
+**Riscos novos:**
+- R1 (HIGH) Escopo explosivo: auditar "todos os testes" pode virar refactor infinito (a suíte é grande). Mitig: time-box + priorizar por criticidade (caminhos de write/auth/atribuição primeiro); não perseguir todo arquivo.
+- R2 (HIGH) Recorrência do verde-enganoso: adicionar testes que passam mas NÃO exercitam o seam real (repetir o erro original). Mitig: todo teste que fecha gap DEVE ser RED-first — provar que falha contra o comportamento pré-fix antes de valer.
+
+---
+
 ## State-of-the-art references
 
 Conceptual comparison peers. `` / `` / `` are already cloned under
