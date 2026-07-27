@@ -9,10 +9,11 @@
 #     never fabricates a passing score.
 name: eval
 
+# GATILHOS (política 2026-07-27, decisão do owner): só em PR para `main` — abertura e cada
+# atualização do PR. Não roda mais em push para `develop`.
 on:
   pull_request:
-  push:
-    branches: [develop, main]
+    branches: [main]
     paths-ignore:
       - '.claude/**'
       - '**/*.md'

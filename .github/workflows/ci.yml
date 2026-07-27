@@ -16,15 +16,20 @@
 # livres de I/O.
 name: CI
 
+# GATILHOS (política 2026-07-27, decisão do owner): os gates rodam em PR para `main`. Este
+# workflow é a ÚNICA exceção que também roda em push para `develop` — é o gate barato (sem banco,
+# sem LLM, ~40 s medidos), e sem ele `develop` ficaria completamente sem CI entre releases, o que
+# empurraria toda regressão para o PR de release num diff grande e difícil de bissectar.
 on:
   pull_request:
+    branches: [main]
     paths-ignore:
       - '.claude/**'
       - '**/*.md'
       - 'docs/**'
       - 'knowledge-base/**'
   push:
-    branches: [develop, main]
+    branches: [develop]
     paths-ignore:
       - '.claude/**'
       - '**/*.md'

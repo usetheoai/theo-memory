@@ -8,19 +8,30 @@
 # The deploy is a `needs: image` job (NOT a workflow_run trigger) because the repo's
 # default branch is `main` and workflow_run only fires from the default branch.
 name: publish
+# GATILHOS (política 2026-07-27, decisão do owner): só em PR para `main`. Este workflow é CD, não
+# gate, então a mudança tem TRÊS consequências que não se leem no YAML — registradas aqui para não
+# virarem mistério:
+#
+#   1. `deploy-dev` NUNCA MAIS RODA. Ele é `if: github.ref == 'refs/heads/develop'`, e num PR o
+#      `github.ref` é `refs/pull/N/merge`. O dev host deixa de receber deploy automático.
+#   2. TAG `v*` NÃO CONSTRÓI MAIS IMAGEM. O gatilho de tag saiu, então a imagem de release
+#      assinada (SBOM + SLSA + cosign) só sai por `workflow_dispatch` — que fica mantido abaixo
+#      exatamente como esse escape hatch.
+#   3. Num PR, o `docker/metadata-action` do reusable avalia
+#      `type=raw,value=develop,enable=${{ github.ref == 'refs/heads/develop' }}` como FALSO, então
+#      pode não computar tag nenhuma. Se o job passar a falhar por "no tags", a causa é esta.
+#
+# (Hoje o job `image` já falha antes disso, pela mudança de dono — ver o bloco QUEBRA CONHECIDA.)
 on:
-  push:
-    branches: [develop]
-    tags: ["v*"]
-    # #116: docs-only develop pushes skip the whole build/deploy esteira.
-    # Tag (v*) builds point at merge commits (always code-bearing) so a
-    # release tag is never docs-filtered — the signed release image still builds.
+  pull_request:
+    branches: [main]
+    # #116: um PR que só mexe em docs pula a esteira inteira de build.
     #
-    # DELIBERADAMENTE lista de EXCLUSÃO, não filtro positivo: este workflow escuta
-    # `tags: ["v*"]`, e filtro de path se aplica TAMBÉM a push de tag. Um filtro positivo
-    # faria um release cujo commit não casasse a lista ser silenciosamente ignorado —
-    # nenhuma imagem publicada, nenhum erro. Exclusão erra para o lado de publicar a mais,
-    # que aqui é o lado certo.
+    # DELIBERADAMENTE lista de EXCLUSÃO, não filtro positivo. O racional original era o gatilho de
+    # tag (filtro de path se aplica também a push de tag, e um filtro positivo faria um release
+    # cujo commit não casasse a lista ser ignorado em silêncio — sem imagem, sem erro). O gatilho
+    # de tag saiu em 2026-07-27, mas a exclusão FICA: ela erra para o lado de construir a mais,
+    # que continua sendo o lado certo num workflow que publica artefato.
     paths-ignore:
       - '.claude/**'
       - '**/*.md'
@@ -31,8 +42,9 @@ on:
       - 'docs/**'
       - 'knowledge-base/**'
       - 'agents/**'
-      # Mudar um workflow não muda a imagem. Para exercitar uma alteração NESTE arquivo,
-      # use o `workflow_dispatch` declarado abaixo — é o escape hatch previsto.
+      # Mudar um workflow não muda a imagem. Para exercitar uma alteração NESTE arquivo — ou para
+      # construir a imagem de release, agora que o gatilho de tag saiu — use o `workflow_dispatch`
+      # declarado abaixo. Ele é o único caminho restante para publicar.
       - '.github/**'
   workflow_dispatch:
 # Single self-hosted runner: successive develop pushes must SUPERSEDE (cancel) the

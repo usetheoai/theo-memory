@@ -17,13 +17,12 @@
 # para os blocos `run:`.
 name: actionlint
 
+# GATILHOS (política 2026-07-27, decisão do owner): só em PR para `main`. O `workflow_dispatch`
+# fica como escape hatch — é por ele que se valida uma mudança de workflow sem abrir PR, já que
+# este gate não roda mais em push para `develop`.
 on:
-  push:
-    branches: [develop, main]
-    paths:
-      - '.github/workflows/**'
-      - '.github/actionlint.yaml'
   pull_request:
+    branches: [main]
     paths:
       - '.github/workflows/**'
       - '.github/actionlint.yaml'
