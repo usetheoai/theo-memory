@@ -8,12 +8,18 @@ import { MEMORY_EVENTS, emitEvent } from './memory-event.js';
 import type { MemoryEvent } from './memory-event.js';
 
 describe('MEMORY_EVENTS', () => {
-  test('has 53 values (52 prior + reflection_draft_quarantined, M24 #145 quarantine observability)', () => {
-    expect(MEMORY_EVENTS).toHaveLength(53);
+  test('has 56 values (53 prior + M27 fact-gate drop + write-quality cleanup forgot/skipped)', () => {
+    expect(MEMORY_EVENTS).toHaveLength(56);
   });
 
   test('includes reflection_draft_quarantined (M24 #145 — draft quarantine IGNORE decision is observable)', () => {
     expect(MEMORY_EVENTS).toContain('reflection_draft_quarantined');
+  });
+
+  test('includes the M27 write-quality events (fact-gate drop + reversible cleanup, Princípio 3)', () => {
+    expect(MEMORY_EVENTS).toContain('extraction_fact_gate_dropped');
+    expect(MEMORY_EVENTS).toContain('write_quality_cleanup_forgot');
+    expect(MEMORY_EVENTS).toContain('write_quality_cleanup_skipped');
   });
 
   test('includes recall_cache_write_failed (#132 — cache write is best-effort, never breaks recall)', () => {
