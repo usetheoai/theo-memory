@@ -574,7 +574,7 @@ A análise comparativa com o mem0 (2026-07-24) mostrou que o boost de entidade �
 
 ---
 
-## M29 — [ ] Write-side speaker attribution: fala do assistant não pode virar fato do `user` (#160)
+## M29 — [x] Write-side speaker attribution: fala do assistant não pode virar fato do `user` (#160)
 
 **Objetivo:** corrigir o defeito dogfound (#160) em que a extração `infer:true` grava a fala em 1ª pessoa do ASSISTANT como fato do `user` (ex.: "Analisei X" → "user analisou X"), porque `packages/core/src/domain/extraction/prompt.ts:48-50` normaliza QUALQUER falante para a entidade literal `user`, ignorando o `attributedTo:'assistant'` que o kit envia. Comprovado em dois níveis contra o mem0 (`knowledge-base/references/mem0`, a referência de paridade): (a) **fonte** — `parse_messages` (utils.py:61) rotula as linhas por role e o `ADDITIVE_EXTRACTION_PROMPT` impõe "No Meta-Extraction" + `attributed_to` obrigatório + "Attribute correctly: use 'User' for user-stated facts, frame assistant content appropriately"; (b) **dado ao vivo** — no MESMO A/B desta sessão o mem0 gravou "**Assistant** evaluated…/concluded…" enquanto o theo-memory gravou "**user** analisou…/concluiu…". M27 corrigiu a qualidade do fato; M28 corrigiu o recall (#157); a atribuição por falante no write-path ficou aberta.
 
