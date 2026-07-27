@@ -1,6 +1,6 @@
 # Testes que precisam de Postgres — DOIS jobs, com gatilhos diferentes de propósito.
 #
-#   contract     — `pnpm test` (1353 testes). Roda em TODO push/PR.
+#   contract     — `pnpm test` (suíte de contrato). Roda em TODO push/PR.
 #   integration  — `pnpm run test:integration` (~95 testes contra OpenAI real). Roda SÓ em
 #                  schedule noturno e sob demanda (`workflow_dispatch`).
 #
@@ -9,8 +9,8 @@
 # reais à OpenAI, A CADA PUSH. Desligar tudo era a alternativa considerada e foi rejeitada porque
 # levaria junto a suíte de contrato: o `ci.yml` deliberadamente NÃO roda `pnpm test` (parte da
 # suíte "contract" sobe o servidor MCP e abre um `Pool` real, então sem banco ela falha por
-# infraestrutura, não por defeito), e o #104 existiu exatamente porque esses 1353 testes não
-# estavam sendo executados por CI. Desligar reintroduziria esse buraco.
+# infraestrutura, não por defeito), e o #104 existiu exatamente porque essa suíte não estava
+# sendo executada por CI. Desligar reintroduziria esse buraco.
 #
 # A divisão preserva o gate barato por push e move só o caro para noturno/sob demanda.
 #
@@ -51,10 +51,13 @@ jobs:
   # CONTRATO — barato, roda sempre. Sem o pre-cache do Xenova e sem a suíte de integração.
   # ---------------------------------------------------------------------------------------
   contract:
-    name: contract suite (1353 testes, pgvector)
+    # Sem contagem de testes no nome: o número envelhece sozinho (o #104 falava em 1353; medido
+    # 1479 passed / 1 skipped em 2026-07-27) e um nome que mente é pior que um nome genérico.
+    name: contract suite (pgvector)
     # Blacksmith (#156) — ver o job `integration` abaixo para as duas pré-condições da migração.
     runs-on: blacksmith-8vcpu-ubuntu-2404
-    # Sem a suíte de integração nem o download do modelo, sobra build + 1353 testes.
+    # Sem a suíte de integração nem o download do modelo, sobra build + a suíte de contrato.
+    # Medido em 2026-07-27: 53 s de job ponta a ponta na frota de 8 vCPU.
     timeout-minutes: 30
 
     services:
@@ -108,9 +111,9 @@ jobs:
           node dist/agent-tools/cli.js migrate
 
       - name: Run contract suite (#104)
-        # #104 — estes 1353 testes NÃO eram rodados por CI, então uma regressão de contrato ficava
-        # invisível até alguém rodar `pnpm test` local. Precisam de Postgres porque um punhado dos
-        # testes "contract" sobe o servidor MCP, que abre um `Pool` real — sem banco eles vazam
+        # #104 — esta suíte NÃO era rodada por CI, então uma regressão de contrato ficava invisível
+        # até alguém rodar `pnpm test` local. Precisa de Postgres porque um punhado dos testes
+        # "contract" sobe o servidor MCP, que abre um `Pool` real — sem banco eles vazam
         # ECONNREFUSED como unhandled rejection (a suíte não é tão pura quanto o nome).
         #
         # O env é o MESMO que estes testes tinham quando moravam no job de integração — não foi
@@ -164,7 +167,7 @@ jobs:
     #
     # PERGUNTA DO #156, ENFIM RESPONDIDA — SIM, runner efêmero provisiona `services:`. Medido no
     # run 30306550648: `Initialize containers` OK, o pgvector subiu, `job.services.postgres.ports`
-    # resolveu a porta dinâmica, o schema aplicou e a suíte de contrato (1353 testes) passou.
+    # resolveu a porta dinâmica, o schema aplicou e a suíte de contrato passou inteira.
     # A doc da Blacksmith não cobre service containers em lugar nenhum — isto aqui é a evidência.
     runs-on: blacksmith-8vcpu-ubuntu-2404
     # Medido: max 28,8 min (baixa o modelo Xenova ~22 MB com 6 tentativas, aplica schema, roda a
