@@ -65,28 +65,27 @@ permissions:
   packages: write
   id-token: write   # keyless cosign via GitHub OIDC (release only)
 jobs:
-  # QUEBRA CONHECIDA E ACEITA (2026-07-27, decisão do owner). Este repo foi transferido de
-  # `usetheodev` (conta pessoal) para a organização `usetheoai` porque a Blacksmith não serve
-  # repositórios pessoais — ver integration.yml. O `theo`, dono do reusable abaixo, NÃO foi
-  # transferido junto, e isso quebra DUAS coisas neste job:
+  # Chama a CÓPIA VENDORIZADA local, não o reusable de `usetheodev/theo`.
   #
-  #   1. `usetheodev/theo` é PRIVADO. GitHub só compartilha workflow reusável de repo privado
-  #      dentro do MESMO dono. Com o chamador em `usetheoai` e o chamado em `usetheodev`, esta
-  #      referência não resolve.
-  #   2. O reusable publica em `ghcr.io/usetheodev` (seu `registry` default, não sobrescrito
-  #      aqui). Um run em `usetheoai` recebe GITHUB_TOKEN de outro escopo e não tem push nesse
-  #      namespace.
+  # POR QUÊ: `usetheodev/theo` é privado e de outro dono desde a transferência deste repo para a
+  # org `usetheoai`, e o GitHub só compartilha reusable privado dentro do mesmo dono. A chamada
+  # cross-owner falhava no PARSE ("workflow was not found"), o que derrubava o workflow inteiro —
+  # zero jobs criados, nem o `deploy-dev` chegava a existir.
   #
-  # Consequência: `image` falha e `deploy-dev` (needs: image) não roda — o dev host para de
-  # receber deploy. Aceito deliberadamente para destravar o CI na Blacksmith primeiro.
-  # PARA CONSERTAR: transferir `usetheodev/theo` para `usetheoai` também (resolve os dois de
-  # uma vez), ou tornar `theo` público e passar `registry: ghcr.io/usetheoai`.
+  # DÍVIDA TEMPORÁRIA: quando `usetheodev/theo` migrar para `usetheoai`, volte esta linha para
+  # `uses: usetheoai/theo/.github/workflows/build-publish.yml@develop` e APAGUE
+  # `.github/workflows/build-publish.yml`. O teste `tests/integration/publish-workflow.test.ts`
+  # fixa qual referência está em uso e falha se as duas coisas não andarem juntas.
   image:
-    uses: usetheodev/theo/.github/workflows/build-publish.yml@develop
+    uses: ./.github/workflows/build-publish.yml
     with:
       image: themory
       dockerfile: ./Dockerfile
       context: .
+      # Namespace do NOVO dono. Um run de `usetheoai` recebe GITHUB_TOKEN de outro escopo e não
+      # tem push em `ghcr.io/usetheodev` — deixar no default publicaria (ou tentaria publicar) no
+      # namespace errado. A imagem passa a ser `ghcr.io/usetheoai/themory`.
+      registry: ghcr.io/usetheoai
       trivy: true
       dockerhub_image: usetheo/themory   # pushed only when the DOCKERHUB_TOKEN secret is set
       sign: ${{ startsWith(github.ref, 'refs/tags/v') }}

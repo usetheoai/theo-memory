@@ -1,0 +1,171 @@
+# CÓPIA VENDORIZADA do reusable `usetheodev/theo/.github/workflows/build-publish.yml@develop`.
+#
+# POR QUE ESTA CÓPIA EXISTE (2026-07-27, #156): este repo foi transferido para a organização
+# `usetheoai` (pré-requisito da Blacksmith, que não serve repositórios de conta pessoal). O
+# `theo`, dono do reusable original, continua em `usetheodev` E É PRIVADO — e o GitHub só permite
+# compartilhar workflow reusável privado DENTRO DO MESMO DONO:
+#
+#     "Accessible from repositories in the 'ORGANIZATION-NAME' organization"
+#
+# Não existe mecanismo cross-owner. A chamada passou a falhar no parse ("workflow was not found"),
+# derrubando o workflow inteiro — nem o job de deploy chegava a ser criado.
+#
+# DÍVIDA CONSCIENTE, COM DATA DE VALIDADE. O original existe para ser "the single hardened image
+# pipeline for the whole org"; esta cópia duplica exatamente aquilo que deveria ser único, e vai
+# divergir com o tempo. QUANDO `usetheodev/theo` MIGRAR PARA `usetheoai`, APAGUE ESTE ARQUIVO e
+# devolva o `publish.yml` para `uses: usetheodev/theo/...` (novo dono). O teste
+# `tests/integration/publish-workflow.test.ts` fixa qual referência está em uso e tem de ser
+# atualizado no mesmo commit — ele é o alarme contra esta cópia virar permanente por esquecimento.
+#
+# DIFERENÇAS EM RELAÇÃO AO ORIGINAL — três, e nenhuma é cosmética:
+#   1. `registry` default → `ghcr.io/usetheoai`. Um run de `usetheoai` recebe GITHUB_TOKEN de
+#      outro escopo e NÃO tem push no namespace `ghcr.io/usetheodev`.
+#   2. `runner` default → label da Blacksmith. O build original morria por `No space left on
+#      device` no droplet compartilhado (run 30293925364); runner efêmero sobe com disco limpo.
+#   3. `--certificate-identity-regexp` do cosign → aponta para ESTE caminho. A identidade de
+#      assinatura keyless é derivada do repo+path do workflow; mantê-la apontando para
+#      `usetheodev/theo` faria a verificação de release falhar — ou, pior, aceitar assinatura
+#      produzida por outro workflow. É o guard de confused-deputy, tem de acompanhar a cópia.
+#
+# Todo o resto é idêntico ao original, incluindo os SHAs pinados de cada action.
+name: build-publish (vendored)
+on:
+  workflow_call:
+    inputs:
+      image:           { required: true,  type: string }
+      dockerfile:      { required: true,  type: string }
+      context:         { required: false, type: string,  default: "." }
+      registry:        { required: false, type: string,  default: "ghcr.io/usetheoai" }
+      sign:            { required: false, type: boolean, default: false }   # SBOM+provenance(mode=max)+cosign — release only
+      verify:          { required: false, type: boolean, default: false }   # identity-pinned cosign verify (needs sign=true)
+      trivy:           { required: false, type: boolean, default: false }   # CRITICAL/HIGH Trivy gate before push (uses .trivyignore if present)
+      dockerhub_image: { required: false, type: string,  default: "" }      # e.g. "usetheo/themory" — also push to Docker Hub when DOCKERHUB_TOKEN is set
+      runner:          { required: false, type: string,  default: '["blacksmith-8vcpu-ubuntu-2404"]' }   # JSON array
+    secrets:
+      GOMOD_TOKEN:        { required: false }   # cross-repo read for the pinned private theo-contracts module
+      DOCKERHUB_USERNAME: { required: false }
+      DOCKERHUB_TOKEN:    { required: false }
+permissions:
+  contents: read
+  packages: write
+  id-token: write   # consumed only when sign=true (keyless cosign); harmless otherwise
+jobs:
+  build-publish:
+    runs-on: ${{ fromJSON(inputs.runner) }}
+    env:
+      # `secrets` is NOT allowed in step `if:` — lift the token to a job-level env so the
+      # Docker Hub guards below can use `env.*` (valid in if/with). Stays masked in logs.
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+
+      - name: Compute tags (community-standard channels)
+        id: meta
+        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
+        with:
+          # Docker Hub image is added ONLY when both the input and the token are present,
+          # so a missing secret never produces an un-pushable docker.io tag.
+          images: |
+            ${{ inputs.registry }}/${{ inputs.image }}
+            ${{ (inputs.dockerhub_image != '' && env.DOCKERHUB_TOKEN != '') && format('docker.io/{0}', inputs.dockerhub_image) || '' }}
+          tags: |
+            type=raw,value=develop,enable=${{ github.ref == 'refs/heads/develop' }}
+            type=sha,prefix=develop-,format=short,enable=${{ github.ref == 'refs/heads/develop' }}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+
+      # --- Optional Trivy gate (build locally, scan, THEN push the cache-identical image) ---
+      - name: Build for scan (Trivy gate)
+        if: ${{ inputs.trivy }}
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: ${{ inputs.context }}
+          file: ${{ inputs.dockerfile }}
+          load: true
+          tags: ${{ inputs.image }}:scan-target
+          cache-from: type=gha,scope=${{ inputs.image }}
+          # ignore-error: the GitHub Actions cache service (type=gha) intermittently 500s /
+          # returns BlobNotFound on export (esp. large mode=max exports on self-hosted
+          # runners). Cache is a build-time optimization, not a correctness input — a cache
+          # miss/failure must never fail the build. Warns and continues instead.
+          cache-to: type=gha,mode=max,ignore-error=true,scope=${{ inputs.image }}
+          secrets: |
+            gomod_token=${{ secrets.GOMOD_TOKEN }}
+
+      - name: Trivy vulnerability scan (CRITICAL + HIGH gate)
+        if: ${{ inputs.trivy }}
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        with:
+          image-ref: ${{ inputs.image }}:scan-target
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: '1'
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+
+      # Registry login happens HERE — AFTER the (slow, cold-cache) Trivy build-for-scan — so the
+      # GHCR token is FRESH at push time. A long build (e.g. a native-compile image via the Trivy
+      # double-build, ~14 min cold) would otherwise outlive a token fetched at job start → buildkit
+      # re-auths anonymously → 403 on the attestation push. The build-for-scan above needs no
+      # registry login (it loads locally + uses the GHA cache + a public base image).
+      - name: Login to GHCR
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to Docker Hub (optional)
+        if: ${{ inputs.dockerhub_image != '' && env.DOCKERHUB_TOKEN != '' }}
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # --- Build + push (cache-identical to the scanned image when trivy=true) ---
+      - name: Build + push (SBOM + SLSA mode=max on release)
+        id: build
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: ${{ inputs.context }}
+          file: ${{ inputs.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          sbom: ${{ inputs.sign }}
+          provenance: ${{ inputs.sign && 'mode=max' || 'false' }}
+          cache-from: type=gha,scope=${{ inputs.image }}
+          # ignore-error: the GitHub Actions cache service (type=gha) intermittently 500s /
+          # returns BlobNotFound on export (esp. large mode=max exports on self-hosted
+          # runners). Cache is a build-time optimization, not a correctness input — a cache
+          # miss/failure must never fail the build. Warns and continues instead.
+          cache-to: type=gha,mode=max,ignore-error=true,scope=${{ inputs.image }}
+          secrets: |
+            gomod_token=${{ secrets.GOMOD_TOKEN }}
+
+      - name: Install cosign
+        if: ${{ inputs.sign }}
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Keyless sign by digest (release only)
+        if: ${{ inputs.sign }}
+        run: cosign sign --yes "${{ inputs.registry }}/${{ inputs.image }}@${{ steps.build.outputs.digest }}"
+
+      # Confused-deputy guard (EC-2): accept ONLY signatures produced by THIS workflow
+      # (path-pinned) via the GitHub OIDC issuer.
+      #
+      # A identidade foi REPINADA para este caminho vendorizado. A identidade keyless deriva de
+      # repo + path do workflow, então manter o regexp do original (`usetheodev/theo/...`) faria a
+      # verificação falhar em toda release — e, pior, um regexp frouxo aqui aceitaria assinatura
+      # produzida por outro workflow, que é exatamente o ataque que este guard existe para barrar.
+      - name: Verify the signature (identity-pinned)
+        if: ${{ inputs.sign && inputs.verify }}
+        run: |
+          cosign verify "${{ inputs.registry }}/${{ inputs.image }}@${{ steps.build.outputs.digest }}" \
+            --certificate-identity-regexp '^https://github\.com/usetheoai/theo-memory/\.github/workflows/build-publish\.yml@' \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com
