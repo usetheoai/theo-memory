@@ -7,10 +7,10 @@
   "homepage": "https://usetheo.dev",
   "repository": {
     "type": "git",
-    "url": "https://github.com/usetheodev/theo-memory.git"
+    "url": "https://github.com/usetheoai/theo-memory.git"
   },
   "bugs": {
-    "url": "https://github.com/usetheodev/theo-memory/issues"
+    "url": "https://github.com/usetheoai/theo-memory/issues"
   },
   "keywords": [
     "ai-agents",

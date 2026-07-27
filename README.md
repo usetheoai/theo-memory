@@ -465,7 +465,7 @@ best-effort from each project's public repo **as of July 2026**. Corrections wel
 ## Contributing
 
 ```bash
-git clone https://github.com/usetheodev/theo-memory.git
+git clone https://github.com/usetheoai/theo-memory.git
 cd theo-memory
 npm install
 docker compose up -d pgvector

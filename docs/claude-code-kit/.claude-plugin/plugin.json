@@ -7,7 +7,7 @@
     "email": "support@usetheo.dev"
   },
   "homepage": "https://usetheo.dev",
-  "repository": "https://github.com/usetheodev/theo-memory",
+  "repository": "https://github.com/usetheoai/theo-memory",
   "license": "Apache-2.0",
   "keywords": ["memory", "personalization", "mcp", "semantic-search", "multi-tenant"],
   "userConfig": {
