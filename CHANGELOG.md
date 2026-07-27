@@ -7,6 +7,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 - Roadmap amended: added M27 Qualidade da memória escrita — destilação de fato durável (paridade REDACTED) (`/roadmap-feature memory-write-quality-REDACTED-parity`)
 
+### Fixed
+- **M27 — write-quality distillation (REDACTED parity), the extraction prompt discipline.** The
+  `infer:true` extraction `SYSTEM_PROMPT` (`packages/core/src/domain/extraction/prompt.ts`) gained a
+  durable-fact contract (atomic · declarative-not-a-question · standalone · third-person · SPLIT
+  multi-fact turns) + REDACTED-style few-shot mapping a question/greeting → empty `memory`, and a
+  first-person recommendation → a third-person fact. Fixes assistant questions ("Quer que eu
+  prossiga…?") and 400-word narration being stored as single mega-facts. Language/accent block
+  preserved (regression-guarded).
+
 ### Changed
 
 ### Deprecated
