@@ -31,19 +31,14 @@ concurrency:
 jobs:
   integration:
     name: integration (pgvector + test:integration)
-    # RUNNER — Blacksmith pilot (2026-07-27). Chosen as the pilot subject BECAUSE it declares
-    # a `services:` block: whether an ephemeral runner provisions service containers is the
-    # one unknown that gates migrating the rest of the theo-ci-runner population (theo-rag,
-    # theo-cloud, theo-lens, theo-traefik-mcp). This job proves or disproves it against a real
-    # pgvector, on a workflow that is currently healthy (15 pass / 1 fail of the last 29) —
-    # so a red result here means the runner, not a pre-existing break.
+    # RUNNER — Blacksmith pilot ATTEMPTED and REVERTED 2026-07-27 (see #156). The label
+    # `blacksmith-2vcpu-ubuntu-2404` was applied correctly but NO runner ever picked the job up:
+    # 40+ min queued with `runner_name` empty. Reverted to keep CI functional. The open question the
+    # pilot existed to answer — does an ephemeral runner provision `services:`? — is still UNANSWERED.
+    # Re-applying is one line once Blacksmith actually serves the label for this repo.
     #
-    # 2 vCPU holds the compute variable fixed against the droplet it replaces; the gain being
-    # measured is queue time, not speed (droplet p90 wait was 29.2 min for ~2.2 min of work).
-    #
-    # DELIBERATELY PARTIAL: eval.yml, security-sast.yml and publish.yml stay on
-    # [self-hosted, linux, x64]. Rollback is one line: restore that value here.
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    # Self-hosted (theo-ci-theo-memory) — GitHub-hosted minutes are billing-blocked for the org.
+    runs-on: [self-hosted, linux, x64]
 
     services:
       postgres:
