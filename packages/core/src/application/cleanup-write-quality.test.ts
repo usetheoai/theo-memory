@@ -4,13 +4,9 @@
  */
 import { describe, expect, test, vi } from 'vitest';
 
+import { classifyNonFact, isDump } from '../domain/extraction/fact-gate.js';
 import type { MemoryItem } from '../domain/memory-item.js';
-import {
-  cleanupWriteQuality,
-  classifyPollution,
-  findPollutedMemories,
-  isDumpMemory,
-} from './cleanup-write-quality.js';
+import { cleanupWriteQuality, findPollutedMemories } from './cleanup-write-quality.js';
 
 function item(id: string, text: string): MemoryItem {
   return {
@@ -32,15 +28,15 @@ const DUMP =
   'de um trabalho deste tamanho quando as seis primeiras tarefas precisam todas aterrissar juntas.';
 
 describe('cleanup-write-quality classification (M27 T4.1)', () => {
-  test('classifies a question as non_fact, a dump as dump, a clean fact as null', () => {
-    expect(classifyPollution('Quer que eu prossiga…?')).toBe('non_fact');
-    expect(classifyPollution(DUMP)).toBe('dump');
-    expect(classifyPollution('user prefers dark roast')).toBeNull();
+  test('classifies a question, a dump, and a clean fact via the shared predicate', () => {
+    expect(classifyNonFact('Quer que eu prossiga…?')).toBe('question');
+    expect(classifyNonFact(DUMP)).toBe('dump');
+    expect(classifyNonFact('user prefers dark roast')).toBeNull();
   });
 
-  test('isDumpMemory only fires on long multi-sentence narration', () => {
-    expect(isDumpMemory('short fact')).toBe(false);
-    expect(isDumpMemory(DUMP)).toBe(true);
+  test('isDump only fires on long multi-sentence narration', () => {
+    expect(isDump('short fact')).toBe(false);
+    expect(isDump(DUMP)).toBe(true);
   });
 
   test('findPollutedMemories returns only the polluted ids', () => {
