@@ -3,7 +3,7 @@
 ## Install (first-class Claude Code plugin — parity with mem0)
 
 ```bash
-claude plugin marketplace add usetheodev/theo-memory
+claude plugin marketplace add usetheoai/theo-memory
 claude plugin install theo-memory@theo-memory
 ```
 
