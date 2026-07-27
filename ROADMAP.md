@@ -556,7 +556,7 @@ A análise comparativa com o mem0 (2026-07-24) mostrou que o boost de entidade �
 
 ---
 
-## M28 — [ ] Cross-validation fixes: recall@1 do falante (#157) + identidade MCP↔dashboard
+## M28 — [x] Cross-validation fixes: recall@1 do falante (#157) + identidade MCP↔dashboard
 
 **Objetivo:** fechar os 2 gaps que o cross-validation ao vivo theo-memory vs mem0 (MCP oficial dos dois, mesmo dataset de 8 fatos + 5 queries, 2026-07-27) expôs, onde o mem0 ficou à frente. (1) **Recall@1 do falante (#157):** a query "profissão do **usuário**" trouxe o fato do café no top-1, porque o falante é normalizado para `user` e uma query PT com "usuário" casa lexicalmente (BM25/entity boost) melhor com fatos que contêm "usuário" do que com o fato do falante (`user`). Precisão@1 4/5 vs mem0 5/5 no mesmo set. (2) **Identidade MCP ≠ dashboard:** o MCP do theo-memory grava sob um `claude-code` fixo, então memórias escritas via MCP são invisíveis no dashboard do usuário autenticado. mem0 (`knowledge-base/references/mem0`) é a referência de paridade; o A/B é o guard de regressão.
 
