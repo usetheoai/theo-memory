@@ -5,7 +5,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.52.0] - 2026-07-27
+
+### Added
 - Roadmap amended: added M27 Qualidade da memória escrita — destilação de fato durável (paridade mem0) (`/roadmap-feature memory-write-quality-mem0-parity`)
+
 
 ### Fixed
 - **M27 — write-quality distillation (mem0 parity), the extraction prompt discipline.** The
@@ -42,16 +57,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   reversible) — closing the orphan-module gap; and a `write-quality-benchmark.mjs` runner consumes the
   fixture end-to-end (`POST /v1/remember` → `GET /v1/scopes` → ratio) so the DoD parity number is
   measured against a real LLM, not asserted.
-
-### Changed
-
-### Deprecated
-
-### Removed
-
-### Fixed
-
-### Security
 
 ## [0.51.0] - 2026-07-27
 
