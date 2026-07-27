@@ -1,0 +1,56 @@
+# Gate de sintaxe/semântica dos próprios workflows.
+#
+# O DEFEITO QUE ISTO PREVINE, medido no theo-db em 2026-07-27 (usetheodev/theo-db#211): quatro
+# gates — incluindo o de licença, a regra mais inegociável daquele projeto — passaram TRÊS DIAS
+# sem executar um único step. Cada um declarava `paths` e `paths-ignore` no mesmo evento, o que o
+# GitHub rejeita no parse, então os runs morriam em `startup_failure` com zero jobs. Na lista de
+# runs isso aparece só como `failure`, indistinguível de um teste quebrado.
+#
+# Nenhum dos repos do ecossistema valida os próprios workflows. Este repo passa a validar.
+#
+# Verificado contra o repro exato do bug antes de instalar o gate:
+#
+#   .github/workflows/bug.yml:7:5: both "paths" and "paths-ignore" filters cannot be used for the
+#   same event "push". note: use '!' to negate patterns [events]
+#
+# Regra 9 (não reinvente): actionlint é o linter de-facto de GitHub Actions e já embute shellcheck
+# para os blocos `run:`.
+name: actionlint
+
+on:
+  push:
+    branches: [develop, main]
+    paths:
+      - '.github/workflows/**'
+      - '.github/actionlint.yaml'
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+      - '.github/actionlint.yaml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # Mesma chave por BRANCH do resto do repo (#129): um push em develop e o PR do mesmo commit
+  # carregam `github.ref` diferentes e cairiam em grupos distintos, rodando os dois.
+  group: actionlint-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  actionlint:
+    # Self-hosted — os minutos GitHub-hosted estão bloqueados por billing na org.
+    runs-on: [self-hosted, linux, x64]
+    # O scan leva segundos; a folga é para o pull da imagem num runner frio.
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: actionlint (workflows + shellcheck dos blocos run:)
+        # Imagem fixada por digest — o repo já pina actions por SHA; um `:latest` num gate de
+        # segurança/qualidade é a mesma classe de risco de supply-chain.
+        run: |
+          docker run --rm -v "$PWD:/repo" --workdir /repo \
+            rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 \
+            -color

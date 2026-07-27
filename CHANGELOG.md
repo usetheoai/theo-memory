@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **CI: gate rápido `ci.yml` (lint + typecheck + build), sem banco.** O repo não tinha gate unitário: os três só eram exercitados DENTRO do `integration.yml`, atrás de um serviço Postgres, do download do modelo Xenova e de duas suítes — 28,8 min medidos no pior caso. Um erro de tipo agora aparece em ~2 min. Escopo honestamente limitado: `pnpm test` NÃO entra aqui porque parte da suíte "contract" sobe o servidor MCP e abre um `Pool` real (documentado no próprio `integration.yml`), então sem banco ela falharia por infraestrutura e não por defeito. Verificado localmente antes de subir: lint, build e typecheck saem 0.
+
+- **CI: gate `actionlint` sobre os próprios workflows.** Valida sintaxe/semântica de workflow e roda shellcheck nos blocos `run:`. Motivado por `usetheodev/theo-db#211`, onde quatro gates passaram três dias em `startup_failure` — 95 de 100 runs — sem que nada apontasse a causa, porque nenhum gate olhava para o `.github/`. Imagem fixada por digest.
+
+- **CI: `timeout-minutes` em todo job próprio** — `integration` (60), `eval` (15), `semgrep` (15), `deploy-dev` (10). Todos rodavam com o default do GitHub de **360 min**: num runner serial compartilhado por 5 repositórios, um job pendurado sequestra a fila de todos por 6 horas. Valores dimensionados por duração medida (o `integration` tem máximo observado de 28,8 min).
+
 ### Changed
 
 ### Deprecated
