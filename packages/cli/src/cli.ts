@@ -55,6 +55,7 @@ import {
 import { runMigrate } from './run-migrate.js';
 import { runRecall } from './run-recall.js';
 import { runReflect } from './run-reflect.js';
+import { registerCleanupWriteQualityCommand } from './run-cleanup-write-quality.js';
 import { runRemember } from './run-remember.js';
 import { runServer } from './run-server.js';
 import type { RunServerOptions } from './run-server.js';
@@ -504,6 +505,9 @@ export function buildProgram(): Command {
         }
       },
     );
+
+  // M27 — command def co-located with its handler (keeps cli.ts from growing further).
+  registerCleanupWriteQualityCommand(program, resolveFormat);
 
   return program;
 }

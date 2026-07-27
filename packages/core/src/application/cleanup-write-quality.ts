@@ -7,38 +7,24 @@
  * emits an audit event (Princípio 3). Conservative — reuses the same `isNonDurableFact` net as
  * the live gate, plus a multi-paragraph "dump" heuristic.
  */
-import { isNonDurableFact } from '../domain/extraction/fact-gate.js';
+import { classifyNonFact, type NonFactReason } from '../domain/extraction/fact-gate.js';
 import type { MemoryItem } from '../domain/memory-item.js';
 import { emitEvent } from '../domain/memory-event.js';
 import type { Tracer } from '@opentelemetry/api';
 
-export type PollutionReason = 'non_fact' | 'dump';
+/** Reuses the SINGLE source of truth (`classifyNonFact`) — dump handling included there now. */
+export type PollutionReason = NonFactReason;
 
 export interface CleanupCandidate {
   readonly id: string;
   readonly reason: PollutionReason;
 }
 
-/** A stored row is a multi-paragraph transcript dump (not an atomic fact). */
-export function isDumpMemory(text: string): boolean {
-  const t = text.trim();
-  if (t.length <= 400) return false;
-  const sentenceBreaks = (t.match(/[.!?]\s/g) ?? []).length;
-  return sentenceBreaks >= 3 || t.includes('\n');
-}
-
-/** Classify a stored row's pollution, or null when it is a clean durable fact. */
-export function classifyPollution(text: string): PollutionReason | null {
-  if (isNonDurableFact(text)) return 'non_fact';
-  if (isDumpMemory(text)) return 'dump';
-  return null;
-}
-
 /** Pure: the polluted rows among a stored set (dry-run report basis). */
 export function findPollutedMemories(items: readonly MemoryItem[]): readonly CleanupCandidate[] {
   const out: CleanupCandidate[] = [];
   for (const m of items) {
-    const reason = classifyPollution(m.text);
+    const reason = classifyNonFact(m.text);
     if (reason !== null) out.push({ id: m.id, reason });
   }
   return out;

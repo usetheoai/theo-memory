@@ -31,7 +31,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   cleanup (`cleanupWriteQuality`, `packages/core/src/application/cleanup-write-quality.ts`) retires
   already-stored pollution (questions, first-person openers, multi-paragraph dumps) via soft-delete
   (`t_invalid`, never hard-delete — ADR-3), dry-run first, with `write_quality_cleanup_forgot` /
-  `_skipped` audit events (Princípio 3) and graceful per-row degradation.
+  `_skipped` audit events (Princípio 3) and graceful per-row degradation. **Review hardening (3
+  adversarial agents):** the backstop gate now also drops multi-paragraph transcript DUMPS on the
+  `infer:true` write path (previously dump handling lived only in cleanup — the 400-word narration
+  symptom now has a deterministic live catch); the durable-fact predicate is a single source of truth
+  in `fact-gate.ts` (`classifyNonFact`/`isSingleThirdPersonFact`), reused by the cleanup and the eval
+  metric (removes the regex triplicated across three files); the first-person opener set is widened
+  (recomendo/acho que/I think/we decided/…) while tightened against proper-noun false positives; the
+  cleanup is wired to a real caller — `themory cleanup-write-quality [--apply]` (dry-run default,
+  reversible) — closing the orphan-module gap; and a `write-quality-benchmark.mjs` runner consumes the
+  fixture end-to-end (`POST /v1/remember` → `GET /v1/scopes` → ratio) so the DoD parity number is
+  measured against a real LLM, not asserted.
 
 ### Changed
 
