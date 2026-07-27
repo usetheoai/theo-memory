@@ -16,13 +16,19 @@
 # livres de I/O.
 name: CI
 
-# GATILHOS (política 2026-07-27, decisão do owner): os gates rodam em PR para `main`. Este
-# workflow é a ÚNICA exceção que também roda em push para `develop` — é o gate barato (sem banco,
-# sem LLM, ~40 s medidos), e sem ele `develop` ficaria completamente sem CI entre releases, o que
-# empurraria toda regressão para o PR de release num diff grande e difícil de bissectar.
+# GATILHOS (política 2026-07-27, revisada no mesmo dia): PR para `develop` OU `main`, mais push
+# em `develop`.
+#
+# O PRINCÍPIO: todo commit que entra no trunk é verificado — é a definição de CI. Aqui o trunk é
+# `develop`, então é ELE que precisa de gate; gate só em `main` protegeria apenas o instante do
+# release, quando o estrago já está feito e diluído num diff grande impossível de bissectar.
+#
+# POR QUE OS DOIS GATILHOS, e não um: o gate de PR mata o defeito antes de entrar no trunk; o gate
+# de push (pós-merge) pega o que só existe DEPOIS do merge — dois PRs verdes isoladamente que se
+# quebram juntos (conflito semântico). São escopos diferentes, não redundância.
 on:
   pull_request:
-    branches: [main]
+    branches: [develop, main]
     paths-ignore:
       - '.claude/**'
       - '**/*.md'

@@ -17,11 +17,16 @@
 #     the Bearer-auth wrappers (no credentials mode → reflected Origin is safe).
 name: Security SAST
 
-# GATILHOS (política 2026-07-27, decisão do owner): só em PR para `main` — abertura e cada
-# atualização do PR. Não roda mais em push para `develop`.
+# GATILHOS: PR para `develop` ou `main` (gate antes de entrar no trunk) + push em `develop`
+# (verificação pós-merge). Ver o racional completo em `ci.yml`.
 on:
   pull_request:
-    branches: [main]
+    branches: [develop, main]
+    paths-ignore:
+      - '.claude/**'
+      - '**/*.md'
+  push:
+    branches: [develop]
     paths-ignore:
       - '.claude/**'
       - '**/*.md'
