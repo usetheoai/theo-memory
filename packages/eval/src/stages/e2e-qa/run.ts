@@ -35,21 +35,24 @@ import { OpenAILLM } from '@usetheo/memory/llms/openai';
 
 import {
   loadOracleDataset,
-  selectDeterministicSubset,
+  selectRunSubset,
   isAbstention,
   type LongMemEvalExample,
 } from './longmemeval-loader.js';
 import { shouldAbstain } from './coverage-gate.js';
 import { abstentionIsMiss } from './scoring.js';
+import { mapWithConcurrency, runSafely } from './concurrency.js';
 import { buildAnswerPrompt, buildJudgePrompt, parseJudgeVerdict } from './prompts.js';
-import { report, type ExampleResult } from './report.js';
+import { report, failedResult, type ExampleResult } from './report.js';
 
 // ---- Config -----------------------------------------------------------------
 
 const ADMIN_PG_URI =
   process.env['THEOMEM_PG_URI'] ??
   'postgresql://themem:themem@localhost:5442/themem';
-const ISOLATED_DB = 'themem_e2e_qa';
+const ISOLATED_DB = process.env['E2E_QA_DB'] ?? 'themem_e2e_qa'; // overridable → distinct DB per run
+// Scope-isolated examples → safe to parallelise (default 1 = serial); >1 makes the full run feasible.
+const CONCURRENCY = Math.max(1, Number.parseInt(process.env['E2E_QA_CONCURRENCY'] ?? '1', 10) || 1);
 const EMBEDDING_DIM = 384; // Xenova/all-MiniLM-L6-v2
 const TURN_CAP = 40; // max turns ingested per example (cost bound)
 const RECALL_TOP_K = 10;
@@ -237,20 +240,16 @@ async function main(): Promise<void> {
   }
 
   const dataset = loadOracleDataset(DATASET_PATH);
-  const subset = selectDeterministicSubset(dataset);
+  const limitEnv = process.env['E2E_QA_LIMIT'] ?? '';
+  const subset = selectRunSubset(dataset, limitEnv);
+  const mode = limitEnv.trim() === '' ? 'subset-12' : limitEnv.trim().toLowerCase();
+  const absN = subset.filter(isAbstention).length;
   console.log(
-    `[e2e-qa] loaded ${String(dataset.length)} oracle examples; selected ${String(
-      subset.length,
-    )} (${String(subset.filter(isAbstention).length)} abstention).`,
-  );
-  console.log(
-    `[e2e-qa] model=${CHAT_MODEL} embedder=LocalTransformer(${String(
-      EMBEDDING_DIM,
-    )}) turn_cap=${String(TURN_CAP)} top_k=${String(RECALL_TOP_K)}`,
+    `[e2e-qa] loaded ${String(dataset.length)} examples; selected ${String(subset.length)} (${String(absN)} abstention) [mode=${mode}] model=${CHAT_MODEL} dim=${String(EMBEDDING_DIM)} turn_cap=${String(TURN_CAP)} top_k=${String(RECALL_TOP_K)} conc=${String(CONCURRENCY)}`,
   );
 
   await provisionIsolatedDb();
-  const pool = new pg.Pool({ connectionString: isolatedUri() });
+  const pool = new pg.Pool({ connectionString: isolatedUri(), max: CONCURRENCY + 4 });
   await runMigrations(pool, { embeddingDim: EMBEDDING_DIM });
 
   const client = new OpenAI({
@@ -272,18 +271,22 @@ async function main(): Promise<void> {
   // duplicates → persistConsolidations sets t_invalid → recall stops surfacing them.
   const conflictPolicy = new LlmJudgedMergeConflictPolicy({ llm: new OpenAILLM() });
 
-  const results: ExampleResult[] = [];
-  for (const [idx, ex] of subset.entries()) {
-    const r = await runExample(memory, client, ex, conflictPolicy);
-    results.push(r);
-    if (OUT_JSONL !== '') appendFileSync(OUT_JSONL, JSON.stringify(r) + '\n');
-    console.log(
-      `[e2e-qa] (${String(idx + 1)}/${String(subset.length)}) ${r.questionId} ` +
-        `type=${r.questionType} turns=${String(r.ingestedTurns)} ` +
-        `recalled=${String(r.recalledCount)} → ${r.correct ? 'YES' : 'no'}` +
-        (r.ingestErrors > 0 ? ` (ingestErrors=${String(r.ingestErrors)})` : ''),
+  let done = 0;
+  const results = await mapWithConcurrency(subset, CONCURRENCY, async (ex) => {
+    // Fail-safe per example: a transient 5xx / context overflow scores a miss with
+    // an `error` field, never aborting the whole run (a bench must survive one bad row).
+    const r = await runSafely(
+      () => runExample(memory, client, ex, conflictPolicy),
+      (message) => failedResult(ex, message),
     );
-  }
+    done += 1;
+    if (OUT_JSONL !== '') appendFileSync(OUT_JSONL, JSON.stringify(r) + '\n');
+    const tag = r.error !== undefined ? ` ERROR=${r.error.slice(0, 60)}` : '';
+    console.log(
+      `[e2e-qa] (${String(done)}/${String(subset.length)}) ${r.questionId} type=${r.questionType} recalled=${String(r.recalledCount)} → ${r.correct ? 'YES' : 'no'}${tag}`,
+    );
+    return r;
+  });
 
   await memory.dispose();
   await pool.end();
