@@ -170,9 +170,31 @@ export function generateAdditiveExtractionPrompt(
   ontology?: Ontology,
   detectedLanguage?: { readonly name: string },
   categoryTaxonomy?: readonly string[],
+  attributedTo?: string,
 ): PromptResult {
   const uuidByInt = new Map<number, string>();
   existing.forEach((m, i) => uuidByInt.set(i + 1, m.id));
+
+  // M29 (#160): the first-person speaker token, derived from the turn's authoritative
+  // attribution (options.attributedTo, set by the kit's Stop hook). Any value other than
+  // 'assistant' (a user id, undefined) keeps the default `user` speaker — every existing
+  // caller stays byte-identical. When the turn is the assistant's, a HIGH-PRIORITY prefix
+  // overrides the default `user` speaker baked into SYSTEM_PROMPT (same override mechanism
+  // the ontology/language prefixes use — see the renderOntologyDirective note). Grounded in
+  // mem0 (references/mem0 configs/prompts.py AGENT_CONTEXT_SUFFIX): "For agent actions, use
+  // direct statements: 'Agent recommended [X]'" + attribute correctly.
+  const speakerToken = attributedTo === 'assistant' ? 'assistant' : 'user';
+  const speakerPrefix = speakerToken === 'assistant'
+    ? 'SPEAKER IDENTITY (HIGHEST PRIORITY — overrides the default "user" speaker rule in the '
+      + 'system prompt below): the author of the NEW messages is the ASSISTANT/agent, NOT the '
+      + 'user. Represent the first-person speaker as ONE consistent entity named exactly '
+      + '"assistant" in `entities`, `relations`, AND each `memory[].text` fact — NEVER "user" '
+      + 'for the assistant\'s own statements or actions. Frame the assistant\'s actions in third '
+      + 'person as "assistant <verb>" (e.g. the assistant message "I recommend an allowlist" '
+      + 'yields the fact "assistant recommended an allowlist", NOT "user recommended an '
+      + 'allowlist"). Reserve "user" ONLY for facts the user explicitly stated. Set '
+      + '`attributed_to` to "assistant" for the assistant\'s own facts.\n\n'
+    : '';
 
   const customPrefix = customInstructions !== undefined && customInstructions.length > 0
     ? `${customInstructions}\n\n`
@@ -193,12 +215,12 @@ export function generateAdditiveExtractionPrompt(
   const languagePrefix = detectedLanguage !== undefined
     ? `LANGUAGE DIRECTIVE: the input language is ${detectedLanguage.name}. Write ALL facts `
       + `(\`memory[].text\`), entity names, and relationship labels in ${detectedLanguage.name} — `
-      + 'NEVER translate or transliterate. The literal token "user" (the speaker) is the only '
+      + `NEVER translate or transliterate. The literal token "${speakerToken}" (the speaker) is the only `
       + 'exception.\n\n'
     : '';
 
   const prompt = [
-    languagePrefix + ontologyPrefix + categoryPrefix + customPrefix + SYSTEM_PROMPT,
+    speakerPrefix + languagePrefix + ontologyPrefix + categoryPrefix + customPrefix + SYSTEM_PROMPT,
     '',
     renderExistingMemories(existing),
     renderNewMessages(newMessages),

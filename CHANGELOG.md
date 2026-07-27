@@ -4,6 +4,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+- **Write-side speaker attribution (#160): the assistant's own first-person statements are no longer stored as the `user` node.** The extraction prompt hardcoded the first-person speaker as the entity `user`, so an assistant turn ("I recommend X") was stored as "user recommends X", ignoring the authoritative `attributedTo:'assistant'` the kit sends. `generateAdditiveExtractionPrompt` now derives the speaker token from `attributedTo` and, for assistant turns, emits a high-priority directive naming the speaker `assistant` (mem0 `AGENT_CONTEXT_SUFFIX` parity). Live A/B (real gpt-4o-mini): assistant-attribution ratio 0.00 → 1.00, no regression on user turns (`docs/benchmarks/m29-speaker-attribution-vs-mem0.md`). The `infer:false` verbatim path is untouched.
+
 ### Added
 
 ### Changed

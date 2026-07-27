@@ -30,12 +30,12 @@ import type { RememberOptions } from '../options.js';
 import type { Filters } from '../scope.js';
 
 import { linkEntities, type RelationTriple } from './entity-linking.js';
+import { applyFactGate } from './fact-gate.js';
 import { correctEntityRelationLanguage } from './label-language.js';
 import { detectInputLanguage } from './language.js';
+import { coerceExtractionResponse } from './normalize.js';
 import { applyOntologyToEntities, boundedAutoCategory, buildPayload, embedBatchWithFallback, extractResponseText, patchItemsWithOutcomes, persistWithFallback, runInferFalsePath, scopeFromFilters, toMemoryItem } from './pipeline-helpers.js';
 import type { ExtractionDeps, Payload } from './pipeline-helpers.js';
-import { applyFactGate } from './fact-gate.js';
-import { coerceExtractionResponse } from './normalize.js';
 import { AdditiveExtractionSchema, generateAdditiveExtractionPrompt } from './prompt.js';
 import { DEFAULT_CATEGORY_TAXONOMY, classifyCategorySource } from './taxonomy.js';
 
@@ -113,6 +113,7 @@ export async function runExtractionPipeline(
     deps.ontology,
     detectedLanguage ?? undefined,
     autoCategorizeEnabled ? autoCategorizeTaxonomy : undefined,
+    options?.attributedTo, // M29 (#160): speaker token derived from attribution inside the prompt composer
   );
   let extracted: readonly { id: string; text: string; attributed_to?: string | undefined; category?: string | undefined; linked_memory_ids?: string[] | undefined }[];
   // slice2 T2.2 — relation triples from the SAME extraction call (response-level).
