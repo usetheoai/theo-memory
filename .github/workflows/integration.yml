@@ -38,7 +38,7 @@ jobs:
     # Re-applying is one line once Blacksmith actually serves the label for this repo.
     #
     # Self-hosted (theo-ci-theo-memory) — GitHub-hosted minutes are billing-blocked for the org.
-    runs-on: [self-hosted, linux, x64]
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '["self-hosted","linux","x64"]') }}
     # Medido: max 28,8 min (baixa o modelo Xenova ~22 MB com 6 tentativas, aplica schema, roda contract 1353 testes + integration). 60 = ~2x o observado.
     timeout-minutes: 60
 
