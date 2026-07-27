@@ -318,9 +318,15 @@ Every release image is **cosign-signed with identity-pinned verification** and s
 
 | Trigger | Channel | Result |
 |---|---|---|
-| push to `develop` | preview | `ghcr.io/usetheodev/themory:develop` (+ `:develop-<short>`) |
-| semver tag `v*` | release | `ghcr.io/usetheodev/themory:<version>` — **cosign-signed + identity-pinned verify** + SBOM/SLSA (+ Docker Hub `usetheo/themory` when `DOCKERHUB_TOKEN` is set) |
+| push to `develop` | preview | `ghcr.io/usetheoai/themory:develop` (+ `:develop-<short>`) |
+| semver tag `v*` | release | `ghcr.io/usetheoai/themory:<version>` — **cosign-signed + identity-pinned verify** + SBOM/SLSA (+ Docker Hub `usetheo/themory` when `DOCKERHUB_TOKEN` is set) |
 | manual dispatch | smoke | unsigned build |
+
+> **Namespace changed (2026-07-27).** Images used to publish to `ghcr.io/usetheodev/themory`. The
+> repository moved to the `usetheoai` organization, and a workflow run there cannot push to the
+> previous account's namespace, so new images go to `ghcr.io/usetheoai/themory`. **The old package
+> was not deleted** — historical tags (e.g. `:0.27.0`) remain pullable from the old path. What the
+> old path no longer receives is new builds, so pin to `ghcr.io/usetheoai/...` going forward.
 
 Every build runs a **Trivy gate** (`severity: CRITICAL,HIGH`, `ignore-unfixed`, `exit-code: 1`,
 SHA-pinned in the reusable): the job fails on any fixable CRITICAL/HIGH CVE in the image, so a
