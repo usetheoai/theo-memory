@@ -4,7 +4,8 @@
 # só eram exercitados DENTRO do `integration.yml`, atrás de um serviço Postgres, do download do
 # modelo Xenova e de duas suítes completas — 28,8 min medidos no pior caso. Um erro de tipo ou uma
 # violação de lint, que uma máquina detecta em ~2 min, levava esse tempo todo para aparecer, e ainda
-# ocupava um runner serial compartilhado por 5 repositórios enquanto isso.
+# ocupava um runner serial compartilhado por 5 repositórios enquanto isso. (A serialização deixou de
+# existir com a migração para a frota efêmera em 2026-07-27; a economia de sinal rápido, não.)
 #
 # ESCOPO — honestamente limitado. Este gate NÃO roda `pnpm test`, e isso é deliberado, não
 # esquecimento: o próprio `integration.yml` documenta que parte da suíte "contract" sobe o servidor
@@ -43,10 +44,10 @@ concurrency:
 jobs:
   static:
     name: lint + typecheck + build (sem banco)
-    # Self-hosted — os minutos GitHub-hosted estão bloqueados por billing na org.
-    runs-on: ${{ fromJSON(vars.CI_RUNNER || '["self-hosted","linux","x64"]') }}
-    # Build TS de 6 pacotes. Folga sobre o observado, e muito abaixo do default de 360 min que
-    # deixaria um hang segurando a fila dos 5 repositórios.
+    # Blacksmith (2026-07-27) — frota efêmera, 8 vCPU / 32 GB.
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    # Build TS de 6 pacotes. Folga sobre o observado. Muito abaixo do default de 360 min: num
+    # runner cobrado por minuto, um hang sem teto é conta aberta, não só fila parada.
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
