@@ -14,7 +14,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   multi-fact turns) + REDACTED-style few-shot mapping a question/greeting → empty `memory`, and a
   first-person recommendation → a third-person fact. Fixes assistant questions ("Quer que eu
   prossiga…?") and 400-word narration being stored as single mega-facts. Language/accent block
-  preserved (regression-guarded).
+  preserved (regression-guarded). Backstop: a deterministic `factGate`
+  (`packages/core/src/domain/extraction/fact-gate.ts`, default-ON on the `infer:true` path only)
+  drops CLEAR non-facts (a pure question or a first-person conversational opener) the prompt may still
+  let through, emitting a typed `extraction_fact_gate_dropped` audit event per drop (Princípio 3);
+  the `infer:false` verbatim path is never gated. Conservative by design (only trailing-`?` or a small
+  set of first-person openers) to avoid over-filtering.
 
 ### Changed
 
