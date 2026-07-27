@@ -21,8 +21,17 @@ import type { Memory, ScopedMemory } from '@usetheo/memory/contract';
 import type { Context } from 'hono';
 import { z } from 'zod';
 
+import { attributedPeerOf } from './_attributed-peer.js';
 import { actingUserId, workspaceBoundMemory } from './_body-parsing.js';
 
+/**
+ * M27 T5.1 — surface the stored `attributed_to` (WHO) as a top-level field on each listed
+ * memory so the dashboard/gateway can show it directly (it lives in `MemoryItem.metadata`
+ * per `_attributed-peer.ts`). `null` when unattributed.
+ */
+function withAttributedTo(items: readonly MemoryItem[]): readonly (MemoryItem & { attributed_to: string | null })[] {
+  return items.map((m) => ({ ...m, attributed_to: attributedPeerOf(m) ?? null }));
+}
 
 const SCOPE_TYPES = ['user', 'session', 'agent', 'skill'] as const;
 type ScopeType = (typeof SCOPE_TYPES)[number];
@@ -204,7 +213,7 @@ export async function scopesHandler(c: Context, memory: Memory): Promise<Respons
     // abort rather than treat the unfiltered scope as the entity's memories.
     return c.json(
       {
-        items: page,
+        items: withAttributedTo(page),
         nextCursor,
         ...(total !== undefined ? { total } : {}),
         ...(entity !== undefined ? { entity } : {}),
@@ -248,5 +257,5 @@ export async function scopesHandler(c: Context, memory: Memory): Promise<Respons
   const hasMore = filtered.length > offset + limit;
   const nextCursor = hasMore && page.length > 0 ? encodeCursor(page[page.length - 1]!) : undefined;
 
-  return c.json({ items: page, nextCursor, ...(entity !== undefined ? { entity } : {}) }, 200);
+  return c.json({ items: withAttributedTo(page), nextCursor, ...(entity !== undefined ? { entity } : {}) }, 200);
 }

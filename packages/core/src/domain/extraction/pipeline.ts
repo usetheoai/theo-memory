@@ -34,6 +34,8 @@ import { correctEntityRelationLanguage } from './label-language.js';
 import { detectInputLanguage } from './language.js';
 import { applyOntologyToEntities, boundedAutoCategory, buildPayload, embedBatchWithFallback, extractResponseText, patchItemsWithOutcomes, persistWithFallback, runInferFalsePath, scopeFromFilters, toMemoryItem } from './pipeline-helpers.js';
 import type { ExtractionDeps, Payload } from './pipeline-helpers.js';
+import { applyFactGate } from './fact-gate.js';
+import { coerceExtractionResponse } from './normalize.js';
 import { AdditiveExtractionSchema, generateAdditiveExtractionPrompt } from './prompt.js';
 import { DEFAULT_CATEGORY_TAXONOMY, classifyCategorySource } from './taxonomy.js';
 
@@ -126,22 +128,9 @@ export async function runExtractionPipeline(
       ],
       { type: 'json' },
     );
-    const obj: unknown = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    // Defensive coercion: even though the system prompt asks for string ids,
-    // gpt-4o-mini (and likely others) sometimes returns `linked_memory_ids:
-    // [1, 2]` (number[]) — Zod then rejects with "Expected string, received
-    // number" and the whole extraction silently returns []. Normalize before
-    // parse so the schema stays strict but the most common LLM divergence is
-    // self-healing. See /tmp/themory-issue-2.md (team report 2026-06-08) for
-    // empirical isolation script + 4-model evidence.
-    if (obj !== null && typeof obj === 'object' && Array.isArray((obj as { memory?: unknown }).memory)) {
-      for (const item of (obj as { memory: unknown[] }).memory) {
-        if (item !== null && typeof item === 'object' && Array.isArray((item as { linked_memory_ids?: unknown }).linked_memory_ids)) {
-          (item as { linked_memory_ids: unknown[] }).linked_memory_ids =
-            (item as { linked_memory_ids: unknown[] }).linked_memory_ids.map(String);
-        }
-      }
-    }
+    // Normalize the raw response (numeric ids, fact-under-`fact`, missing id) before the
+    // strict parse — see `extraction/normalize.ts` (extracted for single responsibility).
+    const obj = coerceExtractionResponse(raw);
     const parsed = AdditiveExtractionSchema.parse(obj);
     extracted = parsed.memory;
     relations = parsed.relations;
@@ -243,6 +232,9 @@ export async function runExtractionPipeline(
       // degrade to raw entities (fail-soft); coercion is best-effort enrichment.
     }
   }
+
+  // M27 T2.1 — deterministic durable-fact backstop gate (infer:true only; audit per drop).
+  extracted = applyFactGate(extracted, tracer);
 
   if (extracted.length === 0) {
     // principles-alignment-hardening T3.1 — Princípio 3 IGNORE auditability per ADR D2.

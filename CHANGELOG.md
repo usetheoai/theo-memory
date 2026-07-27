@@ -16,6 +16,48 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Security
 
+## [0.52.0] - 2026-07-27
+
+### Added
+- Roadmap amended: added M27 Qualidade da memória escrita — destilação de fato durável (paridade REDACTED) (`/roadmap-feature memory-write-quality-REDACTED-parity`)
+
+
+### Fixed
+- **M27 — write-quality distillation (REDACTED parity), the extraction prompt discipline.** The
+  `infer:true` extraction `SYSTEM_PROMPT` (`packages/core/src/domain/extraction/prompt.ts`) gained a
+  durable-fact contract (atomic · declarative-not-a-question · standalone · third-person · SPLIT
+  multi-fact turns) + REDACTED-style few-shot mapping a question/greeting → empty `memory`, and a
+  first-person recommendation → a third-person fact. Fixes assistant questions ("Quer que eu
+  prossiga…?") and 400-word narration being stored as single mega-facts. Language/accent block
+  preserved (regression-guarded). Backstop: a deterministic `factGate`
+  (`packages/core/src/domain/extraction/fact-gate.ts`, default-ON on the `infer:true` path only)
+  drops CLEAR non-facts (a pure question or a first-person conversational opener) the prompt may still
+  let through, emitting a typed `extraction_fact_gate_dropped` audit event per drop (Princípio 3);
+  the `infer:false` verbatim path is never gated. Conservative by design (only trailing-`?` or a small
+  set of first-person openers) to avoid over-filtering. The `infer:false` verbatim path is proven
+  byte-identical (a question stored unchanged). The Claude Code kit Stop-hook now sets `infer: true`
+  explicitly (correcting a stale "stores verbatim" comment) so raw narration is always distilled
+  server-side. Extraction-response normalization gained REDACTED `normalize_facts` parity
+  (`extraction/normalize.ts`, extracted from `pipeline.ts`): a fact returned under `fact` or with a
+  missing sequential `id` self-heals before the strict parse.
+- **M27 — write-quality attribution surface + one-shot cleanup.** The scopes-memories REST list
+  (`GET /v1/scopes/:type/:id/memories`) now surfaces `attributed_to` (WHO) as a top-level field per
+  item (null when unattributed) so the dashboard/gateway can show it directly. A reversible one-shot
+  cleanup (`cleanupWriteQuality`, `packages/core/src/application/cleanup-write-quality.ts`) retires
+  already-stored pollution (questions, first-person openers, multi-paragraph dumps) via soft-delete
+  (`t_invalid`, never hard-delete — ADR-3), dry-run first, with `write_quality_cleanup_forgot` /
+  `_skipped` audit events (Princípio 3) and graceful per-row degradation. **Review hardening (3
+  adversarial agents):** the backstop gate now also drops multi-paragraph transcript DUMPS on the
+  `infer:true` write path (previously dump handling lived only in cleanup — the 400-word narration
+  symptom now has a deterministic live catch); the durable-fact predicate is a single source of truth
+  in `fact-gate.ts` (`classifyNonFact`/`isSingleThirdPersonFact`), reused by the cleanup and the eval
+  metric (removes the regex triplicated across three files); the first-person opener set is widened
+  (recomendo/acho que/I think/we decided/…) while tightened against proper-noun false positives; the
+  cleanup is wired to a real caller — `themory cleanup-write-quality [--apply]` (dry-run default,
+  reversible) — closing the orphan-module gap; and a `write-quality-benchmark.mjs` runner consumes the
+  fixture end-to-end (`POST /v1/remember` → `GET /v1/scopes` → ratio) so the DoD parity number is
+  measured against a real LLM, not asserted.
+
 ## [0.51.0] - 2026-07-27
 
 ### Added
