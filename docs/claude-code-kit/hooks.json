@@ -1,0 +1,86 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "name": "theo-recall",
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/theo-recall.mjs\" 2>/dev/null || true"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "name": "theo-prompt-recall",
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/theo-prompt-recall.mjs\" 2>/dev/null || true",
+            "timeout": 8
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "name": "theo-tool-context",
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/theo-tool-context.mjs\" 2>/dev/null || true",
+            "timeout": 8
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "name": "theo-block-memory-write",
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/theo-block-memory-write.mjs\" 2>/dev/null || true"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "name": "theo-remember",
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/theo-remember.mjs\" 2>/dev/null || true"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "name": "theo-precompact",
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/theo-precompact.mjs\" 2>/dev/null || true"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "name": "theo-promote",
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/theo-promote.mjs\" 2>/dev/null || true"
+          }
+        ]
+      }
+    ]
+  }
+}
