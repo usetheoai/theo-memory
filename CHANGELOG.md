@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
+- O gate de qualidade `eval` voltou a executar. Ele estava inoperante desde que foi introduzido — o arquivo do pipeline era rejeitado na leitura, então nenhuma verificação chegava a rodar e todo push seguia sem esse gate, apesar de o painel mostrar apenas "vermelho". O tier medido por LLM continua rodando só quando a chave está configurada (#155)
 
 ### Security
 
