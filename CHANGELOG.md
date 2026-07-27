@@ -25,6 +25,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   server-side. Extraction-response normalization gained REDACTED `normalize_facts` parity
   (`extraction/normalize.ts`, extracted from `pipeline.ts`): a fact returned under `fact` or with a
   missing sequential `id` self-heals before the strict parse.
+- **M27 — write-quality attribution surface + one-shot cleanup.** The scopes-memories REST list
+  (`GET /v1/scopes/:type/:id/memories`) now surfaces `attributed_to` (WHO) as a top-level field per
+  item (null when unattributed) so the dashboard/gateway can show it directly. A reversible one-shot
+  cleanup (`cleanupWriteQuality`, `packages/core/src/application/cleanup-write-quality.ts`) retires
+  already-stored pollution (questions, first-person openers, multi-paragraph dumps) via soft-delete
+  (`t_invalid`, never hard-delete — ADR-3), dry-run first, with `write_quality_cleanup_forgot` /
+  `_skipped` audit events (Princípio 3) and graceful per-row degradation.
 
 ### Changed
 
