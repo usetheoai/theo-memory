@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "theo-memory": {
+      "type": "http",
+      "url": "${THEOMEM_MEMORY_URL}/mcp/memory",
+      "headers": {
+        "Authorization": "Bearer ${THEOMEM_MEMORY_TOKEN}"
+      }
+    }
+  }
+}
