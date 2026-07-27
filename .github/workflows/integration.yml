@@ -20,12 +20,23 @@
 # pacote apontam para `./dist/**`).
 name: Integration (Postgres)
 
-# GATILHOS (política 2026-07-27, decisão do owner): só em PR para `main`. O job `contract` deixa
-# de rodar em push para `develop` — nesse fluxo o gate barato passa a ser só o `ci.yml`
-# (lint/typecheck/build). O noturno segue cobrindo `develop` uma vez por dia.
+# GATILHOS: o job `contract` roda em PR para `develop`/`main` e em push em `develop` (ver o
+# racional em `ci.yml`). O job `integration` roda SÓ no noturno e sob demanda.
+#
+# DESVIO CONSCIENTE DO IDEAL DE LIVRO: a prática canônica mandaria rodar a suíte de integração
+# também no push pós-merge em `develop`, para pegar a regressão no commit que a causou. Aqui ela
+# fica no noturno por decisão de custo do owner — são ~28 min de runner cobrado por minuto MAIS
+# chamadas reais de LLM. O preço desse desvio é honesto e vale registrar: quando o noturno quebra,
+# o culpado está em algum ponto entre os commits do dia, e bissectar custa mais do que teria
+# custado o gate. Se o volume de commits/dia crescer, reavaliar.
 on:
   pull_request:
-    branches: [main]
+    branches: [develop, main]
+    paths-ignore:
+      - '.claude/**'
+      - '**/*.md'
+  push:
+    branches: [develop]
     paths-ignore:
       - '.claude/**'
       - '**/*.md'
