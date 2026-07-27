@@ -2,25 +2,15 @@
  * M27 T6.1 — write-quality parity metric (REDACTED grade).
  *
  * The DoD number: the fraction of stored items that are a SINGLE THIRD-PERSON durable fact.
- * The predicate encodes the DoD definition DIRECTLY (atomic + declarative + third-person),
- * independent of the write-path gate, so the metric is not circular. Runs over the rows a real
- * extraction produced from a fixture transcript; the benchmark harness records the ratio across
- * ≥ 3 runs (mean ± std) in docs/benchmarks/.
+ * The predicate `isSingleThirdPersonFact` is imported from `@usetheo/memory` — the SAME single
+ * source of truth the write-path gate uses (DRY; the review flagged a duplicated regex). The
+ * metric therefore measures the exact DoD property the gate enforces; its VALUE as evidence comes
+ * from scoring REAL LLM output (the pipeline's stored rows on the deployed instance), not from
+ * being independent of the gate. The benchmark harness records the ratio across ≥ 3 runs.
  */
+import { isSingleThirdPersonFact } from '@usetheo/memory';
 
-/** First-person conversational opener — the same failure class the dashboard showed. */
-const FIRST_PERSON_OPENER =
-  /^\s*(minha recomenda|my recommendation|quer que eu|shall i\b|se voc[eê] quer|ok,?\s*vou\b|vou\s|let me\b|here is what|aqui est[aá] o que)/i;
-
-/** True when a stored row is a single, declarative, third-person, atomic fact. */
-export function isSingleThirdPersonFact(text: string): boolean {
-  const t = text.trim();
-  if (t.length === 0) return false;
-  if (t.length > 200) return false; // atomic — not a multi-paragraph dump
-  if (/[?？]["'”’)\]]*\s*$/.test(t)) return false; // declarative — not a question
-  if (FIRST_PERSON_OPENER.test(t)) return false; // third-person — not first-person voice
-  return true;
-}
+export { isSingleThirdPersonFact };
 
 export interface WriteQualityMetric {
   readonly total: number;
