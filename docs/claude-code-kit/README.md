@@ -1,5 +1,25 @@
 # Claude Code ⇄ theo-memory kit
 
+## Install (first-class Claude Code plugin — parity with mem0)
+
+```bash
+claude plugin marketplace add usetheodev/theo-memory
+claude plugin install theo-memory@theo-memory
+```
+
+On install, set your endpoint (and token if your deployment requires one):
+
+```bash
+claude plugin install theo-memory@theo-memory \
+  --config THEOMEM_MEMORY_URL=https://app-dev.usetheo.dev \
+  --config THEOMEM_MEMORY_PATH_PREFIX=/v1/memory
+```
+
+The plugin bundles the lifecycle hooks (auto-remember on Stop, PreCompact flush, per-prompt
+recall, secret-write block) + the theo-memory MCP — the same UX as `mem0@mem0-plugins`. The legacy
+`install.sh` remains for manual setups; do not run both (double capture).
+
+
 A version-controlled companion kit that makes **Claude Code** use **theo-memory** as its
 persistent memory layer, globally, across every project on the machine. Ships a hooks-first
 auto-memory spine plus an explicit MCP complement.

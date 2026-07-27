@@ -1,0 +1,18 @@
+{
+  "name": "theo-memory",
+  "owner": {
+    "name": "usetheo",
+    "email": "support@usetheo.dev"
+  },
+  "metadata": {
+    "description": "Official theo-memory plugin for Claude Code — managed three-tier memory with auto-capture + recall."
+  },
+  "plugins": [
+    {
+      "name": "theo-memory",
+      "source": "./docs/claude-code-kit",
+      "description": "theo-memory — the managed three-tier (User/Session/Agent) memory layer for Claude Code. Auto-captures durable facts (Stop summary + PreCompact flush), recalls relevant memory into context (UserPromptSubmit), and blocks secret writes — via lifecycle hooks + the theo-memory MCP.",
+      "version": "0.54.0"
+    }
+  ]
+}
