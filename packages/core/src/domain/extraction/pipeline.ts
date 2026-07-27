@@ -305,14 +305,28 @@ export async function runExtractionPipeline(
     const now = new Date();
     const payload = buildPayload(text, hash, filters, metadata);
     payload['text_lemmatized'] = lemmatizeForBm25(text).join(' ');
-    // v1.1 T2.1 + EC-1 closed: LLM-emitted attributed_to propagates into
-    // payload here so the pgvector-store hoist writes it to the column.
-    // Pre-v1.1 this line was MISSING — extracted[i].attributed_to was discarded
-    // at payload composition (the bug EC-1 documents). T2.1 closes it for new
-    // writes; historical rows remain NULL per ADR D2 Consequences.
-    const llmAttributedTo = extracted[i]?.attributed_to;
-    if (llmAttributedTo !== undefined) {
-      payload['attributed_to'] = llmAttributedTo;
+    // Attribution authority (claude-code-kit fix): the REQUEST-level
+    // `options.attributedTo` is the ORIGIN of the turn — the Stop hook sets it to
+    // 'assistant' for assistant-produced summaries and 'user' for explicit user
+    // captures. It is AUTHORITATIVE when present, so an assistant summary can never
+    // masquerade as a user fact (REDACTED discipline: "its suggestions never become
+    // your stated preferences"). The LLM per-fact `attributed_to` is the FALLBACK
+    // for attribution-agnostic multi-peer ingestion (v1.1). This mirrors the
+    // infer:false path (infer-false-path.ts) so both write paths agree.
+    // v1.1 T2.1 + EC-1 originally propagated only the LLM guess here; pre-v1.1 it
+    // was discarded entirely. Historical rows remain NULL per ADR D2 Consequences.
+    // A BLANK request-level value is treated as ABSENT (fall through to the LLM
+    // per-fact guess), not as an authoritative empty attribution — `attributedTo:''`
+    // is a caller mistake (`peerId || ''`), never an intent to attribute-to-empty.
+    // REST also rejects it at the boundary (schemas `.min(1)`); this guards direct
+    // SDK callers so the fix introduces no empty-string hazard on the infer:true path.
+    const requestedAttributedTo = options?.attributedTo;
+    const effectiveAttributedTo =
+      requestedAttributedTo !== undefined && requestedAttributedTo !== ''
+        ? requestedAttributedTo
+        : extracted[i]?.attributed_to;
+    if (effectiveAttributedTo !== undefined) {
+      payload['attributed_to'] = effectiveAttributedTo;
     }
     // auto-categorization-write-pipeline T3.1 (supersedes the category-filter
     // operator-only decision, ADR D1). Operator category ALWAYS wins (verbatim,

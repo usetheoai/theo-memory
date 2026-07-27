@@ -50,7 +50,7 @@ export const RememberBody = z
     ...ScopeFields,
     text: z.string().min(1),
     infer: z.boolean().optional(),
-    attributedTo: z.string().optional(),
+    attributedTo: z.string().min(1).optional(),
     metadata: z.record(z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),
     /**
      * themory-category-filter-server-side T4.2 / ADR D3 — operator-supplied
@@ -68,7 +68,7 @@ export const RecallBody = z
     query: z.string().min(1),
     topK: z.number().int().min(1).max(100).optional(),
     threshold: z.number().min(0).max(1).optional(),
-    attributedTo: z.string().optional(),
+    attributedTo: z.string().min(1).optional(),
     asOf: z.string().datetime().optional(),
     // rest-graph-aware-recall — expose RecallOptions.graphExpand (v0.19.0 SDK
     // capability) over REST. Bounded: hops literal 1|2 (mirror the SDK type),

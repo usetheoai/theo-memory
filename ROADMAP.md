@@ -498,7 +498,7 @@ A análise comparativa com o REDACTED (2026-07-24) mostrou que o boost de entida
 - [ ] Prova keyless vs pgvector real: escopo >clusterCap supersede a PB stale (recall → `25:50`); precision guard segura.
 - [ ] THE GOAL TEST: bench real-LLM move `6a1eabeb` para `25:50` e overall ≥ 91.7% (senão, `[ ]` honesto + follow-up).
 
-## M25 — [ ] Config em camadas + `themory config` CLI (paridade REDACTED)
+## M25 — [x] Config em camadas + `themory config` CLI (paridade REDACTED)
 
 **Objetivo:** resolver a config do TheMemory por deep-merge em camadas (defaults → `~/.themory/config.json` global → `./.themory.json` projeto → env → flags CLI) e expor `themory config init/set/get/list`, centralizando a config hoje espalhada em env-vars — fechando o gap de paridade mais claro com o REDACTED (o CLI deles tem config; o nosso não) e a dimensão mais baixa da cross-validation (Configuration 2.5/5).
 
@@ -514,6 +514,25 @@ A análise comparativa com o REDACTED (2026-07-24) mostrou que o boost de entida
 **Riscos novos:**
 - R1 (HIGH) Vazamento de secret: `.themory.json` com API key em plaintext, commitado. Mitig: `config set` recusa secret-keys (env-only); `config list` mascara; `init` avisa/gitignora.
 - R2 (MED) Confusão de precedência: arquivo sobrescreve env silenciosamente. Mitig: `config get`/`list` SEMPRE mostram a fonte; precedência testada + documentada.
+
+---
+
+## M26 — [ ] Auditoria da suíte de testes (coverage seams)
+
+**Objetivo:** auditar a suíte INTEIRA caçando GAPS DE COSTURA entre features — interações não-testadas, verde-enganoso, e falta de teste do consumidor real — motivado pelo bug de atribuição (memória produzida pelo assistente gravada como fato do `user`) que passou numa suíte 100% verde. A raiz era um seam: `RememberOptions.attributedTo` (origem do request) vs. o palpite per-fato `attributed_to` do LLM, no caminho `infer:true`; cada feature foi unit-testada do seu lado do seam, a interação nunca; e nenhum teste end-to-end exercitava o consumidor real (hook Stop do Claude Code → `/v1/remember` → extração → atribuição gravada). Só apareceu no dogfood. Este milestone sistematiza achar essa classe de gap.
+
+**Dependencies:** nenhuma — todos os M0–M25 já `[x]`. É uma auditoria transversal da suíte existente, não presa a uma feature; começa imediatamente.
+
+**Definition of done:**
+- [ ] Inventário de features cujo comportamento cruza caminhos (atribuição/estado através de `infer:true`/`infer:false`, tiers de escopo, hooks de captura) — o mapa de seams.
+- [ ] Cada seam sem teste de interação ganha 1 teste (RED-first — prova que falha contra o comportamento pré-fix antes de contar).
+- [ ] ≥ 1 teste de integração do consumidor real por hook de captura (payload do hook → `/v1/remember` → store real → assert da atribuição/escopo gravados), não só paridade de recall.
+- [ ] Suíte completa verde + typecheck + lint.
+- [ ] Relatório listando seams achados + fechados (artefato de auditoria).
+
+**Riscos novos:**
+- R1 (HIGH) Escopo explosivo: auditar "todos os testes" pode virar refactor infinito (a suíte é grande). Mitig: time-box + priorizar por criticidade (caminhos de write/auth/atribuição primeiro); não perseguir todo arquivo.
+- R2 (HIGH) Recorrência do verde-enganoso: adicionar testes que passam mas NÃO exercitam o seam real (repetir o erro original). Mitig: todo teste que fecha gap DEVE ser RED-first — provar que falha contra o comportamento pré-fix antes de valer.
 
 ---
 

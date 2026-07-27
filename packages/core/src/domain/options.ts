@@ -20,12 +20,23 @@ export interface RememberOptions {
   readonly infer?: boolean;
 
   /**
-   * v1.1 T1.1 (EC-2 absorbed): multi-peer attribution for verbatim-path callers.
-   * The perspective owner of the fact — typically a peer ID (user id, agent id,
-   * or `'system'` for self-statements). N-valent semantic per blueprint Q5
-   * (any string accepted). Hoisted to the `attributed_to` column at persist
-   * time. Read by T2.1 when `infer: false`; the LLM-extracted
-   * `extracted[i].attributed_to` wins when `infer: true` (the default).
+   * v1.1 T1.1 (EC-2 absorbed): multi-peer attribution. The perspective owner of
+   * the fact — typically a peer ID (user id, agent id, or `'system'`). N-valent
+   * semantic per blueprint Q5 (any string accepted). Hoisted to the
+   * `attributed_to` column at persist time.
+   *
+   * AUTHORITY (both write paths agree — `infer:false` and `infer:true`): when
+   * `attributedTo` is SET, it is AUTHORITATIVE — it wins over the LLM's per-fact
+   * `extracted[i].attributed_to` guess for EVERY extracted fact. This is the
+   * "declared single-author turn" mode (e.g. the Claude Code Stop hook declares
+   * the whole turn is the assistant's), so an assistant summary never masquerades
+   * as a user fact.
+   *
+   * The two modes are MUTUALLY EXCLUSIVE:
+   *   - Declared-origin turn  → SET `attributedTo`; every fact gets that owner.
+   *   - Multi-peer ingestion  → OMIT `attributedTo`; the LLM assigns per-fact
+   *     `attributed_to` (Alice→alice, Bob→bob). Passing `attributedTo` here would
+   *     flatten all facts to one peer — by design; omit it for per-fact.
    *
    * ADR-0008 method-count cap preserved (zero new methods; one new optional param).
    *
