@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 ### Changed
+- O pipeline `Integration (Postgres)` passou a rodar em runner gerenciado, encurtando a espera até o resultado (no runner compartilhado anterior, 29 minutos de fila no percentil 90 para 2,2 minutos de execução). Os demais pipelines seguem no runner antigo enquanto o piloto é avaliado (#156)
 
 ### Deprecated
 
