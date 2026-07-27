@@ -16,6 +16,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Security
 
+## [0.55.0] - 2026-07-27
+
+### Added
+- **theo-memory ships as a first-class Claude Code plugin (REDACTED install parity).** `claude plugin marketplace add usetheodev/theo-memory` + `claude plugin install theo-memory@theo-memory` now installs the lifecycle hooks (auto-remember/precompact-flush/per-prompt-recall/secret-block) + the theo-memory MCP — identical UX to `REDACTED@REDACTED-plugins`. Added `.claude-plugin/marketplace.json`, a valid `docs/claude-code-kit/.claude-plugin/plugin.json` (the prior one used an invalid hooks/commands array shape Claude Code rejected), plus auto-discovered `hooks.json` + `.mcp.json`. The legacy `install.sh` stays for manual setups. Verified locally: `marketplace add` + `install` succeed with a valid manifest.
+
 ## [0.54.0] - 2026-07-27
 
 ### Added
