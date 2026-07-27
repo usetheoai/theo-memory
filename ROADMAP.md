@@ -536,7 +536,7 @@ A análise comparativa com o mem0 (2026-07-24) mostrou que o boost de entidade �
 
 ---
 
-## M27 — [ ] Qualidade da memória escrita: destilação de fato durável (paridade mem0)
+## M27 — [x] Qualidade da memória escrita: destilação de fato durável (paridade mem0)
 
 **Objetivo:** trazer O QUE vira memória à qualidade do mem0. O dogfood da instância deployada (sessão `93959d08…`) mostrou o kit Claude Code gravando, como se fossem fatos duráveis: transcrição de 400 palavras da própria narração do assistant, perguntas do assistant ("Quer que eu prossiga…?") e voz conversacional de 1ª pessoa ("Minha recomendação:", "Se você quer minha leitura:"). O v0.51.0 acertou DE QUEM é a memória (atribuição); este milestone acerta O QUE/COMO. mem0 (`knowledge-base/references/mem0`) é a referência SOTA do comportamento de write — ESTUDADO, não embrulhado como backend (o item out-of-scope "Wrapping mem0 as a backend" segue válido; sobreposição de keyword confirmada como falso-positivo no grill).
 
