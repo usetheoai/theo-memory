@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- Roadmap amended: added M27 Qualidade da memória escrita — destilação de fato durável (paridade mem0) (`/roadmap-feature memory-write-quality-mem0-parity`)
 
 ### Changed
 
