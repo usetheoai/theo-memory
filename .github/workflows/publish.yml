@@ -1,5 +1,5 @@
 # Image publish + dev deploy — M5 CD pipeline (playbook, adapted from theo-rag).
-#   develop push → build ./Dockerfile → ghcr.io/usetheodev/themory:develop (+ :develop-<sha>)
+#   develop push → build ./Dockerfile → ghcr.io/usetheoai/themory:develop (+ :develop-<sha>)
 #                  behind the Trivy CRITICAL/HIGH gate → deploy to the dev host
 #                  (deploy-dev job, develop-only).
 #   v* tag       → :X.Y.Z + :X.Y + :latest, SBOM + SLSA + keyless cosign — NOT deployed
@@ -108,19 +108,28 @@ jobs:
   deploy-dev:
     needs: image
     if: ${{ github.ref == 'refs/heads/develop' }}
-    # Blacksmith (#156). Hoje este job nem chega a rodar: `needs: image`, e `image` está quebrado
-    # pela transferência de dono (ver o bloco QUEBRA CONHECIDA acima).
+    # Blacksmith (#156).
     #
-    # RISCO A VALIDAR QUANDO `image` VOLTAR: este job faz SSH para `vars.DEV_HOST`. O runner
-    # self-hosted saía sempre do mesmo IP; o efêmero NÃO — o IP de egresso varia a cada run. Se o
-    # firewall do droplet filtrar SSH por origem, este job falha no `ssh` enquanto `image` fica
-    # verde: a imagem publica e o deploy não acontece. Saídas: (a) liberar SSH na origem,
-    # (b) Static IP da Blacksmith + allowlist, ou (c) deixar SÓ este job no self-hosted.
+    # RISCO DE IP DE EGRESSO — MEDIDO E DESCARTADO. Havia a suspeita de que o SSH quebraria na
+    # frota efêmera: o runner self-hosted saía sempre do mesmo IP, o efêmero não. Medido no run
+    # 30312174822: os steps "Configure SSH deploy key" e "Provision runtime env on the dev host"
+    # passaram — o droplet aceita SSH de origem variável. Não é preciso Static IP nem allowlist.
     #
-    # ATENÇÃO ADICIONAL: o mirror de deploy no droplet (`<HOME>/theo-data-plane/theo-memory`)
-    # tem remote apontando para o dono ANTIGO. O GitHub redireciona URLs antigas, então o
-    # `git fetch` abaixo continua funcionando — mas o remote deve ser atualizado para
-    # `usetheoai/theo-memory` para não depender do redirect indefinidamente.
+    # O QUE DE FATO QUEBROU NAQUELE RUN: o compose no host puxava `ghcr.io/usetheodev/themory`
+    # (namespace do dono ANTIGO) e levava 403, porque a imagem agora é publicada em
+    # `ghcr.io/usetheoai/themory`. Corrigido em `docker-compose.deploy.yml`, que é sincronizado
+    # para o host pelo próprio deploy.
+    #
+    # ATENÇÃO: o mirror de deploy no droplet (`<HOME>/theo-data-plane/theo-memory`) ainda tem
+    # remote apontando para o dono ANTIGO. O GitHub redireciona URLs antigas, então o `git fetch`
+    # abaixo funciona — mas depender de redirect indefinidamente é dívida.
+    #
+    # LIMITAÇÃO ARQUITETURAL CONHECIDA (não é bug): este deploy é PUSH-BASED — o CI guarda uma
+    # chave SSH com shell num box compartilhado, e comprometer o CI compromete o host. Não há
+    # estado desejado declarado, detecção de drift nem self-healing. A alternativa barata é
+    # inverter para PULL (um timer no host puxando a tag `:develop`), o que tira a credencial do
+    # CI sem exigir Kubernetes. ArgoCD resolveria isso e mais, mas é controlador K8s — exigiria
+    # migrar o dev para cluster e escrever um Helm chart, que este repo não tem.
     runs-on: blacksmith-8vcpu-ubuntu-2404
     # Medido: max 0,7 min. So SSH + docker pull remoto; um ssh pendurado sem timeout seguraria o runner por 6h.
     timeout-minutes: 10
