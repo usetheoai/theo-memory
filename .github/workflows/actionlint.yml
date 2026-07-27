@@ -40,9 +40,11 @@ concurrency:
 
 jobs:
   actionlint:
-    # Blacksmith (2026-07-27) — frota efêmera; a label literal exige a declaração em
-    # `.github/actionlint.yaml`, senão ESTE gate rejeita a si mesmo.
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    # Self-hosted — os minutos GitHub-hosted estão bloqueados por billing na org.
+    # Blacksmith TENTADA e revertida 2026-07-27 (2ª vez, #156): ver integration.yml para o
+    # diagnóstico completo. `.github/actionlint.yaml` fica: declara a label da Blacksmith e é
+    # pré-requisito para reaplicar (sem ele ESTE gate rejeita a label literal em todo arquivo).
+    runs-on: [self-hosted, linux, x64]
     # O scan leva segundos; a folga é para o pull da imagem num runner frio.
     timeout-minutes: 10
     steps:

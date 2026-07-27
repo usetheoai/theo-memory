@@ -35,13 +35,11 @@ on:
       # use o `workflow_dispatch` declarado abaixo — é o escape hatch previsto.
       - '.github/**'
   workflow_dispatch:
-# Successive develop pushes must SUPERSEDE (cancel) the queued/older run instead of piling
-# up — the newest run always redeploys, so a cancelled predecessor is never left without a
-# successor deploy (2026-07-22 incident: a manual cancel mid-deploy with no successor left the
-# dev host down). The original driver was a single serial self-hosted runner; on the ephemeral
-# per-minute fleet the rule matters MORE, not less: parallel deploys of the same service would
-# now actually race each other, where before the serial queue accidentally prevented it.
-# Tag runs get their own group per ref and are never cancelled by develop pushes.
+# Single self-hosted runner: successive develop pushes must SUPERSEDE (cancel) the
+# queued/older run instead of piling up — the newest run always redeploys, so a
+# cancelled predecessor is never left without a successor deploy (2026-07-22 incident:
+# a manual cancel mid-deploy with no successor left the dev host down). Tag runs get
+# their own group per ref and are never cancelled by develop pushes.
 concurrency:
   # #129 note: publish listens on push + tag ONLY (no pull_request), so it does NOT
   # double-run — the push/PR key-mismatch that #129 fixes for integration/sast does not
@@ -69,7 +67,8 @@ jobs:
       # `fromJSON` do lado dele (build-publish.yml: `runs-on: ${{ fromJSON(inputs.runner) }}`),
       # entao aqui vai a string JSON literal — NAO envolver em fromJSON, que produziria um array
       # onde o input espera string e o workflow falharia no parse.
-      runner: '["blacksmith-8vcpu-ubuntu-2404"]'
+      # GitHub-hosted segue bloqueado por billing nesta org, dai o self-hosted.
+      runner: '["self-hosted","linux","x64"]'
     # Explicit (not `secrets: inherit`) — avoids the semgrep github-actions
     # secrets-inherit finding. DOCKERHUB_* are empty here → Docker Hub push is skipped
     # (GHCR still publishes via the run's GITHUB_TOKEN).
@@ -83,18 +82,16 @@ jobs:
   deploy-dev:
     needs: image
     if: ${{ github.ref == 'refs/heads/develop' }}
-    # Blacksmith (2026-07-27) — migrado junto com o resto da frota.
+    # Self-hosted. Blacksmith tentada e revertida 2026-07-27 (#156) — ver integration.yml.
     #
-    # RISCO CONHECIDO, EXPLICITADO: este job faz SSH para `vars.DEV_HOST`. O runner self-hosted
-    # saia sempre do mesmo IP; o runner efêmero NÃO — o IP de egresso varia a cada run. Se o
-    # firewall do droplet filtrar SSH por origem, este job passa a falhar no `ssh` (timeout /
-    # connection refused) enquanto o job `image` acima continua verde: a imagem publica e o deploy
-    # não acontece. Se isso ocorrer, as saídas são (a) liberar SSH na origem, (b) ativar o Static
-    # IP da Blacksmith e liberar esse IP, ou (c) devolver SÓ este job ao self-hosted — os outros
-    # cinco não tocam o droplet e não precisam voltar junto.
-    runs-on: blacksmith-8vcpu-ubuntu-2404
-    # Medido: max 0,7 min NO SELF-HOSTED. So SSH + docker pull remoto; um ssh pendurado sem
-    # timeout seguraria o runner por 6h — na frota cobrada por minuto, 6h de conta.
+    # RISCO A TRATAR ANTES DE MIGRAR ESTE JOB: ele faz SSH para `vars.DEV_HOST`. O runner
+    # self-hosted sai sempre do mesmo IP; um runner efêmero NÃO — o IP de egresso varia a cada
+    # run. Se o firewall do droplet filtrar SSH por origem, este job passa a falhar no `ssh`
+    # enquanto o job `image` acima continua verde: a imagem publica e o deploy não acontece.
+    # Saídas: (a) liberar SSH na origem, (b) Static IP da Blacksmith + allowlist, ou (c) deixar
+    # SÓ este job no self-hosted — os outros cinco não tocam o droplet.
+    runs-on: [self-hosted, linux, x64]
+    # Medido: max 0,7 min. So SSH + docker pull remoto; um ssh pendurado sem timeout seguraria o runner serial por 6h.
     timeout-minutes: 10
     permissions:
       contents: read
