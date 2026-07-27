@@ -517,7 +517,7 @@ A análise comparativa com o mem0 (2026-07-24) mostrou que o boost de entidade �
 
 ---
 
-## M26 — [ ] Auditoria da suíte de testes (coverage seams)
+## M26 — [x] Auditoria da suíte de testes (coverage seams)
 
 **Objetivo:** auditar a suíte INTEIRA caçando GAPS DE COSTURA entre features — interações não-testadas, verde-enganoso, e falta de teste do consumidor real — motivado pelo bug de atribuição (memória produzida pelo assistente gravada como fato do `user`) que passou numa suíte 100% verde. A raiz era um seam: `RememberOptions.attributedTo` (origem do request) vs. o palpite per-fato `attributed_to` do LLM, no caminho `infer:true`; cada feature foi unit-testada do seu lado do seam, a interação nunca; e nenhum teste end-to-end exercitava o consumidor real (hook Stop do Claude Code → `/v1/remember` → extração → atribuição gravada). Só apareceu no dogfood. Este milestone sistematiza achar essa classe de gap.
 
