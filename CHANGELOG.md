@@ -5,7 +5,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
-- **M26 — test-suite seam audit (coverage seams).** Systematized finding the class of gap that let the attribution bug ship (a feature interaction tested on neither side, no real-consumer end-to-end). Closed the one untested WRITE capture hook: `theo-precompact` was inline/untestable (ran `main()` at module load, no `import.meta.url` guard) — extracted a pure `buildPrecompactPayload` + a load guard + 4 tests, and set `infer: true` explicitly (same stale "verbatim" comment the Stop hook had, M27 T3.1); a precompact MIXED transcript keeps per-fact multi-peer attribution (no forced single origin). Seam map + defects in `.claude/knowledge-base/audits/M26-test-suite-seam-audit-2026-07-27.md`.
 
 ### Changed
 
@@ -16,6 +15,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 ### Security
+
+## [0.53.0] - 2026-07-27
+
+### Added
+- **M26 — test-suite seam audit (coverage seams).** Systematized finding the class of gap that let the attribution bug ship (a feature interaction tested on neither side, no real-consumer end-to-end). Closed the one untested WRITE capture hook: `theo-precompact` was inline/untestable (ran `main()` at module load, no `import.meta.url` guard) — extracted a pure `buildPrecompactPayload` + a load guard + 4 tests, and set `infer: true` explicitly (same stale "verbatim" comment the Stop hook had, M27 T3.1); a precompact MIXED transcript keeps per-fact multi-peer attribution (no forced single origin). Seam map + defects in `.claude/knowledge-base/audits/M26-test-suite-seam-audit-2026-07-27.md`.
 
 ## [0.52.0] - 2026-07-27
 
