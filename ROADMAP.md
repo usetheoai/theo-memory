@@ -574,6 +574,26 @@ A análise comparativa com o REDACTED (2026-07-24) mostrou que o boost de entida
 
 ---
 
+## M29 — [ ] Write-side speaker attribution: fala do assistant não pode virar fato do `user` (#160)
+
+**Objetivo:** corrigir o defeito dogfound (#160) em que a extração `infer:true` grava a fala em 1ª pessoa do ASSISTANT como fato do `user` (ex.: "Analisei X" → "user analisou X"), porque `packages/core/src/domain/extraction/prompt.ts:48-50` normaliza QUALQUER falante para a entidade literal `user`, ignorando o `attributedTo:'assistant'` que o kit envia. Comprovado em dois níveis contra o REDACTED (`knowledge-base/references/REDACTED`, a referência de paridade): (a) **fonte** — `parse_messages` (utils.py:61) rotula as linhas por role e o `ADDITIVE_EXTRACTION_PROMPT` impõe "No Meta-Extraction" + `attributed_to` obrigatório + "Attribute correctly: use 'User' for user-stated facts, frame assistant content appropriately"; (b) **dado ao vivo** — no MESMO A/B desta sessão o REDACTED gravou "**Assistant** evaluated…/concluded…" enquanto o theo-memory gravou "**user** analisou…/concluiu…". M27 corrigiu a qualidade do fato; M28 corrigiu o recall (#157); a atribuição por falante no write-path ficou aberta.
+
+**Dependencies:** M27 (fact-gate + prompt discipline — onde o fix encaixa) e M28 (speaker-alias no recall — o par write/recall). Ambos `[x]` → começa imediatamente.
+
+**Definition of done:**
+- [ ] Fix de atribuição (#160), RED-first: quando `attributedTo:'assistant'`, o sujeito do fato/entidade é `assistant` (frame "Agent …"/"assistant …"), NUNCA `user`. O comportamento atual (grava "user <verbo>" para fala do assistant) falha o teste RED antes do fix.
+- [DEFERRED → M30] No-meta-extraction / no-echo-extraction (disciplina do REDACTED): não gravar descrições de ação ("user pediu/perguntou/compartilhou X", assistant repetindo o que o user disse) — extrair o CONTEÚDO durável. **Descopado do M29 por YAGNI** (o plano `write-side-speaker-attribution` § Unresolved Questions): #160 é o defeito de atribuição CONFIRMADO (fechado neste M29); meta-extraction é ruído de menor severidade, candidato a M30 se o dogfooding mostrar ruído residual. NÃO shipou no M29.
+- [ ] `attributed_to` populado por fato (`user`|`assistant`) e verificável (via coluna, não só DTO — ver seam da atribuição).
+- [ ] Caminho `infer:false` verbatim byte-idêntico (contrato ADR-0001 intacto).
+- [ ] Benchmark A/B vs REDACTED: no mesmo transcript de sessão mista (user+assistant), a taxa de fatos com sujeito-por-atribuição-correto atinge paridade com o REDACTED (medido pelo eval M21), rodado ≥ 3×. RED-first: o transcript atual produz "user <verbo>" para ações do assistant.
+- [ ] Suíte completa verde + typecheck + lint; CHANGELOG atualizado.
+
+**Riscos novos:**
+- R1 (HIGH) Regressão do prompt: parametrizar a normalização do falante por `attributedTo` pode degradar a extração de fatos genuínos do user (que devem continuar `user`). Mitig: o benchmark A/B mede fatos-user E fatos-assistant; nenhum dos dois pode regredir vs a baseline pré-fix.
+- R2 (MED) No-meta-extraction agressivo demais descarta fatos válidos embutidos numa ação ("pedi para lembrar que moro em SP" → o fato "mora em SP" deve sobreviver). Mitig: fixtures do fact-gate cobrem "ação com fato embutido" — extrai o conteúdo, descarta só a descrição-de-ação.
+
+---
+
 ## State-of-the-art references
 
 Conceptual comparison peers. `` / `` / `` are already cloned under
