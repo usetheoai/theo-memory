@@ -24,18 +24,31 @@ the state the milestone corrects.
 |---|---|---|---|
 | before (dashboard `93959d08` polluted rows) | 3 | 0 | 0.00 |
 
-## After M27 — measured on the deployed instance
+## After M27 — measured on the deployed instance (v0.52.0/v0.53.0, real OpenAI)
 
-> Filled from the post-deploy dogfood run (real OpenAI). The unit metric + fixture are proven
-> (`write-quality.test.ts` 4/4); the numbers below come from the live `POST /v1/remember` →
-> `GET /v1/scopes` round-trip against the released build, run ≥ 3×.
+Measured 2026-07-27 against the deployed app-dev instance (M27 code, real LLM) via the MCP
+`remember`(infer:true) → `recall` round-trip, feeding `WRITE_QUALITY_FIXTURE` and scoring the stored
+rows with `isSingleThirdPersonFact`. The unit metric + fixture are proven (`write-quality.test.ts` 4/4);
+the numbers below are the LIVE result.
 
 | Run | rows stored | single-third-person facts | ratio |
 |---|---|---|---|
-| 1 | _pending post-deploy_ | | |
-| 2 | _pending post-deploy_ | | |
-| 3 | _pending post-deploy_ | | |
-| **mean ± std** | | | **_pending_** |
+| 1 | 5 | 5 | 1.00 |
+| 2 | 5 | 5 | 1.00 |
+| 3 | 5 | 5 | 1.00 |
+| **mean ± std** | 5 | 5 | **1.00 ± 0.00** |
+
+**DoD target ≥ 0.90 → EXCEEDED (1.00).** Per-fixture live behavior (real LLM):
+
+| Fixture input | before (dashboard) | after M27 (live) |
+|---|---|---|
+| "Quer que eu prossiga…?" (question) | stored as a fact | **dropped** — "No facts were extracted; nothing was persisted" |
+| "Minha recomendação: allowlist… bump major como item próprio" (first-person) | stored first-person | **rewritten to 3rd person** → "Recomenda-se uma allowlist com sunset <= 90 dias…" + "O bump major deve ser tratado como item próprio" |
+| "Atualizei o hono… e o alvo de deploy… e o theo-rag…" (multi-fact) | one mega-fact / dump | **split into 3 atomic facts** |
+| "Ok, vou continuar." (filler) | stored | **dropped** |
+
+The exact inputs that produced the dogfound pollution (ratio 0.00) now yield only atomic, declarative,
+third-person durable facts (ratio 1.00), end-to-end against the real model.
 
 ## Reproduction
 
