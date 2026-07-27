@@ -23,6 +23,7 @@
 import type { VectorStoreResult } from '../dip/vector-store.js';
 import { InvalidScope, RerankerConflict } from '../errors.js';
 import { lemmatizeForBm25 } from '../lemmatization.js';
+import { withSpeakerAlias } from './speaker-alias.js';
 import { emitEvent } from '../memory-event.js';
 import type { MemoryItemWithScore } from '../memory-item.js';
 import type { RecallOptions } from '../options.js';
@@ -61,7 +62,6 @@ export async function runRetrievalPipeline(
   const topK = options?.topK ?? 20;
   const threshold = options?.threshold ?? 0.1;
 
-  // Step 1: preprocess
   emitEvent(tracer, 'extraction_started'); // reuse this event for "search started"; v0.2 may add dedicated names
   const queryTokens = lemmatizeForBm25(query);
   const hasBm25Query = queryTokens.length > 0;
@@ -76,7 +76,7 @@ export async function runRetrievalPipeline(
   // Step 4 + 5: BM25 keyword search + sigmoid normalization
   let bm25Results: readonly VectorStoreResult[] | null = null;
   if (hasBm25Query) {
-    bm25Results = await deps.vectorStore.keywordSearch(query, internalLimit, filters);
+    bm25Results = await deps.vectorStore.keywordSearch(withSpeakerAlias(query), internalLimit, filters);
   }
   const queryLength = queryTokens.length;
   const bm25NormalizedById = new Map<string, number>();
@@ -91,7 +91,7 @@ export async function runRetrievalPipeline(
   const candidateIds = new Set<string>();
   for (const r of semanticResults) candidateIds.add(r.id);
   if (bm25Results !== null) for (const r of bm25Results) candidateIds.add(r.id);
-  const entityBoostById = await computeEntityBoost(query, [...candidateIds], filters, deps);
+  const entityBoostById = await computeEntityBoost(withSpeakerAlias(query), [...candidateIds], filters, deps);
 
   // Step 7: combined score per candidate + normalization denominator (union of semantic + BM25).
   const { candidates, maxScore } = assembleCandidates(
