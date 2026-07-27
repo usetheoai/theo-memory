@@ -20,10 +20,12 @@
 # pacote apontam para `./dist/**`).
 name: Integration (Postgres)
 
+# GATILHOS (política 2026-07-27, decisão do owner): só em PR para `main`. O job `contract` deixa
+# de rodar em push para `develop` — nesse fluxo o gate barato passa a ser só o `ci.yml`
+# (lint/typecheck/build). O noturno segue cobrindo `develop` uma vez por dia.
 on:
   pull_request:
-  push:
-    branches: [develop, main]
+    branches: [main]
     paths-ignore:
       - '.claude/**'
       - '**/*.md'
