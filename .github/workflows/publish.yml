@@ -62,6 +62,8 @@ jobs:
     needs: image
     if: ${{ github.ref == 'refs/heads/develop' }}
     runs-on: [self-hosted, linux, x64]
+    # Medido: max 0,7 min. So SSH + docker pull remoto; um ssh pendurado sem timeout seguraria o runner serial por 6h.
+    timeout-minutes: 10
     permissions:
       contents: read
       packages: read
@@ -80,6 +82,11 @@ jobs:
         run: |
           SHA='${{ github.sha }}'
           BUILT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          # shellcheck disable=SC2087
+          # O heredoc é NÃO-citado de propósito: `${SHA}` e `${BUILT}` têm de expandir aqui, no
+          # runner. Citar `'EOF'` — que é o que o SC2087 sugere — enviaria `${SHA}` literal para o
+          # host, onde a variável não existe: o `.env` sairia com valores vazios e o deploy subiria
+          # sem versão, com a CI verde. Aqui a sugestão do linter é o bug, não a correção.
           ssh -i ~/.ssh/themory_deploy paulo@"${{ vars.DEV_HOST }}" \
             'cat > /home/paulo/theo-data-plane/theo-memory/.env' <<EOF
           OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}

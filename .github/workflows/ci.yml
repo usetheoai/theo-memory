@@ -1,0 +1,80 @@
+# Gate rápido e SEM banco: lint + typecheck + build.
+#
+# O DEFEITO QUE ISTO PREVINE: até aqui o repo não tinha gate unitário. `lint`, `typecheck` e `build`
+# só eram exercitados DENTRO do `integration.yml`, atrás de um serviço Postgres, do download do
+# modelo Xenova e de duas suítes completas — 28,8 min medidos no pior caso. Um erro de tipo ou uma
+# violação de lint, que uma máquina detecta em ~2 min, levava esse tempo todo para aparecer, e ainda
+# ocupava um runner serial compartilhado por 5 repositórios enquanto isso.
+#
+# ESCOPO — honestamente limitado. Este gate NÃO roda `pnpm test`, e isso é deliberado, não
+# esquecimento: o próprio `integration.yml` documenta que parte da suíte "contract" sobe o servidor
+# MCP e abre um `Pool` real, de modo que sem banco ela vaza ECONNREFUSED como unhandled rejection
+# ("a suíte não é tão pura quanto o nome"). Rodá-la aqui produziria vermelho por falta de
+# infraestrutura, não por defeito — o pior tipo de gate. Enquanto essa dependência existir, o teste
+# fica onde o banco está (`integration.yml`); aqui ficam os três gates que são genuinamente
+# livres de I/O.
+name: CI
+
+on:
+  pull_request:
+    paths-ignore:
+      - '.claude/**'
+      - '**/*.md'
+      - 'docs/**'
+      - 'knowledge-base/**'
+  push:
+    branches: [develop, main]
+    paths-ignore:
+      - '.claude/**'
+      - '**/*.md'
+      - 'docs/**'
+      - 'knowledge-base/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  # #129: chaveado pela BRANCH, não por `github.ref`. Um push em develop e o PR do MESMO commit
+  # carregam `github.ref` diferentes (`refs/heads/develop` vs `refs/pull/N/merge`), caem em grupos
+  # distintos e AMBOS rodam — o dobro do trabalho para o mesmo commit, num runner serial.
+  group: ci-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  static:
+    name: lint + typecheck + build (sem banco)
+    # Self-hosted — os minutos GitHub-hosted estão bloqueados por billing na org.
+    runs-on: [self-hosted, linux, x64]
+    # Build TS de 6 pacotes. Folga sobre o observado, e muito abaixo do default de 360 min que
+    # deixaria um hang segurando a fila dos 5 repositórios.
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.4.0
+        with:
+          version: 10.34.1
+
+      - name: Setup Node
+        # Precisa casar o runtime da imagem (Dockerfile). Testar num major diferente do que se
+        # publica é como um worker morto chega ao host de dev com a esteira verde.
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm run lint
+
+      # Build ANTES do typecheck: os pacotes consomem os `.d.ts` publicados uns dos outros a partir
+      # de `dist/`, então num checkout limpo o `tsc` não teria contra o que resolver os aliases de
+      # workspace.
+      - name: Build
+        run: pnpm run build
+
+      - name: Typecheck
+        run: pnpm run typecheck
