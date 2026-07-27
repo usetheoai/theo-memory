@@ -10,12 +10,18 @@
 # ecoado, não vai para o histórico do shell (o `read -rs` acima) e nunca é escrito em disco em
 # claro por este script: quem persiste é o `docker login`, no formato do próprio docker.
 #
-# PAT NECESSÁRIO: fine-grained, permissão `read:packages`, com acesso ao pacote
-# `usetheoai/themory`. Leitura apenas — este agente nunca publica.
+# PAT NECESSÁRIO: **classic**, escopo `read:packages`. Fine-grained NÃO serve — a doc do GitHub é
+# explícita ("GitHub Packages only supports authentication using a personal access token
+# (classic)") e lista "Using fine-grained personal access token to access Packages" como lacuna
+# conhecida. Isso é uma limitação da plataforma, não uma escolha deste projeto.
 #
-# ROTAÇÃO: PAT fine-grained EXPIRA (o GitHub exige data de validade). Quando expirar, o pull passa
-# a falhar e o `dev-version-drift` fica vermelho apontando host defasado — o sintoma será real,
-# mas a causa é a credencial. Reexecute este script com um PAT novo.
+# EXPOSIÇÃO HONESTA: `read:packages` num token classic NÃO é escopável a um pacote — ele concede
+# leitura a TODOS os pacotes que a conta enxerga. Não há como estreitar isso hoje. Se esse raio for
+# inaceitável, a alternativa sem segredo algum é tornar o pacote público (pull anônimo).
+#
+# ROTAÇÃO: quando o token for revogado ou expirar, o pull falha e o `dev-version-drift` fica
+# vermelho apontando host defasado — o sintoma será real, mas a causa é a credencial. Reexecute
+# este script com um token novo.
 set -euo pipefail
 
 DIR="${THEMORY_DIR:-<HOME>/theo-data-plane/theo-memory}"
