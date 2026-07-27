@@ -15,9 +15,25 @@ on:
     # #116: docs-only develop pushes skip the whole build/deploy esteira.
     # Tag (v*) builds point at merge commits (always code-bearing) so a
     # release tag is never docs-filtered — the signed release image still builds.
+    #
+    # DELIBERADAMENTE lista de EXCLUSÃO, não filtro positivo: este workflow escuta
+    # `tags: ["v*"]`, e filtro de path se aplica TAMBÉM a push de tag. Um filtro positivo
+    # faria um release cujo commit não casasse a lista ser silenciosamente ignorado —
+    # nenhuma imagem publicada, nenhum erro. Exclusão erra para o lado de publicar a mais,
+    # que aqui é o lado certo.
     paths-ignore:
       - '.claude/**'
       - '**/*.md'
+      # Adicionados em 2026-07-27: nada aqui entra na imagem. Medido no commit `6b333d9`,
+      # que tocou só workflows + CHANGELOG e mesmo assim disparou build + push + deploy de
+      # uma imagem idêntica, além de CI, SAST, eval e integration — seis runs numa fila
+      # serial compartilhada por cinco repositórios.
+      - 'docs/**'
+      - 'knowledge-base/**'
+      - 'agents/**'
+      # Mudar um workflow não muda a imagem. Para exercitar uma alteração NESTE arquivo,
+      # use o `workflow_dispatch` declarado abaixo — é o escape hatch previsto.
+      - '.github/**'
   workflow_dispatch:
 # Single self-hosted runner: successive develop pushes must SUPERSEDE (cancel) the
 # queued/older run instead of piling up — the newest run always redeploys, so a
