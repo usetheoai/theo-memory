@@ -96,3 +96,6 @@ coverage/
 
 # Scratch dir do ciclo — nunca versionar (bloqueou vazamento de segredo em 2026-07-24)
 .claude/tmp/
+
+# theo-memory Claude Code plugin manifest (tracked despite the global .mcp.json ignore)
+!docs/claude-code-kit/.mcp.json

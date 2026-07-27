@@ -1,6 +1,6 @@
 {
   "name": "theo-memory",
-  "version": "0.1.0",
+  "version": "0.54.0",
   "description": "Persistent, multi-tenant memory for Claude Code, backed by theo-memory. Continuous per-prompt recall, auto-remember, error-context, and MCP read/update/delete parity — all scoped to the credential's Principal (workspace, user) server-side.",
   "author": {
     "name": "usetheo",
@@ -11,31 +11,24 @@
   "license": "Apache-2.0",
   "keywords": ["memory", "personalization", "mcp", "semantic-search", "multi-tenant"],
   "userConfig": {
-    "memory_url": {
+    "THEOMEM_MEMORY_URL": {
       "type": "string",
       "title": "theo-memory URL",
-      "description": "Gateway or REST endpoint (e.g. https://app.usetheo.dev/v1/memory). Set THEOMEM_MEMORY_URL.",
+      "description": "Gateway or REST endpoint (e.g. https://app-dev.usetheo.dev). Through the Theo gateway also set the path prefix to /v1/memory.",
       "required": true
     },
-    "memory_token": {
+    "THEOMEM_MEMORY_TOKEN": {
       "type": "string",
       "title": "theo-memory API token",
-      "description": "Bearer token; the server resolves the Principal (workspace, user) from it. Set THEOMEM_MEMORY_TOKEN.",
+      "description": "Bearer token; the server resolves the Principal (workspace, user) from it. Empty for a local no-auth dev server.",
       "sensitive": true,
-      "required": true
+      "required": false
+    },
+    "THEOMEM_MEMORY_PATH_PREFIX": {
+      "type": "string",
+      "title": "Path prefix (gateway)",
+      "description": "Set to /v1/memory when going through the Theo gateway; empty for a direct server.",
+      "required": false
     }
-  },
-  "hooks": [
-    { "file": "theo-recall.mjs", "event": "SessionStart", "role": "auto-recall on session start" },
-    { "file": "theo-prompt-recall.mjs", "event": "UserPromptSubmit", "role": "per-prompt recall scoped to the Principal (M14)" },
-    { "file": "theo-tool-context.mjs", "event": "PostToolUse", "matcher": "Bash", "role": "recall the memory of a failing command (M14)" },
-    { "file": "theo-block-memory-write.mjs", "event": "PreToolUse", "matcher": "Write|Edit", "role": "block writes to MEMORY.md, redirect to remember (M14)" },
-    { "file": "theo-remember.mjs", "event": "Stop", "role": "auto-remember the turn summary" },
-    { "file": "theo-precompact.mjs", "event": "PreCompact", "role": "flush working memory before compaction" },
-    { "file": "theo-promote.mjs", "event": "SessionEnd", "role": "promote durable session memories to the global tier" },
-    { "file": "theo-onboard.mjs", "event": "command", "role": "idempotent import of CLAUDE.md/AGENTS.md as profile memories (M14)" }
-  ],
-  "commands": [
-    { "name": "/onboard", "file": "theo-onboard.mjs", "description": "Import this project's CLAUDE.md / AGENTS.md into theo-memory once (idempotent by content hash)." }
-  ]
+  }
 }
