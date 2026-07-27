@@ -556,6 +556,24 @@ A análise comparativa com o REDACTED (2026-07-24) mostrou que o boost de entida
 
 ---
 
+## M28 — [ ] Cross-validation fixes: recall@1 do falante (#157) + identidade MCP↔dashboard
+
+**Objetivo:** fechar os 2 gaps que o cross-validation ao vivo theo-memory vs REDACTED (MCP oficial dos dois, mesmo dataset de 8 fatos + 5 queries, 2026-07-27) expôs, onde o REDACTED ficou à frente. (1) **Recall@1 do falante (#157):** a query "profissão do **usuário**" trouxe o fato do café no top-1, porque o falante é normalizado para `user` e uma query PT com "usuário" casa lexicalmente (BM25/entity boost) melhor com fatos que contêm "usuário" do que com o fato do falante (`user`). Precisão@1 4/5 vs REDACTED 5/5 no mesmo set. (2) **Identidade MCP ≠ dashboard:** o MCP do theo-memory grava sob um `claude-code` fixo, então memórias escritas via MCP são invisíveis no dashboard do usuário autenticado. REDACTED (`knowledge-base/references/REDACTED`) é a referência de paridade; o A/B é o guard de regressão.
+
+**Dependencies:** M15 (entity boost — onde vive o boost lexical que causa a inversão do #157) e M8 (isolamento `(workspace,user)` / resolução de Principal que o fix de identidade MCP reusa). Ambos `[x]` → começa imediatamente.
+
+**Definition of done:**
+- [ ] Fix de recall (#157): a regressão A/B (8 fatos + query "profissão do usuário") retorna o fato da profissão no top-1; precisão@1 = 5/5 no set de regressão. RED-first (o comportamento atual falha o Q5@1). Speaker-alias consciente de idioma (`user`↔`usuário`↔`você`) OU expansão de query OU reweight do entity-boost quando o termo casado é o token de falante.
+- [ ] Fix de identidade MCP: um write via MCP do theo-memory resolve o usuário a partir do credential/Principal (reusa M8) e aterrissa no scope daquele usuário (visível no dashboard), com **fallback** para `claude-code` quando não há usuário no credential (não-destrutivo). Teste de integração provando o write sob o usuário resolvido E o fallback.
+- [ ] O teste de regressão A/B de recall é commitado como guard de paridade REDACTED (as 5 queries; nenhuma das outras 4 regride).
+- [ ] Suíte completa verde + typecheck + lint; CHANGELOG atualizado.
+
+**Riscos novos:**
+- R1 (HIGH) Speaker-alias over-matching: uma expansão `user`↔`usuário`↔`você` pode piorar a precisão de OUTRAS queries. Mitig: a regressão A/B (5 queries) mede precisão@1 antes/depois; o fix não pode regredir as outras 4.
+- R2 (MED) Mudança de identidade MCP quebra consumidores fixados em `claude-code`. Mitig: resolved-user é default COM fallback `claude-code`; teste de integração cobre os dois caminhos.
+
+---
+
 ## State-of-the-art references
 
 Conceptual comparison peers. `` / `` / `` are already cloned under

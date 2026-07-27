@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- Roadmap amended: added M28 Cross-validation fixes — recall@1 do falante (#157) + identidade MCP↔dashboard (`/roadmap-feature crossval-recall-identity-fixes`)
 
 ### Changed
 
