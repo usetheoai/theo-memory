@@ -63,7 +63,11 @@ jobs:
       dockerhub_image: usetheo/themory   # pushed only when the DOCKERHUB_TOKEN secret is set
       sign: ${{ startsWith(github.ref, 'refs/tags/v') }}
       verify: ${{ startsWith(github.ref, 'refs/tags/v') }}
-      runner: '["self-hosted","linux","x64"]'   # GitHub-hosted minutes are billing-blocked
+      # Mesma variavel que todo job proprio deste repo consome — um so lugar governa a frota.
+      # O reusable recebe a STRING JSON (ele faz o fromJSON do lado dele), entao aqui NAO se
+      # envolve em fromJSON; o `||` continua sendo o fallback contra variavel ausente.
+      # GitHub-hosted segue bloqueado por billing nesta org, dai o default self-hosted.
+      runner: ${{ vars.CI_RUNNER || '["self-hosted","linux","x64"]' }}
     # Explicit (not `secrets: inherit`) — avoids the semgrep github-actions
     # secrets-inherit finding. DOCKERHUB_* are empty here → Docker Hub push is skipped
     # (GHCR still publishes via the run's GITHUB_TOKEN).
@@ -77,7 +81,7 @@ jobs:
   deploy-dev:
     needs: image
     if: ${{ github.ref == 'refs/heads/develop' }}
-    runs-on: [self-hosted, linux, x64]
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '["self-hosted","linux","x64"]') }}
     # Medido: max 0,7 min. So SSH + docker pull remoto; um ssh pendurado sem timeout seguraria o runner serial por 6h.
     timeout-minutes: 10
     permissions:
