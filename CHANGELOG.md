@@ -4,11 +4,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-### Fixed
-- **M28 (#157) — recall precision@1 for speaker-referring queries.** A query that refers to the speaker in the input language ("profissão do **usuário**", "o que **você** faz") now reaches the speaker's own facts, which the write path stores under the normalized token `user`. A query-side, LEXICAL-only speaker alias (`packages/core/src/domain/retrieval/speaker-alias.ts`) appends the `user` token to the BM25 keyword search + entity match (never to the semantic embed) when the query unambiguously refers to the speaker (`usuário`/`você`/`user`) — so "profissão do usuário" no longer returns an unrelated fact that literally contains "usuário" at top-1 (cross-validation vs mem0, 2026-07-27). Non-speaker queries are byte-identical. Conservative trigger set guarded by the A/B recall regression.
-
 ### Added
-- Roadmap amended: added M28 Cross-validation fixes — recall@1 do falante (#157) + identidade MCP↔dashboard (`/roadmap-feature crossval-recall-identity-fixes`)
 
 ### Changed
 
@@ -17,9 +13,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 ### Fixed
-- O gate de qualidade `eval` voltou a executar. Ele estava inoperante desde que foi introduzido — o arquivo do pipeline era rejeitado na leitura, então nenhuma verificação chegava a rodar e todo push seguia sem esse gate, apesar de o painel mostrar apenas "vermelho". O tier medido por LLM continua rodando só quando a chave está configurada (#155)
 
 ### Security
+
+## [0.54.0] - 2026-07-27
+
+### Added
+- Roadmap amended: added M28 Cross-validation fixes — recall@1 do falante (#157) + identidade MCP↔dashboard (`/roadmap-feature crossval-recall-identity-fixes`)
+
+
+### Fixed
+- **M28 (#157) — recall precision@1 for speaker-referring queries.** A query that refers to the speaker in the input language ("profissão do **usuário**", "o que **você** faz") now reaches the speaker's own facts, which the write path stores under the normalized token `user`. A query-side, LEXICAL-only speaker alias (`packages/core/src/domain/retrieval/speaker-alias.ts`) appends the `user` token to the BM25 keyword search + entity match (never to the semantic embed) when the query unambiguously refers to the speaker (`usuário`/`você`/`user`) — so "profissão do usuário" no longer returns an unrelated fact that literally contains "usuário" at top-1 (cross-validation vs mem0, 2026-07-27). Non-speaker queries are byte-identical. Conservative trigger set guarded by the A/B recall regression.
+
+- O gate de qualidade `eval` voltou a executar. Ele estava inoperante desde que foi introduzido — o arquivo do pipeline era rejeitado na leitura, então nenhuma verificação chegava a rodar e todo push seguia sem esse gate, apesar de o painel mostrar apenas "vermelho". O tier medido por LLM continua rodando só quando a chave está configurada (#155)
 
 ## [0.53.0] - 2026-07-27
 
