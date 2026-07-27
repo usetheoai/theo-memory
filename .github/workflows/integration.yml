@@ -31,24 +31,38 @@ concurrency:
 jobs:
   integration:
     name: integration (pgvector + test:integration)
-    # RUNNER — Blacksmith, 8 vCPU / 32 GB (migração da frota inteira, 2026-07-27, #156).
+    # RUNNER — Blacksmith TENTADA DUAS VEZES e revertida nas duas (2026-07-27, #156).
+    # LEIA ISTO ANTES DE TENTAR A TERCEIRA.
     #
-    # HISTÓRICO HONESTO: um piloto anterior NESTE MESMO job foi revertido no mesmo dia. A label
-    # (`blacksmith-2vcpu-ubuntu-2404`) estava correta, mas nenhum runner pegou o job — 40+ min em
-    # fila com `runner_name` vazio. A causa era o pré-requisito ausente, não o YAML: o GitHub App
-    # da Blacksmith não estava instalado na org `usetheodev`. Com o App instalado, a label passa a
-    # ser servida. Se este job voltar a ficar `queued` com `runner_name` vazio, o suspeito é o App
-    # (ou o billing da Blacksmith), NÃO este arquivo.
+    # Tentativa 1 (só este job, `blacksmith-2vcpu-ubuntu-2404`): 40+ min em `queued`, `runner_name`
+    # vazio. Hipótese registrada na época: faltava o GitHub App da Blacksmith na org.
     #
-    # A PERGUNTA AINDA ABERTA: um runner efêmero provisiona `services:`? A doc da Blacksmith não
-    # cobre service containers em lugar nenhum (verificado em docs.blacksmith.sh, 2026-07-27). Os
-    # runners são VM-backed com Docker e KVM, então a expectativa é que sim — mas isso é INFERÊNCIA,
-    # não fato verificado. Este job é onde a resposta aparece: se o `postgres` abaixo não subir, a
-    # migração deste workflow (e só dele) volta atrás; os outros 5 não dependem de `services:`.
-    runs-on: blacksmith-8vcpu-ubuntu-2404
-    # Medido: max 28,8 min NO SELF-HOSTED (baixa o modelo Xenova ~22 MB com 6 tentativas, aplica
-    # schema, roda contract 1353 testes + integration) — baseline PRÉ-migração, com 8 vCPU a
-    # expectativa é bem abaixo disso. 60 permanece como teto até haver medição na frota nova.
+    # Tentativa 2 (frota inteira, `blacksmith-8vcpu-ubuntu-2404`, commit 13c4be6): MESMO resultado
+    # — 9+ min em `queued` nos 5 workflows, `runner_name` vazio em todos, zero pickup. A hipótese
+    # do App foi REFUTADA no meio da tentativa: o Migration Wizard da Blacksmith conseguiu ler os
+    # workflows deste repo e respondeu "No changes to migrate — every job is already on its target
+    # runner". Um App que lê o repo está instalado E tem acesso a ele.
+    #
+    # O QUE ISSO DEIXA PROVADO (não suposto):
+    #   - O YAML está certo. O GitHub registrou `labels=blacksmith-8vcpu-ubuntu-2404` nos jobs.
+    #   - Não é tamanho de instância: falhou igual com 2 vCPU e com 8 vCPU.
+    #   - Não é falta de instalação nem de acesso ao repo (o wizard enxerga os workflows).
+    #   - Nenhum repositório da org `usetheodev` jamais teve um job servido pela Blacksmith
+    #     (conferido no theo-rag, o piloto irmão: tudo em `theo-ci-theo-rag`).
+    # Sobra causa em NÍVEL DE CONTA — plano/billing inativo ou concorrência zerada. A doc da
+    # Blacksmith não documenta o caso "queued para sempre" (settings e permissions verificadas).
+    #
+    # PARA REAPLICAR: primeiro confirme em app.blacksmith.sh que a conta serve jobs (plano ativo).
+    # Só então troque a label — `.github/actionlint.yaml` já declara `blacksmith-8vcpu-ubuntu-2404`
+    # e é pré-requisito: sem ele o gate actionlint rejeita a label literal em todos os workflows.
+    #
+    # A PERGUNTA QUE SEGUE SEM RESPOSTA: um runner efêmero provisiona `services:`? A doc não cobre
+    # service containers em lugar nenhum. As duas tentativas morreram na FILA, antes de qualquer
+    # step — nenhuma delas chegou perto de responder isso.
+    #
+    # Self-hosted (theo-ci-theo-memory) — GitHub-hosted minutes are billing-blocked for the org.
+    runs-on: [self-hosted, linux, x64]
+    # Medido: max 28,8 min (baixa o modelo Xenova ~22 MB com 6 tentativas, aplica schema, roda contract 1353 testes + integration). 60 = ~2x o observado.
     timeout-minutes: 60
 
     services:
@@ -66,16 +80,11 @@ jobs:
           # open database`. A separate `themem` app DB (the local convention) avoids
           # it; the default `postgres` maintenance DB always exists alongside it.
           POSTGRES_DB: themem
-        # Ephemeral host port (NOT 5432:5432). The ORIGINAL driver was the shared self-hosted
-        # host, where a fixed port would collide with a concurrent job's postgres (and with the
-        # platform's own :5432). On the isolated ephemeral runner that collision is gone — #156
-        # flagged this as a cleanup candidate once the migration was promoted.
-        #
-        # KEPT DELIBERATELY. The dynamic mapping is correct on BOTH fleets, costs nothing, and
-        # `job.services.postgres.ports['5432']` resolves either way. Pinning 5432:5432 would buy
-        # only cosmetics while adding a fresh collision mode (the ubuntu-2404 image ships
-        # PostgreSQL) — on the one migration whose single open question is whether `services:`
-        # works at all. Not the run to spend risk on. Revisit once this job is green.
+        # Ephemeral host port (NOT 5432:5432): the self-hosted runner host is SHARED
+        # across repos, so a fixed host port would collide with a concurrent job's
+        # postgres (and with the platform's own :5432). The mapped port is resolved below.
+        # (#156 marcou isto como candidato a limpeza se a frota efêmera fosse promovida —
+        # ela NÃO foi, então a restrição do host compartilhado continua valendo.)
         ports:
           - 5432
         options: >-
@@ -87,7 +96,7 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - name: Resolve Postgres URI (dynamic host port — provider-agnostic)
+      - name: Resolve Postgres URI (dynamic host port — shared self-hosted host)
         # App DB is `themem` (NOT the `postgres` maintenance DB) — see the service
         # POSTGRES_DB note above (avoids the reset-shared-db drop-the-open-db 55006).
         run: echo "THEOMEM_PG_URI=postgres://postgres:postgres@localhost:${{ job.services.postgres.ports['5432'] }}/themem" >> "$GITHUB_ENV"

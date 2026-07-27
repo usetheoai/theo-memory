@@ -28,9 +28,8 @@ on:
 permissions:
   contents: read
 
-# One run per ref — a new push cancels the in-flight run (matches integration.yml /
-# publish.yml). The original driver was a single serial self-hosted runner; on the ephemeral
-# per-minute fleet the driver is cost — a superseded run is billed compute nobody reads.
+# One run per ref — a new push cancels the in-flight run (single self-hosted runner;
+# matches integration.yml / publish.yml).
 concurrency:
   # #129: key on the branch so a push and its PR share one group (see integration.yml).
   group: sast-${{ github.event.pull_request.head.ref || github.ref_name }}
@@ -39,20 +38,19 @@ concurrency:
 jobs:
   semgrep:
     name: semgrep (TypeScript / OWASP)
-    # Blacksmith (2026-07-27) — frota efêmera, mesma label de todo job deste repo.
-    runs-on: blacksmith-8vcpu-ubuntu-2404
-    # Medido: max ~3 min NO SELF-HOSTED (semgrep + gitleaks em container) — baseline anterior
-    # à migração. 15 cobre pull de imagem em runner frio, que na frota efêmera é TODO run.
+    # Self-hosted (theo-ci-theo-memory) — GitHub-hosted minutes are billing-blocked
+    # for the org. Blacksmith tentada e revertida 2026-07-27 (#156) — ver integration.yml.
+    runs-on: [self-hosted, linux, x64]
+    # Medido: max ~3 min (semgrep + gitleaks em container). 15 cobre pull de imagem em runner frio.
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - name: Run semgrep
-        # semgrep runs in a `docker run` (NOT a job-level `container:`). A container job runs
-        # EVERY step — including actions/checkout — as root. On an ephemeral runner discarded
-        # at job end, the ORIGINAL driver for this choice (root-owned files left in the shared
-        # `_work`, breaking the next host-run job's checkout) no longer applies. The pattern is
-        # kept deliberately: it is still correct, costs nothing, and avoids running the checkout
-        # as root. Switching to `container:` would be churn with no time saved.
+        # semgrep runs in a `docker run` (NOT a job-level `container:`). A container
+        # job runs EVERY step — including actions/checkout — as root, leaving
+        # root-owned files in the shared self-hosted `_work` that break the next
+        # host-run job's checkout. Here the checkout runs on the host (runner-owned)
+        # and only the scan runs in the container, mounting the workspace.
         run: |
           docker run --rm -v "$PWD:/src" semgrep/semgrep \
             semgrep scan \
