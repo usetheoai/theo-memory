@@ -582,7 +582,7 @@ A análise comparativa com o REDACTED (2026-07-24) mostrou que o boost de entida
 
 **Definition of done:**
 - [ ] Fix de atribuição (#160), RED-first: quando `attributedTo:'assistant'`, o sujeito do fato/entidade é `assistant` (frame "Agent …"/"assistant …"), NUNCA `user`. O comportamento atual (grava "user <verbo>" para fala do assistant) falha o teste RED antes do fix.
-- [ ] No-meta-extraction / no-echo-extraction (disciplina do REDACTED): não gravar descrições de ação ("user pediu/perguntou/compartilhou X", assistant repetindo o que o user disse) — extrair o CONTEÚDO durável. Estende o `fact-gate.ts` (M27), fonte única.
+- [DEFERRED → M30] No-meta-extraction / no-echo-extraction (disciplina do REDACTED): não gravar descrições de ação ("user pediu/perguntou/compartilhou X", assistant repetindo o que o user disse) — extrair o CONTEÚDO durável. **Descopado do M29 por YAGNI** (o plano `write-side-speaker-attribution` § Unresolved Questions): #160 é o defeito de atribuição CONFIRMADO (fechado neste M29); meta-extraction é ruído de menor severidade, candidato a M30 se o dogfooding mostrar ruído residual. NÃO shipou no M29.
 - [ ] `attributed_to` populado por fato (`user`|`assistant`) e verificável (via coluna, não só DTO — ver seam da atribuição).
 - [ ] Caminho `infer:false` verbatim byte-idêntico (contrato ADR-0001 intacto).
 - [ ] Benchmark A/B vs REDACTED: no mesmo transcript de sessão mista (user+assistant), a taxa de fatos com sujeito-por-atribuição-correto atinge paridade com o REDACTED (medido pelo eval M21), rodado ≥ 3×. RED-first: o transcript atual produz "user <verbo>" para ações do assistant.
