@@ -8,7 +8,8 @@
 # não há estado desejado sendo reconciliado, só um evento pontual no passado.
 #
 # Este workflow fecha essa janela pelo lado barato: pergunta ao serviço qual commit ele acha que
-# está rodando e compara com o tip de `develop`.
+# está rodando e compara com o último `publish` bem-sucedido (NÃO com o tip de `develop` — ver o
+# step, o `publish` tem `paths-ignore` e a branch avança sem deploy legitimamente).
 #
 # O QUE ELE GARANTE — e o que NÃO garante. Ele DETECTA drift; não CORRIGE. Um reconciliador
 # GitOps (ArgoCD e afins) faria as duas coisas, mas é controlador Kubernetes e este ambiente é
@@ -25,6 +26,9 @@ on:
 
 permissions:
   contents: read
+  # Necessário para consultar o último run bem-sucedido do `publish` — é ELE que define o
+  # commit esperado no host, não o tip de `develop` (ver o step abaixo).
+  actions: read
 
 concurrency:
   group: dev-version-drift
@@ -32,7 +36,7 @@ concurrency:
 
 jobs:
   drift:
-    name: dev host roda o tip de develop?
+    name: dev host roda o último deploy?
     runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 10
     steps:
@@ -41,12 +45,20 @@ jobs:
       # permanente e falso, já que o deploy acompanha `develop`.
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
+          # `ref: develop` porque o default branch é `main` e num gatilho `schedule` o checkout
+          # viria de `main`.
           ref: develop
+          # `fetch-depth: 0` é OBRIGATÓRIO, não zelo: o diagnóstico usa `git merge-base
+          # --is-ancestor` e `git log A..B`. Com o clone shallow padrão (depth 1) só existe o
+          # commit do tip, e os dois comandos falhariam — o gate detectaria o drift e não
+          # conseguiria dizer NADA sobre ele, que é metade do valor.
+          fetch-depth: 0
 
-      - name: Compara o SHA do dev host com o tip de develop
+      - name: Compara o SHA do dev host com o último deploy bem-sucedido
         env:
           DEV_HOST: ${{ vars.DEV_HOST }}
           THEMORY_PORT: '8080'
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
@@ -55,9 +67,28 @@ jobs:
             exit 1
           fi
 
-          EXPECTED="$(git rev-parse HEAD)"
+          # O ESPERADO É O ÚLTIMO `publish` BEM-SUCEDIDO, NÃO O TIP DE `develop`.
+          #
+          # A primeira versão deste gate comparava com o tip e estava ERRADA: o `publish` tem
+          # `paths-ignore` (`.github/**`, `**/*.md`, `docs/**`, ...), então `develop` avança
+          # legitimamente sem construir imagem nova. Todo commit de docs ou de CI produziria um
+          # DRIFT falso — pego em `f2e8e0d`, um commit só de workflow + CHANGELOG, com o host
+          # corretamente parado em `37ade5e`.
+          #
+          # Um run do `publish` só conclui `success` quando TODOS os seus jobs passam, incluindo o
+          # `deploy-dev`. Então o head_sha do último run verde é, por construção, o commit que
+          # está publicado E deployado — exatamente o que o host deve estar rodando.
+          EXPECTED="$(gh run list --repo "${GITHUB_REPOSITORY}" --workflow publish \
+            --branch develop --status success --limit 1 --json headSha --jq '.[0].headSha // ""')"
+
+          if [ -z "${EXPECTED}" ]; then
+            echo "Nenhum run bem-sucedido do \`publish\` em \`develop\` — nada contra o que comparar."
+            echo "Isso é esperado num repo recém-configurado; o gate passa em vez de gritar sem base."
+            exit 0
+          fi
+
           URL="http://${DEV_HOST}:${THEMORY_PORT}/v1/version"
-          echo "esperado (tip de develop): ${EXPECTED}"
+          echo "esperado (último publish verde em develop): ${EXPECTED}"
 
           # RETRY COM PROPÓSITO, não superstição: existe uma janela legítima entre o merge em
           # `develop` e o fim do deploy (medido ~2 min: build + push + pull + recreate). Sem esta
@@ -76,7 +107,7 @@ jobs:
             echo "tentativa ${attempt}: dev host reporta ${RUNNING}"
 
             if [ "${RUNNING}" = "${EXPECTED}" ]; then
-              echo "OK — dev host está em ${RUNNING}, igual ao tip de develop."
+              echo "OK — dev host está em ${RUNNING}, igual ao último deploy publicado."
               exit 0
             fi
 
@@ -84,28 +115,28 @@ jobs:
           done
 
           # Chegou aqui: divergência ESTÁVEL, não janela de deploy.
-          echo "::error::DRIFT — dev host roda '${RUNNING}', develop está em '${EXPECTED}'."
+          echo "::error::DRIFT — dev host roda '${RUNNING}', o último deploy publicou '${EXPECTED}'."
           {
             echo "## Drift no ambiente de dev"
             echo ""
             echo "| | commit |"
             echo "|---|---|"
             echo "| dev host (\`/v1/version\`) | \`${RUNNING}\` |"
-            echo "| tip de \`develop\` | \`${EXPECTED}\` |"
+            echo "| último \`publish\` verde | \`${EXPECTED}\` |"
             echo ""
             # `git cat-file -e` distingue os dois diagnósticos: um commit que EXISTE e é ancestral
             # significa host atrasado (deploy falhou/não rodou); um SHA desconhecido significa que
             # o host roda algo que não veio desta branch — deploy manual ou imagem estranha.
             if git cat-file -e "${RUNNING}^{commit}" 2>/dev/null; then
               if git merge-base --is-ancestor "${RUNNING}" "${EXPECTED}" 2>/dev/null; then
-                echo "O host está ATRASADO — roda um ancestral de develop. Provável deploy que"
-                echo "falhou ou nunca rodou. Commits não deployados:"
+                echo "O host está ATRASADO — roda um ancestral do último deploy. Provável deploy"
+                echo "que falhou ou nunca chegou ao host. Commits publicados mas não rodando:"
                 echo ""
                 echo '```'
                 git log --oneline "${RUNNING}..${EXPECTED}" | head -20
                 echo '```'
               else
-                echo "O host roda um commit que NÃO é ancestral do tip de develop —"
+                echo "O host roda um commit que NÃO é ancestral do último deploy —"
                 echo "deploy a partir de outra branch, ou rollback manual."
               fi
             else
