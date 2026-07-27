@@ -60,6 +60,18 @@ describe('extraction fact quality — pipeline (M27)', () => {
     expect(result).toHaveLength(3);
   });
 
+  test('infer:false stores a question verbatim — the gate never applies (ADR-2)', async () => {
+    const store = new InMemoryVectorStore();
+    const result = await runExtractionPipeline(
+      [{ role: 'user', content: 'Quer que eu prossiga…?' }],
+      { user_id: 'alice' },
+      { vectorStore: store, embedder: embedder(), llm: llmEmitting([]) },
+      { infer: false },
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0]?.text).toBe('Quer que eu prossiga…?');
+  });
+
   test('emits extraction_fact_gate_dropped when a draft is gated (Princípio 3)', async () => {
     const events: string[] = [];
     const span = { setAttribute: () => {}, setStatus: () => {}, recordException: () => {}, end: () => {} };
