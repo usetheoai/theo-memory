@@ -50,6 +50,21 @@ async function extractedAttribution(
   return result[0]?.attributedTo;
 }
 
+/** Extract N facts (each with its own LLM per-fact guess) and return ALL persisted attributions. */
+async function extractedAttributions(
+  facts: readonly { text: string; attributed_to?: string }[],
+  options?: RememberOptions,
+): Promise<(string | undefined)[]> {
+  const memory = facts.map((f, i) => ({ id: String(i), ...f }));
+  const result = await runExtractionPipeline(
+    [{ role: 'assistant', content: 'turn content' }],
+    { user_id: 'alice' },
+    { vectorStore: new InMemoryVectorStore(), embedder: embedder(), llm: llmEmitting(memory) },
+    options,
+  );
+  return result.map((r) => r.attributedTo);
+}
+
 describe('extraction attribution authority (claude-code-kit fix)', () => {
   test('request-level attributedTo overrides the LLM per-fact guess — assistant turn is never stored as a user fact', async () => {
     // LLM guesses the fact belongs to 'user'; the hook declared the turn assistant-produced.
@@ -68,5 +83,38 @@ describe('extraction attribution authority (claude-code-kit fix)', () => {
   test('no attribution anywhere leaves the fact unattributed (no fabricated owner)', async () => {
     const attr = await extractedAttribution({ text: 'water boils at 100C' });
     expect(attr).toBeUndefined();
+  });
+
+  test('LOOP-WIDE: request-level attributedTo overrides EVERY extracted fact, not just the first (kills an extracted[0]-only fix)', async () => {
+    // Three facts with DISTINCT LLM guesses; the declared origin must win for ALL.
+    const attrs = await extractedAttributions(
+      [
+        { text: 'user prefers dark roast', attributed_to: 'user' },
+        { text: 'deployed to eu-west-2', attributed_to: 'bob' },
+        { text: 'ran the migration' }, // no LLM guess
+      ],
+      { attributedTo: 'assistant' },
+    );
+    expect(attrs).toHaveLength(3);
+    expect(attrs.every((a) => a === 'assistant')).toBe(true); // every fact, not just [0]
+  });
+
+  test('SYMMETRIC: request attributedTo also wins when the LLM guesses ASSISTANT and the caller declared USER (contract is symmetric, not assistant-only)', async () => {
+    // Guards against a naive `=== "assistant" ? "assistant" : llmGuess` special-case.
+    const attr = await extractedAttribution(
+      { text: 'The user set up JWT auth', attributed_to: 'assistant' },
+      { attributedTo: 'user' },
+    );
+    expect(attr).toBe('user'); // origin (user) wins over the LLM's 'assistant' guess
+  });
+
+  test('BLANK attributedTo is treated as absent — falls through to the LLM guess, never persists an empty-string owner', async () => {
+    // `attributedTo:''` is a caller mistake (peerId || ''); it must NOT win over the
+    // LLM per-fact guess nor persist '' as a first-class owner (REST also rejects it).
+    const attr = await extractedAttribution(
+      { text: 'Bob prefers tea', attributed_to: 'bob' },
+      { attributedTo: '' },
+    );
+    expect(attr).toBe('bob'); // blank ignored → LLM guess honored (pre-fix behavior for '')
   });
 });

@@ -315,7 +315,16 @@ export async function runExtractionPipeline(
     // infer:false path (infer-false-path.ts) so both write paths agree.
     // v1.1 T2.1 + EC-1 originally propagated only the LLM guess here; pre-v1.1 it
     // was discarded entirely. Historical rows remain NULL per ADR D2 Consequences.
-    const effectiveAttributedTo = options?.attributedTo ?? extracted[i]?.attributed_to;
+    // A BLANK request-level value is treated as ABSENT (fall through to the LLM
+    // per-fact guess), not as an authoritative empty attribution — `attributedTo:''`
+    // is a caller mistake (`peerId || ''`), never an intent to attribute-to-empty.
+    // REST also rejects it at the boundary (schemas `.min(1)`); this guards direct
+    // SDK callers so the fix introduces no empty-string hazard on the infer:true path.
+    const requestedAttributedTo = options?.attributedTo;
+    const effectiveAttributedTo =
+      requestedAttributedTo !== undefined && requestedAttributedTo !== ''
+        ? requestedAttributedTo
+        : extracted[i]?.attributed_to;
     if (effectiveAttributedTo !== undefined) {
       payload['attributed_to'] = effectiveAttributedTo;
     }
