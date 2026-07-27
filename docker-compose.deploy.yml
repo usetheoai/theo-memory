@@ -8,7 +8,7 @@
 # CD deploy never disrupts the neighbouring platform stacks on this shared box.
 services:
   themory:
-    image: ghcr.io/usetheodev/themory:develop
+    image: ghcr.io/usetheoai/themory:develop
     container_name: themory_app
     pull_policy: always
     restart: unless-stopped
@@ -74,7 +74,7 @@ services:
   # issue #101. Instead this joins the gateway's own network and is addressed by service
   # name; the port never leaves the docker bridge.
   themory_mcp:
-    image: ghcr.io/usetheodev/themory:develop
+    image: ghcr.io/usetheoai/themory:develop
     container_name: themory_mcp
     pull_policy: always
     restart: unless-stopped

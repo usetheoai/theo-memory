@@ -32,7 +32,7 @@ services:
     # THEMORY_IMAGE override exists so the T3.5 GOAL TEST (and any operator
     # running the compose against a locally-built image) can point at
     # `themory:dev` without forking this file. Default keeps the public
-    # Docker Hub coordinate (also available at ghcr.io/usetheodev/themory).
+    # Docker Hub coordinate (also available at ghcr.io/usetheoai/themory).
     image: ${THEMORY_IMAGE:-usetheo/themory:${VERSION:-0.2.0}}
     container_name: themory_app
     restart: unless-stopped
