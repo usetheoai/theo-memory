@@ -536,6 +536,26 @@ A análise comparativa com o REDACTED (2026-07-24) mostrou que o boost de entida
 
 ---
 
+## M27 — [ ] Qualidade da memória escrita: destilação de fato durável (paridade REDACTED)
+
+**Objetivo:** trazer O QUE vira memória à qualidade do REDACTED. O dogfood da instância deployada (sessão `93959d08…`) mostrou o kit Claude Code gravando, como se fossem fatos duráveis: transcrição de 400 palavras da própria narração do assistant, perguntas do assistant ("Quer que eu prossiga…?") e voz conversacional de 1ª pessoa ("Minha recomendação:", "Se você quer minha leitura:"). O v0.51.0 acertou DE QUEM é a memória (atribuição); este milestone acerta O QUE/COMO. REDACTED (`knowledge-base/references/REDACTED`) é a referência SOTA do comportamento de write — ESTUDADO, não embrulhado como backend (o item out-of-scope "Wrapping REDACTED as a backend" segue válido; sobreposição de keyword confirmada como falso-positivo no grill).
+
+**Dependencies:** M14 (paridade de recall do kit — onde a poluição entra no write) e M21 (eval das etapas LLM — mede objetivamente a qualidade da destilação). Ambos `[x]` → começa imediatamente.
+
+**Definition of done:**
+- [ ] Gate "durable fact?" no caminho `infer:true` (PADRÃO-LIGADO no kit): descarta interrogativas, turnos de diálogo e 1ª-pessoa-conversacional, e normaliza para 3ª pessoa. RED-first — um turno como "Quer que eu prossiga…?" NÃO é gravado; o caminho `infer:false` verbatim fica inalterado (provado por teste).
+- [ ] Stop-hook do kit (`docs/claude-code-kit/hooks/theo-remember.mjs`) entrega fatos destilados, não narração de parágrafo; nenhum item gravado é transcript-dump multi-parágrafo (assert de forma/tamanho).
+- [ ] Comando one-shot de limpeza re-destila OU esquece (soft-delete `t_invalid`, reversível) os transcript-dumps e fragmentos conversacionais já gravados; dry-run primeiro; auditável (emite eventos, Princípio 3).
+- [ ] Dashboard expõe `attributed_to` (WHO) na tabela de memórias — core + REST (`/v1/dashboard/memory/list`) + gateway + UI (hoje o WHO do fix v0.51.0 é invisível na tela).
+- [ ] Métrica objetiva de paridade via harness M21: a fração de itens gravados que são fato-único-3ª-pessoa (julgada pelo eval LLM) atinge paridade com o REDACTED no MESMO transcript de entrada — medida, não afirmada. CHANGELOG atualizado + suíte verde.
+
+**Riscos novos:**
+- R1 (HIGH) Over-filtering (falso-negativo): o gate descarta fatos legítimos formulados de modo conversacional. Mitig: o harness M21 mede recall de um conjunto rotulado de fatos antes/depois; gate calibrado para manter recall ≥ limiar; limiar sobrescrevível por config (chute errado = mudança de config, não redeploy).
+- R2 (HIGH) Paridade REDACTED é subjetiva → o DoD nunca fecha. Mitig: definir a métrica concreta ANTES (razão de fato-único-3ª-pessoa julgada pelo eval), paridade = dentro de X% do REDACTED no mesmo transcript de entrada.
+- R3 (MED) Perda de dado na limpeza one-shot: esquecer memória legítima. Mitig: dry-run + soft-delete (`t_invalid`, reversível) nunca hard-delete + eventos de auditoria por item.
+
+---
+
 ## State-of-the-art references
 
 Conceptual comparison peers. `` / `` / `` are already cloned under
