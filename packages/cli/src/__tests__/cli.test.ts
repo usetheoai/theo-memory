@@ -90,6 +90,16 @@ describe('T2.1 — commander router + alias detection', () => {
     expect(knownSubcommands).toHaveLength(4);
   });
 
+  it('M27: themory cleanup-write-quality is registered with --apply (dry-run default)', async () => {
+    const { buildProgram } = await import('../cli.js');
+    const program = buildProgram();
+    const cmd = program.commands.find((c) => c.name() === 'cleanup-write-quality');
+    expect(cmd).toBeDefined();
+    const flags = (cmd?.options ?? []).map((o) => o.long);
+    expect(flags).toContain('--apply');
+    expect(flags).toContain('--user');
+  });
+
   it('33. themory-mcp alias detected via direct path basename (EC-27)', async () => {
     const { detectMcpAlias } = await import('../cli.js');
     expect(detectMcpAlias('/usr/local/bin/themory-mcp')).toBe(true);

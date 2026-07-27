@@ -606,6 +606,18 @@ export type { AdditiveExtractionResponse, PromptResult } from './extraction/prom
  *
  */
 export { runExtractionPipeline } from './extraction/pipeline.js';
+// M27 — durable-fact predicates (single source of truth; reused by the eval parity metric
+// and the one-shot cleanup so the "is this a durable fact?" rule lives in exactly one place).
+export {
+  classifyNonFact,
+  isNonDurableFact,
+  isSingleThirdPersonFact,
+  isDump,
+  isInterrogative,
+  isFirstPersonOpener,
+  ATOMIC_FACT_MAX_CHARS,
+} from './extraction/fact-gate.js';
+export type { NonFactReason } from './extraction/fact-gate.js';
 
 /**
  * `ExtractionDeps` — DIP-shaped dependency bundle accepted by

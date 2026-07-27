@@ -37,6 +37,17 @@ export const MEMORY_EVENTS = [
   // indistinguishably from "no input" — the IGNORE decision was silent.
   // @see CLAUDE.md § IMPORTANTE Princípio 3
   'extraction_zero_facts',
+  // M27 T2.1 — durable-fact backstop gate. Fires once per extracted draft the
+  // deterministic gate drops as a CLEAR non-fact (a pure question or a first-person
+  // conversational opener) on the infer:true path. Without it, the IGNORE decision
+  // (an assistant question never stored) would be silent. Backstop to the T1.1 prompt
+  // discipline; infer:false verbatim is never gated. @see CLAUDE.md § Princípio 3
+  'extraction_fact_gate_dropped',
+  // M27 T4.1 — one-shot write-quality cleanup (reversible soft-delete of pre-fix pollution).
+  // `_forgot` fires per retired row (with its reason), `_skipped` when a per-row soft-delete
+  // fails and the run degrades gracefully. Princípio 3 — the cleanup's decisions are auditable.
+  'write_quality_cleanup_forgot',
+  'write_quality_cleanup_skipped',
   // M13 T3.1 (#111) — `themory reextract` observability: fires once per chunk
   // with processed/skipped counters so the operator can watch backfill progress
   // (Princípio 3 — the job's IGNORE decisions are visible, never silent).

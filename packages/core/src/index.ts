@@ -193,3 +193,14 @@ export type {
  *
  */
 export * from './domain/index.js';
+
+// M27 T4.1 — one-shot write-quality cleanup (reversible soft-delete of pre-fix pollution).
+// Exported so the `themory cleanup-write-quality` CLI (and any ops caller) can run it — the
+// wiring-triad pillar (a) caller the review required.
+export {
+  cleanupWriteQuality,
+  findPollutedMemories,
+  type CleanupCandidate,
+  type CleanupResult,
+  type PollutionReason,
+} from './application/cleanup-write-quality.js';
