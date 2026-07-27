@@ -44,7 +44,7 @@ jobs:
   static:
     name: lint + typecheck + build (sem banco)
     # Self-hosted — os minutos GitHub-hosted estão bloqueados por billing na org.
-    runs-on: [self-hosted, linux, x64]
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '["self-hosted","linux","x64"]') }}
     # Build TS de 6 pacotes. Folga sobre o observado, e muito abaixo do default de 360 min que
     # deixaria um hang segurando a fila dos 5 repositórios.
     timeout-minutes: 20

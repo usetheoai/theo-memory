@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **CI: o runner de TODO job passou a sair da variável `CI_RUNNER`, com fallback.** Antes, trocar a frota exigia editar cada job — custo que fez o piloto Blacksmith de hoje (#156) ser aplicado e revertido às pressas. Agora `runs-on: ${{ fromJSON(vars.CI_RUNNER || '["self-hosted","linux","x64"]') }}`: migrar é **um toggle de variável, zero commits**, com rollback instantâneo. O `||` é guarda-costas — variável ausente ou apagada por engano NÃO quebra job nenhum. Padrão provado empiricamente no theo-db (run `30300163857`) antes de ser propagado, e já usado pelo reusable `theo/.github/workflows/build-publish.yml:38`.
+
 - **CI: gate rápido `ci.yml` (lint + typecheck + build), sem banco.** O repo não tinha gate unitário: os três só eram exercitados DENTRO do `integration.yml`, atrás de um serviço Postgres, do download do modelo Xenova e de duas suítes — 28,8 min medidos no pior caso. Um erro de tipo agora aparece em ~2 min. Escopo honestamente limitado: `pnpm test` NÃO entra aqui porque parte da suíte "contract" sobe o servidor MCP e abre um `Pool` real (documentado no próprio `integration.yml`), então sem banco ela falharia por infraestrutura e não por defeito. Verificado localmente antes de subir: lint, build e typecheck saem 0.
 
 - **CI: gate `actionlint` sobre os próprios workflows.** Valida sintaxe/semântica de workflow e roda shellcheck nos blocos `run:`. Motivado por `usetheodev/theo-db#211`, onde quatro gates passaram três dias em `startup_failure` — 95 de 100 runs — sem que nada apontasse a causa, porque nenhum gate olhava para o `.github/`. Imagem fixada por digest.

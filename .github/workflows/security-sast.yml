@@ -40,7 +40,7 @@ jobs:
     name: semgrep (TypeScript / OWASP)
     # Self-hosted (theo-ci-theo-memory) — GitHub-hosted minutes are billing-blocked
     # for the org.
-    runs-on: [self-hosted, linux, x64]
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '["self-hosted","linux","x64"]') }}
     # Medido: max ~3 min (semgrep + gitleaks em container). 15 cobre pull de imagem em runner frio.
     timeout-minutes: 15
     steps:
