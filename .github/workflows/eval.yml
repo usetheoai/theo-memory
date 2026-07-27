@@ -30,6 +30,19 @@ jobs:
     # Self-hosted (GitHub-hosted minutes are billing-blocked for the org),
     # matching security-sast.yml / integration.yml.
     runs-on: [self-hosted, linux, x64]
+
+    # #155 — the key MUST be lifted to job-level `env` here, NOT read as `secrets.*` in the
+    # step `if:` below. The `secrets` context does not exist in `if:` expressions (only in
+    # `env:`, `with:` and a reusable workflow's `secrets:` block), and GitHub rejects the
+    # file at PARSE time: "Unrecognized named-value: 'secrets'" — which surfaces as a
+    # startup_failure (run created, zero jobs, 0s) rather than a step error. The gate was
+    # therefore dead for 30/30 runs while looking merely "red".
+    #
+    # Unset secret renders as the empty string, so `env.OPENROUTER_KEY != ''` preserves the
+    # ADR D4 intent exactly: the measured tier SKIPs honestly instead of fabricating a score.
+    env:
+      OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
+
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
@@ -58,9 +71,9 @@ jobs:
       # LLM-MEASURED — only when the OpenRouter key secret is configured. Without
       # it, this step is skipped entirely (the tier would SKIP anyway).
       - name: LLM-measured tier (real OpenRouter LLM)
-        if: ${{ secrets.OPENROUTER_KEY != '' }}
-        env:
-          OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
+        # `env`, unlike `secrets`, IS a valid context in a step `if:` — see the job-level
+        # `env:` block above (#155).
+        if: ${{ env.OPENROUTER_KEY != '' }}
         # Target ONLY the measured tests (vitest path filter) — the LLM-free step
         # above already ran the full suite; rerunning it here would double the
         # compute and bury the measured pass/fail in a full-suite rerun.
