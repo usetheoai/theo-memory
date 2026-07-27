@@ -53,6 +53,22 @@ permissions:
   packages: write
   id-token: write   # keyless cosign via GitHub OIDC (release only)
 jobs:
+  # QUEBRA CONHECIDA E ACEITA (2026-07-27, decisão do owner). Este repo foi transferido de
+  # `usetheodev` (conta pessoal) para a organização `usetheoai` porque a Blacksmith não serve
+  # repositórios pessoais — ver integration.yml. O `theo`, dono do reusable abaixo, NÃO foi
+  # transferido junto, e isso quebra DUAS coisas neste job:
+  #
+  #   1. `usetheodev/theo` é PRIVADO. GitHub só compartilha workflow reusável de repo privado
+  #      dentro do MESMO dono. Com o chamador em `usetheoai` e o chamado em `usetheodev`, esta
+  #      referência não resolve.
+  #   2. O reusable publica em `ghcr.io/usetheodev` (seu `registry` default, não sobrescrito
+  #      aqui). Um run em `usetheoai` recebe GITHUB_TOKEN de outro escopo e não tem push nesse
+  #      namespace.
+  #
+  # Consequência: `image` falha e `deploy-dev` (needs: image) não roda — o dev host para de
+  # receber deploy. Aceito deliberadamente para destravar o CI na Blacksmith primeiro.
+  # PARA CONSERTAR: transferir `usetheodev/theo` para `usetheoai` também (resolve os dois de
+  # uma vez), ou tornar `theo` público e passar `registry: ghcr.io/usetheoai`.
   image:
     uses: usetheodev/theo/.github/workflows/build-publish.yml@develop
     with:
@@ -67,8 +83,7 @@ jobs:
       # `fromJSON` do lado dele (build-publish.yml: `runs-on: ${{ fromJSON(inputs.runner) }}`),
       # entao aqui vai a string JSON literal — NAO envolver em fromJSON, que produziria um array
       # onde o input espera string e o workflow falharia no parse.
-      # GitHub-hosted segue bloqueado por billing nesta org, dai o self-hosted.
-      runner: '["self-hosted","linux","x64"]'
+      runner: '["blacksmith-8vcpu-ubuntu-2404"]'
     # Explicit (not `secrets: inherit`) — avoids the semgrep github-actions
     # secrets-inherit finding. DOCKERHUB_* are empty here → Docker Hub push is skipped
     # (GHCR still publishes via the run's GITHUB_TOKEN).
@@ -82,16 +97,21 @@ jobs:
   deploy-dev:
     needs: image
     if: ${{ github.ref == 'refs/heads/develop' }}
-    # Self-hosted. Blacksmith tentada e revertida 2026-07-27 (#156) — ver integration.yml.
+    # Blacksmith (#156). Hoje este job nem chega a rodar: `needs: image`, e `image` está quebrado
+    # pela transferência de dono (ver o bloco QUEBRA CONHECIDA acima).
     #
-    # RISCO A TRATAR ANTES DE MIGRAR ESTE JOB: ele faz SSH para `vars.DEV_HOST`. O runner
-    # self-hosted sai sempre do mesmo IP; um runner efêmero NÃO — o IP de egresso varia a cada
-    # run. Se o firewall do droplet filtrar SSH por origem, este job passa a falhar no `ssh`
-    # enquanto o job `image` acima continua verde: a imagem publica e o deploy não acontece.
-    # Saídas: (a) liberar SSH na origem, (b) Static IP da Blacksmith + allowlist, ou (c) deixar
-    # SÓ este job no self-hosted — os outros cinco não tocam o droplet.
-    runs-on: [self-hosted, linux, x64]
-    # Medido: max 0,7 min. So SSH + docker pull remoto; um ssh pendurado sem timeout seguraria o runner serial por 6h.
+    # RISCO A VALIDAR QUANDO `image` VOLTAR: este job faz SSH para `vars.DEV_HOST`. O runner
+    # self-hosted saía sempre do mesmo IP; o efêmero NÃO — o IP de egresso varia a cada run. Se o
+    # firewall do droplet filtrar SSH por origem, este job falha no `ssh` enquanto `image` fica
+    # verde: a imagem publica e o deploy não acontece. Saídas: (a) liberar SSH na origem,
+    # (b) Static IP da Blacksmith + allowlist, ou (c) deixar SÓ este job no self-hosted.
+    #
+    # ATENÇÃO ADICIONAL: o mirror de deploy no droplet (`/home/paulo/theo-data-plane/theo-memory`)
+    # tem remote apontando para o dono ANTIGO. O GitHub redireciona URLs antigas, então o
+    # `git fetch` abaixo continua funcionando — mas o remote deve ser atualizado para
+    # `usetheoai/theo-memory` para não depender do redirect indefinidamente.
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    # Medido: max 0,7 min. So SSH + docker pull remoto; um ssh pendurado sem timeout seguraria o runner por 6h.
     timeout-minutes: 10
     permissions:
       contents: read

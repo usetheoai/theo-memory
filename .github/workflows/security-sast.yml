@@ -38,9 +38,8 @@ concurrency:
 jobs:
   semgrep:
     name: semgrep (TypeScript / OWASP)
-    # Self-hosted (theo-ci-theo-memory) — GitHub-hosted minutes are billing-blocked
-    # for the org. Blacksmith tentada e revertida 2026-07-27 (#156) — ver integration.yml.
-    runs-on: [self-hosted, linux, x64]
+    # Blacksmith (#156) — ver integration.yml para a causa raiz das 2 tentativas falhas.
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     # Medido: max ~3 min (semgrep + gitleaks em container). 15 cobre pull de imagem em runner frio.
     timeout-minutes: 15
     steps:

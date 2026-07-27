@@ -31,37 +31,35 @@ concurrency:
 jobs:
   integration:
     name: integration (pgvector + test:integration)
-    # RUNNER — Blacksmith TENTADA DUAS VEZES e revertida nas duas (2026-07-27, #156).
-    # LEIA ISTO ANTES DE TENTAR A TERCEIRA.
+    # RUNNER — Blacksmith, 8 vCPU / 32 GB. Terceira tentativa; as duas primeiras falharam por uma
+    # causa que NÃO estava neste arquivo. O registro fica porque a causa não é adivinhável:
     #
-    # Tentativa 1 (só este job, `blacksmith-2vcpu-ubuntu-2404`): 40+ min em `queued`, `runner_name`
-    # vazio. Hipótese registrada na época: faltava o GitHub App da Blacksmith na org.
+    # Tentativas 1 e 2 (2 vCPU só aqui; depois 8 vCPU na frota inteira) ficaram 40+ min e 9+ min em
+    # `queued` com `runner_name` VAZIO. Zero pickup, nenhum step executado.
     #
-    # Tentativa 2 (frota inteira, `blacksmith-8vcpu-ubuntu-2404`, commit 13c4be6): MESMO resultado
-    # — 9+ min em `queued` nos 5 workflows, `runner_name` vazio em todos, zero pickup. A hipótese
-    # do App foi REFUTADA no meio da tentativa: o Migration Wizard da Blacksmith conseguiu ler os
-    # workflows deste repo e respondeu "No changes to migrate — every job is already on its target
-    # runner". Um App que lê o repo está instalado E tem acesso a ele.
+    # CAUSA RAIZ: o repositório pertencia a `usetheodev`, que é uma conta PESSOAL (`type=User`),
+    # não uma organização. A doc da Blacksmith é explícita: "Blacksmith is limited to GitHub
+    # organizations and not available for personal repositories". Runner nenhum jamais seria
+    # provisionado, com qualquer label, em qualquer tamanho, com ou sem cartão cadastrado.
     #
-    # O QUE ISSO DEIXA PROVADO (não suposto):
-    #   - O YAML está certo. O GitHub registrou `labels=blacksmith-8vcpu-ubuntu-2404` nos jobs.
-    #   - Não é tamanho de instância: falhou igual com 2 vCPU e com 8 vCPU.
-    #   - Não é falta de instalação nem de acesso ao repo (o wizard enxerga os workflows).
-    #   - Nenhum repositório da org `usetheodev` jamais teve um job servido pela Blacksmith
-    #     (conferido no theo-rag, o piloto irmão: tudo em `theo-ci-theo-rag`).
-    # Sobra causa em NÍVEL DE CONTA — plano/billing inativo ou concorrência zerada. A doc da
-    # Blacksmith não documenta o caso "queued para sempre" (settings e permissions verificadas).
+    # O que confundiu o diagnóstico por duas rodadas: o GitHub App instala numa conta pessoal e
+    # LÊ o repo normalmente — o Migration Wizard listava estes workflows e respondia "No changes
+    # to migrate". Ler o repo e ser servido por runners são coisas diferentes. A hipótese "faltou
+    # instalar o App" (registrada no #156) era falsa.
     #
-    # PARA REAPLICAR: primeiro confirme em app.blacksmith.sh que a conta serve jobs (plano ativo).
-    # Só então troque a label — `.github/actionlint.yaml` já declara `blacksmith-8vcpu-ubuntu-2404`
-    # e é pré-requisito: sem ele o gate actionlint rejeita a label literal em todos os workflows.
+    # CORREÇÃO: repo transferido para a organização `usetheoai` (2026-07-27). Secrets e variables
+    # foram preservados na transferência.
     #
-    # A PERGUNTA QUE SEGUE SEM RESPOSTA: um runner efêmero provisiona `services:`? A doc não cobre
-    # service containers em lugar nenhum. As duas tentativas morreram na FILA, antes de qualquer
-    # step — nenhuma delas chegou perto de responder isso.
+    # SE VOLTAR A FICAR `queued` COM `runner_name` VAZIO: confira PRIMEIRO se o dono ainda é uma
+    # organização (`gh api repos/<owner>/theo-memory --jq .owner.type`). Só depois investigue
+    # plano/billing ou IP allowlist (Settings > Security > IP allow list, IPs em
+    # docs.blacksmith.sh/blacksmith-administration/network-allowlisting).
     #
-    # Self-hosted (theo-ci-theo-memory) — GitHub-hosted minutes are billing-blocked for the org.
-    runs-on: [self-hosted, linux, x64]
+    # PERGUNTA QUE ESTE JOB RESPONDE: um runner efêmero provisiona `services:`? A doc da Blacksmith
+    # não cobre service containers em lugar nenhum. Os runners são VM-backed com Docker e KVM, então
+    # a expectativa é que sim — mas até este job passar isso é INFERÊNCIA. Se o `postgres` abaixo
+    # não subir, só este workflow volta ao self-hosted; os outros 5 não usam `services:`.
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     # Medido: max 28,8 min (baixa o modelo Xenova ~22 MB com 6 tentativas, aplica schema, roda contract 1353 testes + integration). 60 = ~2x o observado.
     timeout-minutes: 60
 
