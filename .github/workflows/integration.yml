@@ -31,15 +31,24 @@ concurrency:
 jobs:
   integration:
     name: integration (pgvector + test:integration)
-    # RUNNER — Blacksmith pilot ATTEMPTED and REVERTED 2026-07-27 (see #156). The label
-    # `blacksmith-2vcpu-ubuntu-2404` was applied correctly but NO runner ever picked the job up:
-    # 40+ min queued with `runner_name` empty. Reverted to keep CI functional. The open question the
-    # pilot existed to answer — does an ephemeral runner provision `services:`? — is still UNANSWERED.
-    # Re-applying is one line once Blacksmith actually serves the label for this repo.
+    # RUNNER — Blacksmith, 8 vCPU / 32 GB (migração da frota inteira, 2026-07-27, #156).
     #
-    # Self-hosted (theo-ci-theo-memory) — GitHub-hosted minutes are billing-blocked for the org.
-    runs-on: ${{ fromJSON(vars.CI_RUNNER || '["self-hosted","linux","x64"]') }}
-    # Medido: max 28,8 min (baixa o modelo Xenova ~22 MB com 6 tentativas, aplica schema, roda contract 1353 testes + integration). 60 = ~2x o observado.
+    # HISTÓRICO HONESTO: um piloto anterior NESTE MESMO job foi revertido no mesmo dia. A label
+    # (`blacksmith-2vcpu-ubuntu-2404`) estava correta, mas nenhum runner pegou o job — 40+ min em
+    # fila com `runner_name` vazio. A causa era o pré-requisito ausente, não o YAML: o GitHub App
+    # da Blacksmith não estava instalado na org `usetheodev`. Com o App instalado, a label passa a
+    # ser servida. Se este job voltar a ficar `queued` com `runner_name` vazio, o suspeito é o App
+    # (ou o billing da Blacksmith), NÃO este arquivo.
+    #
+    # A PERGUNTA AINDA ABERTA: um runner efêmero provisiona `services:`? A doc da Blacksmith não
+    # cobre service containers em lugar nenhum (verificado em docs.blacksmith.sh, 2026-07-27). Os
+    # runners são VM-backed com Docker e KVM, então a expectativa é que sim — mas isso é INFERÊNCIA,
+    # não fato verificado. Este job é onde a resposta aparece: se o `postgres` abaixo não subir, a
+    # migração deste workflow (e só dele) volta atrás; os outros 5 não dependem de `services:`.
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    # Medido: max 28,8 min NO SELF-HOSTED (baixa o modelo Xenova ~22 MB com 6 tentativas, aplica
+    # schema, roda contract 1353 testes + integration) — baseline PRÉ-migração, com 8 vCPU a
+    # expectativa é bem abaixo disso. 60 permanece como teto até haver medição na frota nova.
     timeout-minutes: 60
 
     services:
@@ -57,9 +66,16 @@ jobs:
           # open database`. A separate `themem` app DB (the local convention) avoids
           # it; the default `postgres` maintenance DB always exists alongside it.
           POSTGRES_DB: themem
-        # Ephemeral host port (NOT 5432:5432): the self-hosted runner host is SHARED
-        # across repos, so a fixed host port would collide with a concurrent job's
-        # postgres (and with the platform's own :5432). The mapped port is resolved below.
+        # Ephemeral host port (NOT 5432:5432). The ORIGINAL driver was the shared self-hosted
+        # host, where a fixed port would collide with a concurrent job's postgres (and with the
+        # platform's own :5432). On the isolated ephemeral runner that collision is gone — #156
+        # flagged this as a cleanup candidate once the migration was promoted.
+        #
+        # KEPT DELIBERATELY. The dynamic mapping is correct on BOTH fleets, costs nothing, and
+        # `job.services.postgres.ports['5432']` resolves either way. Pinning 5432:5432 would buy
+        # only cosmetics while adding a fresh collision mode (the ubuntu-2404 image ships
+        # PostgreSQL) — on the one migration whose single open question is whether `services:`
+        # works at all. Not the run to spend risk on. Revisit once this job is green.
         ports:
           - 5432
         options: >-
@@ -71,7 +87,7 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - name: Resolve Postgres URI (dynamic host port — shared self-hosted host)
+      - name: Resolve Postgres URI (dynamic host port — provider-agnostic)
         # App DB is `themem` (NOT the `postgres` maintenance DB) — see the service
         # POSTGRES_DB note above (avoids the reset-shared-db drop-the-open-db 55006).
         run: echo "THEOMEM_PG_URI=postgres://postgres:postgres@localhost:${{ job.services.postgres.ports['5432'] }}/themem" >> "$GITHUB_ENV"

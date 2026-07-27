@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
-- **CI: o runner de TODO job passou a sair da variável `CI_RUNNER`, com fallback.** Antes, trocar a frota exigia editar cada job — custo que fez o piloto Blacksmith de hoje (#156) ser aplicado e revertido às pressas. Agora `runs-on: ${{ fromJSON(vars.CI_RUNNER || '["self-hosted","linux","x64"]') }}`: migrar é **um toggle de variável, zero commits**, com rollback instantâneo. O `||` é guarda-costas — variável ausente ou apagada por engano NÃO quebra job nenhum. Padrão provado empiricamente no theo-db (run `30300163857`) antes de ser propagado, e já usado pelo reusable `theo/.github/workflows/build-publish.yml:38`.
+- ~~**CI: o runner de TODO job passou a sair da variável `CI_RUNNER`, com fallback.**~~ **SUPERSEDED no mesmo ciclo não-released** pela migração para a Blacksmith (ver `Changed` abaixo, #156). A indireção serviu ao propósito para o qual foi criada — tornar a troca de frota barata — e foi consumida horas depois pela própria migração que habilitava. Mantida aqui como trilha de auditoria, não como comportamento vigente: a variável `CI_RUNNER` não é mais lida por nenhum workflow.
 
 - **CI: gate rápido `ci.yml` (lint + typecheck + build), sem banco.** O repo não tinha gate unitário: os três só eram exercitados DENTRO do `integration.yml`, atrás de um serviço Postgres, do download do modelo Xenova e de duas suítes — 28,8 min medidos no pior caso. Um erro de tipo agora aparece em ~2 min. Escopo honestamente limitado: `pnpm test` NÃO entra aqui porque parte da suíte "contract" sobe o servidor MCP e abre um `Pool` real (documentado no próprio `integration.yml`), então sem banco ela falharia por infraestrutura e não por defeito. Verificado localmente antes de subir: lint, build e typecheck saem 0.
 
@@ -15,6 +15,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **CI: `timeout-minutes` em todo job próprio** — `integration` (60), `eval` (15), `semgrep` (15), `deploy-dev` (10). Todos rodavam com o default do GitHub de **360 min**: num runner serial compartilhado por 5 repositórios, um job pendurado sequestra a fila de todos por 6 horas. Valores dimensionados por duração medida (o `integration` tem máximo observado de 28,8 min).
 
 ### Changed
+
+- **CI: a frota inteira migrou do runner self-hosted para a Blacksmith (`blacksmith-8vcpu-ubuntu-2404`) (#156).** Os 7 jobs dos 6 workflows (`ci`, `integration`, `eval`, `security-sast`, `actionlint`, `publish` — build reusável + `deploy-dev`) passam a rodar em frota efêmera de 8 vCPU / 32 GB, contra um droplet serial compartilhado por 5 repositórios cuja espera media **p90 de 29,2 min** para execuções de 2,2 min. A label é literal em cada `runs-on`; a indireção via `vars.CI_RUNNER` foi removida. O piloto anterior deste mesmo dia falhou por pré-requisito ausente (GitHub App da Blacksmith não instalado na org), não por YAML — com o App instalado, a label é servida.
+
+- **CI: adicionado `.github/actionlint.yaml` declarando a label da Blacksmith.** Sem ele o gate `actionlint` rejeita a label literal em TODOS os workflows (`label "blacksmith-8vcpu-ubuntu-2404" is unknown`) — a checagem só passava despercebida antes porque `runs-on` era uma expressão que o actionlint não avalia estaticamente. Verificado empiricamente nos dois sentidos com a imagem pinada do gate: com a config, exit 0; sem ela, erro em cada arquivo.
+
+- **CI: `useblacksmith/cache` deliberadamente NÃO adotado.** A doc da Blacksmith registra que a action foi arquivada e que o cache é interceptado de forma transparente, então `actions/setup-node` com `cache: pnpm` permanece como está. Migrar para a action da Blacksmith teria trocado código funcionando por uma dependência sem manutenção.
 
 ### Deprecated
 
