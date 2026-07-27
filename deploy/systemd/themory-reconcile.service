@@ -1,0 +1,24 @@
+# Unit de USUÁRIO (não de sistema), instalada em ~/.config/systemd/user/.
+#
+# POR QUE DE USUÁRIO: os containers do dev host já são criados e gerenciados pelo usuário `paulo`
+# (é ele que o deploy do CI usa via SSH). Uma unit de sistema rodando como root criaria containers
+# sob outro dono e divergiria do que o deploy push-based faz — dois caminhos gerenciando o mesmo
+# serviço com identidades diferentes. `loginctl enable-linger` (já ativo neste host) garante que o
+# timer dispare sem ninguém logado, que era a única vantagem real da unit de sistema.
+[Unit]
+Description=Reconcilia o dev host do theo-memory com a tag :develop do GHCR
+Documentation=https://github.com/usetheoai/theo-memory/blob/develop/scripts/reconcile-dev.sh
+# Sem docker, o script só produziria ruído no journal a cada 5 min.
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/paulo/theo-data-plane/theo-memory
+ExecStart=/home/paulo/theo-data-plane/theo-memory/scripts/reconcile-dev.sh
+# Teto acima do health gate (60 s) somado ao pull de uma imagem fria. Sem isto, um pull pendurado
+# seguraria a unit indefinidamente e o timer acumularia execuções sobrepostas.
+TimeoutStartSec=600
+# O journal é o log: `journalctl --user -u themory-reconcile -f`.
+StandardOutput=journal
+StandardError=journal
