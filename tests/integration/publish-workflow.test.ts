@@ -58,6 +58,31 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     expect(yaml, 'o nome antigo nao pode voltar em silencio').not.toMatch(/image:\s*themory\b/);
   });
 
+  test('test_release_nao_escreve_no_cache_compartilhado', () => {
+    // T3.3 — os dois canais dividiam UM escopo de cache (`scope=inputs.image`),
+    // com frequencia e tamanho muito diferentes:
+    //   develop  — todo push, amd64, quente
+    //   tag      — raro, multi-arch, export mode=max (grande)
+    //
+    // O cache do GHA tem teto por repositorio e despeja por LRU. O export raro e
+    // grande da release despeja as camadas quentes do develop; os builds de
+    // develop passam a rodar frios — exatamente o custo que o cache existia para
+    // evitar, numa frota cobrada por MINUTO. E a entrada escrita pela release
+    // quase certamente e despejada antes da proxima tag, entao o upload e pago
+    // sem nunca ser lido.
+    //
+    // LER continua sempre (a release aproveita as camadas do develop; de graca).
+    // ESCREVER so fora de tag.
+    const vendored = readFileSync(resolve(REPO_ROOT, '.github/workflows/build-publish.yml'), 'utf-8');
+    const exports = vendored.match(/^\s*cache-to:.*$/gm) ?? [];
+    expect(exports.length, 'deve haver export de cache nos dois builds').toBe(2);
+    for (const line of exports) {
+      expect(line, 'cache-to deve ser condicional ao ref nao ser tag').toMatch(
+        /refs\/tags/,
+      );
+    }
+  });
+
   test('test_scanner_de_segredo_nao_ignora_prosa', () => {
     // T3.2 — o security-sast roda gitleaks, um scanner de SEGREDO, e ignorava
     // `**/*.md` e `.claude/**`. Segredo colado num README ou num hook pulava o

@@ -163,7 +163,17 @@ jobs:
           # returns BlobNotFound on export (esp. large mode=max exports on self-hosted
           # runners). Cache is a build-time optimization, not a correctness input — a cache
           # miss/failure must never fail the build. Warns and continues instead.
-          cache-to: type=gha,mode=max,ignore-error=true,scope=${{ inputs.image }}
+          # Condicional ao canal, de proposito. Os dois canais dividem UM escopo mas
+          # tem frequencia e tamanho muito diferentes: develop e todo push, amd64,
+          # quente; tag e rara, multi-arch, export mode=max (grande). O cache do GHA
+          # tem teto por repositorio e despeja por LRU — o export raro e grande da
+          # release despeja as camadas quentes do develop, e os builds de develop
+          # passam a rodar frios. Pior: a entrada escrita pela release quase certamente
+          # e despejada antes da proxima tag, entao o upload e pago sem nunca ser lido.
+          #
+          # LER continua sempre (`cache-from` acima): a release aproveita as camadas do
+          # develop de graca. So ESCREVER e que fica fora de tag.
+          cache-to: ${{ startsWith(github.ref, 'refs/tags/') && '' || format('type=gha,mode=max,ignore-error=true,scope={0}', inputs.image) }}
           secrets: |
             gomod_token=${{ secrets.GOMOD_TOKEN }}
 
@@ -220,7 +230,17 @@ jobs:
           # returns BlobNotFound on export (esp. large mode=max exports on self-hosted
           # runners). Cache is a build-time optimization, not a correctness input — a cache
           # miss/failure must never fail the build. Warns and continues instead.
-          cache-to: type=gha,mode=max,ignore-error=true,scope=${{ inputs.image }}
+          # Condicional ao canal, de proposito. Os dois canais dividem UM escopo mas
+          # tem frequencia e tamanho muito diferentes: develop e todo push, amd64,
+          # quente; tag e rara, multi-arch, export mode=max (grande). O cache do GHA
+          # tem teto por repositorio e despeja por LRU — o export raro e grande da
+          # release despeja as camadas quentes do develop, e os builds de develop
+          # passam a rodar frios. Pior: a entrada escrita pela release quase certamente
+          # e despejada antes da proxima tag, entao o upload e pago sem nunca ser lido.
+          #
+          # LER continua sempre (`cache-from` acima): a release aproveita as camadas do
+          # develop de graca. So ESCREVER e que fica fora de tag.
+          cache-to: ${{ startsWith(github.ref, 'refs/tags/') && '' || format('type=gha,mode=max,ignore-error=true,scope={0}', inputs.image) }}
           secrets: |
             gomod_token=${{ secrets.GOMOD_TOKEN }}
 
