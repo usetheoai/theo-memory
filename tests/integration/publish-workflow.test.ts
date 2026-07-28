@@ -58,6 +58,30 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     expect(yaml, 'o nome antigo nao pode voltar em silencio').not.toMatch(/image:\s*themory\b/);
   });
 
+  test('test_gaps_conhecidos_tem_dono_e_razao', () => {
+    // T4.4 — a auditoria deixou pontos ABERTOS de proposito (fora de escopo,
+    // dependentes de terceiro, ou sem evidencia para decidir). Um documento de
+    // gaps so vale se cada linha disser QUEM decide e POR QUE nao foi fechado
+    // agora; sem isso vira lista de desculpas que ninguem cobra.
+    //
+    // O gate e estrutural: toda linha de tabela da secao de gaps precisa das
+    // colunas preenchidas. Nao julga o conteudo — julga que o conteudo existe.
+    const doc = readFileSync(resolve(REPO_ROOT, 'docs/devops-audit-known-gaps.md'), 'utf-8');
+    const rows = doc
+      .split('\n')
+      .filter((l) => l.trim().startsWith('|') && l.includes('|'))
+      .filter((l) => !/^\s*\|[\s|:-]+\|\s*$/.test(l))
+      .filter((l) => !/\bGap\b.*\bDono\b/.test(l));
+    expect(rows.length, 'a tabela de gaps nao pode estar vazia').toBeGreaterThan(3);
+    for (const row of rows) {
+      const cells = row.split('|').slice(1, -1).map((c) => c.trim());
+      expect(cells.length, `linha com colunas faltando: ${row}`).toBe(4);
+      for (const cell of cells) {
+        expect(cell.length, `celula vazia em: ${row}`).toBeGreaterThan(0);
+      }
+    }
+  });
+
   test('test_compose_aponta_para_o_registry_que_publicamos', () => {
     // T4.3 — o compose de producao trazia por default `usetheo/theo-memory:0.2.0`,
     // uma coordenada de Docker Hub. Medido em 2026-07-28:
