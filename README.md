@@ -51,8 +51,6 @@ const facts = await memory.user('alice').recall('UI preferences');
 // → [{ text: 'Prefers dark mode', score: 0.94 }]
 ```
 
-**No vendor lock-in.** Runs on your Postgres. Uses your LLM key. Apache-2.0 licensed.
-
 ## Features
 
 - **Three-tier scope** — `user` (cross-session) · `session` (conversation) · `agent` (procedural) + `skills` (code-as-skill library)
@@ -421,9 +419,9 @@ npm run lint                # Zero warnings
 
 ## What's distinctive
 
-The agent-memory space is healthy and moving fast, and there are several good
-Apache-2.0, self-hostable projects to choose from. Rather than score them against each
-other, here is what Theo Memory itself commits to — verify each one against the code:
+There are several good Apache-2.0, self-hostable projects in this space. Rather than
+score them against each other, here is what Theo Memory itself commits to — verify each
+one against the code:
 
 | Capability | What ships in this repo |
 |---|---|
@@ -465,7 +463,7 @@ hosted plan, and a **plain-Postgres** deployment. Theo Memory itself is
 
 ## Status
 
-> **Pre-release — and honest about it.** Feature-complete for the core use case and validated across 107 end-to-end scenarios (REST, MCP, CLI, browser), plus continuous real-usage evidence (our own team runs on it). Not yet published to npm. We won't put a `production-ready` label on it until we cut v1.0 — a deliberate call we make once the contract is frozen, not a marketing default. You can run it, self-host it, and build on it today — we're just not going to over-promise on the tin.
+> **Pre-release — and honest about it.** Feature-complete for the core use case and validated across 107 end-to-end scenarios (REST, MCP, CLI, browser), plus continuous real-usage evidence: our own team runs on it. Not yet published to npm. The `production-ready` label waits for v1.0, when we freeze the contract. Until then you can run it, self-host it, and build on it — we would just rather say that plainly than print a badge we can't defend yet.
 
 ## Contributing
 
