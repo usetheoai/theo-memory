@@ -58,6 +58,17 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     expect(yaml, 'o nome antigo nao pode voltar em silencio').not.toMatch(/image:\s*themory\b/);
   });
 
+  test('test_job_de_build_tem_timeout', () => {
+    // T3.1 — o job mais caro do repo rodava com o teto padrao de 360 min numa frota
+    // cobrada por MINUTO (Blacksmith): um job pendurado e caixa, nao cota.
+    //
+    // O detalhe que torna isto nao-obvio: o GitHub NAO honra `timeout-minutes` em job
+    // `uses:`. Aplica-lo em publish.yml — o lugar obvio — seria silenciosamente inerte.
+    // O unico lugar onde funciona e dentro do proprio reusable.
+    const vendored = readFileSync(resolve(REPO_ROOT, '.github/workflows/build-publish.yml'), 'utf-8');
+    expect(vendored).toMatch(/timeout-minutes:\s*\d+/);
+  });
+
   test('test_imagem_so_publica_apos_os_gates', () => {
     // T1.2 — publish.yml tinha UM `needs` (a propria guarda) e nao existe
     // `workflow_run` em nenhum workflow, entao a imagem era construida e empurrada

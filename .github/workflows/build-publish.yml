@@ -105,6 +105,13 @@ permissions:
 jobs:
   build-publish:
     runs-on: ${{ fromJSON(inputs.runner) }}
+    # 30 min contra um p95 medido de 305 s na era Blacksmith — margem de ~6x, generosa
+    # o bastante para o caso frio (~14 min pelo double-build do gate Trivy) e para o
+    # build multi-arch da release, sem deixar o teto padrao de 360 min de pe.
+    #
+    # TEM DE FICAR AQUI. O GitHub nao honra `timeout-minutes` em job `uses:`, entao
+    # aplica-lo no publish.yml — o lugar obvio — seria silenciosamente inerte.
+    timeout-minutes: 30
     outputs:
       digest: ${{ steps.build.outputs.digest }}
       image_ref: ${{ inputs.registry }}/${{ inputs.image }}@${{ steps.build.outputs.digest }}
