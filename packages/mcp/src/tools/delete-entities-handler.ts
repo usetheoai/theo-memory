@@ -13,11 +13,10 @@
  * @see packages/core/src/infrastructure/db/pg-memory-entity-store.ts — forgetEntity impl
  */
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-
-import { DEFAULT_WORKSPACE_ID } from '@usetheo/memory/contract';
 import type { Filters, Memory, MemoryEntityStore } from '@usetheo/memory/contract';
-import { getScope } from '@usetheo/memory-agent-core';
+import { DEFAULT_WORKSPACE_ID } from '@usetheo/memory/contract';
 import { MissingScopeError } from '@usetheo/memory/contract';
+import { getScope } from '@usetheo/memory-agent-core';
 
 import { INPUT_SCHEMA, TOOL_NAME } from './delete-entities-schema.js';
 

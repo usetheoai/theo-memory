@@ -3,11 +3,11 @@
  *
  * @see ADR-0003 — ADD-only; edge EC-1 — order matters (remember first, never data loss)
  */
+import type { Memory, ScopedMemory } from '@usetheo/memory/contract';
+import { withScope } from '@usetheo/memory-agent-core';
 import { describe, expect, test, vi } from 'vitest';
 import { mock } from 'vitest-mock-extended';
 
-import { withScope } from '@usetheo/memory-agent-core';
-import type { Memory, ScopedMemory } from '@usetheo/memory/contract';
 
 import { updateMemoryHandler } from './update-memory-handler.js';
 
@@ -78,7 +78,7 @@ describe('updateMemoryHandler (T2.3)', () => {
     const { factory } = mockMemory([{ id: 'new-id' }]);
     await expect(
       withScope({ session: { userId: 'alice' } }, () =>
-        updateMemoryHandler({ id: OLD_ID, content: 'x'.repeat(10), user_id: 'bob' } as unknown, { memoryFactory: factory }),
+        updateMemoryHandler({ id: OLD_ID, content: 'x'.repeat(10), user_id: 'bob' }, { memoryFactory: factory }),
       ),
     ).rejects.toThrow();
   });

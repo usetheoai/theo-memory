@@ -71,7 +71,7 @@ describe.skipIf(ADMIN_PG_URI === '')(
         llm: reflectNoopLlm,
         embeddingDim: DIM,
         // reflectionPolicy omitted → factory default `{ kind: 'manual' }`; tests call reflect() explicitly.
-      })) as DisposableMemory;
+      }));
     }, 60_000);
 
     afterAll(async () => {

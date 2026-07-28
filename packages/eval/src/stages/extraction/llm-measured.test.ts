@@ -64,7 +64,7 @@ describe.skipIf(!hasLlmKey())('LLM-measured extraction (openai/gpt-4o-mini via O
     const mean = (xs: number[]): number => xs.reduce((a, b) => a + b, 0) / xs.length;
     const p = mean(precisions);
     const r = mean(recalls);
-    // eslint-disable-next-line no-console
+     
     console.log(`[eval LLM-measured extraction] p=${p.toFixed(3)} r=${r.toFixed(3)} n=${String(hard.length)}`);
     expect(p).toBeGreaterThanOrEqual(0.5);
     expect(r).toBeGreaterThanOrEqual(0.5);

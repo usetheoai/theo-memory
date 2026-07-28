@@ -9,7 +9,6 @@
  * @see packages/api/src/server/handlers/recall-traces.ts (S2 REST twin)
  */
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-
 import { DEFAULT_WORKSPACE_ID } from '@usetheo/memory/contract';
 import type { Memory, RecallTraceStore } from '@usetheo/memory/contract';
 import { getScope } from '@usetheo/memory-agent-core';

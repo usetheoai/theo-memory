@@ -9,9 +9,9 @@
  * @see packages/core/src/domain/episode.ts — EpisodeListOptions / EpisodePage
  * @see ADR D2 (first-class-episodes) — episode list is TEMPORAL, not semantic
  */
+import { EPISODE_LIMIT_MAX } from '@usetheo/memory/contract';
 import { z } from 'zod';
 
-import { EPISODE_LIMIT_MAX } from '@usetheo/memory/contract';
 
 import { MAX_QUERY_BYTES } from './constants.js';
 

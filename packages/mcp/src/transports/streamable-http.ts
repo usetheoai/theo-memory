@@ -27,9 +27,9 @@ import type { AddressInfo } from 'node:net';
 import type { ScopedContext } from '@usetheo/memory/contract';
 import { withScope } from '@usetheo/memory-agent-core';
 
-import { withBearerAuth, type BearerAuthOptions } from '../auth/with-bearer-auth.js';
 import { isGatewayTrusted, userFromRequest, workspaceFromRequest } from '../auth/request-workspace.js';
-import type { McpServer } from '../server.js';
+import { withBearerAuth, type BearerAuthOptions } from '../auth/with-bearer-auth.js';
+
 import { McpSessionRegistry } from './mcp-session-registry.js';
 import type { McpServerFactory } from './mcp-session-registry.js';
 

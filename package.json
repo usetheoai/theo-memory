@@ -22,7 +22,7 @@
     "prepack": "npm run build",
     "postbuild:copy-migrations": "node -e \"const{cpSync,existsSync,mkdirSync}=require('node:fs');const dest='dist/core/src/infrastructure/db/migrations';if(existsSync('packages/core/src/infrastructure/db/migrations')){mkdirSync(dest,{recursive:true});cpSync('packages/core/src/infrastructure/db/migrations',dest,{recursive:true});console.error('migrations copied to '+dest);}\"",
     "test:type": "tsc --noEmit -p tsconfig.contract.json --strict",
-    "lint": "eslint 'packages/core/src/**/*.ts' 'packages/api/src/**/*.ts' 'packages/cli/src/**/*.ts' 'packages/agent-core/src/**/*.ts' --no-error-on-unmatched-pattern",
+    "lint": "eslint 'packages/core/src/**/*.ts' 'packages/api/src/**/*.ts' 'packages/cli/src/**/*.ts' 'packages/agent-core/src/**/*.ts' 'packages/mcp/src/**/*.ts' 'packages/eval/src/**/*.ts' --no-error-on-unmatched-pattern",
     "test": "vitest run --config vitest.contract.config.ts",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "pretest:e2e": "npm run build",

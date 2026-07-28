@@ -31,7 +31,6 @@ import type { AddressInfo } from 'node:net';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
-
 import { withScope } from '@usetheo/memory-agent-core';
 
 import type { McpServer } from '../server.js';
@@ -109,7 +108,7 @@ export async function connectSse(options: SseOptions): Promise<SseHandle> {
       res.on('close', () => {
         sessions.delete(transport.sessionId);
       });
-      await server.start(transport as unknown as Transport);
+      await server.start(transport);
       return;
     }
 

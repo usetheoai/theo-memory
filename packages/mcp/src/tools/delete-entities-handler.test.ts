@@ -9,12 +9,12 @@
  * @see ADR-M14-1 — identidade do Principal server-side
  * @see theo-cloud#252 — fail-closed antes de qualquer deleção
  */
+import { MissingScopeError } from '@usetheo/memory/contract';
+import type { Memory, MemoryEntityStore } from '@usetheo/memory/contract';
+import { withScope } from '@usetheo/memory-agent-core';
 import { describe, expect, test, vi } from 'vitest';
 import { mock } from 'vitest-mock-extended';
 
-import { withScope } from '@usetheo/memory-agent-core';
-import { MissingScopeError } from '@usetheo/memory/contract';
-import type { Memory, MemoryEntityStore } from '@usetheo/memory/contract';
 
 import { deleteEntitiesHandler } from './delete-entities-handler.js';
 
@@ -58,7 +58,7 @@ describe('deleteEntitiesHandler (T2.4b)', () => {
     const d = deps();
     await expect(
       withScope({ workspaceId: 'ws-A', session: { userId: 'alice' } }, () =>
-        deleteEntitiesHandler({ name: 'Codex', user_id: 'bob' } as unknown, d),
+        deleteEntitiesHandler({ name: 'Codex', user_id: 'bob' }, d),
       ),
     ).rejects.toThrow();
     expect(d.memoryEntityStore.forgetEntity).not.toHaveBeenCalled();

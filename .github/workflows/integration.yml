@@ -138,6 +138,19 @@ jobs:
           THEOMEM_EMBEDDER: openai
         run: pnpm test
 
+      # A suíte e2e nunca rodou em CI, e o custo apareceu na primeira execução: ela
+      # afirmava 8 ferramentas MCP enquanto treze já eram servidas, e o `beforeAll`
+      # prometia um "clean slate" que não limpava nada — dropava `__drizzle_migrations`
+      # sem qualificar o schema (o journal vive em `drizzle`, não em `public`), então o
+      # banco perdia tabelas enquanto o journal seguia dizendo que tudo fora aplicado.
+      # Usa o mesmo Postgres do passo acima; sobe o CLI como subprocesso e faz o
+      # handshake MCP de verdade.
+      - name: Run e2e suite (subprocess MCP handshake)
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          THEOMEM_EMBEDDER: openai
+        run: pnpm run test:e2e
+
   # ---------------------------------------------------------------------------------------
   # INTEGRAÇÃO — cara (OpenAI real + modelo Xenova). Só noturno e sob demanda.
   # ---------------------------------------------------------------------------------------

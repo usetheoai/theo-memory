@@ -11,13 +11,12 @@
  * @see ADR D3 — scope binding via getScope() invariant
  */
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-
 import type { Memory } from '@usetheo/memory/contract';
-import { getScope } from '@usetheo/memory-agent-core';
 import { MissingScopeError } from '@usetheo/memory/contract';
+import { getScope } from '@usetheo/memory-agent-core';
 
-import { workspaceScopedMemory } from './workspace-scoped-memory.js';
 import { INPUT_SCHEMA, TOOL_NAME } from './get-memory-schema.js';
+import { workspaceScopedMemory } from './workspace-scoped-memory.js';
 
 export { TOOL_NAME };
 

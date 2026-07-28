@@ -11,9 +11,10 @@
  * the same rows. Violates theo-data/CLAUDE.md invariants 2 and 3 (workspace_id ==
  * tenant_id; the scope comes from the Principal, never from the request body).
  */
-import { afterEach, describe, expect, it } from 'vitest';
-import { getScope, withScope } from '@usetheo/memory-agent-core';
 import type { ScopedContext } from '@usetheo/memory/contract';
+import { getScope, withScope } from '@usetheo/memory-agent-core';
+import { afterEach, describe, expect, it } from 'vitest';
+
 import { McpServer } from './server.js';
 
 const OUTER_WORKSPACE = 'wk-tenant-a';

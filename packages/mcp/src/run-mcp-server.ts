@@ -21,14 +21,8 @@
  * @see Plan theo-memory-standalone-p0 § T2.1 (extraction motivation)
  */
 import { trace } from '@opentelemetry/api';
-import { Pool } from 'pg';
-
 import { runMigrations, PgMemoryEntityStore } from '@usetheo/memory';
-import { ApiKeyAuthVerifier } from '@usetheo/memory-api';
-import { createOauth4webapiIntrospect } from '@usetheo/memory-api';
-import { OidcAuthVerifier } from '@usetheo/memory-api';
-import { parseRequireCredentialEnv } from '@usetheo/memory-api';
-
+import { PgRecallTraceStore } from '@usetheo/memory/recall-trace-pg';
 import {
   assertEnvOrExit,
   embeddingDimForKind,
@@ -39,12 +33,17 @@ import {
   wireMemoryFromPool,
   resolveOidcConfig,
 } from '@usetheo/memory-agent-core';
-import { PgRecallTraceStore } from '@usetheo/memory/recall-trace-pg';
+import { ApiKeyAuthVerifier } from '@usetheo/memory-api';
+import { createOauth4webapiIntrospect } from '@usetheo/memory-api';
+import { OidcAuthVerifier } from '@usetheo/memory-api';
+import { parseRequireCredentialEnv } from '@usetheo/memory-api';
+import { Pool } from 'pg';
+
 import type { BearerAuthOptions } from './auth/with-bearer-auth.js';
 import { McpServer } from './server.js';
+import { connectSse } from './transports/sse.js';
 import { connectStdio } from './transports/stdio.js';
 import { connectStreamableHttp } from './transports/streamable-http.js';
-import { connectSse } from './transports/sse.js';
 
 // fix-cycle-2 hotfix M2: LOCAL_EMBEDDER_DIM imported from agent-tools-memory.ts
 // (single source of truth for the Xenova MiniLM 384-dim constant; was

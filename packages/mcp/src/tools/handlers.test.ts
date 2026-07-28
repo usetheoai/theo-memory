@@ -15,13 +15,13 @@
  * @see EC-14 (SHOULD TEST inline) — forget unknown-id idempotent at agent boundary
  */
 import { McpError } from '@modelcontextprotocol/sdk/types.js';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { mock } from 'vitest-mock-extended';
-
 import { MemoryNotFound, MemoryStoreError, MissingScopeError } from '@usetheo/memory/contract';
 import type { Memory, ScopedMemory } from '@usetheo/memory/contract';
 import type { MemoryItem, MemoryItemWithScore } from '@usetheo/memory/contract';
 import { withScope, getScope } from '@usetheo/memory-agent-core';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { mock } from 'vitest-mock-extended';
+
 import { dispatch } from './dispatch.js';
 
 const FIXED_DATE = new Date('2026-05-24T12:00:00.000Z');
@@ -425,7 +425,7 @@ describe('workspace isolation across all tool verbs (T3.1, #82)', () => {
     const bound = mock<Memory>();
     vi.mocked(bound.user).mockReturnValue(boundScoped);
     const skillScoped = { add: vi.fn(), recall: vi.fn(), getAll: vi.fn(), consolidate: vi.fn(), forget: vi.fn(), execute: vi.fn() };
-    vi.mocked(bound.skills).mockReturnValue(skillScoped as never);
+    vi.mocked(bound.skills).mockReturnValue(skillScoped);
     const root = mock<Memory>();
     // workspaceScopedMemory calls root.withWorkspace('tn-A') → bound
     vi.mocked(root.withWorkspace!).mockReturnValue(bound);

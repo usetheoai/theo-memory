@@ -5,9 +5,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **`packages/mcp` e `packages/eval` entram no lint.** Os dois nunca foram lintados: o `mcp` estava fora do bloco de override de testes (e por isso acusava 288 problemas ao ser ligado), e o `eval` não pertencia a nenhum tsconfig, então o type-aware linting **quebrava** em vez de reportar. O lint agora cobre os 6 pacotes, com 0 erros.
+- **A suíte e2e passa a rodar no CI** (`pnpm run test:e2e`, no job `contract` do `integration.yml`, que já tem Postgres).
+
 - **Workflow de publicação no npm (`publish-npm.yml`).** O SDK `@usetheo/memory` não tinha caminho de release algum: os 7 workflows existentes constroem, testam ou publicam a imagem Docker, e nada chegava ao npm — a última publicação foi manual, em 2026-06-10. Dispara em tag `v*` e por `workflow_dispatch` (dry-run por padrão), roda typecheck + lint + testes antes, valida o manifesto do pacote (falha se `dist/index.js`, os `.d.ts` ou os `.sql` de migration faltarem no tarball) e **pula limpo** quando a versão já está no registry. Sem `--provenance`: o npm exige repositório público e este é privado.
 
 ### Fixed
+
+- **A suíte e2e estava quebrada e ninguém sabia, porque nunca rodou.** Dois defeitos: (1) o `beforeAll` prometia um "clean slate" e não limpava nada — dropava `__drizzle_migrations` **sem qualificar o schema**, mas o journal do drizzle vive em `drizzle`, não em `public`; o resultado era um banco sem `memories` enquanto o journal ainda dizia que as 29 migrations estavam aplicadas, então o `migrate` do boot virava no-op e o subprocesso morria com `relation "memories" does not exist`. (2) A asserção afirmava **8 ferramentas MCP** enquanto **13** já eram servidas — cinco (`explain_recall`, `get_memory`, `list_entities`, `update_memory`, `delete_entities`) shiparam sem que nada acusasse a divergência.
+- Import de tipo não usado em `packages/mcp/src/transports/streamable-http.ts` (só aparecia em comentários), e mais 4 erros reais de lint no pacote.
 
 - **302 testes do pacote REST não rodavam no CI.** `packages/api` tem config própria de vitest, mas ninguém a invocava: o script `test` da raiz usa `vitest.contract.config.ts`, cujos globs nunca listaram `packages/api`. São 39 arquivos — auth, RBAC, isolamento cross-user, handlers REST — passando localmente e nunca executados pelo pipeline. Agora rodam no job `static` do `ci.yml` (não precisam de banco; ~12s).
 - README afirmava que `@usetheo/memory` **não estava publicado no npm**. Está: `0.0.0-rc.3`, `0.0.0-rc.4` e `0.2.0`, com `latest` em `0.2.0` desde 2026-06-10. O que de fato não existe é binário npm do CLI — são dois artefatos diferentes, e o texto agora separa os dois.

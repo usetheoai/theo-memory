@@ -17,10 +17,13 @@
  * contract (two independent clients both initialize, and get DISTINCT session ids)
  * rather than the internal map, so the test survives a refactor of the storage.
  */
-import { describe, expect, it } from 'vitest';
 import { request } from 'node:http';
 import type { AddressInfo } from 'node:net';
+
+import { describe, expect, it } from 'vitest';
+
 import { McpServer } from '../server.js';
+
 import { connectStreamableHttp } from './streamable-http.js';
 
 interface Handshake {

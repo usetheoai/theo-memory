@@ -97,7 +97,7 @@ function parseHaystackDate(s: string): number {
 /** Flatten sessions chronologically (by haystack_dates) into a capped turn list. */
 function chronologicalTurns(
   example: LongMemEvalExample,
-): Array<{ role: string; content: string }> {
+): { role: string; content: string }[] {
   const indexed = example.haystack_sessions.map((session, i) => ({
     session,
     date: parseHaystackDate(example.haystack_dates[i] ?? ''),
@@ -105,7 +105,7 @@ function chronologicalTurns(
   }));
   indexed.sort((a, b) => (a.date === b.date ? a.order - b.order : a.date - b.date));
 
-  const turns: Array<{ role: string; content: string }> = [];
+  const turns: { role: string; content: string }[] = [];
   for (const { session } of indexed) {
     for (const turn of session) {
       if (turns.length >= TURN_CAP) return turns;
@@ -266,7 +266,7 @@ async function main(): Promise<void> {
     embeddingDim: EMBEDDING_DIM,
     // reflectionPolicy omitted → factory default `{ kind: 'manual' }` (auto-reflect off);
     // Phase 1.5 drives reflect() explicitly. #144, M23.
-  })) as DisposableMemory;
+  }));
 
   // #144 (M23): the LLM-judged supersession policy used by the Phase 1.5 reflect. Reuses
   // the same OpenAILLM (key-gated at main); the judge picks a keeper + rejects the stale

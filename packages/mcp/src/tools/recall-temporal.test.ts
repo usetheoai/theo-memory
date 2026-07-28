@@ -6,11 +6,11 @@
  * both keys silently.
  *
  */
+import type { Memory, ScopedMemory, MemoryItemWithScore } from '@usetheo/memory/contract';
+import { withScope } from '@usetheo/memory-agent-core';
 import { describe, expect, it, vi } from 'vitest';
 import { mock } from 'vitest-mock-extended';
 
-import type { Memory, ScopedMemory, MemoryItemWithScore } from '@usetheo/memory/contract';
-import { withScope } from '@usetheo/memory-agent-core';
 
 import { dispatch } from './dispatch.js';
 
