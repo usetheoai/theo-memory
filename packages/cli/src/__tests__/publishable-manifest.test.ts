@@ -43,10 +43,28 @@ describe('manifesto publicável do CLI', () => {
     expect((pkg['publishConfig'] as Record<string, string> | undefined)?.['access']).toBe('public');
   });
 
-  it('test_pacote_nao_declara_dependencia_de_pacote_privado', () => {
-    const deps = Object.keys((manifest()['dependencies'] as Record<string, string>) ?? {});
-    // Cada dependência precisa existir no registry. Um `workspace:*` para pacote
-    // private instala no dev e quebra no consumidor — o pior tipo de defeito.
+  it('test_pacote_publicavel_nao_declara_dependencia_de_pacote_privado', () => {
+    // O invariante e CONDICIONAL, e a versao anterior deste teste errava nisso:
+    // ela afirmava incondicionalmente, e so passava porque `dependencies` estava
+    // VAZIO — enquanto 12 arquivos de src/ importavam os pacotes removidos. Um
+    // manifesto vazio-e-mentiroso passava no teste e quebrava o `--frozen-lockfile`
+    // no CI. Passar por vacuidade e pior que falhar.
+    //
+    // A regra real: um pacote PUBLICAVEL nao pode depender de pacote private —
+    // `workspace:*` instala no dev e quebra no consumidor. Enquanto o CLI e ele
+    // proprio private, depender de agent-core e legitimo.
+    //
+    // O flip `private: false` (T1.6) e o que ARMA esta assercao. Se o
+    // desacoplamento do T1.4 nao tiver terminado, este teste falha no flip — que
+    // e exatamente onde a falha tem de acontecer, antes do publish.
+    const pkg = manifest();
+    const deps = Object.keys((pkg['dependencies'] as Record<string, string>) ?? {});
+
+    if (pkg['private'] === true) {
+      expect(deps.length, 'sanidade: manifesto ainda descreve as deps reais').toBeGreaterThan(0);
+      return;
+    }
+
     for (const dep of deps) {
       if (!dep.startsWith('@usetheo/')) continue;
       const depPkgPath = resolve(
