@@ -23,6 +23,8 @@ const REPO_ROOT = resolve(fileURLToPath(import.meta.url), '../../..');
 const WORKFLOW_PATH = resolve(REPO_ROOT, '.github/workflows/publish.yml');
 const TRIVYIGNORE_PATH = resolve(REPO_ROOT, '.trivyignore');
 
+const workflowText = (): string => readFileSync(WORKFLOW_PATH, 'utf-8');
+
 describe('publish workflow (caller of the reusable build-publish) + .trivyignore', () => {
   test('declares permissions: packages: write (EC-44)', () => {
     expect(readFileSync(WORKFLOW_PATH, 'utf-8')).toMatch(/permissions:\s*[\s\S]*?packages:\s*write/);
@@ -54,6 +56,365 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     // erro algum.
     expect(yaml).toMatch(/image:\s*theo-memory\b/);
     expect(yaml, 'o nome antigo nao pode voltar em silencio').not.toMatch(/image:\s*themory\b/);
+  });
+
+  test('test_gaps_conhecidos_tem_dono_e_razao', () => {
+    // T4.4 — a auditoria deixou pontos ABERTOS de proposito (fora de escopo,
+    // dependentes de terceiro, ou sem evidencia para decidir). Um documento de
+    // gaps so vale se cada linha disser QUEM decide e POR QUE nao foi fechado
+    // agora; sem isso vira lista de desculpas que ninguem cobra.
+    //
+    // O gate e estrutural: toda linha de tabela da secao de gaps precisa das
+    // colunas preenchidas. Nao julga o conteudo — julga que o conteudo existe.
+    const doc = readFileSync(resolve(REPO_ROOT, 'docs/devops-audit-known-gaps.md'), 'utf-8');
+    const rows = doc
+      .split('\n')
+      .filter((l) => l.trim().startsWith('|') && l.includes('|'))
+      .filter((l) => !/^\s*\|[\s|:-]+\|\s*$/.test(l))
+      .filter((l) => !/\bGap\b.*\bDono\b/.test(l));
+    expect(rows.length, 'a tabela de gaps nao pode estar vazia').toBeGreaterThan(3);
+
+    // F-xval-3 — cada gap tem de citar o ID do achado da auditoria que o originou.
+    // Sem o ID, ninguem consegue ligar "o que ficou aberto" a "o que a auditoria
+    // encontrou": a proxima auditoria re-descobre tudo do zero e o documento vira
+    // prosa solta em vez de rastro.
+    const ids = doc.match(/DO-D\d[0-9A-Za-z-]+/g) ?? [];
+    expect(new Set(ids).size, 'gaps sem ID de achado da auditoria').toBeGreaterThanOrEqual(4);
+    for (const row of rows) {
+      const cells = row.split('|').slice(1, -1).map((c) => c.trim());
+      expect(cells.length, `linha com colunas faltando: ${row}`).toBe(4);
+      for (const cell of cells) {
+        expect(cell.length, `celula vazia em: ${row}`).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  test('test_compose_aponta_para_o_registry_que_publicamos', () => {
+    // T4.3 — o compose de producao trazia por default `usetheo/theo-memory:0.2.0`,
+    // uma coordenada de Docker Hub. Medido em 2026-07-28:
+    //   docker.io/usetheo/theo-memory:0.2.0   NAO RESOLVE
+    //   ghcr.io/usetheoai/theo-memory:latest  RESOLVE
+    //   secrets DOCKERHUB_USERNAME / DOCKERHUB_TOKEN  NAO EXISTEM
+    //
+    // O push para Docker Hub nunca aconteceu e nao pode acontecer — sem
+    // credencial, o passo e pulado em silencio. Quem seguia o compose recebia
+    // `manifest unknown`. Caminho documentado que nunca foi percorrido e PIOR que
+    // caminho ausente: parece testado.
+    //
+    // O gate: a coordenada da NOSSA imagem tem de sair do mesmo registry para
+    // onde o publish empurra. Imagem de terceiro (pgvector) e outro assunto.
+    const compose = readFileSync(resolve(REPO_ROOT, 'docker-compose.prod.yaml'), 'utf-8');
+    const ours = compose
+      .split('\n')
+      .filter((l) => /^\s*image:/.test(l) && /theo-memory|themory/.test(l));
+    expect(ours.length, 'o compose deve referenciar a nossa imagem').toBeGreaterThan(0);
+    for (const line of ours) {
+      expect(line, 'default tem de sair do registry que publicamos').toMatch(
+        /ghcr\.io\/usetheoai\/theo-memory/,
+      );
+    }
+    // E o workflow nao pode declarar um canal Docker Hub que nunca publicou.
+    expect(readFileSync(WORKFLOW_PATH, 'utf-8')).not.toMatch(/dockerhub_image\s*:/);
+  });
+
+  test('test_tamanho_da_imagem_declara_qual_eixo', () => {
+    // T4.2 — os dois READMEs diziam "< 200 MB", sem eixo. Medido em 2026-07-28
+    // sobre `ghcr.io/usetheoai/theo-memory:develop`:
+    //   comprimido    170.5 MB  (o que o registry reporta, 23 camadas)
+    //   descomprimido 541.0 MB  (o que `docker images` mostra no disco)
+    //
+    // A afirmacao nao era FALSA — era ambigua no eixo que importa para quem puxa
+    // a imagem, com um fator de 3,2x entre as duas leituras. Um numero de tamanho
+    // sem eixo declarado deixa o leitor provisionar disco pelo numero errado.
+    for (const f of ['README.md', 'README.pt-BR.md']) {
+      const doc = readFileSync(resolve(REPO_ROOT, f), 'utf-8');
+      for (const line of doc.split('\n')) {
+        // So linhas que falam do tamanho da IMAGEM. Um limite de corpo de
+        // requisicao ("1 MB body cap") tambem casa `N MB` e nao tem eixo
+        // comprimido/descomprimido — exigir o eixo dele seria ruido.
+        if (!/\d+\s*MB/.test(line)) continue;
+        if (!/\bimage\b|\bimagem\b|distroless/i.test(line)) continue;
+        expect(line, `${f}: numero de tamanho sem eixo declarado`).toMatch(
+          /comprimid|compress|descomprimid|uncompress|no disco|on disk/i,
+        );
+      }
+    }
+  });
+
+  test('test_build_nao_recebe_credencial_que_nao_usa', () => {
+    // T4.1 — o build recebia `GOMOD_TOKEN` como segredo do BuildKit. Medido:
+    //   - o Dockerfile NUNCA monta `--mount=type=secret,id=gomod_token`
+    //   - nao existe `go.mod` em lugar nenhum deste repositorio
+    //
+    // O proprio comentario do input revelava a origem — leitura cross-repo de um
+    // modulo Go privado. Esta copia foi vendorizada de um reusable escrito para
+    // um repo Go; a credencial veio junto e nunca teve consumidor aqui.
+    //
+    // Credencial entregue a um passo que nao a usa e superficie sem contrapartida:
+    // fica disponivel a QUALQUER `RUN` do build e a qualquer camada que o
+    // Dockerfile venha a ganhar depois, sem que ninguem tenha decidido isso.
+    const vendored = readFileSync(resolve(REPO_ROOT, '.github/workflows/build-publish.yml'), 'utf-8');
+    const caller = readFileSync(WORKFLOW_PATH, 'utf-8');
+    // Casa a CHAVE/atribuicao YAML, nao a palavra. O ledger do cabecalho CITA
+    // `GOMOD_TOKEN` para explicar por que ele foi removido — documentacao util,
+    // e proibir a palavra empurraria a explicacao para fora do arquivo. Quarta
+    // ocorrencia desta licao nesta sessao.
+    expect(vendored, 'segredo Go num repo sem go.mod').not.toMatch(
+      /^\s*GOMOD_TOKEN\s*:|^\s*gomod_token\s*=/m,
+    );
+    expect(caller, 'o chamador tambem nao pode repassa-lo').not.toMatch(/GOMOD_TOKEN/);
+  });
+
+  test('test_release_nao_escreve_no_cache_compartilhado', () => {
+    // T3.3 — os dois canais dividiam UM escopo de cache (`scope=inputs.image`),
+    // com frequencia e tamanho muito diferentes:
+    //   develop  — todo push, amd64, quente
+    //   tag      — raro, multi-arch, export mode=max (grande)
+    //
+    // O cache do GHA tem teto por repositorio e despeja por LRU. O export raro e
+    // grande da release despeja as camadas quentes do develop; os builds de
+    // develop passam a rodar frios — exatamente o custo que o cache existia para
+    // evitar, numa frota cobrada por MINUTO. E a entrada escrita pela release
+    // quase certamente e despejada antes da proxima tag, entao o upload e pago
+    // sem nunca ser lido.
+    //
+    // LER continua sempre (a release aproveita as camadas do develop; de graca).
+    // ESCREVER so fora de tag.
+    const vendored = readFileSync(resolve(REPO_ROOT, '.github/workflows/build-publish.yml'), 'utf-8');
+    const exports = vendored.match(/^\s*cache-to:.*$/gm) ?? [];
+    expect(exports.length, 'deve haver export de cache nos dois builds').toBe(2);
+    for (const line of exports) {
+      expect(line, 'cache-to deve ser condicional ao ref nao ser tag').toMatch(
+        /refs\/tags/,
+      );
+    }
+  });
+
+  test('test_scanner_de_segredo_alcanca_a_prosa_que_diz_alcancar', () => {
+    // F-dom-infra-1 — a T3.2 removeu `paths-ignore` do security-sast alegando
+    // que prosa e onde credencial vaza por acidente. A alegacao estava certa; a
+    // premissa sobre o scanner, NAO: `gitleaks dir /src/packages` nunca leu
+    // prosa. README, runbook, docs/ e .claude/ ficavam fora do escopo.
+    //
+    // Ou seja: a remocao do filtro comprou ZERO cobertura e passou a rodar um
+    // job de ~3 min em todo push so-de-docs. A correcao nao e restaurar o
+    // filtro — e fazer o scanner alcancar o que eu afirmei que ele alcancava.
+    // Gate cuja justificativa nao corresponde ao que ele faz e pior que gate
+    // ausente: alguem le a justificativa e para de procurar.
+    const sast = readFileSync(resolve(REPO_ROOT, '.github/workflows/security-sast.yml'), 'utf-8');
+    const gitleaks = sast.match(/gitleaks[\s\S]{0,600}?--no-banner[^\n]*/)?.[0] ?? '';
+    expect(gitleaks, 'o scan de segredo tem de partir da raiz, nao de packages/').toMatch(
+      /\bdir\s+\/src\b(?!\/)/,
+    );
+  });
+
+  test('test_scanner_de_segredo_nao_ignora_prosa', () => {
+    // T3.2 — o security-sast roda gitleaks, um scanner de SEGREDO, e ignorava
+    // `**/*.md` e `.claude/**`. Segredo colado num README ou num hook pulava o
+    // scanner inteiro.
+    //
+    // Nao e hipotetico: prosa e justamente onde credencial vaza por acidente —
+    // um exemplo de configuracao, um runbook, um passo-a-passo de setup. Filtrar
+    // por caminho um gate que procura CONTEUDO inverte o proposito dele.
+    //
+    // Os gates de TESTE podem ignorar prosa (markdown nao muda comportamento de
+    // runtime). O de SEGREDO nao pode.
+    // Casa a CHAVE YAML, nao a palavra — o comentario que EXPLICA a ausencia e
+    // documentacao util, e um teste que proibisse cita-la empurraria a explicacao
+    // para fora do arquivo. Mesma licao ja fixada no teste do NODE_AUTH_TOKEN.
+    const sast = readFileSync(resolve(REPO_ROOT, '.github/workflows/security-sast.yml'), 'utf-8');
+    expect(sast, 'scanner de segredo nao pode filtrar por caminho').not.toMatch(
+      /^\s*paths-ignore\s*:/m,
+    );
+  });
+
+  test('test_ledger_da_copia_vendorizada_lista_toda_divergencia', () => {
+    // F-arch-2 — a copia vendorizada carrega um ledger de divergencias no
+    // cabecalho, encerrado por "Todo o resto e identico ao original". Esta
+    // remediacao adicionou QUATRO divergencias sem atualiza-lo.
+    //
+    // O ledger nao e decoracao: ele e a instrucao que a pessoa seguira quando o
+    // reusable original voltar a ser acessivel. Um ledger que diz "o resto e
+    // identico" faz essa pessoa descartar as quatro correcoes em silencio — e o
+    // canal implantado perde assinatura, teto de tempo e ancora do cosign sem
+    // que nada fique vermelho.
+    const vendored = readFileSync(resolve(REPO_ROOT, '.github/workflows/build-publish.yml'), 'utf-8');
+    const header = vendored.slice(0, vendored.indexOf('name: build-publish'));
+    for (const item of ['timeout-minutes', 'GOMOD_TOKEN', 'cache-to', 'certificate-identity-regexp']) {
+      expect(header, `divergencia nao declarada no ledger: ${item}`).toContain(item);
+    }
+
+    // A CONTAGEM declarada tem de bater com os itens enumerados. Pega o caso real
+    // que o /review encontrou: a lista cresceu de 4 para 8 e duas frases do mesmo
+    // cabecalho continuaram dizendo "quatro". Ledger que se contradiz nao orienta
+    // ninguem.
+    //
+    // Limite honesto: isto NAO detecta divergencia nova — o teste nao tem acesso
+    // ao original para comparar. Ele so garante coerencia interna do ledger.
+    const enumerados = (header.match(/^#\s+\d+\.\s/gm) ?? []).length;
+    const porExtenso: Record<string, number> = {
+      quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10,
+    };
+    const declarados = [...header.matchAll(/divergiu em (\w+) pontos|ORIGINAL — (\w+),/gi)]
+      .map((m) => porExtenso[(m[1] ?? m[2]).toLowerCase()])
+      .filter((n): n is number => typeof n === 'number');
+    expect(declarados.length, 'o ledger precisa declarar quantas divergencias tem').toBeGreaterThan(0);
+    for (const n of declarados) {
+      expect(n, `contagem declarada (${n}) nao bate com ${enumerados} itens enumerados`).toBe(
+        enumerados,
+      );
+    }
+  });
+
+  test('test_tabela_de_publicacao_do_readme_bate_com_o_workflow', () => {
+    // F-dom-infra-2 — a tabela dizia "manual dispatch | unsigned build" e citava
+    // um canal Docker Hub. Ambos falsos: `sign: true` e incondicional no
+    // publish.yml, e `dockerhub_image` foi removido na T4.3.
+    //
+    // Documentacao que descreve uma garantia de seguranca ERRADA e pior que
+    // silencio: um leitor decide confiar (ou nao) num artefato pelo que a tabela
+    // afirma.
+    const caller = readFileSync(WORKFLOW_PATH, 'utf-8');
+    const assinaSempre = /^\s*sign:\s*true\s*$/m.test(caller);
+    for (const f of ['README.md', 'README.pt-BR.md']) {
+      const doc = readFileSync(resolve(REPO_ROOT, f), 'utf-8');
+      if (assinaSempre) {
+        expect(doc, `${f}: afirma build nao assinado, mas sign: true e incondicional`).not.toMatch(
+          // Cobre as variantes das duas linguas. A primeira versao casava so
+          // "build nao assinado" e deu FALSO VERDE sobre "build sem assinatura"
+          // no README pt-BR — a afirmacao falsa sobreviveu ao teste que existia
+          // para mata-la.
+          /unsigned build|build (n[aã]o assinado|sem assinatura)|sem assinatura/i,
+        );
+      }
+      // `sign: true` e incondicional, entao TODO canal da tabela tem de declarar a
+      // assinatura — nao so os que alguem lembrou de atualizar. O achado original
+      // fechou so em ingles: a linha do `develop` no pt-BR ficou sem a mencao, e o
+      // teste (que so proibia "unsigned") nao pegou a OMISSAO.
+      if (assinaSempre) {
+        const canais = doc
+          .split('\n')
+          .filter((l) => /^\|\s*(push|dispatch|manual|tag)/i.test(l));
+        for (const canal of canais) {
+          expect(canal, `${f}: canal sem declarar assinatura`).toMatch(
+            /cosign|assinad/i,
+          );
+        }
+      }
+      if (!/dockerhub_image\s*:/.test(caller)) {
+        expect(doc, `${f}: cita canal Docker Hub que o workflow nao publica`).not.toMatch(
+          /Docker Hub `?usetheo\//i,
+        );
+      }
+    }
+  });
+
+  test('test_republicacao_manual_nao_dispara_a_suite_cara', () => {
+    // F-arch-1 / F-xval-4 / F-wire-1 — confirmado por tres agentes do /review.
+    //
+    // O job `integration` (OpenAI real, ~28 min) e gateado por
+    // `github.event_name == 'workflow_dispatch'`. Um workflow invocado por
+    // `workflow_call` enxerga o evento do CHAMADOR — e o publish.yml declara
+    // `workflow_dispatch` como escape hatch documentado de republicacao barata.
+    //
+    // Efeito nao intencional da T1.2: a republicacao manual passou a arrastar a
+    // suite cara para dentro do gate, e a falha dela trava o escape hatch.
+    // Push nao e afetado; so o dispatch.
+    const integration = readFileSync(resolve(REPO_ROOT, '.github/workflows/integration.yml'), 'utf-8');
+
+    // A flag tem de existir como input de `workflow_call` — e so ali. Um input
+    // de `workflow_dispatch` seria preenchivel por quem dispara e nao serviria
+    // de discriminante.
+    expect(integration, 'falta o input que marca invocacao por outro workflow').toMatch(
+      // Janela larga de proposito: entre `workflow_call:` e o input ha o bloco de
+      // comentario que explica POR QUE a flag existe, e ele e longo. Um limite
+      // apertado transformaria "documentei melhor" em teste vermelho.
+      /workflow_call:[\s\S]{0,1500}called_by_workflow:/,
+    );
+
+    // O guard e multi-linha (`if: >-`), entao a busca cobre o bloco, nao a linha.
+    const guard = integration.match(/^\s*if:[\s\S]{0,300}?workflow_dispatch[^\n]*/m)?.[0];
+    expect(guard, 'o job caro precisa de uma guarda por evento').toBeTruthy();
+    expect(guard, 'a guarda tem de negar a invocacao por workflow_call').toMatch(
+      /!\s*inputs\.called_by_workflow/,
+    );
+  });
+
+  test('test_job_de_build_tem_timeout', () => {
+    // T3.1 — o job mais caro do repo rodava com o teto padrao de 360 min numa frota
+    // cobrada por MINUTO (Blacksmith): um job pendurado e caixa, nao cota.
+    //
+    // O detalhe que torna isto nao-obvio: o GitHub NAO honra `timeout-minutes` em job
+    // `uses:`. Aplica-lo em publish.yml — o lugar obvio — seria silenciosamente inerte.
+    // O unico lugar onde funciona e dentro do proprio reusable.
+    const vendored = readFileSync(resolve(REPO_ROOT, '.github/workflows/build-publish.yml'), 'utf-8');
+    expect(vendored).toMatch(/timeout-minutes:\s*\d+/);
+  });
+
+  test('test_imagem_so_publica_apos_os_gates', () => {
+    // T1.2 — publish.yml tinha UM `needs` (a propria guarda) e nao existe
+    // `workflow_run` em nenhum workflow, entao a imagem era construida e empurrada
+    // EM PARALELO ao CI. Push com teste vermelho publicava :develop, e o
+    // reconciliador o puxava em <=5 min.
+    //
+    // ADR-5: publish.yml deixa de ignorar `.github/**`. O comentario que justificava
+    // o ignore ("mudar um workflow nao muda a imagem") e falso para build-publish.yml,
+    // que DEFINE como a imagem e construida. Sem essa remocao, invocar os gates daqui
+    // os faria herdar o ignore e mudanca de workflow deixaria de rodar os testes que
+    // validam workflows — inclusive este.
+    const yaml = workflowText();
+
+    // Ancorado na LISTA de `needs`, nao na palavra solta. A versao anterior
+    // (`toMatch(/gate-contract/)`) passava com o job removido de `needs`, desde
+    // que o job ainda existisse no arquivo — mutacao medida pelo /review
+    // (F-tests-1). Um teste que sobrevive a remocao da coisa que ele protege
+    // nao protege nada.
+    expect(yaml).toMatch(/needs:\s*\[[^\]]*\bgate-ci\b[^\]]*\]/);
+    expect(yaml).toMatch(/needs:\s*\[[^\]]*\bgate-contract\b[^\]]*\]/);
+    expect(yaml, 'ADR-5: workflow define o build, entao mudanca dele reconstroi').not.toMatch(
+      /paths-ignore:[\s\S]{0,200}'\.github\/\*\*'/,
+    );
+  });
+
+  test('test_identidade_do_cosign_e_ancorada', () => {
+    // T2.3 — o regexp terminava em `build-publish\\.yml@` SEM ancora terminal, entao
+    // qualquer coisa depois do `@` casava. O guard existe para impedir que assinatura
+    // produzida por outro workflow seja aceita; casamento aberto o enfraquece.
+    const vendored = readFileSync(resolve(REPO_ROOT, '.github/workflows/build-publish.yml'), 'utf-8');
+    expect(vendored, 'sem ancora terminal, qualquer ref casa').toMatch(/build-publish\\\.yml@refs\/\(heads\|tags\)\/\.\+\$/);
+  });
+
+  test('test_bases_do_dockerfile_pinadas_por_digest', () => {
+    // T2.2 — a cadeia pina as ENTRADAS (21/21 actions por SHA) e assina a SAIDA
+    // (cosign no digest), mas a base sobre a qual tudo e construido flutuava numa
+    // tag continuamente reconstruida (:nonroot). Era o unico elo movel.
+    //
+    // EC-2 — digest de INDICE, nao de plataforma. A release e multi-arch
+    // (amd64+arm64); pinar o manifesto amd64 passaria verde em develop e
+    // quebraria so na tag, ao resolver a base para arm64.
+    const dockerfile = readFileSync(resolve(REPO_ROOT, 'Dockerfile'), 'utf-8');
+    const froms = dockerfile.split('\n').filter((l) => l.startsWith('FROM'));
+
+    expect(froms).toHaveLength(3);
+    for (const line of froms) expect(line).toMatch(/@sha256:[0-9a-f]{64}/);
+  });
+
+  test('test_gates_de_seguranca_usam_digest_nao_tag', () => {
+    // T2.1 — security-sast.yml rodava `semgrep/semgrep` (tag implicita :latest) e
+    // `gitleaks:latest`, ambos com $PWD montado RW, enquanto actionlint.yml no MESMO
+    // repo digest-pina e comenta que ":latest num gate de seguranca e a mesma classe
+    // de risco". O principio estava escrito e nao aplicado justamente no arquivo que
+    // roda os scanners.
+    //
+    // EC-2: o digest e o do INDICE (manifest list), nao o de plataforma — pinar o
+    // manifesto amd64 quebraria qualquer consumidor arm64.
+    const sast = readFileSync(resolve(REPO_ROOT, '.github/workflows/security-sast.yml'), 'utf-8');
+    const integration = readFileSync(resolve(REPO_ROOT, '.github/workflows/integration.yml'), 'utf-8');
+
+    expect(sast).toMatch(/@sha256:[0-9a-f]{64}/);
+    expect(sast, 'tag mutavel num gate de seguranca').not.toMatch(/docker run[^\n]*:latest/);
+    expect(sast, 'semgrep sem tag resolve :latest').not.toMatch(/semgrep\/semgrep\s/);
+    expect(integration, 'service container tambem e dependencia').toMatch(/image:\s*\S+@sha256:[0-9a-f]{64}/);
   });
 
   test('a divida da copia vendorizada tem sunset, e ele ainda nao venceu', () => {
@@ -170,7 +531,7 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     // Sem o `needs`, a guarda existiria mas nao gatearia nada — o modo de falha
     // mais silencioso possivel: um job verde ao lado de um publish que ignorou.
     expect(yaml, 'o job da imagem precisa DEPENDER da guarda').toMatch(
-      /needs:\s*guard-release-on-main/,
+      /needs:[\s\[]*guard-release-on-main/,   // lista desde T1.2: [guard, gate-ci, gate-contract]
     );
   });
 

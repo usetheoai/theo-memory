@@ -13,7 +13,7 @@
 # DÍVIDA CONSCIENTE, COM DATA DE VALIDADE: SUNSET 2026-10-26.
 #
 # O original existe para ser "the single hardened image pipeline for the whole org"; esta cópia
-# duplica exatamente aquilo que deveria ser único, e já divergiu em quatro pontos (abaixo).
+# duplica exatamente aquilo que deveria ser único, e já divergiu em OITO pontos (abaixo).
 # QUANDO `usetheodev/theo` MIGRAR PARA `usetheoai`, APAGUE ESTE ARQUIVO e devolva o `publish.yml`
 # para `uses: usetheoai/theo/...`. O teste `tests/integration/publish-workflow.test.ts` fixa qual
 # referência está em uso e tem de ser atualizado no mesmo commit.
@@ -24,7 +24,7 @@
 # honestas, e ambas exigem um commit: migrar (apagar a cópia) ou estender a data reconhecendo que
 # a divergência cresceu mais um trimestre.
 #
-# DIFERENÇAS EM RELAÇÃO AO ORIGINAL — quatro, e nenhuma é cosmética:
+# DIFERENÇAS EM RELAÇÃO AO ORIGINAL — OITO, e nenhuma é cosmética:
 #   1. `registry` default → `ghcr.io/usetheoai`. Um run de `usetheoai` recebe GITHUB_TOKEN de
 #      outro escopo e NÃO tem push no namespace `ghcr.io/usetheodev`.
 #   2. `runner` default → label da Blacksmith. O build original morria por `No space left on
@@ -41,7 +41,34 @@
 #      atesta-se só onde a auditoria consome. PORTAR ESTA MUDANÇA PARA O ORIGINAL — senão o retorno
 #      ao reusable, quando `theo` migrar, silenciosamente desfaz a assinatura do canal implantado.
 #
-# Todo o resto é idêntico ao original, incluindo os SHAs pinados de cada action.
+#   5. `timeout-minutes: 30` no job. TEM de viver aqui: o GitHub não honra
+#      `timeout-minutes` em job `uses:`, então aplicá-lo no chamador seria inerte. Sem ele, o
+#      job mais caro do repo corre com o teto padrão de 360 min numa frota cobrada por MINUTO.
+#
+#   6. `GOMOD_TOKEN` REMOVIDO do contrato de `workflow_call.secrets` e dos dois `secrets:` de
+#      build. Medido: o Dockerfile nunca monta `--mount=type=secret,id=gomod_token` e não existe
+#      `go.mod` neste repositório — a credencial veio no copia-e-cola de um reusable escrito para
+#      um repo Go. NÃO PORTAR para o original: lá o segredo é legítimo.
+#
+#   7. `cache-to` condicional ao ref não ser tag. Os dois canais dividiam um escopo com
+#      frequência e tamanho muito diferentes; o export raro e grande da release despejava por LRU
+#      as camadas quentes do `develop`. Ler continua sempre; só escrever ficou fora de tag.
+#
+#   8. Âncora terminal (`$`) no `--certificate-identity-regexp` do cosign. Sem ela o regexp
+#      casava qualquer SUFIXO, e uma assinatura produzida por OUTRO workflow seria aceita como
+#      desta — é o guarda de confused-deputy. PORTAR PARA O ORIGINAL.
+#
+# Fora estes OITO pontos, o resto é idêntico ao original, incluindo os SHAs pinados de cada
+# action.
+#
+# O QUE O TESTE DE CONTRATO GARANTE, exatamente: `publish-workflow.test.ts` confere que a
+# contagem declarada acima bate com o número de itens enumerados, e que os quatro pontos
+# desta remediação aparecem citados. Ele NÃO detecta uma divergência nova por conta própria —
+# não tem acesso ao original para comparar. Uma versão anterior deste comentário afirmava que
+# sim; era overclaim, e o `/review` pegou. Manter o ledger completo continua sendo
+# responsabilidade de quem edita este arquivo, porque é esta lista que a pessoa vai seguir no
+# dia em que o reusable original voltar a ser acessível — e um ledger incompleto desfaz
+# correções em silêncio.
 name: build-publish (vendored)
 on:
   workflow_call:
@@ -82,7 +109,6 @@ on:
       platforms:       { required: false, type: string,  default: "linux/amd64" }
       runner:          { required: false, type: string,  default: '["blacksmith-8vcpu-ubuntu-2404"]' }   # JSON array
     secrets:
-      GOMOD_TOKEN:        { required: false }   # cross-repo read for the pinned private theo-contracts module
       DOCKERHUB_USERNAME: { required: false }
       DOCKERHUB_TOKEN:    { required: false }
     outputs:
@@ -105,6 +131,13 @@ permissions:
 jobs:
   build-publish:
     runs-on: ${{ fromJSON(inputs.runner) }}
+    # 30 min contra um p95 medido de 305 s na era Blacksmith — margem de ~6x, generosa
+    # o bastante para o caso frio (~14 min pelo double-build do gate Trivy) e para o
+    # build multi-arch da release, sem deixar o teto padrao de 360 min de pe.
+    #
+    # TEM DE FICAR AQUI. O GitHub nao honra `timeout-minutes` em job `uses:`, entao
+    # aplica-lo no publish.yml — o lugar obvio — seria silenciosamente inerte.
+    timeout-minutes: 30
     outputs:
       digest: ${{ steps.build.outputs.digest }}
       image_ref: ${{ inputs.registry }}/${{ inputs.image }}@${{ steps.build.outputs.digest }}
@@ -156,9 +189,17 @@ jobs:
           # returns BlobNotFound on export (esp. large mode=max exports on self-hosted
           # runners). Cache is a build-time optimization, not a correctness input — a cache
           # miss/failure must never fail the build. Warns and continues instead.
-          cache-to: type=gha,mode=max,ignore-error=true,scope=${{ inputs.image }}
-          secrets: |
-            gomod_token=${{ secrets.GOMOD_TOKEN }}
+          # Condicional ao canal, de proposito. Os dois canais dividem UM escopo mas
+          # tem frequencia e tamanho muito diferentes: develop e todo push, amd64,
+          # quente; tag e rara, multi-arch, export mode=max (grande). O cache do GHA
+          # tem teto por repositorio e despeja por LRU — o export raro e grande da
+          # release despeja as camadas quentes do develop, e os builds de develop
+          # passam a rodar frios. Pior: a entrada escrita pela release quase certamente
+          # e despejada antes da proxima tag, entao o upload e pago sem nunca ser lido.
+          #
+          # LER continua sempre (`cache-from` acima): a release aproveita as camadas do
+          # develop de graca. So ESCREVER e que fica fora de tag.
+          cache-to: ${{ startsWith(github.ref, 'refs/tags/') && '' || format('type=gha,mode=max,ignore-error=true,scope={0}', inputs.image) }}
 
       - name: Trivy vulnerability scan (CRITICAL + HIGH gate)
         if: ${{ inputs.trivy }}
@@ -213,9 +254,17 @@ jobs:
           # returns BlobNotFound on export (esp. large mode=max exports on self-hosted
           # runners). Cache is a build-time optimization, not a correctness input — a cache
           # miss/failure must never fail the build. Warns and continues instead.
-          cache-to: type=gha,mode=max,ignore-error=true,scope=${{ inputs.image }}
-          secrets: |
-            gomod_token=${{ secrets.GOMOD_TOKEN }}
+          # Condicional ao canal, de proposito. Os dois canais dividem UM escopo mas
+          # tem frequencia e tamanho muito diferentes: develop e todo push, amd64,
+          # quente; tag e rara, multi-arch, export mode=max (grande). O cache do GHA
+          # tem teto por repositorio e despeja por LRU — o export raro e grande da
+          # release despeja as camadas quentes do develop, e os builds de develop
+          # passam a rodar frios. Pior: a entrada escrita pela release quase certamente
+          # e despejada antes da proxima tag, entao o upload e pago sem nunca ser lido.
+          #
+          # LER continua sempre (`cache-from` acima): a release aproveita as camadas do
+          # develop de graca. So ESCREVER e que fica fora de tag.
+          cache-to: ${{ startsWith(github.ref, 'refs/tags/') && '' || format('type=gha,mode=max,ignore-error=true,scope={0}', inputs.image) }}
 
       - name: Install cosign
         if: ${{ inputs.sign }}
@@ -236,7 +285,7 @@ jobs:
         if: ${{ inputs.sign && inputs.verify }}
         run: |
           cosign verify "${{ inputs.registry }}/${{ inputs.image }}@${{ steps.build.outputs.digest }}" \
-            --certificate-identity-regexp '^https://github\.com/usetheoai/theo-memory/\.github/workflows/build-publish\.yml@' \
+            --certificate-identity-regexp '^https://github\.com/usetheoai/theo-memory/\.github/workflows/build-publish\.yml@refs/(heads|tags)/.+$' \
             --certificate-oidc-issuer https://token.actions.githubusercontent.com
 
       # O digest exportado (workflow_call.outputs) serve a um workflow consumidor.

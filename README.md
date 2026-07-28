@@ -89,7 +89,7 @@ const facts = await memory.user('alice').recall('UI preferences');
 - **Three surfaces** — REST API (Hono + OpenAPI 3.1) · MCP server · CLI
 - **OpenMemory drop-in** — `themory mcp --compat openmemory` serves the OpenMemory tool surface over SSE for Cursor / Claude Desktop / Windsurf / Cline
 - **Selectable embedder** — `THEOMEM_EMBEDDER=local` (on-device Xenova MiniLM) or `openai` (`text-embedding-3-small`, no on-device model)
-- **Docker-ready** — distroless image < 200 MB with healthcheck
+- **Docker-ready** — distroless image (~170 MB compressed / ~541 MB uncompressed on disk) with healthcheck
 - **Observable** — 56 typed OpenTelemetry events + per-handler spans
 - **Tested** — ~970 contract/unit tests + 540+ integration tests against real pgvector, across 400+ test files
 
@@ -339,7 +339,7 @@ docker run -p 8080:8080 \
 
 > The currently published tag is `0.1.0-alpha`; release tags are published to GHCR by CI on each version tag. The default image bundles the local embedder (Xenova/ONNX) — set `THEOMEM_EMBEDDER=openai` to use the OpenAI embedding API instead (no on-device model, no HuggingFace download at runtime).
 
-Distroless Node 22 image, < 200 MB, Trivy-gated (zero CRITICAL/HIGH CVE), healthcheck built in. The image has no shell, so one-shot subcommands like `migrate` / `health` run by overriding the entrypoint to invoke Node directly:
+Distroless Node 22 image — ~170 MB compressed (what the registry reports) and ~541 MB uncompressed on disk (what `docker images` shows); measured 2026-07-28 on `:develop`. Trivy-gated (zero CRITICAL/HIGH CVE), healthcheck built in. The image has no shell, so one-shot subcommands like `migrate` / `health` run by overriding the entrypoint to invoke Node directly:
 
 ```bash
 # Apply migrations (or `health`) against the distroless image
@@ -350,13 +350,13 @@ docker run --rm --entrypoint /nodejs/bin/node \
 
 ## CI/CD
 
-Every release image is **cosign-signed with identity-pinned verification** and ships an **SBOM + SLSA provenance** — so you can verify what you pull. Images publish to GHCR (and Docker Hub) automatically on each version tag.
+Every release image is **cosign-signed with identity-pinned verification** and ships an **SBOM + SLSA provenance** — so you can verify what you pull. Images publish to GHCR automatically on each version tag.
 
 | Trigger | Channel | Result |
 |---|---|---|
-| push to `develop` | preview | `ghcr.io/usetheoai/theo-memory:develop` (+ `:develop-<short>`) |
-| semver tag `v*` | release | `ghcr.io/usetheoai/theo-memory:<version>` — **cosign-signed + identity-pinned verify** + SBOM/SLSA (+ Docker Hub `usetheo/theo-memory` when `DOCKERHUB_TOKEN` is set) |
-| manual dispatch | smoke | unsigned build |
+| push to `develop` | preview | `ghcr.io/usetheoai/theo-memory:develop` (+ `:develop-<short>`) — **cosign-signed** |
+| semver tag `v*` | release | `ghcr.io/usetheoai/theo-memory:<version>` — **cosign-signed + identity-pinned verify** + SBOM/SLSA attestations |
+| manual dispatch | smoke | same build as `develop`, **cosign-signed** (signing is unconditional) |
 
 > **Image renamed (2026-07-28): `themory` → `theo-memory`.** The image now carries the repository
 > name, matching every sibling project (`theo-lens`, `theo-rag`, `theo-db`).

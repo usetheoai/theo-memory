@@ -42,15 +42,21 @@ on:
     paths-ignore:
       - '.claude/**'
       - '**/*.md'
+      # Alinhado com ci/integration/eval (F-tests-3). Sem esta linha, um push que
+      # toca so `docs/**` nao era ignorado aqui e disparava build de imagem, apesar
+      # de os tres gates o ignorarem — trabalho pago sem mudar o artefato.
+      - 'docs/**'
       # Adicionados em 2026-07-27: nada aqui entra na imagem. Medido no commit `6b333d9`,
       # que tocou só workflows + CHANGELOG e mesmo assim disparou build + push de
       # uma imagem idêntica, além de CI, SAST, eval e integration — seis runs numa fila
       # serial compartilhada por cinco repositórios.
       - 'docs/**'
       - 'agents/**'
-      # Mudar um workflow não muda a imagem. Para exercitar uma alteração NESTE arquivo,
-      # use o `workflow_dispatch` declarado abaixo — é o escape hatch previsto.
-      - '.github/**'
+      # `.github/**` NAO entra aqui (ADR-5). O comentario anterior dizia "mudar um workflow
+      # nao muda a imagem" — falso para `build-publish.yml`, que DEFINE como a imagem e
+      # construida (Dockerfile, plataformas, cache, assinatura). Confundia CONTEUDO da imagem
+      # com PROCESSO de construcao. E, como este workflow agora invoca os gates, ignorar
+      # `.github/**` faria mudanca de workflow deixar de rodar os testes que a validam.
   workflow_dispatch:
 # Pushes sucessivos em develop devem SUPERSEDER (cancelar) o run mais antigo em vez de empilhar:
 # só a imagem mais nova interessa, e build cancelado é minuto de runner economizado. Antes de o
@@ -108,6 +114,17 @@ jobs:
               exit 1 ;;
           esac
 
+  # Os gates rodam AQUI, invocados por `workflow_call` — uma definicao, dois invocadores
+  # (PR chama direto; push chega por este workflow). `workflow_call` e sincrono no mesmo
+  # run e preserva `github.sha`, ao contrario de `workflow_run`.
+  gate-ci:
+    uses: ./.github/workflows/ci.yml
+
+  gate-contract:
+    uses: ./.github/workflows/integration.yml
+    secrets:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
   # Chama a CÓPIA VENDORIZADA local, não o reusable de `usetheodev/theo`.
   #
   # POR QUÊ: `usetheodev/theo` é privado e de outro dono desde a transferência deste repo para a
@@ -123,7 +140,7 @@ jobs:
     # A guarda roda em todo disparo e sai imediatamente quando nao e tag — o job existe
     # para que `needs` seja incondicional aqui. Com `needs` condicional, um job pulado
     # arrastaria o `image` junto e nenhuma imagem seria publicada em `develop`.
-    needs: guard-release-on-main
+    needs: [guard-release-on-main, gate-ci, gate-contract]
     uses: ./.github/workflows/build-publish.yml
     with:
       # `theo-memory`, nao `themory`: e o nome do repositorio, que e o padrao dos
@@ -145,16 +162,6 @@ jobs:
       # namespace errado. A imagem passa a ser `ghcr.io/usetheoai/themory`.
       registry: ghcr.io/usetheoai
       trivy: true
-      # Alinhado ao GHCR pelo mesmo motivo. Dormente hoje: sem DOCKERHUB_TOKEN o
-      # step de login e pulado e nada e empurrado para o Docker Hub — nenhum dos
-      # projetos irmaos publica la.
-      dockerhub_image: usetheo/theo-memory   # pushed only when the DOCKERHUB_TOKEN secret is set
-      # Assinar SEMPRE — inclusive em develop. O reconciliador do host puxa
-      # `:develop` a cada 5 min, entao era exatamente o artefato em execucao que
-      # nao tinha assinatura: a garantia existia no canal de release, que nao e o
-      # que roda. Cosign keyless custa segundos, e `id-token: write` ja esta
-      # declarado. Verificar junto, senao assina-se sem saber se a assinatura
-      # presta.
       sign: true
       verify: true
       # SBOM + proveniencia SLSA mode=max SO na release. Este e o export pesado —
@@ -180,10 +187,14 @@ jobs:
       # entao aqui vai a string JSON literal — NAO envolver em fromJSON, que produziria um array
       # onde o input espera string e o workflow falharia no parse.
       runner: '["blacksmith-8vcpu-ubuntu-2404"]'
-    # Explicit (not `secrets: inherit`) — avoids the semgrep github-actions
-    # secrets-inherit finding. DOCKERHUB_* are empty here → Docker Hub push is skipped
-    # (GHCR still publishes via the run's GITHUB_TOKEN).
-    secrets:
-      GOMOD_TOKEN: ${{ secrets.GOMOD_TOKEN }}
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+    # SEM bloco `secrets:` — de propósito, e não por esquecimento.
+    #
+    # Estas duas linhas repassavam `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` para um caminho
+    # que a T4.3 tornou inalcançável: sem `dockerhub_image`, o input cai no default `""` e
+    # todo step de Docker Hub do reusable é pulado. Repassar credencial para um destino que
+    # não pode usá-la é superfície sem contrapartida — e o comentário que a acompanhava
+    # ("Docker Hub push is skipped") descrevia como aceitável exatamente o que a torna inútil.
+    #
+    # Continua valendo o motivo original de NÃO usar `secrets: inherit`: o semgrep sinaliza
+    # esse padrão, e herdar tudo dá ao reusable acesso a segredos que ele não pediu.
+    # `GITHUB_TOKEN` é implícito e não precisa ser declarado — é ele que publica no GHCR.

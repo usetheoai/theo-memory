@@ -31,9 +31,18 @@ services:
   themory:
     # THEMORY_IMAGE override exists so the T3.5 GOAL TEST (and any operator
     # running the compose against a locally-built image) can point at
-    # `themory:dev` without forking this file. Default keeps the public
-    # Docker Hub coordinate (also available at ghcr.io/usetheoai/theo-memory).
-    image: ${THEMORY_IMAGE:-usetheo/theo-memory:${VERSION:-0.2.0}}
+    # `themory:dev` without forking this file.
+    #
+    # O default aponta para o GHCR porque e o unico registry para onde publicamos.
+    # Ate 2026-07-28 este default era `usetheo/theo-memory:0.2.0` — uma coordenada
+    # de Docker Hub que NUNCA existiu: nao ha credencial DOCKERHUB_* configurada,
+    # entao o passo de push era pulado em silencio, e quem seguia este arquivo
+    # recebia `manifest unknown`.
+    #
+    # `latest` como default de VERSION: medido, as tags versionadas ainda nao
+    # existem sob o nome novo (`0.56.0` nao resolve; `latest` e `develop` sim).
+    # Fixe VERSION assim que a primeira release versionada for publicada.
+    image: ${THEMORY_IMAGE:-ghcr.io/usetheoai/theo-memory:${VERSION:-latest}}
     container_name: themory_app
     restart: unless-stopped
     depends_on:

@@ -49,6 +49,17 @@ vi.mock('@usetheo/memory', () => ({
   PgMemoryEntityStore: class MockPgMemoryEntityStore {},
 }));
 
+// FLAKY-boot-import — `@usetheo/memory/recall-trace-pg` nao estava mockado, e o
+// `await import()` deste arquivo pagava a transformacao do grafo real dele. Medido
+// no arquivo irmao (`run-server.test.ts`): 14 s -> 5,7 s so com este mock, contra
+// um teto de 15 s. Sob carga da suite a margem sumia e o teste falhava de forma
+// intermitente. Nenhum teste deste arquivo assere qualquer simbolo deste modulo.
+vi.mock('@usetheo/memory/recall-trace-pg', () => ({
+  PgRecallTraceStore: class MockPgRecallTraceStore {},
+  PgRecallTraceRetention: class MockPgRecallTraceRetention {},
+  startRecallTraceRetentionCron: vi.fn().mockReturnValue({ stop: vi.fn() }),
+}));
+
 vi.mock('pg', () => ({
   Pool: class MockPool {
     end = mockPoolEnd;
@@ -116,6 +127,23 @@ afterEach(() => {
 });
 
 describe('T1.1 — runMcpServer startup banner (post-e43d801 real-providers regime)', () => {
+/**
+ * TIMEOUT EXPLICITO — calibrado contra medicao, nao arredondado para cima.
+ *
+ * Estes testes fazem `await import()` de um modulo de boot: o que eles medem, de
+ * fato, e TRANSFORMACAO DE MODULO, nao comportamento. Com 12 workers do vitest
+ * competindo pelo transform, o piso de infraestrutura passa dos 15 s do
+ * `testTimeout` global, e o teste falha por latencia da maquina em vez de por
+ * defeito no codigo.
+ *
+ * O custo EVITAVEL ja foi removido: `@usetheo/memory/recall-trace-pg` passou a
+ * ser mockado nestes arquivos (medido em isolamento: 14,0 s -> 5,7 s). O que
+ * resta e inerente ao import dinamico de um grafo real sob contencao.
+ *
+ * 30 s = ~4x o custo isolado medido (5,7-8,8 s), com folga para a contencao.
+ * Se voltar a estourar, o caminho e quebrar a cadeia de import do boot — nao
+ * subir este numero de novo.
+ */
   it('FC2-T1.1 — runMcpServer writes the real-providers disclosure to stderr on startup', async () => {
     // Post-e43d801: stub-embedder warning is REMOVED. The replacement banner
     // announces real providers (LocalTransformerEmbedder + OpenAILLM).
@@ -125,7 +153,7 @@ describe('T1.1 — runMcpServer startup banner (post-e43d801 real-providers regi
     const captured = stderrSpy.mock.calls.flat().map((arg: unknown) => String(arg)).join(' ');
     expect(captured).toMatch(/real providers wired/i);
     expect(captured).toMatch(/themory mcp/i);
-  });
+  }, 30_000);
 });
 
 describe('T3.1 — runMcpServer transport+auth disclosure (ADR D3)', () => {

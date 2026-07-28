@@ -17,11 +17,13 @@ on:
     paths-ignore:
       - '.claude/**'
       - '**/*.md'
+      - 'docs/**'
   push:
     branches: [develop]
     paths-ignore:
       - '.claude/**'
       - '**/*.md'
+      - 'docs/**'
 
 permissions:
   contents: read

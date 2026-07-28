@@ -94,7 +94,7 @@ const facts = await memory.user('alice').recall('UI preferences');
 - **Três superfícies** — API REST (Hono + OpenAPI 3.1) · servidor MCP · CLI
 - **Drop-in de OpenMemory** — `themory mcp --compat openmemory` serve a superfície de ferramentas do OpenMemory sobre SSE para Cursor / Claude Desktop / Windsurf / Cline
 - **Embedder selecionável** — `THEOMEM_EMBEDDER=local` (Xenova MiniLM on-device) ou `openai` (`text-embedding-3-small`, sem modelo local)
-- **Pronto para Docker** — imagem distroless < 200 MB com healthcheck
+- **Pronto para Docker** — imagem distroless (~170 MB comprimida / ~541 MB descomprimida no disco) com healthcheck
 - **Observável** — 56 eventos OpenTelemetry tipados + spans por handler
 - **Testado** — ~970 testes de contrato/unidade + 540+ de integração contra pgvector real, em 400+ arquivos de teste
 
@@ -344,7 +344,7 @@ docker run -p 8080:8080 \
 
 > A tag publicada no momento é `0.1.0-alpha`; tags de release são publicadas no GHCR pelo CI a cada tag de versão. A imagem padrão embute o embedder local (Xenova/ONNX) — defina `THEOMEM_EMBEDDER=openai` para usar a API de embedding da OpenAI (sem modelo on-device, sem download do HuggingFace em runtime).
 
-Imagem distroless Node 22, < 200 MB, com gate do Trivy (zero CVE CRITICAL/HIGH) e healthcheck embutido. A imagem não tem shell, então subcomandos pontuais como `migrate` / `health` rodam sobrescrevendo o entrypoint para invocar o Node diretamente:
+Imagem distroless Node 22 — ~170 MB comprimida (o que o registry reporta) e ~541 MB descomprimida no disco (o que `docker images` mostra); medido em 2026-07-28 sobre `:develop`. Com gate do Trivy (zero CVE CRITICAL/HIGH) e healthcheck embutido. A imagem não tem shell, então subcomandos pontuais como `migrate` / `health` rodam sobrescrevendo o entrypoint para invocar o Node diretamente:
 
 ```bash
 # Aplique migrations (ou `health`) contra a imagem distroless
@@ -355,13 +355,13 @@ docker run --rm --entrypoint /nodejs/bin/node \
 
 ## CI/CD
 
-Toda imagem de release é **assinada com cosign, com verificação fixada por identidade**, e acompanha **SBOM + proveniência SLSA** — então dá para verificar o que você baixa. As imagens são publicadas no GHCR (e no Docker Hub) automaticamente a cada tag de versão.
+Toda imagem de release é **assinada com cosign, com verificação fixada por identidade**, e acompanha **SBOM + proveniência SLSA** — então dá para verificar o que você baixa. As imagens são publicadas no GHCR automaticamente a cada tag de versão.
 
 | Gatilho | Canal | Resultado |
 |---|---|---|
-| push em `develop` | preview | `ghcr.io/usetheoai/theo-memory:develop` (+ `:develop-<short>`) |
-| tag semver `v*` | release | `ghcr.io/usetheoai/theo-memory:<version>` — **assinada com cosign + verificação fixada por identidade** + SBOM/SLSA (+ Docker Hub `usetheo/theo-memory` quando `DOCKERHUB_TOKEN` está definida) |
-| dispatch manual | smoke | build sem assinatura |
+| push em `develop` | preview | `ghcr.io/usetheoai/theo-memory:develop` (+ `:develop-<short>`) — **assinado com cosign** |
+| tag semver `v*` | release | `ghcr.io/usetheoai/theo-memory:<version>` — **assinada com cosign + verificação fixada por identidade** + SBOM/SLSA |
+| dispatch manual | smoke | mesmo build do `develop`, **assinado com cosign** (a assinatura é incondicional) |
 
 > **Imagem renomeada (2026-07-28): `themory` → `theo-memory`.** A imagem passa a carregar o nome do
 > repositório, como em todos os projetos irmãos (`theo-lens`, `theo-rag`, `theo-db`).

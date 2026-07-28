@@ -48,6 +48,23 @@ vi.mock('@usetheo/memory', () => ({
   PgRoutingAuditStore: class MockPgRoutingAuditStore {},
 }));
 
+// FLAKY-boot-import — `run-server.ts` importa `@usetheo/memory-agent-core` e
+// `@usetheo/memory/recall-trace-pg` sem mock. O `await import('../run-server.js')` de cada teste pagava a
+// transformacao do grafo REAL desses tres pacotes: 10-14 s medidos em isolamento
+// contra um teto de 15 s. Sob carga da suite completa a margem sumia, e os
+// testes falhavam de forma intermitente (medido: 0 / 3 / 4 falhas em tres runs
+// da mesma arvore).
+//
+// Nenhum teste deste arquivo assere qualquer simbolo destes tres pacotes — o
+// sujeito aqui e a ORDEM de `runServer` (migrar antes de bindar) e a porta.
+// Mockar uma fronteira que o teste nao exercita e teste unitario correto, nao
+// remendo: aumentar o teto e que esconderia o custo em vez de remove-lo.
+vi.mock('@usetheo/memory/recall-trace-pg', () => ({
+  PgRecallTraceStore: class MockPgRecallTraceStore {},
+  PgRecallTraceRetention: class MockPgRecallTraceRetention {},
+  startRecallTraceRetentionCron: vi.fn().mockReturnValue({ stop: vi.fn() }),
+}));
+
 vi.mock('@usetheo/memory/embedders/stub', () => ({
   DeterministicStubEmbedder: class MockDeterministicStubEmbedder {
     async embed(): Promise<readonly number[]> {
@@ -101,12 +118,29 @@ afterEach(() => {
 });
 
 describe('T2.3 — runServer composition contract', () => {
+/**
+ * TIMEOUT EXPLICITO — calibrado contra medicao, nao arredondado para cima.
+ *
+ * Estes testes fazem `await import()` de um modulo de boot: o que eles medem, de
+ * fato, e TRANSFORMACAO DE MODULO, nao comportamento. Com 12 workers do vitest
+ * competindo pelo transform, o piso de infraestrutura passa dos 15 s do
+ * `testTimeout` global, e o teste falha por latencia da maquina em vez de por
+ * defeito no codigo.
+ *
+ * O custo EVITAVEL ja foi removido: `@usetheo/memory/recall-trace-pg` passou a
+ * ser mockado nestes arquivos (medido em isolamento: 14,0 s -> 5,7 s). O que
+ * resta e inerente ao import dinamico de um grafo real sob contencao.
+ *
+ * 30 s = ~4x o custo isolado medido (5,7-8,8 s), com folga para a contencao.
+ * Se voltar a estourar, o caminho e quebrar a cadeia de import do boot — nao
+ * subir este numero de novo.
+ */
   it('43. binds port 9999 via @hono/node-server serve', async () => {
     const { runServer } = await import('../run-server.js');
     await runServer({ port: 9999 });
     expect(mockServeListener).toHaveBeenCalledTimes(1);
     expect(mockServeListener.mock.calls[0]?.[0]).toMatchObject({ port: 9999 });
-  });
+  }, 30_000);
 
   it('44. runs migrations BEFORE binding port (ADR D8)', async () => {
     // Capture call order: migrations must complete before serve() is invoked.

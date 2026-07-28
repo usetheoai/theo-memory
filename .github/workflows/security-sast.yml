@@ -19,16 +19,17 @@ name: Security SAST
 # GATILHOS: PR para `develop` ou `main` (gate antes de entrar no trunk) + push em `develop`
 # (verificação pós-merge). Ver o racional completo em `ci.yml`.
 on:
+  # SEM paths-ignore, de proposito. O gitleaks aqui procura CONTEUDO, nao codigo:
+  # credencial vaza por acidente justamente em prosa — exemplo de configuracao,
+  # runbook, passo-a-passo de setup — e em script de hook. Filtrar por caminho um
+  # gate que procura conteudo inverte o proposito dele.
+  #
+  # Os gates de TESTE (ci, integration, eval) podem ignorar prosa, porque markdown
+  # nao muda comportamento de runtime. Este nao pode.
   pull_request:
     branches: [develop, main]
-    paths-ignore:
-      - '.claude/**'
-      - '**/*.md'
   push:
     branches: [develop]
-    paths-ignore:
-      - '.claude/**'
-      - '**/*.md'
 
 permissions:
   contents: read
@@ -56,7 +57,8 @@ jobs:
         # host-run job's checkout. Here the checkout runs on the host (runner-owned)
         # and only the scan runs in the container, mounting the workspace.
         run: |
-          docker run --rm -v "$PWD:/src" semgrep/semgrep \
+          docker run --rm -v "$PWD:/src" \
+            semgrep/semgrep@sha256:98c2572fced2474539fd27cab3207ebd8e95e4e7aab4c3b381fdc5e2641d9941 \
             semgrep scan \
               --config p/typescript \
               --config p/javascript \
@@ -68,10 +70,19 @@ jobs:
               --exclude '*.spec.ts' \
               /src/packages
       - name: Secret scan (gitleaks — theo_live_ keys, #126)
+        # ESCOPO = A RAIZ, nao `packages/`. Ate 2026-07-28 este scan lia so `/src/packages`,
+        # enquanto o workflow ja tinha perdido o `paths-ignore` sob a justificativa de que
+        # "prosa e onde credencial vaza por acidente". A justificativa estava certa e o
+        # escopo a contradizia: README, runbook, `docs/` e `.claude/` ficavam de fora, e o
+        # unico efeito da remocao do filtro era rodar o job em push so-de-docs sem ganhar
+        # cobertura alguma. Gate cuja justificativa nao corresponde ao que ele faz e pior
+        # que gate ausente — alguem le a justificativa e para de procurar.
+        #
         # Targeted preventive gate: a hardcoded theo_live_ API key added to the production tree
         # fails CI. Scans the working tree (not git history) with `.gitleaks.toml`, so it does not
         # re-flag the already-exposed keys #126 tracks for the OWNER to rotate (history rewrite is
         # forbidden — Rule 4). Rule 9: gitleaks is the standard scanner; not reinvented.
         run: |
-          docker run --rm -v "$PWD:/src" ghcr.io/gitleaks/gitleaks:latest \
-            dir /src/packages --config /src/.gitleaks.toml --no-banner --exit-code 1
+          docker run --rm -v "$PWD:/src" \
+            ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
+            dir /src --config /src/.gitleaks.toml --no-banner --exit-code 1

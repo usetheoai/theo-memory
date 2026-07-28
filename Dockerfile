@@ -29,12 +29,13 @@
 # @see EC-38 (glibc distroless) + EC-39 (optional deps included) + EC-40
 #      (tsc gate in build) + EC-47 (distroless no-shell invariant)
 
-ARG NODE_VERSION=22
-
 ###############################################################################
 # Stage 1 — builder: install ALL deps + emit dist/ via tsc
 ###############################################################################
-FROM node:${NODE_VERSION}-bookworm-slim AS builder
+# Digest de INDICE (multi-arch), nao de plataforma — a release e amd64+arm64 e pinar o
+# manifesto de uma arquitetura quebraria a outra, so na tag. Obtido com
+# `docker buildx imagetools inspect node:22-bookworm-slim`.
+FROM node@sha256:6c74791e557ce11fc957704f6d4fe134a7bc8d6f5ca4403205b2966bd488f6b3 AS builder   # node:22-bookworm-slim
 
 WORKDIR /build
 
@@ -96,7 +97,7 @@ RUN pnpm build
 ###############################################################################
 # Stage 2 — production-deps: prune dev deps for the runtime image
 ###############################################################################
-FROM node:${NODE_VERSION}-bookworm-slim AS production-deps
+FROM node@sha256:6c74791e557ce11fc957704f6d4fe134a7bc8d6f5ca4403205b2966bd488f6b3 AS production-deps   # node:22-bookworm-slim
 
 WORKDIR /build
 
@@ -153,7 +154,7 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
 ###############################################################################
 # Stage 3 — runtime: distroless Node 22 (no shell, nonroot)
 ###############################################################################
-FROM gcr.io/distroless/nodejs22-debian12:nonroot AS runtime
+FROM gcr.io/distroless/nodejs22-debian12@sha256:13593b7570658e8477de39e2f4a1dd25db2f836d68a0ba771251572d23bb4f8e AS runtime   # :nonroot
 
 WORKDIR /app
 
