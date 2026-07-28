@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- Passada de edição de estilo no `README.md`: removida a terceira repetição da mesma promessa ("no lock-in / seu Postgres / Apache-2.0", que aparecia três vezes nas primeiras 55 linhas), desfeita a antítese "não é X, é Y" na seção Status, e trocada uma abertura vaga em "What's distinctive". Nenhuma afirmação técnica, número ou claim mudou — só a redação.
 - Prosa de `CLAUDE.md` e do CHANGELOG restaurada após a reescrita de histórico de 2026-07-28. A substituição mecânica de nomes de terceiros produziu trechos agramaticais ("NOT the Python NLP library.** the Python NLP library is Python", "no the Python NLP library/Python"); cicatrizes de uma limpeza anterior que removera só os nomes, deixando crases vazias e "the the", também foram fechadas. Nenhuma afirmação técnica foi alterada — só a redação. Entradas de versões já released foram tocadas **apenas** onde a substituição as havia quebrado gramaticalmente; isso é restauração do texto publicado, não revisão do que foi entregue.
 
 ### Deprecated
