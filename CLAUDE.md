@@ -29,7 +29,7 @@ O contrato favorece densidade informacional sobre cobertura bruta. Volume sem pr
 
 Toda decisão de gravar, ignorar, deduplicar, expirar ou substituir uma memória é OBSERVÁVEL e RASTREÁVEL. IGNORE nunca é silencioso:
 
-- **`MEMORY_EVENTS` union tipada** (16 literais) — cada fase do write/recall/reflect emite um evento OTel tipado via `emitEvent(tracer, ...)`. Inclui `extraction_zero_facts` (LLM extraiu nada), `dedup_collision_confirmed` (UPSERT bumpou `confirmation_count`), `recall_threshold_filtered` (N candidatos sub-threshold descartados) — os 3 IGNORE-decisions que antes eram silenciosos.
+- **`MEMORY_EVENTS` union tipada** (56 literais) — cada fase do write/recall/reflect emite um evento OTel tipado via `emitEvent(tracer, ...)`. Inclui `extraction_zero_facts` (LLM extraiu nada), `dedup_collision_confirmed` (UPSERT bumpou `confirmation_count`), `recall_threshold_filtered` (N candidatos sub-threshold descartados) — os 3 IGNORE-decisions que antes eram silenciosos.
 - **`MemoryItem.rejectedAsDuplicate`** — flag consumer-visible: quando `remember` retorna a linha EXISTENTE pós-dedup-collision, o consumidor SABE.
 - **Audit tables** — `history` registra remember/forget; `consolidation_history` registra reflect com FK `ON DELETE SET NULL` para survival GDPR; `MemoryItem.derivedFrom` carrega provenance para memórias derivadas (v0.4a reflection, v0.7 distillation).
 - **Bi-temporal `t_valid` + `t_invalid`** — `recall({ asOf })` retorna o estado válido em qualquer instante histórico (v1.1 supersedes ADR-0006 runtime clause).

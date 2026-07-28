@@ -3,6 +3,18 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
+### Fixed
+
+- **O README documentava um CLI que não existe para quem instala do npm.** Nenhum pacote publicável declara `bin` — a distribuição é por imagem Docker (ADR D2-a, "no npm bin; CLI via Docker"). `npx themory server`, `npx @usetheo/memory mcp` e toda a seção CLI falhariam. O Quickstart agora é Docker-first e declara como o produto é distribuído hoje.
+- **Namespace Docker inexistente.** O README mandava `docker pull ghcr.io/usetheo/themory` — namespace que não aparece em nenhum workflow. O correto é `ghcr.io/usetheoai/themory`, o que a própria seção CI/CD logo abaixo já dizia.
+- **A árvore de arquitetura descrevia um layout que não existe.** Mostrava `src/core/`, `src/local/`, `src/server/` etc.; o repositório é `packages/{agent-core,api,cli,core,eval,mcp}` — como o `docs/ARCHITECTURE.md`, que o próprio README aponta como autoridade, já documentava corretamente.
+- **Contagens erradas e auto-contraditórias:** migrations diziam 15 na árvore e 18 na tabela (são **29**); "13 DIP interfaces" (são **23** portas); "16 OpenTelemetry events" (são **56**); "270+ test files" (são **400+**). Também corrigido no `CLAUDE.md`, que repetia o 16.
+- **O bloco `.mcp.json` do README contradizia o `.mcp.json.example`** que ele mesmo referencia: usava `npx`, quando o exemplo usa caminho de build local.
+- **Alegação não verificável no Status.** "validated across 107 end-to-end scenarios" não tem fonte em nenhum artefato do repositório — a suíte de journeys vivia no `.claude/`, removido na abertura OSS. Substituída pelos números que se verificam contra o código.
+- Roadmap: `v0.6` aparecia duas vezes com conteúdos diferentes e `v0.5` vinha depois de `v1.5`.
+
+Todos os itens acima valem para `README.md` **e** `README.pt-BR.md`.
+
 ### Added
 
 - Tradução do README para português do Brasil (`README.pt-BR.md`), com seletor de idioma nos dois arquivos. O README em inglês segue sendo o canônico, e ambos declaram isso — uma tradução defasada é melhor que nenhuma, desde que o leitor saiba qual manda.

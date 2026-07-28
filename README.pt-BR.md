@@ -41,7 +41,7 @@ Funciona com qualquer LLM. Sem banco de grafos. Sem lock-in. Apache-2.0.
 
 | Documento | O que cobre |
 |---|---|
-| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | Fronteiras de camada, as 13 interfaces DIP, pipelines de escrita e busca |
+| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | Fronteiras de camada, as portas DIP, pipelines de escrita e busca |
 | [`docs/RUNBOOK.md`](./docs/RUNBOOK.md) | Deploy, migrations, rotação de chave, resposta a incidente |
 | [`docs/EVALUATION.md`](./docs/EVALUATION.md) | Como a qualidade de retrieval é medida, e contra o quê |
 | [`docs/adrs/`](./docs/adrs/) | Registros de decisão de arquitetura |
@@ -95,8 +95,8 @@ const facts = await memory.user('alice').recall('UI preferences');
 - **Drop-in de OpenMemory** — `themory mcp --compat openmemory` serve a superfície de ferramentas do OpenMemory sobre SSE para Cursor / Claude Desktop / Windsurf / Cline
 - **Embedder selecionável** — `THEOMEM_EMBEDDER=local` (Xenova MiniLM on-device) ou `openai` (`text-embedding-3-small`, sem modelo local)
 - **Pronto para Docker** — imagem distroless < 200 MB com healthcheck
-- **Observável** — 16 eventos OpenTelemetry + spans por handler
-- **Testado** — ~970 testes de contrato/unidade + 540+ de integração contra pgvector real, em 270+ arquivos de teste
+- **Observável** — 56 eventos OpenTelemetry tipados + spans por handler
+- **Testado** — ~970 testes de contrato/unidade + 540+ de integração contra pgvector real, em 400+ arquivos de teste
 
 ## Requisitos
 
@@ -107,29 +107,30 @@ const facts = await memory.user('alice').recall('UI preferences');
 | Uma chave de API de LLM | — | Extração de fatos e reflexão. Qualquer endpoint compatível com OpenAI funciona via `OPENAI_BASE_URL` |
 | Um embedder | — | On-device por padrão (sem chave); embeddings da OpenAI são opcionais — veja [Início rápido](#início-rápido) |
 
-`pnpm` é necessário para buildar a partir do fonte (isto é um workspace pnpm); consumir o pacote publicado exige apenas npm.
+`pnpm` é necessário para buildar a partir do fonte — isto é um workspace pnpm, então `npm install` não conecta os pacotes corretamente.
 
 ## Início rápido
 
-```bash
-# 1. Instale
-npm install @usetheo/memory
+> **Como isto é distribuído hoje.** O servidor, o servidor MCP e o CLI `themory` são distribuídos
+> como **imagem Docker** — não como binário npm. O pacote npm `@usetheo/memory` é o **SDK
+> TypeScript**, e ele **ainda não foi publicado** (veja [Status](#status)); até lá, use o SDK
+> clonando o repositório — veja [Contribuindo](#contribuindo).
 
-# 2. Suba Postgres + pgvector
+```bash
+# 1. Suba Postgres + pgvector
 docker run -d --name pgvector -e POSTGRES_USER=themem -e POSTGRES_PASSWORD=themem \
   -e POSTGRES_DB=themem -p 5432:5432 ankane/pgvector:v0.5.1
 
-# 3. Configure
-cp .env.example .env
-# Defina OPENAI_API_KEY (obrigatório) e THEMEMORY_API_KEY (opcional, habilita auth)
-
-# 4. Aplique o schema
-export THEOMEM_PG_URI=postgresql://themem:themem@localhost:5432/themem
-npm run db:push
-
-# 5. Suba
-npx themory server
+# 2. Suba o servidor — ele aplica as migrations pendentes antes de abrir a porta
+docker run -p 8080:8080 \
+  -e THEOMEM_PG_URI=postgresql://themem:themem@host.docker.internal:5432/themem \
+  -e OPENAI_API_KEY=sk-... \
+  -e THEOMEM_EMBEDDER=openai \
+  ghcr.io/usetheoai/themory:0.1.0-alpha
 ```
+
+No Linux, troque `host.docker.internal` pelo IP do host ou rode os dois containers na mesma rede
+Docker. A partir de um clone, o equivalente ao passo 2 é `pnpm run build && node dist/agent-tools/cli.js server`.
 
 **Seleção do embedder** — defina `THEOMEM_EMBEDDER`:
 
@@ -286,8 +287,8 @@ Adicione `themory` ao seu `.mcp.json` local do projeto (o Claude Code lê este a
 {
   "mcpServers": {
     "themory": {
-      "command": "npx",
-      "args": ["@usetheo/memory", "mcp"],
+      "command": "node",
+      "args": ["/caminho/absoluto/para/theo-memory/dist/agent-tools/cli.js", "mcp"],
       "env": {
         "THEOMEM_PG_URI": "postgresql://themem:themem@localhost:5432/themem",
         "OPENAI_API_KEY": "sk-..."
@@ -296,6 +297,10 @@ Adicione `themory` ao seu `.mcp.json` local do projeto (o Claude Code lê este a
   }
 }
 ```
+
+O caminho aponta para um **build a partir de um clone** (`pnpm install && pnpm run build`). Não
+existe binário npm para `npx` — veja [Início rápido](#início-rápido). Para rodar o servidor MCP a
+partir da imagem Docker, use o transporte streamable-HTTP abaixo em vez do stdio.
 
 `OPENAI_BASE_URL` é respeitada para gateways compatíveis com OpenAI — por exemplo, aponte para o OpenRouter com `OPENAI_BASE_URL=https://openrouter.ai/api/v1` para usar o embedder local gratuito + um modelo de chat do OpenRouter.
 
@@ -328,13 +333,13 @@ Isso expõe a superfície de ferramentas do OpenMemory — `add_memories` · `se
 ## Docker
 
 ```bash
-docker pull ghcr.io/usetheo/themory:0.1.0-alpha
+docker pull ghcr.io/usetheoai/themory:0.1.0-alpha
 
 docker run -p 8080:8080 \
   -e THEOMEM_PG_URI=postgres://... \
   -e OPENAI_API_KEY=sk-... \
   -e THEOMEM_EMBEDDER=openai \
-  ghcr.io/usetheo/themory:0.1.0-alpha
+  ghcr.io/usetheoai/themory:0.1.0-alpha
 ```
 
 > A tag publicada no momento é `0.1.0-alpha`; tags de release são publicadas no GHCR pelo CI a cada tag de versão. A imagem padrão embute o embedder local (Xenova/ONNX) — defina `THEOMEM_EMBEDDER=openai` para usar a API de embedding da OpenAI (sem modelo on-device, sem download do HuggingFace em runtime).
@@ -345,7 +350,7 @@ Imagem distroless Node 22, < 200 MB, com gate do Trivy (zero CVE CRITICAL/HIGH) 
 # Aplique migrations (ou `health`) contra a imagem distroless
 docker run --rm --entrypoint /nodejs/bin/node \
   -e THEOMEM_PG_URI=postgres://... \
-  ghcr.io/usetheo/themory:0.1.0-alpha /app/dist/agent-tools/cli.js migrate
+  ghcr.io/usetheoai/themory:0.1.0-alpha /app/dist/agent-tools/cli.js migrate
 ```
 
 ## CI/CD
@@ -372,6 +377,10 @@ disponível na imagem, então uma imagem vulnerável nunca é publicada. Exceç�
 ignore genérico.
 
 ## CLI
+
+O `themory` é distribuído **dentro da imagem Docker**, não como binário npm. Rode-o a partir de um
+clone (`node dist/agent-tools/cli.js <subcomando>`) ou contra a imagem, sobrescrevendo o entrypoint
+— veja [Docker](#docker). Os comandos abaixo aparecem como `themory <subcomando>` por legibilidade.
 
 ```bash
 themory server                      # Sobe a API REST
@@ -416,17 +425,21 @@ As duas chaves valem ao mesmo tempo entre os passos 1 e 3 — sem janela de indi
 
 ## Arquitetura
 
+Um workspace pnpm. `@usetheo/memory` (o SDK) é `packages/core`; todo o resto é interno.
+
 ```
-src/
-├── core/              Contratos + tipos (sem I/O)
-│   ├── dip/           13 interfaces DIP
-│   ├── extraction/    pipeline de escrita de 8 fases
-│   └── retrieval/     busca híbrida de 9 passos
-├── local/             Postgres + pgvector (15 migrations)
-├── server/            REST em Hono + auth + rate-limit + CORS
-├── agent-tools/       servidor MCP (stdio + HTTP)
-├── embedders/         transformer local (MiniLM, 384 dimensões)
-└── llms/              cliente compatível com OpenAI
+packages/
+├── core/              @usetheo/memory — o SDK (o único pacote publicado)
+│   └── src/
+│       ├── domain/dip/          23 portas DIP (um módulo por porta)
+│       ├── domain/extraction/   pipeline de escrita de 8 fases
+│       ├── domain/retrieval/    busca híbrida de 9 passos
+│       └── infrastructure/db/   Postgres + pgvector (29 migrations)
+├── api/               REST em Hono + auth + rate-limit + CORS
+├── mcp/               servidor MCP (stdio + HTTP + SSE compatível com OpenMemory)
+├── cli/               CLI themory (distribuído na imagem Docker, não no npm)
+├── agent-core/        helpers compartilhados por cli e mcp
+└── eval/              harness de qualidade de retrieval
 ```
 
 **Caminho de escrita:**
@@ -439,7 +452,7 @@ Texto → Contexto → Recupera existentes → LLM extrai → Embed → Dedup �
 Query → Embed → ANN semântico → BM25 → Boost de entidade → Score → Threshold → Formata
 ```
 
-As fronteiras de camada, as 13 interfaces DIP e cada fase dos pipelines estão documentadas em
+As fronteiras de camada, cada porta DIP e cada fase dos pipelines estão documentadas em
 [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md). As decisões e seus porquês vivem em
 [`docs/adrs/`](./docs/adrs/).
 
@@ -455,11 +468,11 @@ npm run lint                # Zero warnings
 | Métrica | Valor |
 |---|---|
 | Testes de contrato / unidade | ~970 passando |
-| Arquivos de teste | 270+ |
+| Arquivos de teste | 400+ |
 | Testes de integração | 540+ (contra `ankane/pgvector:v0.5.1`) |
 | Linhas de código-fonte | ~20.000 |
 | Interfaces DIP | 13 |
-| Migrations | 18 |
+| Migrations | 29 |
 
 Como a qualidade de retrieval é medida — datasets, juízes, e o que os números dizem e não dizem —
 está em [`docs/EVALUATION.md`](./docs/EVALUATION.md). Deploy, migrations, rotação de chave e
@@ -500,8 +513,8 @@ um plano hospedado, e um deploy em **Postgres puro**. O Theo Memory em si está 
 | v0.7 | Destilação episódico → semântico | **Entregue** |
 | v1.1 | Multi-peer + bi-temporal | **Entregue** |
 | v1.5 | Cache semântico de recall | **Entregue** |
-| v0.5 | Compatibilidade com o formato MCP do OpenMemory (drop-in sobre SSE) | **Entregue** |
-| v0.6 | Embedder selecionável (`THEOMEM_EMBEDDER` local / OpenAI) | **Entregue** |
+| — | Compatibilidade com o formato MCP do OpenMemory (drop-in sobre SSE) | **Entregue** |
+| — | Embedder selecionável (`THEOMEM_EMBEDDER` local / OpenAI) | **Entregue** |
 | v1.0 | Contrato estável / production-ready | Em andamento |
 | — | Tool-use agêntico + sandbox de injeção/comando | Planejado |
 | — | Config em camadas + subcomando `themory config` | Planejado |
@@ -511,7 +524,7 @@ um plano hospedado, e um deploy em **Postgres puro**. O Theo Memory em si está 
 
 ## Status
 
-> **Pré-release — e honesto quanto a isso.** Completo em funcionalidade para o caso de uso central e validado em 107 cenários ponta a ponta (REST, MCP, CLI, navegador), além de evidência contínua de uso real: nosso próprio time roda em cima dele. Ainda não publicado no npm. O rótulo `production-ready` espera a v1.0, quando congelarmos o contrato. Até lá você pode rodar, auto-hospedar e construir em cima — só preferimos dizer isso com todas as letras a estampar um selo que ainda não conseguimos defender.
+> **Pré-release — e honesto quanto a isso.** Completo em funcionalidade para o caso de uso central, coberto por ~970 testes de contrato/unidade e 540+ testes de integração contra um pgvector real, além de evidência contínua de uso real: nosso próprio time roda em cima dele. Ainda não publicado no npm. O rótulo `production-ready` espera a v1.0, quando congelarmos o contrato. Até lá você pode rodar, auto-hospedar e construir em cima — só preferimos dizer isso com todas as letras a estampar um selo que ainda não conseguimos defender.
 
 ## Suporte
 
