@@ -56,6 +56,14 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     expect(yaml, 'o nome antigo nao pode voltar em silencio').not.toMatch(/image:\s*themory\b/);
   });
 
+  test('test_identidade_do_cosign_e_ancorada', () => {
+    // T2.3 — o regexp terminava em `build-publish\\.yml@` SEM ancora terminal, entao
+    // qualquer coisa depois do `@` casava. O guard existe para impedir que assinatura
+    // produzida por outro workflow seja aceita; casamento aberto o enfraquece.
+    const vendored = readFileSync(resolve(REPO_ROOT, '.github/workflows/build-publish.yml'), 'utf-8');
+    expect(vendored, 'sem ancora terminal, qualquer ref casa').toMatch(/build-publish\\\.yml@refs\/\(heads\|tags\)\/\.\+\$/);
+  });
+
   test('test_bases_do_dockerfile_pinadas_por_digest', () => {
     // T2.2 — a cadeia pina as ENTRADAS (21/21 actions por SHA) e assina a SAIDA
     // (cosign no digest), mas a base sobre a qual tudo e construido flutuava numa

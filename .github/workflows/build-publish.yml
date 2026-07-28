@@ -236,7 +236,7 @@ jobs:
         if: ${{ inputs.sign && inputs.verify }}
         run: |
           cosign verify "${{ inputs.registry }}/${{ inputs.image }}@${{ steps.build.outputs.digest }}" \
-            --certificate-identity-regexp '^https://github\.com/usetheoai/theo-memory/\.github/workflows/build-publish\.yml@' \
+            --certificate-identity-regexp '^https://github\.com/usetheoai/theo-memory/\.github/workflows/build-publish\.yml@refs/(heads|tags)/.+$' \
             --certificate-oidc-issuer https://token.actions.githubusercontent.com
 
       # O digest exportado (workflow_call.outputs) serve a um workflow consumidor.
