@@ -1,22 +1,28 @@
-# Image publish + dev deploy — M5 CD pipeline (playbook, adapted from theo-rag).
+# Image publish.
 #   develop push → build ./Dockerfile → ghcr.io/usetheoai/themory:develop (+ :develop-<sha>)
-#                  behind the Trivy CRITICAL/HIGH gate → deploy to the dev host
-#                  (deploy-dev job, develop-only).
-#   v* tag       → :X.Y.Z + :X.Y + :latest, SBOM + SLSA + keyless cosign — NOT deployed
-#                  (the future prod host is provisioned separately).
+#                  atrás do gate Trivy CRITICAL/HIGH.
+#   v* tag       → :X.Y.Z + :X.Y + :latest, SBOM + SLSA + keyless cosign.
 #
-# The deploy is a `needs: image` job (NOT a workflow_run trigger) because the repo's
-# default branch is `main` and workflow_run only fires from the default branch.
+# ESTE WORKFLOW NÃO FAZ DEPLOY — E ISSO É DELIBERADO (2026-07-27).
+#
+# Até esta data ele carregava um job `deploy-dev` que fazia SSH para um host nosso. Isso obrigava o
+# repositório a conhecer — e versionar — o usuário, o caminho e a topologia de um ambiente
+# específico, além de manter uma chave SSH com shell nos secrets do CI. Para um projeto que vai ser
+# ABERTO, é inaceitável: nada disso é do produto, é da nossa operação.
+#
+# O deploy passou a ser PULL: o host roda um reconciliador que converge para a tag publicada.
+# A troca elimina três coisas de uma vez — o repo público não sabe que existe um host, o CI não
+# guarda mais credencial de acesso a ele, e a reconciliação passa a ser contínua em vez de um
+# evento pontual. O ambiente é responsabilidade de quem o opera; este repo publica a imagem.
+#
+# O contrato entre os dois lados é UMA COISA SÓ: a tag da imagem. Nada mais.
 name: publish
-# GATILHOS: push em `develop` (deploy contínuo do dev host) e tag `v*` (imagem de release
-# assinada). Restaurados em 2026-07-27 após terem sido removidos por algumas horas.
+# GATILHOS: push em `develop` (publica `:develop` + `:develop-<sha>`) e tag `v*` (imagem de release
+# assinada).
 #
-# POR QUE ESTE WORKFLOW NÃO SEGUE A REGRA DOS OUTROS: ele é CD, não gate. As duas coisas que ele
-# faz são consequência de um merge já aprovado, não verificação de um candidato:
-#   - push em `develop` → publica `:develop-<sha>` e faz deploy no dev host
-#   - tag `v*`          → promove para imagem de release imutável (SBOM + SLSA + cosign)
-# Release disparado por TAG, e não por clique humano, é o que mantém a publicação reproduzível e
-# auditável — foi exatamente o que se perdeu enquanto o `workflow_dispatch` era o único caminho.
+# POR QUE ESTE WORKFLOW NÃO SEGUE A REGRA DOS OUTROS: ele é CD, não gate. O que ele faz é
+# consequência de um merge já aprovado, não verificação de um candidato. Release disparado por TAG,
+# e não por clique humano, é o que mantém a publicação reproduzível e auditável.
 #
 # POR QUE NÃO RODA EM PULL REQUEST: o reusable SEMPRE dá push da imagem; não há modo build-only.
 # Rodar em PR publicaria artefato de código não mergeado. O custo dessa escolha é honesto — uma
@@ -27,7 +33,7 @@ on:
   push:
     branches: [develop]
     tags: ["v*"]
-    # #116: um push em develop que só mexe em docs pula a esteira inteira de build/deploy.
+    # #116: um push em develop que só mexe em docs pula a esteira inteira de build.
     #
     # DELIBERADAMENTE lista de EXCLUSÃO, não filtro positivo: este workflow escuta `tags: ["v*"]`,
     # e filtro de path se aplica TAMBÉM a push de tag. Um filtro positivo faria um release cujo
@@ -37,7 +43,7 @@ on:
       - '.claude/**'
       - '**/*.md'
       # Adicionados em 2026-07-27: nada aqui entra na imagem. Medido no commit `6b333d9`,
-      # que tocou só workflows + CHANGELOG e mesmo assim disparou build + push + deploy de
+      # que tocou só workflows + CHANGELOG e mesmo assim disparou build + push de
       # uma imagem idêntica, além de CI, SAST, eval e integration — seis runs numa fila
       # serial compartilhada por cinco repositórios.
       - 'docs/**'
@@ -47,11 +53,11 @@ on:
       # use o `workflow_dispatch` declarado abaixo — é o escape hatch previsto.
       - '.github/**'
   workflow_dispatch:
-# Single self-hosted runner: successive develop pushes must SUPERSEDE (cancel) the
-# queued/older run instead of piling up — the newest run always redeploys, so a
-# cancelled predecessor is never left without a successor deploy (2026-07-22 incident:
-# a manual cancel mid-deploy with no successor left the dev host down). Tag runs get
-# their own group per ref and are never cancelled by develop pushes.
+# Pushes sucessivos em develop devem SUPERSEDER (cancelar) o run mais antigo em vez de empilhar:
+# só a imagem mais nova interessa, e build cancelado é minuto de runner economizado. Antes de o
+# deploy sair daqui havia um risco extra — cancelar sem sucessor deixava o host sem deploy (incidente
+# 2026-07-22) —; hoje isso não se aplica, porque quem converge o ambiente é o reconciliador no
+# próprio host, não este workflow. Runs de tag têm grupo próprio e nunca são cancelados por develop.
 concurrency:
   # #129 note: publish listens on push + tag ONLY (no pull_request), so it does NOT
   # double-run — the push/PR key-mismatch that #129 fixes for integration/sast does not
@@ -70,7 +76,7 @@ jobs:
   # POR QUÊ: `usetheodev/theo` é privado e de outro dono desde a transferência deste repo para a
   # org `usetheoai`, e o GitHub só compartilha reusable privado dentro do mesmo dono. A chamada
   # cross-owner falhava no PARSE ("workflow was not found"), o que derrubava o workflow inteiro —
-  # zero jobs criados, nem o `deploy-dev` chegava a existir.
+  # zero jobs criados: o workflow inteiro morria antes de qualquer step.
   #
   # DÍVIDA TEMPORÁRIA: quando `usetheodev/theo` migrar para `usetheoai`, volte esta linha para
   # `uses: usetheoai/theo/.github/workflows/build-publish.yml@develop` e APAGUE
@@ -102,86 +108,3 @@ jobs:
       GOMOD_TOKEN: ${{ secrets.GOMOD_TOKEN }}
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-
-  # Deploy the freshly-published :develop image to the dev host. develop-only: a v* tag
-  # publishes the release image but never deploys.
-  deploy-dev:
-    needs: image
-    if: ${{ github.ref == 'refs/heads/develop' }}
-    # Blacksmith (#156).
-    #
-    # RISCO DE IP DE EGRESSO — MEDIDO E DESCARTADO. Havia a suspeita de que o SSH quebraria na
-    # frota efêmera: o runner self-hosted saía sempre do mesmo IP, o efêmero não. Medido no run
-    # 30312174822: os steps "Configure SSH deploy key" e "Provision runtime env on the dev host"
-    # passaram — o droplet aceita SSH de origem variável. Não é preciso Static IP nem allowlist.
-    #
-    # O QUE DE FATO QUEBROU NAQUELE RUN: o compose no host puxava `ghcr.io/usetheodev/themory`
-    # (namespace do dono ANTIGO) e levava 403, porque a imagem agora é publicada em
-    # `ghcr.io/usetheoai/themory`. Corrigido em `docker-compose.deploy.yml`, que é sincronizado
-    # para o host pelo próprio deploy.
-    #
-    # ATENÇÃO: o mirror de deploy no droplet (`<HOME>/theo-data-plane/theo-memory`) ainda tem
-    # remote apontando para o dono ANTIGO. O GitHub redireciona URLs antigas, então o `git fetch`
-    # abaixo funciona — mas depender de redirect indefinidamente é dívida.
-    #
-    # LIMITAÇÃO ARQUITETURAL CONHECIDA (não é bug): este deploy é PUSH-BASED — o CI guarda uma
-    # chave SSH com shell num box compartilhado, e comprometer o CI compromete o host. Não há
-    # estado desejado declarado, detecção de drift nem self-healing. A alternativa barata é
-    # inverter para PULL (um timer no host puxando a tag `:develop`), o que tira a credencial do
-    # CI sem exigir Kubernetes. ArgoCD resolveria isso e mais, mas é controlador K8s — exigiria
-    # migrar o dev para cluster e escrever um Helm chart, que este repo não tem.
-    runs-on: blacksmith-8vcpu-ubuntu-2404
-    # Medido: max 0,7 min. So SSH + docker pull remoto; um ssh pendurado sem timeout seguraria o runner por 6h.
-    timeout-minutes: 10
-    permissions:
-      contents: read
-      packages: read
-    steps:
-      - name: Configure SSH deploy key
-        run: |
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "${{ secrets.DEV_SSH_KEY }}" > ~/.ssh/themory_deploy
-          chmod 600 ~/.ssh/themory_deploy
-          ssh-keyscan -H "${{ vars.DEV_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
-
-      - name: Provision runtime env on the dev host
-        # Written over stdin (never argv) so the secret is not exposed in the process
-        # list; GitHub masks it in logs. Compose reads this .env. .env is gitignored, so
-        # the git sync below never clobbers it.
-        run: |
-          SHA='${{ github.sha }}'
-          BUILT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          # shellcheck disable=SC2087
-          # O heredoc é NÃO-citado de propósito: `${SHA}` e `${BUILT}` têm de expandir aqui, no
-          # runner. Citar `'EOF'` — que é o que o SC2087 sugere — enviaria `${SHA}` literal para o
-          # host, onde a variável não existe: o `.env` sairia com valores vazios e o deploy subiria
-          # sem versão, com a CI verde. Aqui a sugestão do linter é o bug, não a correção.
-          ssh -i ~/.ssh/themory_deploy paulo@"${{ vars.DEV_HOST }}" \
-            'cat > <HOME>/theo-data-plane/theo-memory/.env' <<EOF
-          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
-          THEOMEM_GIT_SHA=${SHA}
-          THEOMEM_VERSION=develop-${SHA:0:7}
-          THEOMEM_BUILD_TIME=${BUILT}
-          THEMORY_ADMIN_BOOTSTRAP_TOKEN=${{ secrets.THEMORY_ADMIN_BOOTSTRAP_TOKEN }}
-          THEMORY_MCP_TLS_DIR=${{ vars.THEMORY_MCP_TLS_DIR }}
-          EOF
-
-      - name: Sync the deploy mirror, log into GHCR, and deploy
-        # Sync the box checkout to the published commit FIRST (it carries the deploy
-        # script + compose override), then pull the image and restart themory. Sync to
-        # the EXACT commit (not the branch tip) so the checkout, the compose files, and
-        # the version gate all agree even if develop advanced.
-        run: |
-          ssh -i ~/.ssh/themory_deploy paulo@"${{ vars.DEV_HOST }}" bash -s <<'REMOTE'
-          set -euo pipefail
-          DIR=<HOME>/theo-data-plane/theo-memory
-          cd "$DIR"
-          git fetch --quiet origin develop
-          git reset --hard --quiet '${{ github.sha }}'
-          echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u '${{ github.actor }}' --password-stdin
-          EXPECTED_SHA='${{ github.sha }}' bash scripts/deploy-dev.sh
-          REMOTE
-
-      - name: Remove the deploy key from the runner
-        if: always()
-        run: rm -f ~/.ssh/themory_deploy
