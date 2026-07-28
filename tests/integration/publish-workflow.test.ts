@@ -58,6 +58,26 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     expect(yaml, 'o nome antigo nao pode voltar em silencio').not.toMatch(/image:\s*themory\b/);
   });
 
+  test('test_tamanho_da_imagem_declara_qual_eixo', () => {
+    // T4.2 — os dois READMEs diziam "< 200 MB", sem eixo. Medido em 2026-07-28
+    // sobre `ghcr.io/usetheoai/theo-memory:develop`:
+    //   comprimido    170.5 MB  (o que o registry reporta, 23 camadas)
+    //   descomprimido 541.0 MB  (o que `docker images` mostra no disco)
+    //
+    // A afirmacao nao era FALSA — era ambigua no eixo que importa para quem puxa
+    // a imagem, com um fator de 3,2x entre as duas leituras. Um numero de tamanho
+    // sem eixo declarado deixa o leitor provisionar disco pelo numero errado.
+    for (const f of ['README.md', 'README.pt-BR.md']) {
+      const doc = readFileSync(resolve(REPO_ROOT, f), 'utf-8');
+      for (const line of doc.split('\n')) {
+        if (!/\d+\s*MB/.test(line)) continue;
+        expect(line, `${f}: numero de tamanho sem eixo declarado`).toMatch(
+          /comprimid|compress|descomprimid|uncompress|no disco|on disk/i,
+        );
+      }
+    }
+  });
+
   test('test_build_nao_recebe_credencial_que_nao_usa', () => {
     // T4.1 — o build recebia `GOMOD_TOKEN` como segredo do BuildKit. Medido:
     //   - o Dockerfile NUNCA monta `--mount=type=secret,id=gomod_token`

@@ -89,7 +89,7 @@ const facts = await memory.user('alice').recall('UI preferences');
 - **Three surfaces** — REST API (Hono + OpenAPI 3.1) · MCP server · CLI
 - **OpenMemory drop-in** — `themory mcp --compat openmemory` serves the OpenMemory tool surface over SSE for Cursor / Claude Desktop / Windsurf / Cline
 - **Selectable embedder** — `THEOMEM_EMBEDDER=local` (on-device Xenova MiniLM) or `openai` (`text-embedding-3-small`, no on-device model)
-- **Docker-ready** — distroless image < 200 MB with healthcheck
+- **Docker-ready** — distroless image (~170 MB compressed / ~541 MB uncompressed on disk) with healthcheck
 - **Observable** — 56 typed OpenTelemetry events + per-handler spans
 - **Tested** — ~970 contract/unit tests + 540+ integration tests against real pgvector, across 400+ test files
 
@@ -339,7 +339,7 @@ docker run -p 8080:8080 \
 
 > The currently published tag is `0.1.0-alpha`; release tags are published to GHCR by CI on each version tag. The default image bundles the local embedder (Xenova/ONNX) — set `THEOMEM_EMBEDDER=openai` to use the OpenAI embedding API instead (no on-device model, no HuggingFace download at runtime).
 
-Distroless Node 22 image, < 200 MB, Trivy-gated (zero CRITICAL/HIGH CVE), healthcheck built in. The image has no shell, so one-shot subcommands like `migrate` / `health` run by overriding the entrypoint to invoke Node directly:
+Distroless Node 22 image — ~170 MB compressed (what the registry reports) and ~541 MB uncompressed on disk (what `docker images` shows); measured 2026-07-28 on `:develop`. Trivy-gated (zero CRITICAL/HIGH CVE), healthcheck built in. The image has no shell, so one-shot subcommands like `migrate` / `health` run by overriding the entrypoint to invoke Node directly:
 
 ```bash
 # Apply migrations (or `health`) against the distroless image
