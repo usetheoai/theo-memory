@@ -65,3 +65,6 @@ coverage/
 
 # theo-memory Claude Code plugin manifest (tracked despite the global .mcp.json ignore)
 !docs/claude-code-kit/.mcp.json
+
+# Roadmap do CLI — mantido fora do versionamento por decisao do owner (2026-07-28).
+ROADMAP.md
