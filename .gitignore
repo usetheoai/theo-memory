@@ -68,3 +68,7 @@ coverage/
 
 # Roadmap do CLI — mantido fora do versionamento por decisao do owner (2026-07-28).
 ROADMAP.md
+
+# Saida de auditoria (loop-devops-audit) — contem topologia do host e achados;
+# vive na arvore do repo e nao pode ser commitada num repo que sera aberto.
+devops-audit-output/
