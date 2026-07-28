@@ -22,6 +22,11 @@ on:
 
 permissions:
   contents: read
+  # Trusted publishing (OIDC): o npm troca este token de identidade efemera por
+  # autorizacao de publish, sem segredo armazenado. Inofensivo enquanto o
+  # trusted publisher nao estiver configurado no npmjs.com — o publish cai no
+  # NODE_AUTH_TOKEN, que segue como ponte (ver o step Publish).
+  id-token: write
 
 concurrency:
   group: publish-npm-${{ github.ref }}
@@ -37,11 +42,22 @@ jobs:
 
       - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
 
-      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+      # v6 e a versao que a doc do npm indica para trusted publishing — ela
+      # repassa o token OIDC ao npm. Node fixado em 22.14+ porque abaixo disso o
+      # trusted publishing nao existe.
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: 22
+          node-version: '22.14'
           cache: pnpm
           registry-url: https://registry.npmjs.org
+
+      # O Node 22 embarca npm 10.x, e trusted publishing exige >= 11.5.1. Sem
+      # este passo o publish por OIDC simplesmente nao e tentado — cai no token
+      # em silencio, e a migracao pareceria feita sem estar.
+      - name: Garantir npm com suporte a trusted publishing
+        run: |
+          npm install -g npm@^11.5.1
+          echo "npm $(npm --version)"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -105,9 +121,15 @@ jobs:
         if: steps.version.outputs.published == 'false' && inputs.dry_run != true
         working-directory: packages/core
         env:
+          # PONTE, nao destino. Com o trusted publisher configurado no npmjs.com
+          # o npm autoriza por OIDC e este token deixa de ser consultado; ele
+          # segue aqui para que a proxima release nao quebre ANTES da
+          # configuracao existir. Removê-lo e o ultimo passo da migracao, depois
+          # de um publish por OIDC comprovado — ver docs/npm-trusted-publishing.md.
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        # No --provenance: npm provenance requires a public repository, and this
-        # one is private. Revisit when the repo goes public.
+        # Sem --provenance: a geracao de provenance exige repositorio PUBLICO, e
+        # este e privado. Isso vale para provenance apenas — o trusted publishing
+        # em si NAO exige repo publico (doc do npm, verificada em 2026-07-28).
         run: npm publish --access public
 
       - name: Summary
