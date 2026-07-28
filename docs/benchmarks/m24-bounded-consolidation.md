@@ -5,7 +5,7 @@
 
 # M24 bounded-consolidation bench — genuine partial progress, Goal NOT met
 
-Real-LLM e2e-qa run (REDACTED LongMemEval counter-proof harness, `packages/eval/src/stages/e2e-qa/`)
+Real-LLM e2e-qa run (LongMemEval counter-proof harness, `packages/eval/src/stages/e2e-qa/`)
 with **bounded per-anchor consolidation** enabled (`E2E_QA_REFLECT=1`, reflect →
 `clusterByProximity` → `LlmJudgedMergeConflictPolicy` per bounded cluster). Same dataset
 (LongMemEval-oracle), same N=12 deterministic subset, same judge, same model
@@ -43,7 +43,7 @@ The fresh `25:50` is **not returned**. Root cause of the remaining half: the fre
 recalls at low score → the `#140` coverage-gate abstains BEFORE the answer LLM call. Supersession
 fixed half the problem (stop surfacing the stale value); the other half needs the **superseding
 row to carry the entity/topic context** so the fresh value recalls for the SAME queries — the
-REDACTED shape rewrites the memory to a canonical form (e.g. "charity 5K personal best is 25:50").
+established shape rewrites the memory to a canonical form (e.g. "charity 5K personal best is 25:50").
 
 ### The bench "YES" is a judge artifact (do not trust it)
 
@@ -64,7 +64,7 @@ The judge marked the abstention `correct` on a non-abstention question — a fal
 
 ## Disclosure
 
-- Model `openai/gpt-4o-mini` (NOT REDACTED's gpt-5) → NOT leaderboard-comparable.
+- Model `openai/gpt-4o-mini`, a small/cheap model → NOT leaderboard-comparable.
 - N=12 deterministic subset; LLM judge non-deterministic and demonstrably lenient here (#148).
 - Reflect (bounded consolidation) ON; `recencyCollapse` ON; coverage-gate ON. Reproduce:
   `.env.local` with an OpenRouter key + run `packages/eval/.../e2e-qa/run.ts` from the repo root

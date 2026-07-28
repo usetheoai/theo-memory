@@ -43,7 +43,7 @@ Rastreabilidade é parte do contrato, não opcional. Cada decisão de gravar/ign
 
 Contract between Claude and the **TheMemory / `@usetheo/memory`** project (the **managed memory** community auxiliary of [Theo](../CLAUDE.md)). Read this file **and** the root `CLAUDE.md` before editing anything here.
 
-This file complements `/home/paulo/Projetos/usetheo/CLAUDE.md` and `/home/paulo/.claude/CLAUDE.md`. Root rules apply unconditionally. TheMemory-specific rules layer on top.
+This file layers TheMemory-specific rules on top of the workspace-level and global engineering contracts.
 
 ---
 
@@ -119,7 +119,7 @@ Honest disclosure (Rule 3):
 
 Honest classification (Rule 3 + Rule 10):
 
-- **This is NOT the cut data-adapter.** The "Adapters (, , ) — cut 2026-05-21" decision rejected *wrapping a vendor's data SDK as a backend*. This is **MCP protocol/tool-shape interoperability** — it maps the OpenMemory tool names onto our existing `remember`/`recall`/`forget` verbs; no `the vendor SDK` dependency, no vendor backend. It therefore falls under **P0 sub-goal 3 (MCP available + reliable)**, not a freeze violation. The cut stays in force for true vendor data-adapters.
+- **This is NOT the cut data-adapter.** The "Adapters — cut 2026-05-21" decision rejected *wrapping a vendor's data SDK as a backend*. This is **MCP protocol/tool-shape interoperability** — it maps the OpenMemory tool names onto our existing `remember`/`recall`/`forget` verbs; no vendor SDK dependency, no vendor backend. It therefore falls under **P0 sub-goal 3 (MCP available + reliable)**, not a freeze violation. The cut stays in force for true vendor data-adapters.
 - **Slug:** `openmemory-mcp-compat` (Roadmap Item 26). Governance: discover → blueprint → plan → implement → review, like any P0-hardening cycle.
 - **Scope guardrail:** MCP tool-shape + transport compatibility only. NOT the OpenMemory dashboard UI, NOT importing the `openmemory/` Docker stack, NOT a data-SDK dependency. The local `` reference clone (`openmemory/`) is read-only study material for the discover.
 
@@ -171,7 +171,7 @@ Honest classification (Rule 3 + Rule 10):
 - **Trigger:** the `/loop-cross-validation` vs (2026-06-21, `cross-validation-output/final_report.md`, overall 3.58/5) surfaced 4 gaps. The owner chose a **full unfreeze** to address them without per-item gating friction.
 - **The P0 HARDENING discipline itself is NOT abandoned.** The 3 P0 sub-goals (APIs correct / SDKs functional / MCP available) remain the quality bar for everything that ships; "hardening" work continues to take precedence when it conflicts with a new feature. What changes is ONLY that net-new features are no longer categorically blocked.
 - **`production-ready` / v1.0 stays SEPARATELY gated (Item 11).** The freeze lift does NOT touch the v1.0 gate. Gate status (updated 2026-07-20): `/dogfood` = `EVIDENCE_SUFFICIENT` (CLOSED). The former gate (a) — the independent v0.8 comparative benchmark reproduction — was **DROPPED per ADR-0020** (the benchmark feature was removed in v0.35.0; the product ships no comparative "faster-than" claim, so `public-copy.md § 4` does not apply). **v1.0 is now gated on `/dogfood` alone, which is CLOSED — so the path to v1.0 is unblocked.** Declaring v1.0 (README Status `Pre-release → Production-ready` + a `v1.0.0` cut) remains a **separate, deliberate owner release action**; this file does not auto-flip it. The no-comparative-claim guardrail (`public-copy.md § 4`) stays in force for any future benchmark claim.
-- **Gap roadmap (this session):** the actionable memory gaps are **G2 (procedural execution + injection/command sandbox — Item 21)** and **G3 (first-class episodic / message-log tier)**. See `.claude/knowledge-base/roadmaps/memory-gaps-roadmap.md`.
+- **Gap roadmap (this session):** the actionable memory gaps are **G2 (procedural execution + injection/command sandbox — Item 21)** and **G3 (first-class episodic / message-log tier)**. 
 - **G1 (in-context working-memory tier) + G4 (context-window / token-budget) are DEFERRED (project-owner, this session).** They are agent-RUNTIME concerns, not memory-layer features — implementing them in TheMemory core would contradict the locked "memory layer, NOT agent runtime" override. They are recorded as cross-repo followups for **TheoKit**, NOT in this roadmap's critical path.
 - **Locked overrides unchanged:** the 3 root overrides (vendor lock-in exception, Phase-1 scope, Apache-2.0), the locked names, voice/tone, and ADR-0010/0011 are NOT touched by this unfreeze.
 
@@ -263,7 +263,7 @@ The `production-ready` token was historically blocked by two hard gates per `dog
 | Canonical install command | `npm install @usetheo/memory` (reserved; not yet published) | strategic |
 | License | **Apache-2.0** | strategic — aligned with monorepo standard 2026-06-09 (reverted prior MIT carve-out of 2026-05-21) |
 | Tier | Community auxiliary (OSS) | strategic |
-| Memory tiers | `User` · `Session` · `Agent` (+ `Repo` for skills only, v0.6, [ADR-0010](.claude/knowledge-base/adrs/ADR-0010-repo-scope-fourth-tier.md)) | strategic |
+| Memory tiers | `User` · `Session` · `Agent` (+ `Repo` for skills only, v0.6, `ADR-0010`) | strategic |
 | API verbs | `remember` / `recall` / `forget` / `reflect` | strategic |
 | Two runtimes | `local` (Postgres + pgvector) + `cloud` (TheoCloud-managed) | strategic |
 | Subpath exports | `@usetheo/memory` (local default) + `@usetheo/memory/cloud` (managed) | strategic |
@@ -305,6 +305,11 @@ If a piece of TheMemory copy contradicts the locked narrative in [`../CLAUDE.md`
 
 ## Architectural Decisions Locked
 
+> **On the ADR record.** Decisions ADR-0016 onward live in [`docs/adrs/`](docs/adrs/). Everything
+> earlier (ADR-0001 to ADR-0015) was authored in a working directory that was never committed, so
+> those files no longer exist. The decisions themselves are summarized below and in the Roadmap —
+> that summary is now the record. Cited as plain `ADR-00NN` where the document is gone.
+
 Decisions taken during the project's design phase that override root contract defaults.
 
 ### Three explicit overrides of root `CLAUDE.md` (2026-05-21)
@@ -313,11 +318,11 @@ The strategic review of 2026-05-21 documented three explicit overrides of the ro
 
 - **Cross-Project Rule 6 — vendor lock-in exception.** TheoKit + TheMemory + TheoCloud is a deliberate single-platform consolidation. Walk-away from this specific combination costs a memory migration. Local OSS runtime stays open; the rest of the funnel remains lock-in-free. Source: root `CLAUDE.md` § Cross-Project Rules 6.
 - **Phase 1 scope expansion — TheoCloud completeness.** TheMemory enters Phase 1 as expansion of TheoCloud capacity, NOT as a 7th vertical productization. Classified as "line item on the TheoCloud invoice", analog Vercel KV. Source: root `CLAUDE.md` § Phase (now), "Expanded into scope 2026-05-21".
-- **License — Apache-2.0, aligned with monorepo standard.** The 2026-05-14 license standardization mandates Apache-2.0 for every OSS product. TheMemory was carved out as an MIT exception on 2026-05-21; the carve-out was reverted on 2026-06-09 — explicit patent grant + trademark protection in Apache-2.0 are net-positive for embeds in proprietary systems, and all direct competitors (, , /) are Apache-2.0. Source: root `CLAUDE.md` § Product Hierarchy.
+- **License — Apache-2.0, aligned with monorepo standard.** The 2026-05-14 license standardization mandates Apache-2.0 for every OSS product. TheMemory was carved out as an MIT exception on 2026-05-21; the carve-out was reverted on 2026-06-09 — explicit patent grant + trademark protection in Apache-2.0 are net-positive for embeds in proprietary systems, and the comparable projects in this space are Apache-2.0. Source: root `CLAUDE.md` § Product Hierarchy.
 
 ### Fourth scope tier — RepoScope (2026-05-30, v0.6)
 
-- **ADR-0010 — `RepoScope` for skill memory.** `Memory.skills(repoId)` returns a `ScopedSkillMemory` bound to `RepoScope{ kind: 'repo', repoId }`. Exposed ONLY through `Memory.skills(...)` (not on the public 4 verbs); maps internally to `filters.agent_id` per EC-4. Extends ADR-0002's 3-tier contract; does not soften it. Source: [`ADR-0010-repo-scope-fourth-tier.md`](.claude/knowledge-base/adrs/ADR-0010-repo-scope-fourth-tier.md).
+- **ADR-0010 — `RepoScope` for skill memory.** `Memory.skills(repoId)` returns a `ScopedSkillMemory` bound to `RepoScope{ kind: 'repo', repoId }`. Exposed ONLY through `Memory.skills(...)` (not on the public 4 verbs); maps internally to `filters.agent_id` per EC-4. Extends ADR-0002's 3-tier contract; does not soften it. Source: ADR-0010 (see note below).
 
 ### Bi-temporal runtime lift (2026-06-03, v1.1)
 
@@ -325,7 +330,7 @@ The strategic review of 2026-05-21 documented three explicit overrides of the ro
 
 ### M8 — `(workspace, user)` cross-user isolation (2026-07-22, boundary-enforced)
 
-- **[ADR-0021](.claude/knowledge-base/adrs/ADR-0021-m8-boundary-enforced-user-isolation.md)** — the `(workspace, user)` isolation is enforced at the **scope-resolution boundary**, NOT by a type-mandatory scope field (supersedes the M8 plan's ADR D1). `Memory.session(sessionId, userId?)` / `Memory.agent(agentId, userId?)` gain an OPTIONAL `userId` (backward-compatible); the REST/MCP layer binds `Principal.userId` into every session/agent scope so a user-Principal's access is `(workspace, user, session)`, while a workspace-admin credential (`Principal.userId === null`) stays workspace-scoped. The three memory tiers (User/Session/Agent) are UNCHANGED — no new tier was added. PROVEN by the cross-user isolation hard-gate integration test (3/3 vs real `ankane/pgvector:v0.5.1`; user B reads zero of user A's rows) + the composite index `memories_ws_user_session_idx` (migration 0024, EXPLAIN confirms Index Scan). Owner sign-off: the `/goal` directive authorizing the M8 isolation work.
+- **[ADR-0021](docs/adrs/ADR-0021-m8-boundary-enforced-user-isolation.md)** — the `(workspace, user)` isolation is enforced at the **scope-resolution boundary**, NOT by a type-mandatory scope field (supersedes the M8 plan's ADR D1). `Memory.session(sessionId, userId?)` / `Memory.agent(agentId, userId?)` gain an OPTIONAL `userId` (backward-compatible); the REST/MCP layer binds `Principal.userId` into every session/agent scope so a user-Principal's access is `(workspace, user, session)`, while a workspace-admin credential (`Principal.userId === null`) stays workspace-scoped. The three memory tiers (User/Session/Agent) are UNCHANGED — no new tier was added. PROVEN by the cross-user isolation hard-gate integration test (3/3 vs real `ankane/pgvector:v0.5.1`; user B reads zero of user A's rows) + the composite index `memories_ws_user_session_idx` (migration 0024, EXPLAIN confirms Index Scan). Owner sign-off: the `/goal` directive authorizing the M8 isolation work.
 
 ---
 
@@ -410,7 +415,7 @@ These are NOT features — they qualify as P0 hardening and may proceed now:
 
 | Item | Status | Rationale |
 |---|---|---|
-| Adapters (, , ) | Out of scope (cut 2026-05-21) | Focus on being native backend, not wrapper. `@usetheo/sdk` already ships 3 `MemoryAdapter` packages (2026-05-20) for that use case. |
+| Vendor data-SDK adapters | Out of scope (cut 2026-05-21) | Focus on being native backend, not wrapper. `@usetheo/sdk` already ships 3 `MemoryAdapter` packages (2026-05-20) for that use case. |
 | Recency × importance × relevance scoring | Deferred to v0.4a behind strategy interface | README v1 promised; locked 2026-05-21 — v0.1 ships additive -style (production-tested). Multiplicative becomes opt-in strategy at v0.4a. |
 | Demo `examples/chat-with-memory` eviction wiring via `createLocalMemory({ eviction })` | Deferred to follow-up cycle (paused 2026-05-31 via hotfix `b2909ff`) | F-T4.1-2 regression: when eviction is enabled AND `rememberTurn` calls `Promise.all([userScoped.remember, sessionScoped.remember])` in parallel, the `postRememberHook` + `CapacityBasedTrigger.fire` pipeline consumes user-scope rows even with scope size 0. Race-condition root cause; debugging deferred. Core eviction WORKS via the SDK direct path (integration suite 67/67 PASS); the disabled wiring is consumer-demo-only. |
 | EC-9 skill-scope `asOf` (`memory.skills(repoId).recall({ asOf })`) | Deferred to follow-up cycle per plan v1-1 v1.3 ADR D4 amendment | v1.1 ships `asOf` for memory scopes only. Skill-scope adds extra ADR-0010 coordination — kept v1.1 focused. |
@@ -422,7 +427,6 @@ Detailed history of infrastructure cycles. Source-of-truth for "what landed when
 
 | Artifact | Shipped |
 |---|---|
-| `.claude/knowledge-base/references/` clones ( + + , `--depth 1`, gitignored) | 2026-05-21 |
 | `README.md` + strategic placement (Community auxiliary Apache-2.0 per 2026-06-09 realignment, TheoKit-native, vector-based hybrid, two runtimes) | 2026-05-21 |
 | This `CLAUDE.md` (3 root overrides + RepoScope ADR-0010 + ADR-0011 supplementary) | 2026-05-21; updated 2026-05-30, 2026-06-03, 2026-06-04 (x3 — PRIORITY 0 lock + p0-api-sdk fix-cycle close) |
 | `examples/chat-with-memory/` Next.js demo (4 tabs over User/Session/Skills/History) | 2026-05-30 (`22f148b`) |
@@ -463,23 +467,7 @@ Detailed history of infrastructure cycles. Source-of-truth for "what landed when
 
 ---
 
-## Competitive superiority matrix
-
-How each roadmap item maps to a specific competitor weakness.
-
-| Competitor | Their moat | Our attack | Roadmap item(s) |
-|---|---|---|---|
-| **** ($24M) | Drop-in simplicity, vector-centric, large provider catalog | Same architecture + reflection + long-tail forgetting + skill library + bi-temporal local OSS (v1.1) + multi-region premium cloud (v0.5) + TheoKit-native default-on | 2, 5, 6, 7, 8, 3, 12 |
-| **** ($10M) | Function-calling memory + sleep-time agents | Function-calling memory **without** agent-loop lock-in (we are primitive, not framework) | 4, 5 |
-| **/** (YC W24) | Bi-temporal knowledge graph with audit | Bi-temporal queries (`asOf`) shipped in v1.1 local OSS (Apache-2.0) — 's headline feature now commodity under our license. Multi-region replication + audit-mgmt remain the v0.5 cloud premium. Graph backend separately tracked as Item 14 (v1.3). | 12, 7, 14 |
-| **** ($5.35M) | Theory-of-mind / identity modeling | Multi-peer `attributed_to` **without** AGPL restriction (Apache-2.0) | 12 |
-| **** | Ontologies + poly-store | Typed domain ontologies without poly-store complexity | 15 |
-| **** | Procedural memory via prompt rewriting | Procedural skill library **with** automatic refactoring (, ships executable code not just prompts) | 8 |
-| **All competitors ** | No documented read-side query cache layer | Semantic recall cache via query-embedding cosine — caches `recall` results without re-running pipeline + LLM rerank on near-duplicate queries. Greenfield surface. | 19 |
-| ** Memory** | Block composition with priority truncation | Three-scope tier model + reflection + skill library (their blocks have no identity, no procedural) | 1, 5, 8 |
-| **Vector DBs** (///etc.) | Multi-tenancy at scale | Real semantic memory primitives (extraction, consolidation, scoring, forgetting) on top of pgvector | 2, 5, 9 |
-
-### Honesty discipline (Inquebrável Rule 3)
+## Honesty discipline (Inquebrável Rule 3)
 
 - **No production claims** until v1.0 with benchmarks reproduced independently. The README's Status section is the authoritative declaration; never weaken it without a PR-level decision.
 - **No `production-ready` badge** in the README or marketing — TheMemory is the explicit exception to the monorepo "production-ready" claim (2026-05-15 lock).
@@ -488,28 +476,14 @@ How each roadmap item maps to a specific competitor weakness.
 
 ---
 
-## Reference projects (study material)
-
-The `.claude/knowledge-base/references/` directory contains three clones (`--depth 1`, 2026-05-21) used for design study. **Read-only — never `npm install`, `pip install`, or edit them.**
-
-| Project | Tamanho | License | Status of exploration |
-|---|---|---|---|
-| [``](./.claude/knowledge-base/references//) | 78 MB | Apache-2.0 | Primary architectural reference (vector + LLM extraction + hybrid retrieval) |
-| [``](./.claude/knowledge-base/references//) | 34 MB | Apache-2.0 | Postgres + pgvector schema, Alembic migrations, sleep-time agents (reflection design) |
-| [``](./.claude/knowledge-base/references//) | 3.9 MB | MIT | Procedural memory via prompt rewriting |
-
-The directory is **gitignored** (see `.gitignore`) — clones never enter git.
-
----
-
 ## Open questions for the contract design (all resolved)
 
 1. ~~**Multi-peer / `attributed_to` support.**~~ **RESOLVED 2026-05-22 → v1.1 (Item 12).** Deferred from v0.0 to keep contract minimal; backward-compat via optional column.
-2. ~~**`update` semantics inside ADD-only.**~~ **RESOLVED 2026-05-22 → [ADR-0003](.claude/knowledge-base/adrs/ADR-0003-add-only-public-api.md).** ADD-only. No public `update`. Mutation = `forget(id) + remember(newText)`. `history(memoryId)` exists for audit.
-3. ~~**Reflection trigger.**~~ **RESOLVED 2026-05-22 → [ADR-0005](.claude/knowledge-base/adrs/ADR-0005-reflection-trigger.md).** Explicit-only at v0.0. Threshold + sleep-time policies land at v0.4a behind same DIP — zero contract change.
-4. ~~**Bi-temporal `t_valid` / `t_invalid` columns on local.**~~ **RESOLVED 2026-05-22 → [ADR-0006](.claude/knowledge-base/adrs/ADR-0006-bi-temporal-local-schema.md); AMENDED 2026-06-03 → [ADR-0011](.claude/knowledge-base/adrs/ADR-0011-bi-temporal-local-runtime-gate-lift.md).** v1.1 LIFTS the runtime-clause: local `recall({ asOf })` honored via null-safe predicate. Schema clause REINFORCED. CAVEAT: EC-9 skill-scope `asOf` deferred to follow-up cycle.
-5. ~~**Entity store opt-out.**~~ **RESOLVED 2026-05-22 → ADR-0007; AMENDED 2026-07-24 → [ADR-0023](.claude/knowledge-base/adrs/ADR-0023-m15-entity-boost-flag-gates-real-behavior.md).** Constructor-level flag `MemoryConfig.entityBoost?: boolean` defaults to `true`. When `false`, no entity vector store instantiated. M15 (#122) fecha a metade que não valia: até então a flag gateava apenas o write path, porque o read path somava o componente `entity` como constante zero. Agora ela governa os dois lados.
-6. ~~**`THEOKIT_API_KEY` reuse.**~~ **RESOLVED 2026-05-22 → [ADR-0009](.claude/knowledge-base/adrs/ADR-0009-cloud-auth-theokit-api-key.md).** Reuse `THEOKIT_API_KEY` env var with optional explicit `apiKey` constructor parameter override. No separate `THEMEMORY_API_KEY` (REST API server (Item 16) uses `THEMEMORY_API_KEY` for bearer auth specifically, distinct from cloud SDK auth).
+2. ~~**`update` semantics inside ADD-only.**~~ **RESOLVED 2026-05-22 → `ADR-0003`.** ADD-only. No public `update`. Mutation = `forget(id) + remember(newText)`. `history(memoryId)` exists for audit.
+3. ~~**Reflection trigger.**~~ **RESOLVED 2026-05-22 → `ADR-0005`.** Explicit-only at v0.0. Threshold + sleep-time policies land at v0.4a behind same DIP — zero contract change.
+4. ~~**Bi-temporal `t_valid` / `t_invalid` columns on local.**~~ **RESOLVED 2026-05-22 → `ADR-0006`; AMENDED 2026-06-03 → `ADR-0011`.** v1.1 LIFTS the runtime-clause: local `recall({ asOf })` honored via null-safe predicate. Schema clause REINFORCED. CAVEAT: EC-9 skill-scope `asOf` deferred to follow-up cycle.
+5. ~~**Entity store opt-out.**~~ **RESOLVED 2026-05-22 → ADR-0007; AMENDED 2026-07-24 → [ADR-0023](docs/adrs/ADR-0023-m15-entity-boost-flag-gates-real-behavior.md).** Constructor-level flag `MemoryConfig.entityBoost?: boolean` defaults to `true`. When `false`, no entity vector store instantiated. M15 (#122) fecha a metade que não valia: até então a flag gateava apenas o write path, porque o read path somava o componente `entity` como constante zero. Agora ela governa os dois lados.
+6. ~~**`THEOKIT_API_KEY` reuse.**~~ **RESOLVED 2026-05-22 → `ADR-0009`.** Reuse `THEOKIT_API_KEY` env var with optional explicit `apiKey` constructor parameter override. No separate `THEMEMORY_API_KEY` (REST API server (Item 16) uses `THEMEMORY_API_KEY` for bearer auth specifically, distinct from cloud SDK auth).
 
 ---
 
@@ -526,7 +500,7 @@ The directory is **gitignored** (see `.gitignore`) — clones never enter git.
 9. **No paper names in code** per `.claude/rules/no-paper-names-in-code.md` (promoted 2026-05-30). Knowledge-base docs MAY cite / / / etc.; `src/**` + tests MUST NOT.
 10. **PRIORITY 0 HARDENING discipline** (locked 2026-06-04; **feature freeze LIFTED 2026-06-21** — see § PRIORITY 0 → Amendment 2026-06-21). The 3 P0 sub-goals (API correct + SDK functional + MCP available) remain the quality bar and take precedence when a new feature conflicts with hardening. The categorical FREEZE on Items 13/14/15 + Phase V is NO LONGER in force (full unfreeze, project-owner sign-off). **`production-ready`/v1.0 label remains an owner release decision** — both technical gates are resolved (2026-07-20): `/dogfood` `EVIDENCE_SUFFICIENT` + the comparative-benchmark gate DROPPED per ADR-0020 (Item 11). The unfreeze does NOT touch the honesty discipline: no `production-ready` label until the owner cuts v1.0, and no comparative claim without `public-copy.md § 4`.
 
-Full text: `/home/paulo/.claude/CLAUDE.md`. Cross-project rules: `/home/paulo/Projetos/usetheo/CLAUDE.md`.
+Full text lives in the global and workspace-level engineering contracts.
 
 ---
 

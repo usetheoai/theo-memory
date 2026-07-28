@@ -5,7 +5,7 @@
  * `RememberOptions.attributedTo:'assistant'` (the ORIGIN — who produced the turn),
  * but the extraction path ignored it and let the LLM's content-inferred per-fact
  * `attributed_to` guess win. An assistant session-summary was therefore stored as a
- * `user` fact — exactly what REDACTED's discipline forbids ("what Claude produces is the
+ * `user` fact — exactly what the extraction discipline forbids ("what Claude produces is the
  * assistant's; its suggestions never become the user's stated preferences").
  *
  * Contract: request-level `attributedTo` is AUTHORITATIVE when present; the LLM

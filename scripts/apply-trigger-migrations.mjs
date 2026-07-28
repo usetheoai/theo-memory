@@ -23,8 +23,6 @@
  * a message that anchors at `README.md § Quickstart › Prerequisites` so
  * consumers know exactly where to look.
  *
- * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T2.1
- * @see .claude/knowledge-base/reviews/v0-4b-forgetting-pipeline-review-2026-05-30.md § F-dom-db-2
  */
 
 import { execFileSync } from 'node:child_process';

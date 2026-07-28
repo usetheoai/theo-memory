@@ -12,8 +12,6 @@ import { defineConfig } from 'vitest/config';
  *   - vitest.integration.config.ts requires Docker; longer timeout (30s for DB setup)
  *   - Two configs map cleanly to `npm test` vs `npm run test:integration`
  *
- * @see .claude/knowledge-base/plans/v0-1-local-runtime-plan.md § T0.2
- * @see .claude/rules/testing.md § Pyramid
  */
 export default defineConfig({
   resolve: {

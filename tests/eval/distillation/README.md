@@ -75,7 +75,6 @@ set (`tests/fixtures/distillation/`) via the shared loader.
 
 ## Related
 
-- Plan: `.claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T3.2 + ADR D5 + EC-10 + EC-11`
 - Metrics: `metrics.ts`
 - Gold set: `tests/fixtures/distillation/`
 - v0.4b precedent: `tests/eval/forgetting/`

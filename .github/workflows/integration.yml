@@ -1,24 +1,55 @@
-# Integration (Postgres + pgvector) — M5 Phase 2 CI hardening. The integration
-# suite (tests/integration/**, ~95 tests against a real pgvector) previously ran
-# ONLY locally — `describe.skipIf(!THEOMEM_PG_URI)` silently skips without a DB, so
-# a regression could land green. This job provisions a pgvector service, applies
-# the schema, builds the dist subpaths (theo-memory's package `exports` point at
-# `./dist/**`, so the integration tests need the compiled output), and runs
-# `test:integration` as a REQUIRED gate.
+# Testes que precisam de Postgres — DOIS jobs, com gatilhos diferentes de propósito.
+#
+#   contract     — `pnpm test` (suíte de contrato). Roda em TODO push/PR.
+#   integration  — `pnpm run test:integration` (~95 testes contra OpenAI real). Roda SÓ em
+#                  schedule noturno e sob demanda (`workflow_dispatch`).
+#
+# POR QUE A SEPARAÇÃO (decisão do owner, 2026-07-27): na frota Blacksmith, cobrada por minuto,
+# este workflow era de longe o item mais caro do pipeline — máx. 28,8 min medidos, mais chamadas
+# reais à OpenAI, A CADA PUSH. Desligar tudo era a alternativa considerada e foi rejeitada porque
+# levaria junto a suíte de contrato: o `ci.yml` deliberadamente NÃO roda `pnpm test` (parte da
+# suíte "contract" sobe o servidor MCP e abre um `Pool` real, então sem banco ela falha por
+# infraestrutura, não por defeito), e o #104 existiu exatamente porque essa suíte não estava
+# sendo executada por CI. Desligar reintroduziria esse buraco.
+#
+# A divisão preserva o gate barato por push e move só o caro para noturno/sob demanda.
+#
+# Contexto original: a suíte de integração (tests/integration/**) rodava SÓ localmente —
+# `describe.skipIf(!THEOMEM_PG_URI)` pula em silêncio sem banco, então uma regressão podia entrar
+# verde. Ambos os jobs provisionam pgvector, aplicam o schema e compilam o dist (os `exports` do
+# pacote apontam para `./dist/**`).
 name: Integration (Postgres)
 
+# GATILHOS: o job `contract` roda em PR para `develop`/`main` e em push em `develop` (ver o
+# racional em `ci.yml`). O job `integration` roda SÓ no noturno e sob demanda.
+#
+# DESVIO CONSCIENTE DO IDEAL DE LIVRO: a prática canônica mandaria rodar a suíte de integração
+# também no push pós-merge em `develop`, para pegar a regressão no commit que a causou. Aqui ela
+# fica no noturno por decisão de custo do owner — são ~28 min de runner cobrado por minuto MAIS
+# chamadas reais de LLM. O preço desse desvio é honesto e vale registrar: quando o noturno quebra,
+# o culpado está em algum ponto entre os commits do dia, e bissectar custa mais do que teria
+# custado o gate. Se o volume de commits/dia crescer, reavaliar.
 on:
   pull_request:
-  push:
     branches: [develop, main]
     paths-ignore:
       - '.claude/**'
       - '**/*.md'
+  push:
+    branches: [develop]
+    paths-ignore:
+      - '.claude/**'
+      - '**/*.md'
+  # Noturno 03:00 UTC — a suíte cara roda uma vez por dia contra develop, não por commit.
+  schedule:
+    - cron: '0 3 * * *'
+  # Escape hatch: rodar a suíte de integração sob demanda (antes de um release, ao investigar
+  # uma regressão) sem esperar o noturno.
+  workflow_dispatch:
 
 permissions:
   contents: read
 
-# One run per ref — a new push cancels the in-flight run (single-trunk develop).
 concurrency:
   # #129: key on the BRANCH, not github.ref. A push to develop and its PR carry different
   # github.ref values (refs/heads/develop vs refs/pull/N/merge), so the old key put them in
@@ -29,16 +60,132 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # ---------------------------------------------------------------------------------------
+  # CONTRATO — barato, roda sempre. Sem o pre-cache do Xenova e sem a suíte de integração.
+  # ---------------------------------------------------------------------------------------
+  contract:
+    # Sem contagem de testes no nome: o número envelhece sozinho (o #104 falava em 1353; medido
+    # 1479 passed / 1 skipped em 2026-07-27) e um nome que mente é pior que um nome genérico.
+    name: contract suite (pgvector)
+    # Blacksmith (#156) — ver o job `integration` abaixo para as duas pré-condições da migração.
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    # Sem a suíte de integração nem o download do modelo, sobra build + a suíte de contrato.
+    # Medido em 2026-07-27: 53 s de job ponta a ponta na frota de 8 vCPU.
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          # App DB dedicado `themem` — NÃO pode ser o `postgres` de manutenção. O harness deriva
+          # a conexão admin como `.../postgres` e emite `DROP DATABASE <app-db> WITH (FORCE)` a
+          # partir dela; se o app DB fosse `postgres`, seria a conexão derrubando o próprio banco
+          # a que está ligada (`55006 cannot drop the currently open database`).
+          POSTGRES_DB: themem
+        ports:
+          - 5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Resolve Postgres URI
+        run: echo "THEOMEM_PG_URI=postgres://postgres:postgres@localhost:${{ job.services.postgres.ports['5432'] }}/themem" >> "$GITHUB_ENV"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.4.0
+        with:
+          version: 10.34.1
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build (dist subpaths os testes importam)
+        run: pnpm run build
+
+      - name: Apply schema (migrations — o caminho de runtime, sem drizzle-kit TTY / sem psql)
+        # Ver o job `integration` para o racional completo desta escolha.
+        env:
+          THEOMEM_EMBEDDER: openai
+        run: |
+          node -e "const{Pool}=require('pg');const p=new Pool({connectionString:process.env.THEOMEM_PG_URI});p.query('CREATE EXTENSION IF NOT EXISTS vector').then(()=>p.end()).catch(e=>{console.error(e);process.exit(1)})"
+          node dist/agent-tools/cli.js migrate
+
+      - name: Run contract suite (#104)
+        # #104 — esta suíte NÃO era rodada por CI, então uma regressão de contrato ficava invisível
+        # até alguém rodar `pnpm test` local. Precisa de Postgres porque um punhado dos testes
+        # "contract" sobe o servidor MCP, que abre um `Pool` real — sem banco eles vazam
+        # ECONNREFUSED como unhandled rejection (a suíte não é tão pura quanto o nome).
+        #
+        # O env é o MESMO que estes testes tinham quando moravam no job de integração — não foi
+        # reduzido. Alguns testes leem `OPENAI_API_KEY` (ex.: config/secrets), e não foi verificado
+        # quais chegam a fazer chamada real; preservar o ambiente evita trocar um gate verde por
+        # uma falha nova durante a separação.
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          THEOMEM_EMBEDDER: openai
+        run: pnpm test
+
+  # ---------------------------------------------------------------------------------------
+  # INTEGRAÇÃO — cara (OpenAI real + modelo Xenova). Só noturno e sob demanda.
+  # ---------------------------------------------------------------------------------------
   integration:
-    name: integration (pgvector + test:integration)
-    # RUNNER — Blacksmith pilot ATTEMPTED and REVERTED 2026-07-27 (see #156). The label
-    # `blacksmith-2vcpu-ubuntu-2404` was applied correctly but NO runner ever picked the job up:
-    # 40+ min queued with `runner_name` empty. Reverted to keep CI functional. The open question the
-    # pilot existed to answer — does an ephemeral runner provision `services:`? — is still UNANSWERED.
-    # Re-applying is one line once Blacksmith actually serves the label for this repo.
+    name: integration suite (pgvector + OpenAI real)
+    # NÃO roda em push/PR. Este `if` é o que corta o custo por commit; o `on:` acima precisa
+    # continuar escutando push/PR por causa do job `contract`.
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    # RUNNER — Blacksmith, 8 vCPU / 32 GB (#156). A migração levou 4 tentativas em 2026-07-27; as
+    # 3 primeiras morreram IGUAL (`queued`, `runner_name` vazio, zero pickup, nenhum step
+    # executado: 40+ / 9+ / 12+ min). O registro fica porque a causa não é adivinhável pelo YAML.
     #
-    # Self-hosted (theo-ci-theo-memory) — GitHub-hosted minutes are billing-blocked for the org.
-    runs-on: [self-hosted, linux, x64]
+    # SÃO DUAS PRÉ-CONDIÇÕES, e cada uma só ficou visível depois de resolver a anterior:
+    #
+    # (1) O REPO PRECISA PERTENCER A UMA ORGANIZAÇÃO. Estava em `usetheodev`, conta PESSOAL
+    #     (`type=User`). A doc é explícita: "Blacksmith is limited to GitHub organizations and
+    #     not available for personal repositories". Resolvido transferindo para a org `usetheoai`
+    #     (secrets e variables sobreviveram). NECESSÁRIO, mas NÃO suficiente — a 3ª tentativa,
+    #     já sob a org, falhou igual.
+    #
+    # (2) O GITHUB APP PRECISA ESTAR INSTALADO NA ORG QUE DONA O REPO. Instalação de App pertence
+    #     à CONTA, não ao repositório: ao transferir, o repo saiu de baixo da instalação que
+    #     existia em `usetheodev` e entrou numa org sem instalação alguma. Resolvido instalando
+    #     em github.com/apps/blacksmith-sh para `usetheoai` (repo_selection=all).
+    #
+    # O QUE DESPISTOU O DIAGNÓSTICO POR TRÊS RODADAS: o Migration Wizard lê os repositórios pela
+    # SESSÃO OAUTH do usuário, não pela instalação do App. Por isso sempre listou estes workflows
+    # e respondeu "No changes to migrate" — mesmo com o repo numa conta pessoal e nenhum runner
+    # sendo servido. Ele atesta o `runs-on`, NÃO a integração.
+    #
+    # ORDEM DE VERIFICAÇÃO SE VOLTAR A FICAR `queued` COM `runner_name` VAZIO (barata → cara):
+    #   a) `gh api repos/<owner>/theo-memory --jq .owner.type` → tem de ser "Organization"
+    #   b) `gh api orgs/<org>/installations` → tem de listar `blacksmith-sh` (exige admin:org)
+    #   c) Billing/plano ativo PARA ESSA ORG em app.blacksmith.sh (o cartão fica na conta e não
+    #      migra junto com o repo)
+    #   d) IP allow list da org (Settings > Security). Se habilitada, liberar 34.107.78.182,
+    #      63.181.86.27, 63.178.35.73 — causa documentada de "jobs not getting picked up".
+    # A label literal depende de `.github/actionlint.yaml`: sem ele o gate actionlint a rejeita
+    # em TODOS os workflows.
+    #
+    # PERGUNTA DO #156, ENFIM RESPONDIDA — SIM, runner efêmero provisiona `services:`. Medido no
+    # run 30306550648: `Initialize containers` OK, o pgvector subiu, `job.services.postgres.ports`
+    # resolveu a porta dinâmica, o schema aplicou e a suíte de contrato passou inteira.
+    # A doc da Blacksmith não cobre service containers em lugar nenhum — isto aqui é a evidência.
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    # Medido: max 28,8 min (baixa o modelo Xenova ~22 MB com 6 tentativas, aplica schema, roda a
+    # suíte de integração). 60 = ~2x o observado.
+    timeout-minutes: 60
 
     services:
       postgres:
@@ -55,9 +202,10 @@ jobs:
           # open database`. A separate `themem` app DB (the local convention) avoids
           # it; the default `postgres` maintenance DB always exists alongside it.
           POSTGRES_DB: themem
-        # Ephemeral host port (NOT 5432:5432): the self-hosted runner host is SHARED
-        # across repos, so a fixed host port would collide with a concurrent job's
-        # postgres (and with the platform's own :5432). The mapped port is resolved below.
+        # Ephemeral host port (NOT 5432:5432). Mantido: o mapeamento dinâmico é correto em
+        # QUALQUER frota e `job.services.postgres.ports['5432']` resolve dos dois lados. Fixar
+        # 5432:5432 compraria só cosmética e adicionaria um modo de colisão novo (a imagem
+        # ubuntu-2404 traz PostgreSQL).
         ports:
           - 5432
         options: >-
@@ -69,9 +217,9 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - name: Resolve Postgres URI (dynamic host port — shared self-hosted host)
-        # App DB is `themem` (NOT the `postgres` maintenance DB) — see the service
-        # POSTGRES_DB note above (avoids the reset-shared-db drop-the-open-db 55006).
+      - name: Resolve Postgres URI (porta dinâmica)
+        # App DB é `themem` (NÃO o `postgres` de manutenção) — ver a nota do POSTGRES_DB acima
+        # (evita o drop-the-open-db 55006 do reset-shared-db).
         run: echo "THEOMEM_PG_URI=postgres://postgres:postgres@localhost:${{ job.services.postgres.ports['5432'] }}/themem" >> "$GITHUB_ENV"
 
       - name: Setup pnpm
@@ -98,7 +246,6 @@ jobs:
         # runner). Instead provision the schema the way the deployed server does:
         # `themory migrate` → runMigrations(pool) applies the .sql migrations
         # (triggers included) programmatically — no drizzle-kit, no psql, no TTY.
-        # Embedder defaults to openai (dim 1536), matching the integration suite.
         env:
           # THEOMEM_EMBEDDER=openai → schema provisioned at vector(1536) to match the
           # integration suite (openai embedder / MAX_EMBEDDING_DIM). Unset defaults to
@@ -124,19 +271,6 @@ jobs:
             echo "HF fetch attempt $i failed — retry in 20s"; sleep 20
           done
           echo "::error::could not pre-cache the Xenova model after 6 attempts (HF CDN unreachable)"; exit 1
-
-      - name: Run contract suite + typecheck (#104)
-        # #104 — the contract suite (1353 tests) was NOT run by CI; only test:integration was,
-        # so a contract regression stayed invisible until someone ran `npm test` locally. Run it
-        # HERE, in the integration job, reusing its Postgres + build + embedder cache: a handful
-        # of "contract" tests boot the MCP server, which opens a real Pool — without a DB those
-        # leak ECONNREFUSED as unhandled rejections (the suite is not as pure as its name). Sharing
-        # the existing Postgres service is the parsimonious fix — no second DB, no second job, and
-        # it runs first so a contract regression fails the job fast.
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          THEOMEM_EMBEDDER: openai
-        run: pnpm test
 
       - name: Run integration suite (real Postgres + real OpenAI)
         # THEOMEM_PG_URI set above; OPENAI_API_KEY from the repo secret (real

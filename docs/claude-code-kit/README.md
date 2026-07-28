@@ -1,9 +1,9 @@
 # Claude Code ⇄ theo-memory kit
 
-## Install (first-class Claude Code plugin — parity with REDACTED)
+## Install (first-class Claude Code plugin)
 
 ```bash
-claude plugin marketplace add usetheodev/theo-memory
+claude plugin marketplace add usetheoai/theo-memory
 claude plugin install theo-memory@theo-memory
 ```
 
@@ -16,18 +16,13 @@ claude plugin install theo-memory@theo-memory \
 ```
 
 The plugin bundles the lifecycle hooks (auto-remember on Stop, PreCompact flush, per-prompt
-recall, secret-write block) + the theo-memory MCP — the same UX as `REDACTED@REDACTED-plugins`. The legacy
+recall, secret-write block) + the theo-memory MCP — the standard plugin UX. The legacy
 `install.sh` remains for manual setups; do not run both (double capture).
 
 
 A version-controlled companion kit that makes **Claude Code** use **theo-memory** as its
 persistent memory layer, globally, across every project on the machine. Ships a hooks-first
 auto-memory spine plus an explicit MCP complement.
-
-> Grounded in the M6 blueprint
-> [`knowledge-base/discoveries/blueprints/claude-code-theo-memory-integration-blueprint.md`](../../knowledge-base/discoveries/blueprints/claude-code-theo-memory-integration-blueprint.md)
-> and the M6 plan
-> [`knowledge-base/plans/claude-code-memory-integration-plan.md`](../../knowledge-base/plans/claude-code-memory-integration-plan.md).
 
 ## Why hooks first (the core finding)
 

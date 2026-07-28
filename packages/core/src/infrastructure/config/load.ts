@@ -13,7 +13,6 @@
  * Cwd/home/env are INJECTED (defaulting to process.cwd()/os.homedir()/
  * process.env) so tests drive real temp dirs without global-state coupling.
  *
- * @see .claude/knowledge-base/plans/layered-config-cli-plan.md § T2.1 + T2.2 + ADR-2/3
  */
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';

@@ -22,7 +22,6 @@
  *   - EC-7 (scopes dedupe)        → Set conversion before INSERT
  *   - EC-2 (lineage cycle)        → UNION (not UNION ALL) + LIMIT 100
  *
- * @see /home/paulo/Projetos/usetheo/theo-cloud/theo/cloud/internal/routes/api_keys.go
  */
 import { createHash, randomBytes } from 'node:crypto';
 

@@ -1,7 +1,6 @@
 /**
  * M25 T1.2 RED — pure secret predicate + mask.
  *
- * @see .claude/knowledge-base/plans/layered-config-cli-plan.md § T1.2
  */
 import { describe, expect, it } from 'vitest';
 

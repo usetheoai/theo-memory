@@ -1,0 +1,104 @@
+# Gate rápido e SEM banco: lint + typecheck + build.
+#
+# O DEFEITO QUE ISTO PREVINE: até aqui o repo não tinha gate unitário. `lint`, `typecheck` e `build`
+# só eram exercitados DENTRO do `integration.yml`, atrás de um serviço Postgres, do download do
+# modelo Xenova e de duas suítes completas — 28,8 min medidos no pior caso. Um erro de tipo ou uma
+# violação de lint, que uma máquina detecta em ~2 min, levava esse tempo todo para aparecer, e ainda
+# ocupava um runner serial compartilhado por 5 repositórios enquanto isso. (A serialização deixou de
+# existir com a migração para a frota efêmera em 2026-07-27; a economia de sinal rápido, não.)
+#
+# ESCOPO — honestamente limitado. Este gate NÃO roda `pnpm test`, e isso é deliberado, não
+# esquecimento: o próprio `integration.yml` documenta que parte da suíte "contract" sobe o servidor
+# MCP e abre um `Pool` real, de modo que sem banco ela vaza ECONNREFUSED como unhandled rejection
+# ("a suíte não é tão pura quanto o nome"). Rodá-la aqui produziria vermelho por falta de
+# infraestrutura, não por defeito — o pior tipo de gate. Enquanto essa dependência existir, o teste
+# fica onde o banco está (`integration.yml`); aqui ficam os três gates que são genuinamente
+# livres de I/O.
+name: CI
+
+# GATILHOS (política 2026-07-27, revisada no mesmo dia): PR para `develop` OU `main`, mais push
+# em `develop`.
+#
+# O PRINCÍPIO: todo commit que entra no trunk é verificado — é a definição de CI. Aqui o trunk é
+# `develop`, então é ELE que precisa de gate; gate só em `main` protegeria apenas o instante do
+# release, quando o estrago já está feito e diluído num diff grande impossível de bissectar.
+#
+# POR QUE OS DOIS GATILHOS, e não um: o gate de PR mata o defeito antes de entrar no trunk; o gate
+# de push (pós-merge) pega o que só existe DEPOIS do merge — dois PRs verdes isoladamente que se
+# quebram juntos (conflito semântico). São escopos diferentes, não redundância.
+on:
+  pull_request:
+    branches: [develop, main]
+    paths-ignore:
+      - '.claude/**'
+      - '**/*.md'
+      - 'docs/**'
+  push:
+    branches: [develop]
+    paths-ignore:
+      - '.claude/**'
+      - '**/*.md'
+      - 'docs/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  # #129: chaveado pela BRANCH, não por `github.ref`. Um push em develop e o PR do MESMO commit
+  # carregam `github.ref` diferentes (`refs/heads/develop` vs `refs/pull/N/merge`), caem em grupos
+  # distintos e AMBOS rodam — o dobro do trabalho para o mesmo commit, num runner serial.
+  group: ci-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  static:
+    name: lint + typecheck + build (sem banco)
+    # Blacksmith (#156) — ver integration.yml para as duas pré-condições que atrasaram a migração.
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    # Build TS de 6 pacotes. Folga sobre o observado, e muito abaixo do default de 360 min que
+    # deixaria um hang segurando a fila dos 5 repositórios.
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.4.0
+        with:
+          version: 10.34.1
+
+      - name: Setup Node
+        # Precisa casar o runtime da imagem (Dockerfile). Testar num major diferente do que se
+        # publica é como um worker morto chega ao host de dev com a esteira verde.
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Build PRIMEIRO. Os pacotes consomem os `.d.ts` publicados uns dos outros a partir de
+      # `dist/`, então num checkout limpo nada que precise de TIPOS resolve os aliases de
+      # workspace antes disto.
+      - name: Build
+        run: pnpm run build
+
+      # O DEFEITO QUE ESTA ORDEM PREVINE (medido 2026-07-27, run 30306550640): o `Lint` rodava
+      # ANTES do `Build` e falhava com 14 erros `@typescript-eslint/no-unsafe-*` em
+      # `agent-core/src/agent-tools-memory.ts` e `cli/src/reextract/run-reextract.ts` — código que
+      # ninguém havia tocado. Não eram defeitos: essas regras são TYPE-AWARE, e sem `dist/` os
+      # imports entre pacotes do workspace resolvem para `any`, o que as dispara sozinhas.
+      #
+      # Provado nos dois sentidos localmente: `pnpm run lint` com `packages/core/dist` presente dá
+      # "0 errors, 7 warnings"; movendo `dist/` para fora e repetindo dá exatamente os mesmos
+      # "21 problems (14 errors, 7 warnings)" da CI.
+      #
+      # O arquivo já documentava esse risco para o `typecheck` desde sempre — o `Lint` é que ficara
+      # de fora do mesmo raciocínio. Ficou invisível por meses porque o job morria antes, no
+      # `Setup Node` (falha de infra do runner self-hosted); só quando a frota passou a executar de
+      # fato é que o gate chegou a rodar e o erro apareceu.
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Typecheck
+        run: pnpm run typecheck

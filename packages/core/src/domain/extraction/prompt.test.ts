@@ -1,10 +1,10 @@
 /**
  * M27 T1.1 — durable-fact discipline in the extraction SYSTEM_PROMPT.
  *
- * Root cause (blueprint memory-write-quality-REDACTED-parity): the extraction prompt had
+ * Root cause (blueprint memory-write-quality-parity): the extraction prompt had
  * no fact-quality contract, so the LLM stored questions ("Quer que eu prossiga…?"),
  * first-person voice ("Minha recomendação:") and 400-word narration dumps as facts.
- * These tests lock the REDACTED-grade discipline: atomic + declarative + third-person +
+ * These tests lock the extraction discipline: atomic + declarative + third-person +
  * a few-shot mapping a question → empty `memory`. The language block MUST survive.
  */
 import { describe, expect, test } from 'vitest';
@@ -27,7 +27,7 @@ describe('extraction prompt — durable-fact discipline (M27)', () => {
   });
 
   test('has a few-shot mapping a question to an empty memory list', () => {
-    // A durable fact is never a question — REDACTED's discipline yields [] for interrogatives.
+    // A durable fact is never a question — the discipline yields [] for interrogatives.
     const p = composed();
     // The prompt must SHOW the model that a question produces no fact.
     expect(p).toMatch(/\?[\s\S]{0,120}"memory"\s*:\s*\[\s*\]/);

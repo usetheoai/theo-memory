@@ -4,7 +4,7 @@
  * Self-heals the common LLM divergences so `AdditiveExtractionSchema` stays strict:
  * - numeric `linked_memory_ids: [1, 2]` → string ids (gpt-4o-mini divergence, team report
  *   2026-06-08);
- * - M27 T2.3 (REDACTED `normalize_facts` parity): a weaker LLM returns the fact under `fact`
+ * - M27 T2.3 (normalize-facts parity): a weaker LLM returns the fact under `fact`
  *   instead of `text`, and/or omits the sequential `id` — coerce both before the parse.
  *
  * Extracted from `pipeline.ts` (single responsibility + keeps that over-budget file from

@@ -1,5 +1,5 @@
 /**
- * M27 T6.1 — write-quality parity metric (REDACTED grade).
+ * M27 T6.1 — write-quality parity metric.
  *
  * The DoD number: the fraction of stored items that are a SINGLE THIRD-PERSON durable fact.
  * The predicate `isSingleThirdPersonFact` is imported from `@usetheo/memory` — the SAME single

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run the FULL LongMemEval_oracle set through the e2e-qa harness R times (variance),
-# same model, then aggregate into a REDACTED-comparable report.
+# same model, then aggregate into a report.
 #
 # Requires: gitignored .env.local at repo root (OPENAI_API_KEY / OPENAI_BASE_URL /
 # OPENAI_CHAT_MODEL / THEOMEM_PG_URI) + local pgvector. Each run uses an isolated DB.
@@ -40,5 +40,5 @@ done
 
 echo "[lme] === aggregating ==="
 python3 packages/eval/scripts/aggregate-longmemeval.py \
-  "$OUTDIR"/run*.jsonl --out docs/benchmarks/full-longmemeval-vs-REDACTED.md
-echo "[lme] DONE → docs/benchmarks/full-longmemeval-vs-REDACTED.md"
+  "$OUTDIR"/run*.jsonl --out docs/benchmarks/full-longmemeval.md
+echo "[lme] DONE → docs/benchmarks/full-longmemeval.md"

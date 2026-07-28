@@ -1,11 +1,15 @@
 /**
  * Static-shape validation for `.github/workflows/publish.yml` + `.trivyignore`.
  *
- * After the org-standardization convergence, the image build/scan/sign logic lives in the
- * shared reusable `theo/build-publish.yml`; `publish.yml` is a thin caller. These guards
- * assert the DELEGATION + that the Trivy gate is REQUESTED (`trivy: true`) and that signing +
- * identity-pinned verify happen on a release tag. The Trivy/build/push implementation is the
- * reusable's contract, governed in the `theo` repo.
+ * After the org-standardization convergence, the image build/scan/sign logic lived in the shared
+ * reusable `theo/build-publish.yml`; `publish.yml` was a thin caller. Desde 2026-07-27 (#156) a
+ * delegação aponta para uma CÓPIA VENDORIZADA local — este repo migrou para a org `usetheoai` e o
+ * GitHub não compartilha reusable PRIVADO cross-owner, então a chamada ao `theo` (que segue em
+ * `usetheodev`) falhava no parse do workflow.
+ *
+ * ESTES TESTES SÃO O ALARME CONTRA A CÓPIA VIRAR PERMANENTE. Quando `usetheodev/theo` migrar para
+ * `usetheoai`: volte o `uses:` para o reusable, APAGUE `.github/workflows/build-publish.yml` e
+ * atualize os três testes abaixo no MESMO commit. Se um andar sem o outro, isto fica vermelho.
  *
  * @see deps-audit-golden-rule.md § Severity rubric (EC-43 Trivy gate) + EC-44 (permissions)
  */
@@ -32,11 +36,31 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     expect(readFileSync(WORKFLOW_PATH, 'utf-8')).toMatch(/id-token:\s*write/);
   });
 
-  test('delegates to the shared reusable build-publish, requesting the Trivy gate (EC-43)', () => {
+  test('delegates to the VENDORED local build-publish, requesting the Trivy gate (EC-43)', () => {
     const yaml = readFileSync(WORKFLOW_PATH, 'utf-8');
-    expect(yaml).toMatch(/usetheodev\/theo\/\.github\/workflows\/build-publish\.yml@/);
+    // Era `usetheodev/theo/.github/workflows/build-publish.yml@`. Passou a ser a cópia LOCAL em
+    // 2026-07-27 (#156): este repo foi para a org `usetheoai` e o GitHub não compartilha reusable
+    // PRIVADO cross-owner, então a chamada ao `theo` falhava no parse do workflow.
+    expect(yaml).toMatch(/uses:\s*\.\/\.github\/workflows\/build-publish\.yml/);
     expect(yaml).toMatch(/trivy:\s*true/);
     expect(yaml).toMatch(/image:\s*themory\b/);
+  });
+
+  test('the vendored copy exists and publishes to the usetheoai namespace', () => {
+    // Guarda de coerência: enquanto o `publish.yml` apontar para a cópia local, ela TEM de existir.
+    const vendored = readFileSync(resolve(REPO_ROOT, '.github/workflows/build-publish.yml'), 'utf-8');
+    expect(vendored).toMatch(/registry:\s*\{[^}]*default:\s*"ghcr\.io\/usetheoai"/);
+    // O caller sobrescreve explicitamente — o default sozinho não é garantia suficiente.
+    expect(readFileSync(WORKFLOW_PATH, 'utf-8')).toMatch(/registry:\s*ghcr\.io\/usetheoai/);
+  });
+
+  test('the vendored cosign identity is pinned to THIS repo, not to the origin repo', () => {
+    // O guard de confused-deputy (EC-2) deriva a identidade keyless de repo + path do workflow.
+    // Se a cópia mantivesse o regexp do original (`usetheodev/theo`), a verificação de release
+    // falharia — e um regexp apontando para outro repo aceitaria assinatura de terceiro.
+    const vendored = readFileSync(resolve(REPO_ROOT, '.github/workflows/build-publish.yml'), 'utf-8');
+    expect(vendored).toMatch(/certificate-identity-regexp.*usetheoai\\?\/theo-memory/);
+    expect(vendored).not.toMatch(/certificate-identity-regexp.*usetheodev\\?\/theo\\?\//);
   });
 
   test('requests cosign sign + identity-pinned verify on a release tag (decision 1 / EC-2)', () => {

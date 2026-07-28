@@ -22,7 +22,6 @@
  * emitted dist `.js` and `.d.ts` files is rewritten to a relative path that
  * resolves to the compiled dist file.
  *
- * @see .claude/knowledge-base/plans/extract-cli-to-packages-plan.md (themory --help após build)
  */
 import { readdirSync, readFileSync, writeFileSync, statSync } from 'node:fs';
 import { join, relative, dirname } from 'node:path';

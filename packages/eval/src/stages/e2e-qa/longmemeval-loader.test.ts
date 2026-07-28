@@ -1,6 +1,6 @@
 /**
  * Unit tests for `selectRunSubset` — the E2E_QA_LIMIT mode dispatcher that lets the
- * e2e-qa harness run the full LongMemEval_oracle set (REDACTED-comparable) vs the default
+ * e2e-qa harness run the full LongMemEval_oracle set vs the default
  * 12-example smoke subset vs a first-n sample. Pure, keyless, deterministic.
  */
 import { describe, expect, it } from 'vitest';
@@ -23,7 +23,7 @@ function ex(n: number, type = 'temporal-reasoning', abs = false): LongMemEvalExa
 describe('selectRunSubset', () => {
   const dataset = Array.from({ length: 40 }, (_, i) => ex(i));
 
-  it("mode 'full' returns the ENTIRE dataset (identity — the REDACTED-comparable run)", () => {
+  it("mode 'full' returns the ENTIRE dataset (identity — the full run)", () => {
     const out = selectRunSubset(dataset, 'full');
     expect(out).toHaveLength(dataset.length);
     expect(out).toBe(dataset);

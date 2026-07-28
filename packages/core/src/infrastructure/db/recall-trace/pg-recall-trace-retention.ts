@@ -6,7 +6,6 @@
  * (PG `40001` retried once). Age-based only — a uniform sweep that cannot target
  * one tenant, so no cross-tenant deletion risk (blueprint ADR-1).
  *
- * @see knowledge-base/discoveries/blueprints/recall-trace-governance-blueprint.md
  * @see packages/core/src/infrastructure/db/recall-cache/serializable-tx.ts (reused, Rule 9)
  */
 import type { Pool } from 'pg';
