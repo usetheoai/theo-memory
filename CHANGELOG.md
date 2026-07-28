@@ -3,6 +3,8 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
+## [0.57.0] - 2026-07-28
+
 ### Added
 
 - **`:latest` passa a exigir que a tag esteja em `main` — tag não é promoção.** `:latest` é a referência que a reconciliação de **produção** consome. Ela já era condicionada a `refs/tags/v*`, mas nada impedia taggear um commit de `develop`, de um branch de trabalho ou de um fork-merge e publicar `:latest` a partir dele: o contrato do ciclo de release (`develop → main` por PR, tag no merge) era **disciplina, não enforcement** — e a diferença só apareceria no dia em que alguém taggeasse no lugar errado, com produção puxando. A guarda usa a API de compare em vez de `git merge-base` (dispensa clonar o histórico completo só para responder sim/não) e aceita apenas `identical` ou `behind`; `ahead` e `diverged` reprovam. Validada contra a realidade: `v0.56.0` (em main) → `behind` → aceita; `origin/develop` → `diverged` → rejeita. O job da imagem **depende** da guarda — sem esse `needs` ela existiria sem gatear nada, que é o modo de falha mais silencioso possível.
