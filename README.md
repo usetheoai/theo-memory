@@ -12,15 +12,37 @@ Works with any LLM. No graph DB. No lock-in. Apache-2.0.
 [![Tests](https://img.shields.io/badge/tests-1%2C500%2B%20passing-brightgreen?style=flat-square)](#testing)
 [![Node](https://img.shields.io/badge/node-%E2%89%A520-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io-2496ED?style=flat-square&logo=docker&logoColor=white)](#docker)
-[![MCP](https://img.shields.io/badge/MCP-4%20tools-FF6B35?style=flat-square)](#mcp-server)
+[![MCP](https://img.shields.io/badge/MCP-4%20tools-FF6B35?style=flat-square)](#agent-loops-via-mcp)
 [![OpenAPI](https://img.shields.io/badge/OpenAPI-3.1-6BA539?style=flat-square&logo=openapiinitiative&logoColor=white)](#rest-api)
 [![Status](https://img.shields.io/badge/status-pre--release-orange?style=flat-square)](#status)
 
-[Quickstart](#quickstart) · [Features](#features) · [API](#api) · [REST](#rest-api) · [MCP](#mcp-server) · [Docker](#docker) · [CLI](#cli) · [Architecture](#architecture) · [Contributing](#contributing)
+**English** · [Português (BR)](./README.pt-BR.md)
 
 **Part of [Theo](https://usetheo.dev) — the open platform for AI agents.** [Learn more →](https://usetheo.dev)
 
 </div>
+
+---
+
+## Contents
+
+**Start here** — [Why](#why-theo-memory) · [Requirements](#requirements) · [Quickstart](#quickstart) · [Features](#features)
+
+**Use it** — [SDK](#api) · [REST API](#rest-api) · [MCP](#agent-loops-via-mcp) · [CLI](#cli) · [Docker](#docker)
+
+**Operate it** — [Multi-tenancy & RBAC](#multi-tenancy--rbac) · [CI/CD](#cicd) · [Architecture](#architecture) · [Testing](#testing)
+
+**Decide** — [What's distinctive](#whats-distinctive) · [Roadmap](#roadmap) · [Status](#status) · [Support](#support) · [Contributing](#contributing) · [License](#license)
+
+**Deeper documentation** — this README is the tour; these are the manuals:
+
+| Document | What it covers |
+|---|---|
+| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | Layer boundaries, the 13 DIP interfaces, write and search pipelines |
+| [`docs/RUNBOOK.md`](./docs/RUNBOOK.md) | Deployment, migrations, key rotation, incident response |
+| [`docs/EVALUATION.md`](./docs/EVALUATION.md) | How retrieval quality is measured, and against what |
+| [`docs/adrs/`](./docs/adrs/) | Architecture decision records |
+| [`CONTRIBUTING.md`](./CONTRIBUTING.md) · [`SECURITY.md`](./SECURITY.md) · [`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md) | Contribution flow, vulnerability reporting, community rules |
 
 ---
 
@@ -70,6 +92,17 @@ const facts = await memory.user('alice').recall('UI preferences');
 - **Docker-ready** — distroless image < 200 MB with healthcheck
 - **Observable** — 16 OpenTelemetry events + per-handler spans
 - **Tested** — ~970 contract/unit tests + 540+ integration tests against real pgvector, across 270+ test files
+
+## Requirements
+
+| | Version | Why |
+|---|---|---|
+| Node.js | ≥ 20 | Runtime |
+| PostgreSQL | ≥ 14 with [`pgvector`](https://github.com/pgvector/pgvector) ≥ 0.5 | Storage and vector search — the default image is `ankane/pgvector:v0.5.1` |
+| An LLM API key | — | Fact extraction and reflection. Any OpenAI-compatible endpoint works via `OPENAI_BASE_URL` |
+| An embedder | — | On-device by default (no key needed); OpenAI embeddings optional — see [Quickstart](#quickstart) |
+
+`pnpm` is required to build from source (this is a pnpm workspace); consuming the published package needs only npm.
 
 ## Quickstart
 
@@ -346,7 +379,7 @@ themory keys revoke <id>
 themory keys rotate <id>
 ```
 
-## CLI verbs
+### Memory verbs
 
 The four memory verbs are first-class subcommands — `remember`, `recall`, `forget`, `reflect`:
 
@@ -399,6 +432,10 @@ Text → Context → Retrieve existing → LLM extract → Embed → Dedup → P
 Query → Embed → Semantic ANN → BM25 → Entity boost → Score → Threshold → Format
 ```
 
+Layer boundaries, the 13 DIP interfaces and each pipeline phase are documented in
+[`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md). Decisions and their rationale live in
+[`docs/adrs/`](./docs/adrs/).
+
 ## Testing
 
 ```bash
@@ -416,6 +453,10 @@ npm run lint                # Zero warnings
 | Source lines | ~20,000 |
 | DIP interfaces | 13 |
 | Migrations | 18 |
+
+How retrieval quality is measured — datasets, judges, and what the numbers do and do not mean —
+is in [`docs/EVALUATION.md`](./docs/EVALUATION.md). Deployment, migrations, key rotation and
+incident response are in [`docs/RUNBOOK.md`](./docs/RUNBOOK.md).
 
 ## What's distinctive
 
@@ -464,6 +505,15 @@ hosted plan, and a **plain-Postgres** deployment. Theo Memory itself is
 ## Status
 
 > **Pre-release — and honest about it.** Feature-complete for the core use case and validated across 107 end-to-end scenarios (REST, MCP, CLI, browser), plus continuous real-usage evidence: our own team runs on it. Not yet published to npm. The `production-ready` label waits for v1.0, when we freeze the contract. Until then you can run it, self-host it, and build on it — we would just rather say that plainly than print a badge we can't defend yet.
+
+## Support
+
+| I want to… | Go to |
+|---|---|
+| Report a bug or request a feature | [GitHub Issues](https://github.com/usetheoai/theo-memory/issues) |
+| Ask a question or show what you built | [Discord](https://discord.usetheo.dev/) |
+| Report a **security vulnerability** | [`SECURITY.md`](./SECURITY.md) — please do not open a public issue |
+| Understand a design decision | [`docs/adrs/`](./docs/adrs/) |
 
 ## Contributing
 
