@@ -7,13 +7,13 @@
  *
  */
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-
 import type { Memory } from '@usetheo/memory/contract';
 import { MemoryNotFound } from '@usetheo/memory/contract';
+
+import { INPUT_SCHEMA, TOOL_NAME } from './forget-skill-schema.js';
 import { namespacedRepoId } from './namespaced-repo-id.js';
 import { workspaceScopedMemory } from './workspace-scoped-memory.js';
 
-import { INPUT_SCHEMA, TOOL_NAME } from './forget-skill-schema.js';
 
 export { TOOL_NAME };
 

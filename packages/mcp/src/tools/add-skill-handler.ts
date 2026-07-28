@@ -9,13 +9,13 @@
  *
  */
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-
 import type { Memory } from '@usetheo/memory/contract';
 import { SkillAlreadyExists } from '@usetheo/memory/contract';
+
+import { INPUT_SCHEMA, TOOL_NAME } from './add-skill-schema.js';
 import { namespacedRepoId } from './namespaced-repo-id.js';
 import { workspaceScopedMemory } from './workspace-scoped-memory.js';
 
-import { INPUT_SCHEMA, TOOL_NAME } from './add-skill-schema.js';
 
 export { TOOL_NAME };
 

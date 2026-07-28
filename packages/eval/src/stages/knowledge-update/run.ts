@@ -68,7 +68,7 @@ export async function runKnowledgeUpdate(): Promise<KnowledgeUpdateResult> {
     llm: new StubLLM(),
     embeddingDim: f.embeddingDim,
     recallTrace: trace,
-  })) as DisposableMemory;
+  }));
 
   try {
     const scope = memory.user('kb_update');
@@ -119,7 +119,7 @@ export async function runRealReadTimeCounterProof(): Promise<RealReadTimeCounter
     embedder: realFixtureEmbedder(),
     llm: new StubLLM(),
     embeddingDim: f.embeddingDim,
-  })) as DisposableMemory;
+  }));
 
   try {
     const scope = memory.user('m23_readtime');

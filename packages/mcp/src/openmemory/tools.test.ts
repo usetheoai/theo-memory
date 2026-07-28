@@ -6,12 +6,12 @@
  * delete tool maps to forget-per-id; return shapes are OpenMemory-parity
  * JSON-string text content.
  */
-import { describe, expect, it, vi } from 'vitest';
-import { mock } from 'vitest-mock-extended';
 
 import type { Memory, ScopedMemory } from '@usetheo/memory/contract';
 import type { MemoryItem, MemoryItemWithScore } from '@usetheo/memory/contract';
 import { withScope } from '@usetheo/memory-agent-core';
+import { describe, expect, it, vi } from 'vitest';
+import { mock } from 'vitest-mock-extended';
 
 import {
   ADD_MEMORIES,

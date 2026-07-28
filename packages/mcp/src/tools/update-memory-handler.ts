@@ -13,7 +13,6 @@
  * @see ADR-0003 — ADD-only; @see ADR-M14-1 — Principal scope; edge EC-1 — order matters
  */
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-
 import { MemoryNotFound } from '@usetheo/memory/contract';
 import type { Memory } from '@usetheo/memory/contract';
 import { getScope } from '@usetheo/memory-agent-core';

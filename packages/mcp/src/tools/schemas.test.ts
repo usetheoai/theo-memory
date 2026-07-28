@@ -12,17 +12,17 @@
  */
 import { describe, expect, test } from 'vitest';
 
-import {
-  TOOL_NAME as REMEMBER_TOOL_NAME,
-  INPUT_SCHEMA as rememberSchema,
-} from './remember-schema.js';
-import { TOOL_NAME as RECALL_TOOL_NAME, INPUT_SCHEMA as recallSchema } from './recall-schema.js';
+import { TOOL_NAME as EPISODES_TOOL_NAME } from './episodes-schema.js';
 import { TOOL_NAME as FORGET_TOOL_NAME, INPUT_SCHEMA as forgetSchema } from './forget-schema.js';
+import { TOOL_NAME as RECALL_TOOL_NAME, INPUT_SCHEMA as recallSchema } from './recall-schema.js';
 import {
   TOOL_NAME as REFLECT_TOOL_NAME,
   INPUT_SCHEMA as reflectSchema,
 } from './reflect-schema.js';
-import { TOOL_NAME as EPISODES_TOOL_NAME } from './episodes-schema.js';
+import {
+  TOOL_NAME as REMEMBER_TOOL_NAME,
+  INPUT_SCHEMA as rememberSchema,
+} from './remember-schema.js';
 
 // Per MCP spec 2025-11-25 § Tool Names (blueprint Q7).
 const TOOL_NAME_SPEC_REGEX = /^[A-Za-z0-9_.-]{1,128}$/;

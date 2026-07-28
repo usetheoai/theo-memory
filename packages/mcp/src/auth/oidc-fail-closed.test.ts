@@ -2,8 +2,8 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { withBearerAuth } from './with-bearer-auth.js';
 import { workspaceFromRequest } from './request-workspace.js';
+import { withBearerAuth } from './with-bearer-auth.js';
 
 /**
  * M16 (#84) — the OIDC path must not serve the `default` workspace in fail-closed mode.

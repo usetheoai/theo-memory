@@ -92,12 +92,12 @@ describe.skipIf(ADMIN_PG_URI === '')(
       }
       pool = new pg.Pool({ connectionString: isolatedUri() });
       await runMigrations(pool, { embeddingDim: DIM });
-      memory = (await createLocalMemory({
+      memory = await createLocalMemory({
         vectorStore: new PgvectorStore(pool, { embeddingDim: DIM }),
         embedder: new LocalTransformerEmbedder(),
         llm: noopLlm,
         embeddingDim: DIM,
-      })) as unknown as DisposableMemory;
+      });
 
       const scope = memory.user(user);
       // Raw ingest (keyless — no extraction LLM). Interleave items + distractors.

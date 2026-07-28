@@ -60,6 +60,10 @@ describe('runSafely', () => {
 
   it('stringifies a non-Error throw defensively', async () => {
     const out = await runSafely<string>(
+      // Rejecting with a raw string is the point of this test: it pins that
+      // `runSafely` survives a non-Error throw. Satisfying the rule here would
+      // delete the behaviour under test.
+      // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
       () => Promise.reject('raw-string-failure'),
       (m) => m,
     );

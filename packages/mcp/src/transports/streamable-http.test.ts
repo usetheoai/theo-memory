@@ -12,17 +12,17 @@
  */
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import type { IncomingMessage } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import type { IncomingMessage } from 'node:http';
 
-import { connectStreamableHttp, scopeFromHeaders, scopeFromRequest } from '../transports/streamable-http.js';
 import { attachWorkspace, markGatewayTrusted } from '../auth/request-workspace.js';
 import type { McpServer } from '../server.js';
+import { connectStreamableHttp, scopeFromHeaders, scopeFromRequest } from '../transports/streamable-http.js';
 
 // T2.2 (#82) — scopeFromRequest threads the AUTH-TRUSTED workspace into the ctx.
 // M16 (#121, /review Finding 2) hardened the user tier: `X-Theo-User-Id` is honoured ONLY

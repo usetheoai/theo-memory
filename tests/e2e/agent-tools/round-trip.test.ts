@@ -45,9 +45,19 @@ beforeAll(async () => {
   if (PG_URI !== undefined && PG_URI !== '') {
     const pool = new pg.Pool({ connectionString: PG_URI });
     try {
-      await pool.query(
-        'DROP TABLE IF EXISTS memories, entities, history, __drizzle_migrations CASCADE',
-      );
+      // A true clean slate. The previous version dropped three tables plus an
+      // UNQUALIFIED `__drizzle_migrations` — but the journal lives in the
+      // `drizzle` schema, so that name matched nothing. The result was a database
+      // missing `memories` while the journal still claimed all migrations were
+      // applied: migrate-on-boot no-op'd and the subprocess died with
+      // `relation "memories" does not exist`. Dropping only those three tables is
+      // not enough either — the schema has 17, and replaying migration 0000 then
+      // fails on the first table that survived.
+      await pool.query('DROP SCHEMA IF EXISTS drizzle CASCADE');
+      await pool.query('DROP SCHEMA IF EXISTS public CASCADE');
+      await pool.query('CREATE SCHEMA public');
+      // pgvector installs into `public`, so it goes down with the schema.
+      await pool.query('CREATE EXTENSION IF NOT EXISTS vector');
     } finally {
       await pool.end();
     }
@@ -66,7 +76,7 @@ if (PG_URI === undefined || PG_URI === '') {
   });
 } else {
   describe('agent-tools CLI subprocess — MCP handshake + tools/list (T7.1)', () => {
-    it('spawns the CLI, completes initialize handshake, lists the 8 registered tools', async () => {
+    it('spawns the CLI, completes initialize handshake, lists the 13 registered tools', async () => {
       // T2.1: CLI consolidated under commander — invoke `mcp` subcommand
       // explicitly. The legacy `themory-mcp` basename alias (EC-27) is
       // covered separately by tests/integration/cli-consolidated.test.ts.
@@ -129,7 +139,9 @@ if (PG_URI === undefined || PG_URI === '') {
         result: { tools: { name: string }[] };
       };
       const names = listResponse.result.tools.map((t) => t.name);
-      // 4 locked verbs + episodes (G3-MCP) + skills tools (write-surface + execute).
+      // 4 locked verbs + episodes (G3-MCP) + skills tools + read/inspect surface.
+      // This list said 8 while thirteen tools shipped: the suite was never wired
+      // into CI, so nothing caught the drift.
       // Mirrors buildToolsListResponse declaration order (list-handler.ts).
       expect(names).toEqual([
         'remember',
@@ -140,6 +152,11 @@ if (PG_URI === undefined || PG_URI === '') {
         'add_skill',
         'forget_skill',
         'execute_skill',
+        'explain_recall',
+        'get_memory',
+        'list_entities',
+        'update_memory',
+        'delete_entities',
       ]);
 
       // Graceful shutdown via SIGTERM (T6.1 EC-7 absorption)

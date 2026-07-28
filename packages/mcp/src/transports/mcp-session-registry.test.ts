@@ -6,10 +6,14 @@
  * § 3 requires every bug fix to start from a failing test; these backfill the ones
  * that were missing.
  */
-import { describe, expect, it, vi } from 'vitest';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { McpSessionRegistry } from './mcp-session-registry.js';
+
+import { describe, expect, it, vi } from 'vitest';
+
 import type { McpServer } from '../server.js';
+
+import { McpSessionRegistry } from './mcp-session-registry.js';
+
 
 /** A server that records stop() calls without touching the SDK. */
 function fakeServer(): McpServer {
@@ -40,7 +44,7 @@ function recordingResponse(): RecordedResponse {
   let payload = '';
   // A real ServerResponse emits 'finish' when the response completes; the registry
   // hangs its runtime eviction on that, so the double must honor it.
-  const listeners = new Map<string, Array<() => void>>();
+  const listeners = new Map<string, (() => void)[]>();
   const res = {
     writeHead: (code: number) => {
       status = code;

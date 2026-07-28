@@ -74,7 +74,7 @@ export function selectDeterministicSubset(
   }
 
   // 2) Fill non-abstention type buckets, first-match per bucket.
-  const buckets: ReadonlyArray<readonly [string, number]> = [
+  const buckets: readonly (readonly [string, number])[] = [
     ['temporal-reasoning', 2],
     ['multi-session', 2],
     ['knowledge-update', 2],

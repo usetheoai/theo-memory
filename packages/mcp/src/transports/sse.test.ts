@@ -4,15 +4,15 @@
  * Covers the localhost-without-TLS guard + route handling (unknown path → 404,
  * unknown SSE session → 404) without needing pgvector or a real Memory.
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { mock } from 'vitest-mock-extended';
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
-
 import type { Memory, MemoryItem, ScopedMemory } from '@usetheo/memory/contract';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { mock } from 'vitest-mock-extended';
 
 import { McpServer } from '../server.js';
+
 import { connectSse, type SseHandle } from './sse.js';
 
 const serverFactory = (): McpServer => new McpServer({ toolset: 'openmemory' });

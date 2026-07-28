@@ -3,10 +3,10 @@
  * workspace from the scope (never the args) + projects the drops; without a
  * store it returns an honest "not enabled" result.
  */
+import type { Memory, RecallTraceRow, RecallTraceStore } from '@usetheo/memory/contract';
+import { withScope } from '@usetheo/memory-agent-core';
 import { describe, expect, it } from 'vitest';
 
-import { withScope } from '@usetheo/memory-agent-core';
-import type { Memory, RecallTraceRow, RecallTraceStore } from '@usetheo/memory/contract';
 
 import { explainRecallHandler } from './explain-recall-handler.js';
 

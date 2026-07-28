@@ -13,6 +13,27 @@
 import type { ListToolsResult } from '@modelcontextprotocol/sdk/types.js';
 
 import {
+  TOOL_NAME as ADD_SKILL_NAME,
+  DESCRIPTION as ADD_SKILL_DESC,
+  INPUT_SCHEMA as addSkillInput,
+} from './add-skill-schema.js';
+import {
+  TOOL_NAME as DELETE_ENTITIES_NAME,
+  DESCRIPTION as DELETE_ENTITIES_DESC,
+  INPUT_SCHEMA as deleteEntitiesInput,
+} from './delete-entities-schema.js';
+import {
+  TOOL_NAME as EPISODES_NAME,
+  DESCRIPTION as EPISODES_DESC,
+  INPUT_SCHEMA as episodesInput,
+  OUTPUT_SCHEMA as episodesOutput,
+} from './episodes-schema.js';
+import {
+  TOOL_NAME as EXECUTE_SKILL_NAME,
+  DESCRIPTION as EXECUTE_SKILL_DESC,
+  INPUT_SCHEMA as executeSkillInput,
+} from './execute-skill-schema.js';
+import {
   TOOL_NAME as EXPLAIN_RECALL_NAME,
   DESCRIPTION as EXPLAIN_RECALL_DESC,
   INPUT_SCHEMA as explainRecallInput,
@@ -22,6 +43,21 @@ import {
   DESCRIPTION as FORGET_DESC,
   INPUT_SCHEMA as forgetInput,
 } from './forget-schema.js';
+import {
+  TOOL_NAME as FORGET_SKILL_NAME,
+  DESCRIPTION as FORGET_SKILL_DESC,
+  INPUT_SCHEMA as forgetSkillInput,
+} from './forget-skill-schema.js';
+import {
+  TOOL_NAME as GET_MEMORY_NAME,
+  DESCRIPTION as GET_MEMORY_DESC,
+  INPUT_SCHEMA as getMemoryInput,
+} from './get-memory-schema.js';
+import {
+  TOOL_NAME as LIST_ENTITIES_NAME,
+  DESCRIPTION as LIST_ENTITIES_DESC,
+  INPUT_SCHEMA as listEntitiesInput,
+} from './list-entities-schema.js';
 import {
   TOOL_NAME as RECALL_NAME,
   DESCRIPTION as RECALL_DESC,
@@ -38,48 +74,12 @@ import {
   DESCRIPTION as REMEMBER_DESC,
   INPUT_SCHEMA as rememberInput,
 } from './remember-schema.js';
-import {
-  TOOL_NAME as EPISODES_NAME,
-  DESCRIPTION as EPISODES_DESC,
-  INPUT_SCHEMA as episodesInput,
-  OUTPUT_SCHEMA as episodesOutput,
-} from './episodes-schema.js';
-import {
-  TOOL_NAME as ADD_SKILL_NAME,
-  DESCRIPTION as ADD_SKILL_DESC,
-  INPUT_SCHEMA as addSkillInput,
-} from './add-skill-schema.js';
-import {
-  TOOL_NAME as FORGET_SKILL_NAME,
-  DESCRIPTION as FORGET_SKILL_DESC,
-  INPUT_SCHEMA as forgetSkillInput,
-} from './forget-skill-schema.js';
-import {
-  TOOL_NAME as EXECUTE_SKILL_NAME,
-  DESCRIPTION as EXECUTE_SKILL_DESC,
-  INPUT_SCHEMA as executeSkillInput,
-} from './execute-skill-schema.js';
-import {
-  TOOL_NAME as GET_MEMORY_NAME,
-  DESCRIPTION as GET_MEMORY_DESC,
-  INPUT_SCHEMA as getMemoryInput,
-} from './get-memory-schema.js';
-import {
-  TOOL_NAME as LIST_ENTITIES_NAME,
-  DESCRIPTION as LIST_ENTITIES_DESC,
-  INPUT_SCHEMA as listEntitiesInput,
-} from './list-entities-schema.js';
+import { emitToolSchema } from './schema-emit.js';
 import {
   TOOL_NAME as UPDATE_MEMORY_NAME,
   DESCRIPTION as UPDATE_MEMORY_DESC,
   INPUT_SCHEMA as updateMemoryInput,
 } from './update-memory-schema.js';
-import {
-  TOOL_NAME as DELETE_ENTITIES_NAME,
-  DESCRIPTION as DELETE_ENTITIES_DESC,
-  INPUT_SCHEMA as deleteEntitiesInput,
-} from './delete-entities-schema.js';
-import { emitToolSchema } from './schema-emit.js';
 
 /** Spec-compliant `tools/list` response shape (no pagination for 4 static tools). */
 export type ToolsListResponse = ListToolsResult;

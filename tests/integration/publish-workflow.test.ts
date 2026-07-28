@@ -46,6 +46,36 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     expect(yaml).toMatch(/image:\s*themory\b/);
   });
 
+  test('a divida da copia vendorizada tem sunset, e ele ainda nao venceu', () => {
+    // O cabecalho da copia sempre disse "DIVIDA CONSCIENTE, COM DATA DE VALIDADE"
+    // — e ate 2026-07-28 nao trazia data nenhuma. Prosa que nao expira nao e
+    // prazo, e intencao; e intencao nao segura duplicacao de pipeline.
+    //
+    // Este teste faz a data existir de fato. Ao vencer, ha duas saidas honestas,
+    // e as duas exigem um commit: migrar (apagar a copia, voltar ao reusable) ou
+    // estender a data RECONHECENDO que a divergencia ganhou mais um trimestre.
+    // O que ele impede e a terceira saida, a que acontece sozinha: esquecer.
+    const vendored = readFileSync(resolve(REPO_ROOT, '.github/workflows/build-publish.yml'), 'utf-8');
+
+    const match = /SUNSET (\d{4})-(\d{2})-(\d{2})/.exec(vendored);
+    expect(match, 'o cabecalho precisa declarar SUNSET YYYY-MM-DD').not.toBeNull();
+
+    const [, y, m, d] = match as RegExpExecArray;
+    const sunset = Date.UTC(Number(y), Number(m) - 1, Number(d));
+    const hoje = Date.now();
+
+    expect(
+      hoje,
+      `A copia vendorizada de build-publish.yml venceu em ${y}-${m}-${d}.\n` +
+        'Duas saidas, ambas com commit:\n' +
+        '  (a) usetheodev/theo migrou para usetheoai? Apague o arquivo, devolva\n' +
+        '      publish.yml para `uses: usetheoai/theo/...` e atualize os testes\n' +
+        '      desta suite no MESMO commit.\n' +
+        '  (b) Ainda nao migrou? Estenda o SUNSET no cabecalho, ciente de que as\n' +
+        '      quatro divergencias documentadas continuam crescendo.\n',
+    ).toBeLessThan(sunset);
+  });
+
   test('the vendored copy exists and publishes to the usetheoai namespace', () => {
     // Guarda de coerência: enquanto o `publish.yml` apontar para a cópia local, ela TEM de existir.
     const vendored = readFileSync(resolve(REPO_ROOT, '.github/workflows/build-publish.yml'), 'utf-8');
@@ -63,10 +93,104 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     expect(vendored).not.toMatch(/certificate-identity-regexp.*usetheodev\\?\/theo\\?\//);
   });
 
-  test('requests cosign sign + identity-pinned verify on a release tag (decision 1 / EC-2)', () => {
+  test('assina TODO artefato publicado, e atesta (SBOM/SLSA) so na release', () => {
+    // O canal assinado tem de ser o canal IMPLANTADO. O reconciliador do host
+    // puxa `:develop` a cada 5 min; com `sign` amarrado a tag de release, era
+    // exatamente o artefato em execucao que nao tinha assinatura — a garantia
+    // vivia num canal que ninguem roda.
+    //
+    // A separacao entre `sign` e `attest` e o que torna isso possivel: cosign
+    // custa segundos, enquanto SBOM + proveniencia mode=max e o export pesado
+    // (o reusable registra que o cache do GHA devolve 500/BlobNotFound nele).
+    // Empacotados, a unica escolha viavel era "tudo na release".
+    //
+    // Este teste trava as duas pontas para que a regressao seja ruidosa: voltar
+    // `sign` para release-only nao quebraria build nem push — so deixaria o que
+    // roda sem assinatura, de novo, e em silencio.
     const yaml = readFileSync(WORKFLOW_PATH, 'utf-8');
-    expect(yaml).toMatch(/sign:\s*\$\{\{\s*startsWith\(github\.ref,\s*'refs\/tags\/v'\)/);
-    expect(yaml).toMatch(/verify:\s*\$\{\{\s*startsWith\(github\.ref,\s*'refs\/tags\/v'\)/);
+    const vendored = readFileSync(resolve(REPO_ROOT, '.github/workflows/build-publish.yml'), 'utf-8');
+
+    expect(yaml, 'sign tem de valer para todo push, nao so para tag').toMatch(/sign:\s*true/);
+    expect(yaml, 'verificar junto — assinar sem verificar nao prova nada').toMatch(
+      /verify:\s*true/,
+    );
+    expect(yaml, 'sign NAO pode voltar a ser condicional a tag').not.toMatch(
+      /sign:\s*\$\{\{\s*startsWith\(github\.ref/,
+    );
+    expect(yaml, 'attest (export pesado) fica restrito a release').toMatch(
+      /attest:\s*\$\{\{\s*startsWith\(github\.ref,\s*'refs\/tags\/v'\)/,
+    );
+
+    // E o reusable precisa mesmo tratar os dois como inputs distintos.
+    expect(vendored, 'attest tem de ser input proprio').toMatch(
+      /attest:\s*\{\s*required:\s*false/,
+    );
+    expect(vendored, 'sbom/provenance seguem attest, nao sign').toMatch(
+      /sbom:\s*\$\{\{\s*inputs\.attest\s*\}\}[\s\S]{0,120}provenance:\s*\$\{\{\s*inputs\.attest/,
+    );
+  });
+
+  test('arm64 e construido na release e NAO em todo push de develop (custo de emulacao)', () => {
+    // Duas assercoes com intencoes opostas, de proposito.
+    //
+    // (1) A capacidade tem de existir: uma imagem so-amd64 nao roda em no
+    //     Graviton, e o erro no cluster e obscuro. O delta medido entre a
+    //     familia AMD e o Graviton foi ~$100/mes numa maquina de 8 vCPU/32 GB.
+    //
+    // (2) Ela NAO pode estar ligada em develop: arm64 aqui sai por emulacao
+    //     (QEMU) sobre um build que ja leva ~14 min a frio pelo double-build do
+    //     gate Trivy. Ligar em todo push cobraria esse preco por iteracao, sem
+    //     consumidor ARM hoje. Este teste e o que impede a mudanca silenciosa —
+    //     ela nao quebraria nada, so tornaria cada push mais lento, e ninguem
+    //     ligaria uma coisa a outra semanas depois.
+    const caller = readFileSync(WORKFLOW_PATH, 'utf-8');
+    const vendored = readFileSync(resolve(REPO_ROOT, '.github/workflows/build-publish.yml'), 'utf-8');
+
+    expect(vendored, 'o reusable precisa aceitar platforms como input').toMatch(
+      /platforms:\s*\{\s*required:\s*false/,
+    );
+    expect(vendored, 'o default tem de ser amd64 — custo zero para quem nao opta').toMatch(
+      /platforms:[\s\S]{0,80}default:\s*"linux\/amd64"/,
+    );
+    expect(vendored, 'o build precisa repassar o input ao build-push-action').toMatch(
+      /platforms:\s*\$\{\{\s*inputs\.platforms\s*\}\}/,
+    );
+    expect(vendored, 'QEMU e necessario para cross-arch e deve ser condicional').toMatch(
+      /setup-qemu-action@[0-9a-f]{40}/,
+    );
+
+    // O chamador liga arm64 SOMENTE em tag de release.
+    expect(caller, 'arm64 so na release').toMatch(
+      /platforms:\s*\$\{\{\s*startsWith\(github\.ref,\s*'refs\/tags\/v'\)\s*&&\s*'linux\/amd64,linux\/arm64'\s*\|\|\s*'linux\/amd64'/,
+    );
+  });
+
+  test('o reusable EXPORTA o digest — sem isso o deploy nao tem como ser idempotente', () => {
+    // O digest e o unico identificador imutavel do que foi publicado. Ele ja era
+    // calculado e usado para assinar, mas morria no fim do job: `workflow_call`
+    // nao declarava `outputs`, entao nenhum consumidor o recebia e o deploy tinha
+    // de resolver a TAG no momento do pull. Tag se move — duas aplicacoes "da
+    // mesma versao" podem trazer imagens diferentes, e a idempotencia morre ai.
+    //
+    // Este teste existe porque a perda e SILENCIOSA: remover o bloco `outputs`
+    // nao quebra build, push, assinatura nem verificacao. So quebra quem consome.
+    const vendored = readFileSync(resolve(REPO_ROOT, '.github/workflows/build-publish.yml'), 'utf-8');
+
+    // Nivel workflow_call — o que o chamador enxerga.
+    expect(vendored, 'workflow_call precisa declarar o output digest').toMatch(
+      /outputs:[\s\S]*?digest:[\s\S]*?value:\s*\$\{\{\s*jobs\.build-publish\.outputs\.digest/,
+    );
+    expect(vendored, 'workflow_call precisa declarar o output image_ref').toMatch(
+      /image_ref:[\s\S]*?value:\s*\$\{\{\s*jobs\.build-publish\.outputs\.image_ref/,
+    );
+
+    // Nivel job — a ponte ate o step que realmente produz o digest.
+    expect(vendored, 'o job precisa mapear digest a partir do step de build').toMatch(
+      /digest:\s*\$\{\{\s*steps\.build\.outputs\.digest\s*\}\}/,
+    );
+    expect(vendored, 'image_ref precisa ser fixado por @digest, nunca por tag').toMatch(
+      /image_ref:\s*\$\{\{\s*inputs\.registry\s*\}\}\/\$\{\{\s*inputs\.image\s*\}\}@\$\{\{\s*steps\.build\.outputs\.digest/,
+    );
   });
 
   test('.trivyignore exists; every non-comment line is a CVE id (EC-43)', () => {

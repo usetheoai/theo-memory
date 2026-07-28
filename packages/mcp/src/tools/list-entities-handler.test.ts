@@ -3,9 +3,9 @@
  *
  * @see ADR-M14-1 — o filtro (workspace,user) vem do getScope(), não do argumento
  */
+import { withScope } from '@usetheo/memory-agent-core';
 import { describe, expect, test, vi } from 'vitest';
 
-import { withScope } from '@usetheo/memory-agent-core';
 
 import { listEntitiesHandler } from './list-entities-handler.js';
 
@@ -40,7 +40,7 @@ describe('listEntitiesHandler (T2.2)', () => {
     const { store } = storeReturning([]);
     await expect(
       withScope({ workspaceId: 'ws-A', session: { userId: 'alice' } }, () =>
-        listEntitiesHandler({ user_id: 'bob' } as unknown, { memoryFactory, memoryEntityStore: store }),
+        listEntitiesHandler({ user_id: 'bob' }, { memoryFactory, memoryEntityStore: store }),
       ),
     ).rejects.toThrow(); // strict schema → user_id não aceito; o scope vem do Principal
   });
@@ -60,7 +60,7 @@ describe('listEntitiesHandler (T2.2)', () => {
     const res = await withScope({ workspaceId: 'ws-A', session: { userId: 'alice' } }, () =>
       listEntitiesHandler({ limit: 2 }, { memoryFactory, memoryEntityStore: store }),
     );
-    const parsed = JSON.parse(textOf(res));
+    const parsed = JSON.parse(textOf(res)) as { entities: readonly unknown[] };
     expect(parsed.entities).toHaveLength(2);
   });
 });

@@ -122,7 +122,7 @@ describe.skipIf(ADMIN_PG_URI === '')(
         embedder: boundedEmbedder(),
         llm: reflectNoopLlm,
         embeddingDim: DIM,
-      })) as DisposableMemory;
+      }));
     }, 60_000);
 
     afterAll(async () => {
