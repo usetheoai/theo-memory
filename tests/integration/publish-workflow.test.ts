@@ -148,7 +148,13 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     // Dockerfile venha a ganhar depois, sem que ninguem tenha decidido isso.
     const vendored = readFileSync(resolve(REPO_ROOT, '.github/workflows/build-publish.yml'), 'utf-8');
     const caller = readFileSync(WORKFLOW_PATH, 'utf-8');
-    expect(vendored, 'segredo Go num repo sem go.mod').not.toMatch(/GOMOD_TOKEN|gomod_token/);
+    // Casa a CHAVE/atribuicao YAML, nao a palavra. O ledger do cabecalho CITA
+    // `GOMOD_TOKEN` para explicar por que ele foi removido — documentacao util,
+    // e proibir a palavra empurraria a explicacao para fora do arquivo. Quarta
+    // ocorrencia desta licao nesta sessao.
+    expect(vendored, 'segredo Go num repo sem go.mod').not.toMatch(
+      /^\s*GOMOD_TOKEN\s*:|^\s*gomod_token\s*=/m,
+    );
     expect(caller, 'o chamador tambem nao pode repassa-lo').not.toMatch(/GOMOD_TOKEN/);
   });
 
@@ -213,6 +219,52 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     expect(sast, 'scanner de segredo nao pode filtrar por caminho').not.toMatch(
       /^\s*paths-ignore\s*:/m,
     );
+  });
+
+  test('test_ledger_da_copia_vendorizada_lista_toda_divergencia', () => {
+    // F-arch-2 — a copia vendorizada carrega um ledger de divergencias no
+    // cabecalho, encerrado por "Todo o resto e identico ao original". Esta
+    // remediacao adicionou QUATRO divergencias sem atualiza-lo.
+    //
+    // O ledger nao e decoracao: ele e a instrucao que a pessoa seguira quando o
+    // reusable original voltar a ser acessivel. Um ledger que diz "o resto e
+    // identico" faz essa pessoa descartar as quatro correcoes em silencio — e o
+    // canal implantado perde assinatura, teto de tempo e ancora do cosign sem
+    // que nada fique vermelho.
+    const vendored = readFileSync(resolve(REPO_ROOT, '.github/workflows/build-publish.yml'), 'utf-8');
+    const header = vendored.slice(0, vendored.indexOf('name: build-publish'));
+    for (const item of ['timeout-minutes', 'GOMOD_TOKEN', 'cache-to', 'certificate-identity-regexp']) {
+      expect(header, `divergencia nao declarada no ledger: ${item}`).toContain(item);
+    }
+  });
+
+  test('test_tabela_de_publicacao_do_readme_bate_com_o_workflow', () => {
+    // F-dom-infra-2 — a tabela dizia "manual dispatch | unsigned build" e citava
+    // um canal Docker Hub. Ambos falsos: `sign: true` e incondicional no
+    // publish.yml, e `dockerhub_image` foi removido na T4.3.
+    //
+    // Documentacao que descreve uma garantia de seguranca ERRADA e pior que
+    // silencio: um leitor decide confiar (ou nao) num artefato pelo que a tabela
+    // afirma.
+    const caller = readFileSync(WORKFLOW_PATH, 'utf-8');
+    const assinaSempre = /^\s*sign:\s*true\s*$/m.test(caller);
+    for (const f of ['README.md', 'README.pt-BR.md']) {
+      const doc = readFileSync(resolve(REPO_ROOT, f), 'utf-8');
+      if (assinaSempre) {
+        expect(doc, `${f}: afirma build nao assinado, mas sign: true e incondicional`).not.toMatch(
+          // Cobre as variantes das duas linguas. A primeira versao casava so
+          // "build nao assinado" e deu FALSO VERDE sobre "build sem assinatura"
+          // no README pt-BR — a afirmacao falsa sobreviveu ao teste que existia
+          // para mata-la.
+          /unsigned build|build (n[aã]o assinado|sem assinatura)|sem assinatura/i,
+        );
+      }
+      if (!/dockerhub_image\s*:/.test(caller)) {
+        expect(doc, `${f}: cita canal Docker Hub que o workflow nao publica`).not.toMatch(
+          /Docker Hub `?usetheo\//i,
+        );
+      }
+    }
   });
 
   test('test_republicacao_manual_nao_dispara_a_suite_cara', () => {

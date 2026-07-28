@@ -350,13 +350,13 @@ docker run --rm --entrypoint /nodejs/bin/node \
 
 ## CI/CD
 
-Every release image is **cosign-signed with identity-pinned verification** and ships an **SBOM + SLSA provenance** — so you can verify what you pull. Images publish to GHCR (and Docker Hub) automatically on each version tag.
+Every release image is **cosign-signed with identity-pinned verification** and ships an **SBOM + SLSA provenance** — so you can verify what you pull. Images publish to GHCR automatically on each version tag.
 
 | Trigger | Channel | Result |
 |---|---|---|
-| push to `develop` | preview | `ghcr.io/usetheoai/theo-memory:develop` (+ `:develop-<short>`) |
-| semver tag `v*` | release | `ghcr.io/usetheoai/theo-memory:<version>` — **cosign-signed + identity-pinned verify** + SBOM/SLSA (+ Docker Hub `usetheo/theo-memory` when `DOCKERHUB_TOKEN` is set) |
-| manual dispatch | smoke | unsigned build |
+| push to `develop` | preview | `ghcr.io/usetheoai/theo-memory:develop` (+ `:develop-<short>`) — **cosign-signed** |
+| semver tag `v*` | release | `ghcr.io/usetheoai/theo-memory:<version>` — **cosign-signed + identity-pinned verify** + SBOM/SLSA attestations |
+| manual dispatch | smoke | same build as `develop`, **cosign-signed** (signing is unconditional) |
 
 > **Image renamed (2026-07-28): `themory` → `theo-memory`.** The image now carries the repository
 > name, matching every sibling project (`theo-lens`, `theo-rag`, `theo-db`).

@@ -355,13 +355,13 @@ docker run --rm --entrypoint /nodejs/bin/node \
 
 ## CI/CD
 
-Toda imagem de release é **assinada com cosign, com verificação fixada por identidade**, e acompanha **SBOM + proveniência SLSA** — então dá para verificar o que você baixa. As imagens são publicadas no GHCR (e no Docker Hub) automaticamente a cada tag de versão.
+Toda imagem de release é **assinada com cosign, com verificação fixada por identidade**, e acompanha **SBOM + proveniência SLSA** — então dá para verificar o que você baixa. As imagens são publicadas no GHCR automaticamente a cada tag de versão.
 
 | Gatilho | Canal | Resultado |
 |---|---|---|
 | push em `develop` | preview | `ghcr.io/usetheoai/theo-memory:develop` (+ `:develop-<short>`) |
-| tag semver `v*` | release | `ghcr.io/usetheoai/theo-memory:<version>` — **assinada com cosign + verificação fixada por identidade** + SBOM/SLSA (+ Docker Hub `usetheo/theo-memory` quando `DOCKERHUB_TOKEN` está definida) |
-| dispatch manual | smoke | build sem assinatura |
+| tag semver `v*` | release | `ghcr.io/usetheoai/theo-memory:<version>` — **assinada com cosign + verificação fixada por identidade** + SBOM/SLSA |
+| dispatch manual | smoke | mesmo build do `develop`, **assinado com cosign** (a assinatura é incondicional) |
 
 > **Imagem renomeada (2026-07-28): `themory` → `theo-memory`.** A imagem passa a carregar o nome do
 > repositório, como em todos os projetos irmãos (`theo-lens`, `theo-rag`, `theo-db`).

@@ -41,7 +41,28 @@
 #      atesta-se só onde a auditoria consome. PORTAR ESTA MUDANÇA PARA O ORIGINAL — senão o retorno
 #      ao reusable, quando `theo` migrar, silenciosamente desfaz a assinatura do canal implantado.
 #
-# Todo o resto é idêntico ao original, incluindo os SHAs pinados de cada action.
+#   5. `timeout-minutes: 30` no job. TEM de viver aqui: o GitHub não honra
+#      `timeout-minutes` em job `uses:`, então aplicá-lo no chamador seria inerte. Sem ele, o
+#      job mais caro do repo corre com o teto padrão de 360 min numa frota cobrada por MINUTO.
+#
+#   6. `GOMOD_TOKEN` REMOVIDO do contrato de `workflow_call.secrets` e dos dois `secrets:` de
+#      build. Medido: o Dockerfile nunca monta `--mount=type=secret,id=gomod_token` e não existe
+#      `go.mod` neste repositório — a credencial veio no copia-e-cola de um reusable escrito para
+#      um repo Go. NÃO PORTAR para o original: lá o segredo é legítimo.
+#
+#   7. `cache-to` condicional ao ref não ser tag. Os dois canais dividiam um escopo com
+#      frequência e tamanho muito diferentes; o export raro e grande da release despejava por LRU
+#      as camadas quentes do `develop`. Ler continua sempre; só escrever ficou fora de tag.
+#
+#   8. Âncora terminal (`$`) no `--certificate-identity-regexp` do cosign. Sem ela o regexp
+#      casava qualquer SUFIXO, e uma assinatura produzida por OUTRO workflow seria aceita como
+#      desta — é o guarda de confused-deputy. PORTAR PARA O ORIGINAL.
+#
+# Fora estes OITO pontos, o resto é idêntico ao original, incluindo os SHAs pinados de cada
+# action. Um teste de contrato (`publish-workflow.test.ts`) falha se uma divergência nova
+# entrar sem aparecer nesta lista — porque é esta lista que a pessoa vai seguir no dia em que
+# o reusable original voltar a ser acessível, e um ledger incompleto desfaz correções em
+# silêncio.
 name: build-publish (vendored)
 on:
   workflow_call:
