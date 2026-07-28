@@ -45,6 +45,19 @@ on:
       GOMOD_TOKEN:        { required: false }   # cross-repo read for the pinned private theo-contracts module
       DOCKERHUB_USERNAME: { required: false }
       DOCKERHUB_TOKEN:    { required: false }
+    outputs:
+      # O digest e o UNICO identificador imutavel do que foi publicado. Sem ele
+      # exportado, quem consome so tem a tag — e tag se move: `:develop` de hoje
+      # nao e `:develop` de amanha. Um deploy que resolve tag no momento do pull
+      # nao e idempotente, porque duas aplicacoes "da mesma versao" podem trazer
+      # imagens diferentes. O digest ja era calculado aqui, usado para assinar
+      # (linha ~157) e descartado no fim do job.
+      digest:
+        description: "Digest imutavel (sha256:...) da imagem publicada."
+        value: ${{ jobs.build-publish.outputs.digest }}
+      image_ref:
+        description: "Referencia completa fixada por digest, pronta para deploy."
+        value: ${{ jobs.build-publish.outputs.image_ref }}
 permissions:
   contents: read
   packages: write
@@ -52,6 +65,9 @@ permissions:
 jobs:
   build-publish:
     runs-on: ${{ fromJSON(inputs.runner) }}
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+      image_ref: ${{ inputs.registry }}/${{ inputs.image }}@${{ steps.build.outputs.digest }}
     env:
       # `secrets` is NOT allowed in step `if:` — lift the token to a job-level env so the
       # Docker Hub guards below can use `env.*` (valid in if/with). Stays masked in logs.
@@ -169,3 +185,20 @@ jobs:
           cosign verify "${{ inputs.registry }}/${{ inputs.image }}@${{ steps.build.outputs.digest }}" \
             --certificate-identity-regexp '^https://github\.com/usetheoai/theo-memory/\.github/workflows/build-publish\.yml@' \
             --certificate-oidc-issuer https://token.actions.githubusercontent.com
+
+      # O digest exportado (workflow_call.outputs) serve a um workflow consumidor.
+      # O deploy de hoje e um reconciliador systemd que puxa TAG, e nao le outputs
+      # de workflow — entao sem isto o digest continuaria invisivel para quem
+      # opera. Publicar no resumo do run e o caminho mais barato para tornar a
+      # referencia imutavel utilizavel HOJE, sem inventar um canal novo.
+      - name: Publicar a referencia imutavel no resumo do run
+        env:
+          IMAGE_REF: ${{ inputs.registry }}/${{ inputs.image }}@${{ steps.build.outputs.digest }}
+        run: |
+          {
+            printf '## Imagem publicada\n\n'
+            printf 'Referencia fixada por digest — use ESTA no deploy, nao a tag:\n\n'
+            printf '    %s\n\n' "$IMAGE_REF"
+            printf 'Tag e mutavel: develop de hoje nao e develop de amanha.\n'
+            printf 'Fixar o digest e o que torna o deploy idempotente.\n'
+          } >> "$GITHUB_STEP_SUMMARY"

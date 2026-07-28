@@ -50,6 +50,20 @@ export default defineConfig({
       'packages/cli/src/**/__tests__/**/*.test.ts',
       'packages/agent-core/src/**/__tests__/**/*.test.ts',
       'tests/unit/**/*.test.ts',
+      // ESTE arquivo esta em tests/integration/ mas NAO e integracao: sao
+      // assertions estaticas sobre o YAML dos workflows (so readFileSync — sem
+      // banco, sem OpenAI, sem rede). Estava preso na suite `test:integration`,
+      // que roda APENAS no schedule das 03:00 UTC — ou seja, o teste descrito no
+      // CHANGELOG como "o alarme contra a copia vendorizada virar permanente"
+      // nao guardava nada em PR nem em push. Um alarme que toca uma vez por dia,
+      // depois do merge, nao e um gate.
+      //
+      // Escopo deliberado: so este arquivo. Os outros 49 de tests/integration/
+      // precisam de Postgres e/ou OpenAI e quebrariam o job sem banco. Ha mais
+      // arquivos estaticos mal classificados ali (docker-compose-prod,
+      // dockerfile-entrypoint, config-parity) — reclassificar todos e trabalho
+      // proprio, nao carona neste commit.
+      'tests/integration/publish-workflow.test.ts',
     ],
     // Agent worktrees under .claude/worktrees/ are throwaway checkouts that may
     // hold deliberately reverted code (a verifier proving a test goes RED). Left

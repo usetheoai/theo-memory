@@ -69,6 +69,34 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     expect(yaml).toMatch(/verify:\s*\$\{\{\s*startsWith\(github\.ref,\s*'refs\/tags\/v'\)/);
   });
 
+  test('o reusable EXPORTA o digest — sem isso o deploy nao tem como ser idempotente', () => {
+    // O digest e o unico identificador imutavel do que foi publicado. Ele ja era
+    // calculado e usado para assinar, mas morria no fim do job: `workflow_call`
+    // nao declarava `outputs`, entao nenhum consumidor o recebia e o deploy tinha
+    // de resolver a TAG no momento do pull. Tag se move — duas aplicacoes "da
+    // mesma versao" podem trazer imagens diferentes, e a idempotencia morre ai.
+    //
+    // Este teste existe porque a perda e SILENCIOSA: remover o bloco `outputs`
+    // nao quebra build, push, assinatura nem verificacao. So quebra quem consome.
+    const vendored = readFileSync(resolve(REPO_ROOT, '.github/workflows/build-publish.yml'), 'utf-8');
+
+    // Nivel workflow_call — o que o chamador enxerga.
+    expect(vendored, 'workflow_call precisa declarar o output digest').toMatch(
+      /outputs:[\s\S]*?digest:[\s\S]*?value:\s*\$\{\{\s*jobs\.build-publish\.outputs\.digest/,
+    );
+    expect(vendored, 'workflow_call precisa declarar o output image_ref').toMatch(
+      /image_ref:[\s\S]*?value:\s*\$\{\{\s*jobs\.build-publish\.outputs\.image_ref/,
+    );
+
+    // Nivel job — a ponte ate o step que realmente produz o digest.
+    expect(vendored, 'o job precisa mapear digest a partir do step de build').toMatch(
+      /digest:\s*\$\{\{\s*steps\.build\.outputs\.digest\s*\}\}/,
+    );
+    expect(vendored, 'image_ref precisa ser fixado por @digest, nunca por tag').toMatch(
+      /image_ref:\s*\$\{\{\s*inputs\.registry\s*\}\}\/\$\{\{\s*inputs\.image\s*\}\}@\$\{\{\s*steps\.build\.outputs\.digest/,
+    );
+  });
+
   test('.trivyignore exists; every non-comment line is a CVE id (EC-43)', () => {
     const text = readFileSync(TRIVYIGNORE_PATH, 'utf-8');
     const entries = text
