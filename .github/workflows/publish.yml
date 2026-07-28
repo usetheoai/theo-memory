@@ -162,15 +162,6 @@ jobs:
       # namespace errado. A imagem passa a ser `ghcr.io/usetheoai/themory`.
       registry: ghcr.io/usetheoai
       trivy: true
-      # Alinhado ao GHCR pelo mesmo motivo. Dormente hoje: sem DOCKERHUB_TOKEN o
-      # step de login e pulado e nada e empurrado para o Docker Hub — nenhum dos
-      # projetos irmaos publica la.
-      # Assinar SEMPRE — inclusive em develop. O reconciliador do host puxa
-      # `:develop` a cada 5 min, entao era exatamente o artefato em execucao que
-      # nao tinha assinatura: a garantia existia no canal de release, que nao e o
-      # que roda. Cosign keyless custa segundos, e `id-token: write` ja esta
-      # declarado. Verificar junto, senao assina-se sem saber se a assinatura
-      # presta.
       sign: true
       verify: true
       # SBOM + proveniencia SLSA mode=max SO na release. Este e o export pesado —
@@ -196,9 +187,14 @@ jobs:
       # entao aqui vai a string JSON literal — NAO envolver em fromJSON, que produziria um array
       # onde o input espera string e o workflow falharia no parse.
       runner: '["blacksmith-8vcpu-ubuntu-2404"]'
-    # Explicit (not `secrets: inherit`) — avoids the semgrep github-actions
-    # secrets-inherit finding. DOCKERHUB_* are empty here → Docker Hub push is skipped
-    # (GHCR still publishes via the run's GITHUB_TOKEN).
-    secrets:
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+    # SEM bloco `secrets:` — de propósito, e não por esquecimento.
+    #
+    # Estas duas linhas repassavam `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` para um caminho
+    # que a T4.3 tornou inalcançável: sem `dockerhub_image`, o input cai no default `""` e
+    # todo step de Docker Hub do reusable é pulado. Repassar credencial para um destino que
+    # não pode usá-la é superfície sem contrapartida — e o comentário que a acompanhava
+    # ("Docker Hub push is skipped") descrevia como aceitável exatamente o que a torna inútil.
+    #
+    # Continua valendo o motivo original de NÃO usar `secrets: inherit`: o semgrep sinaliza
+    # esse padrão, e herdar tudo dá ao reusable acesso a segredos que ele não pediu.
+    # `GITHUB_TOKEN` é implícito e não precisa ser declarado — é ele que publica no GHCR.
