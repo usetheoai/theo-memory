@@ -70,7 +70,11 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     for (const f of ['README.md', 'README.pt-BR.md']) {
       const doc = readFileSync(resolve(REPO_ROOT, f), 'utf-8');
       for (const line of doc.split('\n')) {
+        // So linhas que falam do tamanho da IMAGEM. Um limite de corpo de
+        // requisicao ("1 MB body cap") tambem casa `N MB` e nao tem eixo
+        // comprimido/descomprimido — exigir o eixo dele seria ruido.
         if (!/\d+\s*MB/.test(line)) continue;
+        if (!/\bimage\b|\bimagem\b|distroless/i.test(line)) continue;
         expect(line, `${f}: numero de tamanho sem eixo declarado`).toMatch(
           /comprimid|compress|descomprimid|uncompress|no disco|on disk/i,
         );
