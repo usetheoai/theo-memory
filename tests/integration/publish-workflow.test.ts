@@ -197,6 +197,37 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     );
   });
 
+  test('test_republicacao_manual_nao_dispara_a_suite_cara', () => {
+    // F-arch-1 / F-xval-4 / F-wire-1 — confirmado por tres agentes do /review.
+    //
+    // O job `integration` (OpenAI real, ~28 min) e gateado por
+    // `github.event_name == 'workflow_dispatch'`. Um workflow invocado por
+    // `workflow_call` enxerga o evento do CHAMADOR — e o publish.yml declara
+    // `workflow_dispatch` como escape hatch documentado de republicacao barata.
+    //
+    // Efeito nao intencional da T1.2: a republicacao manual passou a arrastar a
+    // suite cara para dentro do gate, e a falha dela trava o escape hatch.
+    // Push nao e afetado; so o dispatch.
+    const integration = readFileSync(resolve(REPO_ROOT, '.github/workflows/integration.yml'), 'utf-8');
+
+    // A flag tem de existir como input de `workflow_call` — e so ali. Um input
+    // de `workflow_dispatch` seria preenchivel por quem dispara e nao serviria
+    // de discriminante.
+    expect(integration, 'falta o input que marca invocacao por outro workflow').toMatch(
+      // Janela larga de proposito: entre `workflow_call:` e o input ha o bloco de
+      // comentario que explica POR QUE a flag existe, e ele e longo. Um limite
+      // apertado transformaria "documentei melhor" em teste vermelho.
+      /workflow_call:[\s\S]{0,1500}called_by_workflow:/,
+    );
+
+    // O guard e multi-linha (`if: >-`), entao a busca cobre o bloco, nao a linha.
+    const guard = integration.match(/^\s*if:[\s\S]{0,300}?workflow_dispatch[^\n]*/m)?.[0];
+    expect(guard, 'o job caro precisa de uma guarda por evento').toBeTruthy();
+    expect(guard, 'a guarda tem de negar a invocacao por workflow_call').toMatch(
+      /!\s*inputs\.called_by_workflow/,
+    );
+  });
+
   test('test_job_de_build_tem_timeout', () => {
     // T3.1 — o job mais caro do repo rodava com o teto padrao de 360 min numa frota
     // cobrada por MINUTO (Blacksmith): um job pendurado e caixa, nao cota.
@@ -221,8 +252,13 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     // validam workflows — inclusive este.
     const yaml = workflowText();
 
-    expect(yaml).toMatch(/needs:[\s\S]{0,140}gate-ci/);
-    expect(yaml).toMatch(/gate-contract/);
+    // Ancorado na LISTA de `needs`, nao na palavra solta. A versao anterior
+    // (`toMatch(/gate-contract/)`) passava com o job removido de `needs`, desde
+    // que o job ainda existisse no arquivo — mutacao medida pelo /review
+    // (F-tests-1). Um teste que sobrevive a remocao da coisa que ele protege
+    // nao protege nada.
+    expect(yaml).toMatch(/needs:\s*\[[^\]]*\bgate-ci\b[^\]]*\]/);
+    expect(yaml).toMatch(/needs:\s*\[[^\]]*\bgate-contract\b[^\]]*\]/);
     expect(yaml, 'ADR-5: workflow define o build, entao mudanca dele reconstroi').not.toMatch(
       /paths-ignore:[\s\S]{0,200}'\.github\/\*\*'/,
     );

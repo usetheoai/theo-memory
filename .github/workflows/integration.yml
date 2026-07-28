@@ -32,6 +32,15 @@ name: Integration (Postgres)
 on:
   # Invocado pelo publish.yml num push (ADR-5) e disparado direto num PR.
   workflow_call:
+    inputs:
+      # Marca a invocacao como vinda de outro workflow. Existe por um motivo so:
+      # um workflow chamado enxerga o `github.event_name` do CHAMADOR, entao o
+      # `if` do job caro abaixo nao consegue distinguir "dispatch de integration"
+      # de "dispatch de publish". Sem esta flag, a republicacao manual da imagem
+      # arrastava a suite de ~28 min com OpenAI real para dentro do gate.
+      called_by_workflow:
+        type: boolean
+        default: true
     secrets:
       OPENAI_API_KEY: { required: false }
   pull_request:
@@ -158,7 +167,13 @@ jobs:
     name: integration suite (pgvector + OpenAI real)
     # NÃO roda em push/PR. Este `if` é o que corta o custo por commit; o `on:` acima precisa
     # continuar escutando push/PR por causa do job `contract`.
-    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    #
+    # `inputs.called_by_workflow` e falso/nulo num disparo DIRETO (schedule ou
+    # dispatch deste workflow) e verdadeiro quando o publish.yml invoca por
+    # `workflow_call`. Sem ele o `event_name` do chamador vazava para ca.
+    if: >-
+      ${{ !inputs.called_by_workflow
+          && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
     # RUNNER — Blacksmith, 8 vCPU / 32 GB (#156). A migração levou 4 tentativas em 2026-07-27; as
     # 3 primeiras morreram IGUAL (`queued`, `runner_name` vazio, zero pickup, nenhum step
     # executado: 40+ / 9+ / 12+ min). O registro fica porque a causa não é adivinhável pelo YAML.
