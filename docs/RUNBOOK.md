@@ -131,7 +131,6 @@ This is the exact scenario plan v1.1 EC-4 reversal anticipated when it KEPT the 
 - `src/local/migrations/0005_eviction_partial_indexes.sql` — per-tier partial indexes (v0.4b-fixes T3.1)
 - `src/local/migrations/0006_drop_dead_index_columns.sql` — index re-keying without dead `last_accessed_at` (v0.4b-fixes T9.1)
 - `scripts/db-repair-v0-4b-partial-state.ts` — automated cross-version recovery (T11.1b)
-- Plan: `.claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md` § T11.1a + T11.1b + ADR D7 (BREAKING change context)
 
 ---
 
@@ -256,8 +255,6 @@ The `kept_memory_id ON DELETE SET NULL` FK (EC-3) was designed precisely so `for
 
 ## Related
 
-- Plan: `.claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T0.1 + ADR D3`
-- Edge cases: `.claude/knowledge-base/reviews/v0-7-distillation-pipeline-edge-cases-2026-06-01.md § EC-3 + EC-9`
 - Repair script: `scripts/db-repair-v0-7-partial-state.mjs`
 - Precedent: v0.4b-fixes `T11.1a` rollback runbook + `T11.1b` repair script
 

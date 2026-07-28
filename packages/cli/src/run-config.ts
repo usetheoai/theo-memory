@@ -1,7 +1,7 @@
 /**
  * `themory config` subcommand orchestrator — M25 T3.1.
  *
- * The operator surface for the layered-config resolver (REDACTED-parity gap):
+ * The operator surface for the layered-config resolver:
  *   - `themory config init`          — write a skeleton `./.themory.json` (non-secret keys)
  *   - `themory config set <k> <v>`   — persist a non-secret key to the project file
  *   - `themory config get <k>`       — print a resolved value + its winning source layer
@@ -11,7 +11,6 @@
  * secret values. Mirrors the `run-keys.ts` context/injection shape. cwd/home/env
  * are injected for testability against temp dirs.
  *
- * @see .claude/knowledge-base/plans/layered-config-cli-plan.md § T3.1 + ADR-3
  */
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';

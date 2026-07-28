@@ -21,7 +21,5 @@
 -- a DB previously synced by `drizzle-kit push` (column-only migration; no
 -- trigger/function, so no psql side-channel needed per § 10.3).
 --
--- @see .claude/knowledge-base/plans/themory-category-filter-server-side-plan.md § T2.1 + ADR D2
--- @see .claude/knowledge-base/reviews/themory-category-filter-server-side-edge-cases-2026-06-09.md § EC-11
 ALTER TABLE "memories" ADD COLUMN IF NOT EXISTS "category" text;--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "memories_category_idx" ON "memories" ("category");

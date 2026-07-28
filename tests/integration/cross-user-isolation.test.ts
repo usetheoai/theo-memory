@@ -4,7 +4,7 @@
  * Proves the `(workspace, user[, session])` boundary M8 hardens: user B reads ZERO
  * of user A's global/session rows in the SAME workspace — even when addressing the
  * SAME session id. This closes the pre-M8 leak (a session scope with no `user_id`
- * filter). The field (REDACTED/REDACTED) ships no such negative test — M8 originates it
+ * filter). The field ships no such negative test — M8 originates it
  * (blueprint Coverage Corner 1). Also asserts the ADR-D6 workspace-admin path:
  * omitting `userId` (Principal.userId null) yields a workspace-scoped view.
  *

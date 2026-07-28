@@ -1,5 +1,5 @@
 /**
- * M27 T2.3 — extraction response normalization (REDACTED normalize_facts parity).
+ * M27 T2.3 — extraction response normalization (normalize-facts parity).
  */
 import { describe, expect, test } from 'vitest';
 

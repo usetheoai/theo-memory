@@ -1,7 +1,7 @@
 /**
  * D1 of the multilingual-entity-extraction blueprint (#111): the `infer:false`
- * verbatim path performs NO inline entity extraction — REDACTED-upstream parity
- * (`REDACTED/memory/main.py:836-870` skips entity linking on `infer=False`).
+ * verbatim path performs NO inline entity extraction — upstream parity
+ * (the established shape skips entity linking on `infer=False`).
  *
  * The 2026-06-20 "item-2 fix" wired the English-only heuristic fallback into this
  * path; over a global (pt-BR/technical) import corpus it produced 83% graph noise

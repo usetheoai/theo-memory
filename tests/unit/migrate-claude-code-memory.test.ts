@@ -5,7 +5,6 @@
  * spied; the live `--commit` integration is a separate skipped stub below.
  *
  * @see scripts/migrate-claude-code-memory.mjs
- * @see .claude/rules/testing.md (§ 4.1 edge vs negative cases)
  */
 import { fileURLToPath } from 'node:url';
 

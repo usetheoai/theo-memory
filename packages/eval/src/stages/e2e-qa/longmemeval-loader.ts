@@ -2,11 +2,11 @@
  * e2e-qa — LongMemEval oracle dataset loader + deterministic subset selection.
  *
  * Loads + Zod-validates the oracle dataset (500 examples; "oracle" = small
- * haystacks) from the REDACTED reference clone. Selection is DETERMINISTIC
+ * haystacks) from the out-of-tree dataset file. Selection is DETERMINISTIC
  * (first-match per bucket in dataset order) so the run is reproducible — never
  * random.
  *
- * Dataset shape (per `.claude/tmp/e2e-qa-brief.md`):
+ * Dataset shape:
  *   question_id       — `_abs` suffix marks an ABSTENTION example
  *   question_type     — temporal-reasoning | multi-session | knowledge-update |
  *                       single-session-{preference,user,assistant}
@@ -105,7 +105,7 @@ export function selectDeterministicSubset(
 /**
  * Select the run subset honoring the `E2E_QA_LIMIT` env mode:
  * - `''` (unset) → the deterministic 12-example smoke subset (backward-compatible default).
- * - `'full'`     → the whole LongMemEval_oracle set (the REDACTED-comparable run).
+ * - `'full'`     → the whole LongMemEval_oracle set (the full run).
  * - `'<n>'`      → the first n examples in dataset order (a cheaper smoke/sample).
  *
  * Scoring, judge guard, and coverage-gate are identical across modes — only the

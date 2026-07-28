@@ -108,7 +108,7 @@ target, regresses precision on another, and surfaces a reflect bug. Therefore th
 reflect is **OPT-IN (default OFF)** — the bench default stays at the honest 91.7% with no
 regression. The deterministic fixture (above) proves the supersession MECHANISM on a
 bounded cluster; making it move the real case end-to-end requires **bounded / per-write
-consolidation** (REDACTED-shape: retrieve top-k related on each `remember`, judge ADD/UPDATE/
+consolidation** (retrieve top-k related on each `remember`, judge ADD/UPDATE/
 DELETE) so the contradiction pair reaches the judge without abstaining — a larger effort,
 filed as a follow-up. The `ReflectionProvenanceMissingError` on real clusters is filed
 separately. **#144's read-time symptom is proven unfixable at read time; the write-time

@@ -9,7 +9,6 @@
  *
  * Skipped when THEOMEM_PG_URI is missing (no flaky CI).
  *
- * @see knowledge-base/plans/evolving-entity-summaries-plan.md § T1.2, T2.1
  */
 import { randomUUID } from 'node:crypto';
 

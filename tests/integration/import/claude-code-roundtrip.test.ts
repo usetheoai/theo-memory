@@ -5,7 +5,7 @@
  * against a real `createServer` app backed by ankane/pgvector:
  *   (1) 3 imported; the secret-bearing node is stored REDACTED (the secret never reaches the DB);
  *   (2) re-running the exact import reports deduped==3 / imported==0 and the row count is unchanged
- *       (the REDACTED-pattern idempotency assertion on our real boundary — blueprint Corner 1).
+ *       (the idempotency assertion on our real boundary — blueprint Corner 1).
  */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';

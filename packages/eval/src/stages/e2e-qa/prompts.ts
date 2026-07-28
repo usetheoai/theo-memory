@@ -1,8 +1,8 @@
 /**
- * e2e-qa — REDACTED LongMemEval answer-generation + judge prompts.
+ * e2e-qa — LongMemEval answer-generation + judge prompts.
  *
- * Faithful replication of REDACTED's `memory-benchmarks/benchmarks/longmemeval`
- * end-to-end QA prompts (see `.claude/tmp/e2e-qa-brief.md`). The answerer builds
+ * Faithful replication of the published LongMemEval
+ * end-to-end QA prompts. The answerer builds
  * an answer from the recalled TheMemory memories; the judge scores it against
  * the gold answer with an ABSOLUTE binary yes/no verdict.
  *
@@ -10,7 +10,7 @@
  * LAST 'yes'/'no' token after the closing </judge_thinking> tag.
  */
 
-/** Answer-generation prompt — REDACTED methodology, memories newest-first. */
+/** Answer-generation prompt — LongMemEval methodology, memories newest-first. */
 export function buildAnswerPrompt(params: {
   readonly question: string;
   readonly questionDate: string;
@@ -41,7 +41,7 @@ export function buildAnswerPrompt(params: {
   ].join('\n');
 }
 
-/** Judge prompt — REDACTED binary rubric with the anti-'no' bias check. */
+/** Judge prompt — the standard binary rubric with the anti-'no' bias check. */
 export function buildJudgePrompt(params: {
   readonly question: string;
   readonly answer: string;

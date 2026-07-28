@@ -21,8 +21,6 @@
 -- with embedder. T2.1 (cache factory wrap) is the canonical mismatch
 -- detection gate via `atttypmod` probe (EC-2 absorption).
 --
--- @see .claude/knowledge-base/plans/semantic-recall-cache-v1-5-plan.md § T0.2
--- @see .claude/knowledge-base/discoveries/blueprints/semantic-recall-cache-blueprint.md § 3 + D4
 -- @see src/core/dip/recall-cache-store.ts (13th DIP contract — T0.1)
 CREATE TABLE IF NOT EXISTS "recall_cache" (
 	"id" serial PRIMARY KEY NOT NULL,

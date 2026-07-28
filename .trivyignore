@@ -1,9 +1,9 @@
 # Trivy CVE allowlist for @usetheo/memory standalone image.
 #
-# Format (mirror of .claude/rules/deps-audit-allowlist.txt):
+# Format:
 #   CVE-ID|REASON|SUNSET-DATE
 #
-# Sunset discipline per .claude/rules/deps-audit-golden-rule.md:
+# Sunset discipline:
 #   - CRITICAL CVEs: sunset ≤ 30 days
 #   - HIGH CVEs:     sunset ≤ 60 days
 #   - MEDIUM CVEs:   sunset ≤ 90 days
@@ -18,8 +18,6 @@
 # next to the CVE ID on the SAME line via a `# sunset: YYYY-MM-DD` trailing
 # comment for human review.
 #
-# @see Plan theo-memory-standalone-p0 § T3.3 + EC-43
-# @see .claude/rules/deps-audit-golden-rule.md § Severity rubric
 
 # ── OpenSSL / libssl3 in the distroless runtime base (added 2026-06-30, issue #86) ──
 # Runtime = gcr.io/distroless/nodejs22-debian12:nonroot @sha256:13593b75… which still
