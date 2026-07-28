@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **O bloco `.mcp.json` do README contradizia o `.mcp.json.example`** que ele mesmo referencia: usava `npx`, quando o exemplo usa caminho de build local.
 - **Alegação não verificável no Status.** "validated across 107 end-to-end scenarios" não tem fonte em nenhum artefato do repositório — a suíte de journeys vivia no `.claude/`, removido na abertura OSS. Substituída pelos números que se verificam contra o código.
 - Roadmap: `v0.6` aparecia duas vezes com conteúdos diferentes e `v0.5` vinha depois de `v1.5`.
+- **Três alegações sobre outros projetos, sem fonte, removidas.** "Most memory layers throw the reason away", "peers commonly gate this to a paid tier" e "rather than reserved for a hosted plan" não são verificáveis, e `public-copy.md` § 4 exige benchmark reproduzível para claim comparativo. Também contradiziam a própria frase do README, *"Rather than score them against each other"*. O que o produto faz continua descrito; o que os outros fazem, não.
 
 Todos os itens acima valem para `README.md` **e** `README.pt-BR.md`.
 

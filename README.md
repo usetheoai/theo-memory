@@ -206,7 +206,7 @@ Built on [Hono](https://hono.dev) with auto-generated [OpenAPI 3.1](https://swag
 
 ### Accountable forgetting (opt-in)
 
-Every recall discards candidates — sub-threshold matches, redundant near-duplicates. Most memory layers throw the *reason* away. When you enable tracing (`THEOMEM_RECALL_TRACE=true`), each recall persists one row per **dropped** candidate with its full score breakdown (semantic / bm25 / entity / composite / threshold) and the drop reason (`semantic_gate` / `sub_threshold` / `nan` / `mmr_redundant`), keyed by the `recallId` the recall response returns:
+Every recall discards candidates — sub-threshold matches, redundant near-duplicates. The *reason* is normally lost. When you enable tracing (`THEOMEM_RECALL_TRACE=true`), each recall persists one row per **dropped** candidate with its full score breakdown (semantic / bm25 / entity / composite / threshold) and the drop reason (`semantic_gate` / `sub_threshold` / `nan` / `mmr_redundant`), keyed by the `recallId` the recall response returns:
 
 ```bash
 # recall returns a recallId in its envelope …
@@ -220,7 +220,7 @@ Default OFF (recall is byte-unchanged and writes nothing). The read is scoped to
 
 ## Multi-tenancy & RBAC
 
-Ship a multi-tenant product without bolting on a separate auth service. Two layers — **workspace isolation** and **role-based access** — are enforced server-side from the credential, never from the request body. Both live in the free package (peers commonly gate this to a paid tier).
+Ship a multi-tenant product without bolting on a separate auth service. Two layers — **workspace isolation** and **role-based access** — are enforced server-side from the credential, never from the request body. Both live in the free package.
 
 ### Workspace isolation
 
@@ -491,8 +491,8 @@ one against the code:
 | Multi-tenant isolation + RBAC | Workspace boundary + `owner`/`admin`/`member`, in the free package |
 
 <sub>The three we would point at first: **code-as-skill** memory (a tier for executable
-procedures), **multi-tenancy with full RBAC in the OSS package** rather than reserved for a
-hosted plan, and a **plain-Postgres** deployment. Theo Memory itself is
+procedures), **multi-tenancy with full RBAC in the OSS package**, and a **plain-Postgres**
+deployment. Theo Memory itself is
 **[pre-release](#status)** — see Status for exactly what that means.</sub>
 
 ## Roadmap

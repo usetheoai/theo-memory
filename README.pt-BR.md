@@ -211,7 +211,7 @@ Construída sobre [Hono](https://hono.dev), com spec [OpenAPI 3.1](https://swagg
 
 ### Esquecimento auditável (opt-in)
 
-Todo recall descarta candidatos — matches abaixo do threshold, quase-duplicatas redundantes. A maioria das camadas de memória joga o *motivo* fora. Ao habilitar o tracing (`THEOMEM_RECALL_TRACE=true`), cada recall persiste uma linha por candidato **descartado**, com o detalhamento completo do score (semantic / bm25 / entity / composite / threshold) e o motivo do descarte (`semantic_gate` / `sub_threshold` / `nan` / `mmr_redundant`), indexado pelo `recallId` que a resposta do recall devolve:
+Todo recall descarta candidatos — matches abaixo do threshold, quase-duplicatas redundantes. O *motivo* normalmente se perde. Ao habilitar o tracing (`THEOMEM_RECALL_TRACE=true`), cada recall persiste uma linha por candidato **descartado**, com o detalhamento completo do score (semantic / bm25 / entity / composite / threshold) e o motivo do descarte (`semantic_gate` / `sub_threshold` / `nan` / `mmr_redundant`), indexado pelo `recallId` que a resposta do recall devolve:
 
 ```bash
 # o recall devolve um recallId no envelope …
@@ -225,7 +225,7 @@ Desligado por padrão (o recall fica byte-a-byte igual e não escreve nada). A l
 
 ## Multi-tenancy e RBAC
 
-Entregue um produto multi-tenant sem parafusar um serviço de auth separado. Duas camadas — **isolamento por workspace** e **acesso por papel** — são aplicadas server-side a partir da credencial, nunca do corpo da requisição. Ambas vivem no pacote gratuito (é comum que projetos pares reservem isso a uma camada paga).
+Entregue um produto multi-tenant sem parafusar um serviço de auth separado. Duas camadas — **isolamento por workspace** e **acesso por papel** — são aplicadas server-side a partir da credencial, nunca do corpo da requisição. Ambas vivem no pacote gratuito.
 
 ### Isolamento por workspace
 
@@ -498,8 +498,8 @@ contra o código:
 | Isolamento multi-tenant + RBAC | Fronteira de workspace + `owner`/`admin`/`member`, no pacote gratuito |
 
 <sub>Os três que apontaríamos primeiro: memória de **código-como-skill** (uma camada para
-procedimentos executáveis), **multi-tenancy com RBAC completo no pacote OSS** em vez de reservado a
-um plano hospedado, e um deploy em **Postgres puro**. O Theo Memory em si está em
+procedimentos executáveis), **multi-tenancy com RBAC completo no pacote OSS**, e um deploy em **Postgres
+puro**. O Theo Memory em si está em
 **[pré-release](#status)** — veja Status para o que exatamente isso significa.</sub>
 
 ## Roadmap
