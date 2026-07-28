@@ -121,7 +121,7 @@ docker run -p 8080:8080 \
   -e THEOMEM_PG_URI=postgresql://themem:themem@host.docker.internal:5432/themem \
   -e OPENAI_API_KEY=sk-... \
   -e THEOMEM_EMBEDDER=openai \
-  ghcr.io/usetheoai/themory:0.1.0-alpha
+  ghcr.io/usetheoai/theo-memory:0.1.0-alpha
 ```
 
 On Linux, replace `host.docker.internal` with the host IP or run both containers on one Docker
@@ -328,13 +328,13 @@ This exposes the OpenMemory tool surface — `add_memories` · `search_memory` �
 ## Docker
 
 ```bash
-docker pull ghcr.io/usetheoai/themory:0.1.0-alpha
+docker pull ghcr.io/usetheoai/theo-memory:0.1.0-alpha
 
 docker run -p 8080:8080 \
   -e THEOMEM_PG_URI=postgres://... \
   -e OPENAI_API_KEY=sk-... \
   -e THEOMEM_EMBEDDER=openai \
-  ghcr.io/usetheoai/themory:0.1.0-alpha
+  ghcr.io/usetheoai/theo-memory:0.1.0-alpha
 ```
 
 > The currently published tag is `0.1.0-alpha`; release tags are published to GHCR by CI on each version tag. The default image bundles the local embedder (Xenova/ONNX) — set `THEOMEM_EMBEDDER=openai` to use the OpenAI embedding API instead (no on-device model, no HuggingFace download at runtime).
@@ -345,7 +345,7 @@ Distroless Node 22 image, < 200 MB, Trivy-gated (zero CRITICAL/HIGH CVE), health
 # Apply migrations (or `health`) against the distroless image
 docker run --rm --entrypoint /nodejs/bin/node \
   -e THEOMEM_PG_URI=postgres://... \
-  ghcr.io/usetheoai/themory:0.1.0-alpha /app/dist/agent-tools/cli.js migrate
+  ghcr.io/usetheoai/theo-memory:0.1.0-alpha /app/dist/agent-tools/cli.js migrate
 ```
 
 ## CI/CD
@@ -354,13 +354,19 @@ Every release image is **cosign-signed with identity-pinned verification** and s
 
 | Trigger | Channel | Result |
 |---|---|---|
-| push to `develop` | preview | `ghcr.io/usetheoai/themory:develop` (+ `:develop-<short>`) |
-| semver tag `v*` | release | `ghcr.io/usetheoai/themory:<version>` — **cosign-signed + identity-pinned verify** + SBOM/SLSA (+ Docker Hub `usetheo/themory` when `DOCKERHUB_TOKEN` is set) |
+| push to `develop` | preview | `ghcr.io/usetheoai/theo-memory:develop` (+ `:develop-<short>`) |
+| semver tag `v*` | release | `ghcr.io/usetheoai/theo-memory:<version>` — **cosign-signed + identity-pinned verify** + SBOM/SLSA (+ Docker Hub `usetheo/theo-memory` when `DOCKERHUB_TOKEN` is set) |
 | manual dispatch | smoke | unsigned build |
+
+> **Image renamed (2026-07-28): `themory` → `theo-memory`.** The image now carries the repository
+> name, matching every sibling project (`theo-lens`, `theo-rag`, `theo-db`). `ghcr.io/usetheoai/themory`
+> **was not deleted** — its tags stay pullable; it simply stops receiving new builds. If you pull
+> `:develop` from the old path, you will keep getting the last build published under it, with no error
+> and no signal. Repoint to `ghcr.io/usetheoai/theo-memory`.
 
 > **Namespace changed (2026-07-27).** Images used to publish to `ghcr.io/usetheodev/themory`. The
 > repository moved to the `usetheoai` organization, and a workflow run there cannot push to the
-> previous account's namespace, so new images go to `ghcr.io/usetheoai/themory`. **The old package
+> previous account's namespace, so new images go to `ghcr.io/usetheoai/theo-memory`. **The old package
 > was not deleted** — historical tags (e.g. `:0.27.0`) remain pullable from the old path. What the
 > old path no longer receives is new builds, so pin to `ghcr.io/usetheoai/...` going forward.
 

@@ -43,7 +43,17 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     // PRIVADO cross-owner, então a chamada ao `theo` falhava no parse do workflow.
     expect(yaml).toMatch(/uses:\s*\.\/\.github\/workflows\/build-publish\.yml/);
     expect(yaml).toMatch(/trivy:\s*true/);
-    expect(yaml).toMatch(/image:\s*themory\b/);
+    // `theo-memory`, o nome do repositorio — padrao dos irmaos (theo-lens ->
+    // theo-lens, theo-rag -> theo-rag, theo-db -> theo-db). Era `themory` ate
+    // 2026-07-28.
+    //
+    // A segunda assercao existe porque o consumidor critico deste nome esta FORA
+    // deste repo: o reconciliador do host (dev/theo-memory/reconcile.sh). Voltar
+    // para `themory` aqui nao quebraria build nem push — so faria o host parar de
+    // receber versao nova, convergindo para sempre na ultima imagem antiga, sem
+    // erro algum.
+    expect(yaml).toMatch(/image:\s*theo-memory\b/);
+    expect(yaml, 'o nome antigo nao pode voltar em silencio').not.toMatch(/image:\s*themory\b/);
   });
 
   test('a divida da copia vendorizada tem sunset, e ele ainda nao venceu', () => {
