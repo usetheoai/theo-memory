@@ -6,7 +6,7 @@
  * scores tie exactly and the entity link is the only thing that can separate them. Without
  * that control the test would prove nothing — a ranking difference could just be cosine noise.
  *
- * The blueprint recorded that `REDACTED` asserts set membership and cardinality but never
+ * The blueprint recorded that the reference regime asserts set membership and cardinality but never
  * relative order, so there is no prior art to copy here: these assertions are our own design.
  */
 import { randomUUID } from 'node:crypto';
@@ -161,7 +161,7 @@ describe('entity boost ranking', () => {
   });
 
   test('test_sub_threshold_candidate_is_not_resurrected_by_boost', async () => {
-    // Negative case (`.claude/rules/testing.md` § 4.1): the semantic gate runs BEFORE the
+    // Negative case: the semantic gate runs BEFORE the
     // components are combined, so a candidate that fails it cannot come back through the
     // boost. The test exists so a future refactor cannot invert that order unnoticed.
     const results = await recall(true);

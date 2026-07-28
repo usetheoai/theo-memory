@@ -7,7 +7,7 @@
  * "o usuário trabalha…". A Portuguese query that refers to the speaker ("profissão do
  * usuário", "o que você faz") therefore fails to lexically match (BM25 `plainto_tsquery` +
  * entity key) the speaker's facts — and instead matches other facts that literally contain
- * "usuário" (cross-validation vs REDACTED, 2026-07-27: "profissão do usuário" returned the café
+ * "usuário" (cross-validation, 2026-07-27: "profissão do usuário" returned the café
  * fact at top-1).
  *
  * This is a QUERY-side, LEXICAL-only alias: when the query refers to the speaker, append the

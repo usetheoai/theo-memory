@@ -1,29 +1,62 @@
-# Image publish + dev deploy — M5 CD pipeline (playbook, adapted from theo-rag).
-#   develop push → build ./Dockerfile → ghcr.io/usetheodev/themory:develop (+ :develop-<sha>)
-#                  behind the Trivy CRITICAL/HIGH gate → deploy to the dev host
-#                  (deploy-dev job, develop-only).
-#   v* tag       → :X.Y.Z + :X.Y + :latest, SBOM + SLSA + keyless cosign — NOT deployed
-#                  (the future prod host is provisioned separately).
+# Image publish.
+#   develop push → build ./Dockerfile → ghcr.io/usetheoai/themory:develop (+ :develop-<sha>)
+#                  atrás do gate Trivy CRITICAL/HIGH.
+#   v* tag       → :X.Y.Z + :X.Y + :latest, SBOM + SLSA + keyless cosign.
 #
-# The deploy is a `needs: image` job (NOT a workflow_run trigger) because the repo's
-# default branch is `main` and workflow_run only fires from the default branch.
+# ESTE WORKFLOW NÃO FAZ DEPLOY — E ISSO É DELIBERADO (2026-07-27).
+#
+# Até esta data ele carregava um job `deploy-dev` que fazia SSH para um host nosso. Isso obrigava o
+# repositório a conhecer — e versionar — o usuário, o caminho e a topologia de um ambiente
+# específico, além de manter uma chave SSH com shell nos secrets do CI. Para um projeto que vai ser
+# ABERTO, é inaceitável: nada disso é do produto, é da nossa operação.
+#
+# O deploy passou a ser PULL: o host roda um reconciliador que converge para a tag publicada.
+# A troca elimina três coisas de uma vez — o repo público não sabe que existe um host, o CI não
+# guarda mais credencial de acesso a ele, e a reconciliação passa a ser contínua em vez de um
+# evento pontual. O ambiente é responsabilidade de quem o opera; este repo publica a imagem.
+#
+# O contrato entre os dois lados é UMA COISA SÓ: a tag da imagem. Nada mais.
 name: publish
+# GATILHOS: push em `develop` (publica `:develop` + `:develop-<sha>`) e tag `v*` (imagem de release
+# assinada).
+#
+# POR QUE ESTE WORKFLOW NÃO SEGUE A REGRA DOS OUTROS: ele é CD, não gate. O que ele faz é
+# consequência de um merge já aprovado, não verificação de um candidato. Release disparado por TAG,
+# e não por clique humano, é o que mantém a publicação reproduzível e auditável.
+#
+# POR QUE NÃO RODA EM PULL REQUEST: o reusable SEMPRE dá push da imagem; não há modo build-only.
+# Rodar em PR publicaria artefato de código não mergeado. O custo dessa escolha é honesto — uma
+# quebra de Dockerfile só aparece pós-merge — e é preferível a poluir o registry.
+#
+# O `workflow_dispatch` fica como escape hatch (exercitar mudança neste arquivo, republicar).
 on:
   push:
     branches: [develop]
     tags: ["v*"]
-    # #116: docs-only develop pushes skip the whole build/deploy esteira.
-    # Tag (v*) builds point at merge commits (always code-bearing) so a
-    # release tag is never docs-filtered — the signed release image still builds.
+    # #116: um push em develop que só mexe em docs pula a esteira inteira de build.
+    #
+    # DELIBERADAMENTE lista de EXCLUSÃO, não filtro positivo: este workflow escuta `tags: ["v*"]`,
+    # e filtro de path se aplica TAMBÉM a push de tag. Um filtro positivo faria um release cujo
+    # commit não casasse a lista ser ignorado em silêncio — nenhuma imagem publicada, nenhum erro.
+    # Exclusão erra para o lado de publicar a mais, que aqui é o lado certo.
     paths-ignore:
       - '.claude/**'
       - '**/*.md'
+      # Adicionados em 2026-07-27: nada aqui entra na imagem. Medido no commit `6b333d9`,
+      # que tocou só workflows + CHANGELOG e mesmo assim disparou build + push de
+      # uma imagem idêntica, além de CI, SAST, eval e integration — seis runs numa fila
+      # serial compartilhada por cinco repositórios.
+      - 'docs/**'
+      - 'agents/**'
+      # Mudar um workflow não muda a imagem. Para exercitar uma alteração NESTE arquivo,
+      # use o `workflow_dispatch` declarado abaixo — é o escape hatch previsto.
+      - '.github/**'
   workflow_dispatch:
-# Single self-hosted runner: successive develop pushes must SUPERSEDE (cancel) the
-# queued/older run instead of piling up — the newest run always redeploys, so a
-# cancelled predecessor is never left without a successor deploy (2026-07-22 incident:
-# a manual cancel mid-deploy with no successor left the dev host down). Tag runs get
-# their own group per ref and are never cancelled by develop pushes.
+# Pushes sucessivos em develop devem SUPERSEDER (cancelar) o run mais antigo em vez de empilhar:
+# só a imagem mais nova interessa, e build cancelado é minuto de runner economizado. Antes de o
+# deploy sair daqui havia um risco extra — cancelar sem sucessor deixava o host sem deploy (incidente
+# 2026-07-22) —; hoje isso não se aplica, porque quem converge o ambiente é o reconciliador no
+# próprio host, não este workflow. Runs de tag têm grupo próprio e nunca são cancelados por develop.
 concurrency:
   # #129 note: publish listens on push + tag ONLY (no pull_request), so it does NOT
   # double-run — the push/PR key-mismatch that #129 fixes for integration/sast does not
@@ -37,17 +70,36 @@ permissions:
   packages: write
   id-token: write   # keyless cosign via GitHub OIDC (release only)
 jobs:
+  # Chama a CÓPIA VENDORIZADA local, não o reusable de `usetheodev/theo`.
+  #
+  # POR QUÊ: `usetheodev/theo` é privado e de outro dono desde a transferência deste repo para a
+  # org `usetheoai`, e o GitHub só compartilha reusable privado dentro do mesmo dono. A chamada
+  # cross-owner falhava no PARSE ("workflow was not found"), o que derrubava o workflow inteiro —
+  # zero jobs criados: o workflow inteiro morria antes de qualquer step.
+  #
+  # DÍVIDA TEMPORÁRIA: quando `usetheodev/theo` migrar para `usetheoai`, volte esta linha para
+  # `uses: usetheoai/theo/.github/workflows/build-publish.yml@develop` e APAGUE
+  # `.github/workflows/build-publish.yml`. O teste `tests/integration/publish-workflow.test.ts`
+  # fixa qual referência está em uso e falha se as duas coisas não andarem juntas.
   image:
-    uses: usetheodev/theo/.github/workflows/build-publish.yml@develop
+    uses: ./.github/workflows/build-publish.yml
     with:
       image: themory
       dockerfile: ./Dockerfile
       context: .
+      # Namespace do NOVO dono. Um run de `usetheoai` recebe GITHUB_TOKEN de outro escopo e não
+      # tem push em `ghcr.io/usetheodev` — deixar no default publicaria (ou tentaria publicar) no
+      # namespace errado. A imagem passa a ser `ghcr.io/usetheoai/themory`.
+      registry: ghcr.io/usetheoai
       trivy: true
       dockerhub_image: usetheo/themory   # pushed only when the DOCKERHUB_TOKEN secret is set
       sign: ${{ startsWith(github.ref, 'refs/tags/v') }}
       verify: ${{ startsWith(github.ref, 'refs/tags/v') }}
-      runner: '["self-hosted","linux","x64"]'   # GitHub-hosted minutes are billing-blocked
+      # Mesma frota de todo job deste repo. O reusable declara `runner` como STRING e faz o
+      # `fromJSON` do lado dele (build-publish.yml: `runs-on: ${{ fromJSON(inputs.runner) }}`),
+      # entao aqui vai a string JSON literal — NAO envolver em fromJSON, que produziria um array
+      # onde o input espera string e o workflow falharia no parse.
+      runner: '["blacksmith-8vcpu-ubuntu-2404"]'
     # Explicit (not `secrets: inherit`) — avoids the semgrep github-actions
     # secrets-inherit finding. DOCKERHUB_* are empty here → Docker Hub push is skipped
     # (GHCR still publishes via the run's GITHUB_TOKEN).
@@ -55,57 +107,3 @@ jobs:
       GOMOD_TOKEN: ${{ secrets.GOMOD_TOKEN }}
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-
-  # Deploy the freshly-published :develop image to the dev host. develop-only: a v* tag
-  # publishes the release image but never deploys.
-  deploy-dev:
-    needs: image
-    if: ${{ github.ref == 'refs/heads/develop' }}
-    runs-on: [self-hosted, linux, x64]
-    permissions:
-      contents: read
-      packages: read
-    steps:
-      - name: Configure SSH deploy key
-        run: |
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "${{ secrets.DEV_SSH_KEY }}" > ~/.ssh/themory_deploy
-          chmod 600 ~/.ssh/themory_deploy
-          ssh-keyscan -H "${{ vars.DEV_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
-
-      - name: Provision runtime env on the dev host
-        # Written over stdin (never argv) so the secret is not exposed in the process
-        # list; GitHub masks it in logs. Compose reads this .env. .env is gitignored, so
-        # the git sync below never clobbers it.
-        run: |
-          SHA='${{ github.sha }}'
-          BUILT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          ssh -i ~/.ssh/themory_deploy paulo@"${{ vars.DEV_HOST }}" \
-            'cat > <HOME>/theo-data-plane/theo-memory/.env' <<EOF
-          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
-          THEOMEM_GIT_SHA=${SHA}
-          THEOMEM_VERSION=develop-${SHA:0:7}
-          THEOMEM_BUILD_TIME=${BUILT}
-          THEMORY_ADMIN_BOOTSTRAP_TOKEN=${{ secrets.THEMORY_ADMIN_BOOTSTRAP_TOKEN }}
-          THEMORY_MCP_TLS_DIR=${{ vars.THEMORY_MCP_TLS_DIR }}
-          EOF
-
-      - name: Sync the deploy mirror, log into GHCR, and deploy
-        # Sync the box checkout to the published commit FIRST (it carries the deploy
-        # script + compose override), then pull the image and restart themory. Sync to
-        # the EXACT commit (not the branch tip) so the checkout, the compose files, and
-        # the version gate all agree even if develop advanced.
-        run: |
-          ssh -i ~/.ssh/themory_deploy paulo@"${{ vars.DEV_HOST }}" bash -s <<'REMOTE'
-          set -euo pipefail
-          DIR=<HOME>/theo-data-plane/theo-memory
-          cd "$DIR"
-          git fetch --quiet origin develop
-          git reset --hard --quiet '${{ github.sha }}'
-          echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u '${{ github.actor }}' --password-stdin
-          EXPECTED_SHA='${{ github.sha }}' bash scripts/deploy-dev.sh
-          REMOTE
-
-      - name: Remove the deploy key from the runner
-        if: always()
-        run: rm -f ~/.ssh/themory_deploy

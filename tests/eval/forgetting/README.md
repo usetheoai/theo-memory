@@ -55,7 +55,6 @@ value, and (b) tightening the random baseline is out of T7.3 scope.
 
 ## Cross-references
 
-- Plan: `.claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T7.3`
 - Methodology: `tests/eval/forgetting.md`
 - Runner: `tests/eval/forgetting/run.ts`
 - npm script wiring: `package.json scripts.eval:forgetting`

@@ -3,8 +3,8 @@
  *
  * Root cause (dogfound): the extraction prompt hardcoded the first-person speaker as the
  * entity `user`, so the ASSISTANT's own statements ("I analyzed X") were stored as the
- * user's ("user analisou X"), ignoring the authoritative `attributedTo`. Grounded in REDACTED
- * (references/REDACTED configs/prompts.py AGENT_CONTEXT_SUFFIX): agent actions must be framed
+ * user's ("user analisou X"), ignoring the authoritative `attributedTo`. Grounded in the
+ * established agent-context discipline: agent actions must be framed
  * "Agent recommended [X]" and attributed to the assistant.
  *
  * These tests lock: attributedTo='assistant' emits a HIGH-PRIORITY directive naming the

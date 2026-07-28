@@ -21,8 +21,6 @@
 -- Historical rows carry `attributed_to=NULL` permanently; consumers treat as
 -- "unknown attribution".
 --
--- @see .claude/knowledge-base/plans/v1-1-multi-peer-and-bi-temporal-plan.md § T1.1 + ADR D2
--- @see .claude/knowledge-base/reviews/v1-1-multi-peer-and-bi-temporal-edge-cases-2026-06-02.md § EC-1 + EC-2 + EC-6
 ALTER TABLE "memories" ADD COLUMN IF NOT EXISTS "attributed_to" text;--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "idx_memories_user_attributed_to"
  ON "memories" ("user_id", "attributed_to")

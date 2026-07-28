@@ -16,8 +16,6 @@
  * (`parseNode`, `scrub`, `nodeToBatchItem`, `planMigration`) are exported for
  * unit testing; the CLI `main()` is guarded so importing the module never runs it.
  *
- * @see knowledge-base/plans/claude-code-memory-integration-plan.md § T2.1
- * @see knowledge-base/discoveries/blueprints/claude-code-theo-memory-integration-blueprint.md § Coverage Corner 4
  */
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';

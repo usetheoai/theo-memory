@@ -1,6 +1,6 @@
-# M22 e2e-qa re-run — post-fix REDACTED LongMemEval (recencyCollapse ON + coverage-gate ON)
+# M22 e2e-qa re-run — post-fix LongMemEval (recencyCollapse ON + coverage-gate ON)
 
-A re-run of the REDACTED-LongMemEval counter-proof (`packages/eval/src/stages/e2e-qa/`) after
+A re-run of the LongMemEval counter-proof (`packages/eval/src/stages/e2e-qa/`) after
 M22, with the two shipped fixes **enabled** in the harness: `recall(..., { recencyCollapse: {} })`
 (#141) and the `shouldAbstain` coverage-gate (#140). Same dataset (LongMemEval-oracle), same
 N=12 deterministic subset, same judge, same model (`openai/gpt-4o-mini`).
@@ -50,7 +50,7 @@ entity+attribute, not only when their embeddings are ≥0.9-similar. Filed as a 
 
 ## Disclosure
 
-- Model `openai/gpt-4o-mini` (NOT REDACTED's gpt-5) → NOT leaderboard-comparable to REDACTED's ~91% LOCOMO.
+- Model `openai/gpt-4o-mini`, a small/cheap model → NOT leaderboard-comparable to any published figure.
 - N=12 deterministic subset; per-type cells are single/low-count; the judge is non-deterministic enough
   to flip a same-answer verdict (see `8a2466db`). Both fixes ON; baseline had both OFF.
 - Run date 2026-07-25; isolated DB `themem_e2e_qa` (dropped after). Cost ~US$ few cents.

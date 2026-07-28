@@ -163,8 +163,6 @@ See `tests/eval/forgetting/README.md` for the reproducibility checklist.
 
 ## Cross-references
 
-- Plan: `.claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T7.3`
-- Blueprint (methodology rationale + ADR D11 testing pyramid): `.claude/knowledge-base/discoveries/blueprints/v0-4b-forgetting-pipeline-blueprint.md`
 - GOAL TEST that gates the (d) row: `tests/integration/forgetting/triadic-eviction.test.ts`
 - Guardrail test (5-pass survival): `tests/integration/forgetting/guardrail-long-tail.test.ts`
 - CLAUDE.md acceptance locked at `recall@10 ≥ 0.70` per `§ Macro roadmap Item 6`

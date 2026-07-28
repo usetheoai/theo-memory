@@ -6,7 +6,7 @@
  * (`src/baselines/llm-free.json`). Fail-closed: a missing/corrupt baseline
  * throws, a regression throws (non-zero exit).
  *
- * CLI (REDACTED `--predict-only/--evaluate-only` parity):
+ * CLI (`--predict-only`/`--evaluate-only`):
  *   tsx src/run.ts                     # predict + evaluate (gate) — default
  *   tsx src/run.ts --predict-only      # run stages + print matrix, no gate
  *   tsx src/run.ts --evaluate-only     # gate the current candidate

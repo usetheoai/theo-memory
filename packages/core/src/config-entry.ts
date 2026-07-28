@@ -6,7 +6,6 @@
  *
  *   import { loadConfig, isSecretKey } from '@usetheo/memory/config';
  *
- * @see .claude/knowledge-base/plans/layered-config-cli-plan.md § T2.2
  */
 export { resolveConfig } from './domain/config/resolve.js';
 export type { ConfigLayer, ResolvedConfig } from './domain/config/resolve.js';

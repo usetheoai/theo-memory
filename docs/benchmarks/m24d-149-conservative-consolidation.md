@@ -1,6 +1,6 @@
 # M24 + #149 bench — knowledge-update FIXED, reflect no longer crushes recall
 
-Real-LLM e2e-qa run (REDACTED LongMemEval harness → TheMemory) with **all three fixes** on:
+Real-LLM e2e-qa run (LongMemEval harness → TheMemory) with **all three fixes** on:
 `#148` (honest judge guard) + `#149` (conservative consolidation prompt) + M24 bounded
 consolidation. `E2E_QA_REFLECT=1`, N=12 deterministic subset, `openai/gpt-4o-mini` via
 OpenRouter, isolated DB `themem_e2e_qa` (dropped after), key gitignored + deleted.
@@ -60,7 +60,7 @@ a future coverage-gate / multi-hop improvement, independent of #144/#149.
 
 ## Honest disclosure
 
-- Model `openai/gpt-4o-mini` (NOT REDACTED's gpt-5) → NOT leaderboard-comparable.
+- Model `openai/gpt-4o-mini`, a small/cheap model → NOT leaderboard-comparable.
 - N=12 deterministic subset; single run. knowledge-update 2/2 is a strong signal (the
   answer literally contains `25:50`, not judge noise).
 - The **no-reflect + #148** baseline is now measured (see § Addendum): 7/12 (58.3%) vs reflect+#149

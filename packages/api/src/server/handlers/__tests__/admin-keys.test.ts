@@ -16,7 +16,6 @@
  * collapse "doesn't exist" + "exists under different tenant" + "already
  * revoked" into a single 404 NOT_FOUND.
  *
- * @see <HOME>/Projetos/usetheo/theo-cloud/theo/cloud/internal/routes/api_keys.go
  */
 import { Hono } from 'hono';
 import { describe, expect, test, vi } from 'vitest';

@@ -11,16 +11,21 @@
 #   - Test files (`*.test.ts`) are excluded — a test that deliberately exercises an
 #     insecure path (e.g. `rejectUnauthorized:false` against a self-signed dev cert
 #     to prove the TLS handshake) is not production code.
-#   - Third-party study material under .claude/knowledge-base/references/ is excluded.
 #   - Reviewed-and-accepted production findings carry an inline `// nosemgrep: <rule>`
 #     with a justification (audit trail), e.g. the unauthenticated CORS preflight in
 #     the Bearer-auth wrappers (no credentials mode → reflected Origin is safe).
 name: Security SAST
 
+# GATILHOS: PR para `develop` ou `main` (gate antes de entrar no trunk) + push em `develop`
+# (verificação pós-merge). Ver o racional completo em `ci.yml`.
 on:
   pull_request:
-  push:
     branches: [develop, main]
+    paths-ignore:
+      - '.claude/**'
+      - '**/*.md'
+  push:
+    branches: [develop]
     paths-ignore:
       - '.claude/**'
       - '**/*.md'
@@ -38,9 +43,10 @@ concurrency:
 jobs:
   semgrep:
     name: semgrep (TypeScript / OWASP)
-    # Self-hosted (theo-ci-theo-memory) — GitHub-hosted minutes are billing-blocked
-    # for the org.
-    runs-on: [self-hosted, linux, x64]
+    # Blacksmith (#156) — ver integration.yml para as duas pré-condições que atrasaram a migração.
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    # Medido: max ~3 min (semgrep + gitleaks em container). 15 cobre pull de imagem em runner frio.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - name: Run semgrep
@@ -56,7 +62,6 @@ jobs:
               --config p/javascript \
               --config p/owasp-top-ten \
               --error \
-              --exclude '.claude/knowledge-base/references' \
               --exclude node_modules \
               --exclude dist \
               --exclude '*.test.ts' \

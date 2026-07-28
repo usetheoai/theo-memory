@@ -74,7 +74,7 @@ export function requireRole(min: WorkspaceRole): MiddlewareHandler {
  * credential is 403 on every data verb — least privilege (NIST AC-6): the
  * platform key mints per-tenant keys, it never reads or writes tenant data.
  *
- * @see usetheodev/theo-memory#77
+ * @see usetheoai/theo-memory#77
  */
 export function requireScopeOnPrincipal(required: string): MiddlewareHandler {
   return async (c, next) => {

@@ -41,8 +41,6 @@ interface GoldSetFixture {
 
 Hand-authored episodes draw from natural-life conversations (coffee, job, relocation, pet care, learning plans). The 5-category split — single-fact, multi-fact, contradiction-pair, entity-overlap, simulated-dialog — mirrors the categorical taxonomy from prior memory-benchmark work surveyed during the v0.7 discovery cycle.
 
-@see `.claude/knowledge-base/discoveries/snapshots/v0-7-episodic-semantic-distillation/23330a2ecff714779ded7f8225a62f9f1b7f030f8b04ac4b86039a2673475187.md` — methodology snapshot (verbatim source archived at fetch time).
-
 ## Regenerating procedural fixtures
 
 ```bash
@@ -59,7 +57,5 @@ The script is idempotent: existing JSON files are NOT overwritten. To force a re
 
 ## Related
 
-- Plan: `.claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T3.1 + ADR D4`
 - Loader: `loader.ts`
 - Generator: a one-off generator (removed; fixtures are committed)
-- Methodology snapshot: `.claude/knowledge-base/discoveries/snapshots/v0-7-episodic-semantic-distillation/23330a2e...`

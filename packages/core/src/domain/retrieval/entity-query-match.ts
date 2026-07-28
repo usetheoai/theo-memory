@@ -24,7 +24,6 @@
  * `_` is ambiguous once written — it encodes both "was a space" and "was an underscore".
  *
  * @see {@link normalizeEntityKey} — the write-path counterpart this mirrors.
- * @see `.claude/knowledge-base/plans/entity-boost-recall-contribution-plan.md` § D3
  */
 
 import { normalizeEntityKey } from '../extraction/entity-linking.js';
