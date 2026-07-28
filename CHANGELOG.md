@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **Base do CLI consumidor (M0): porta `MemoryClient` + adaptador HTTP + taxonomia de erro tipada.** Os quatro verbos hoje dependem do construtor da memória in-process, que arrasta driver de banco, ORM e embedder — e cobra um warm-up de 2–5 s que o próprio código já documentava e contornava parseando flags antes dele. A porta (DIP) permite que os verbos dependam de uma interface, com dois adaptadores possíveis: HTTP (`fetch` nativo, sem dependência nova) e in-process. Erros de transporte que não existiam no caminho direto ao banco — servidor fora, credencial rejeitada, timeout, corpo fora do contrato — ganham classe própria e código de saída distinto, para um script conseguir reagir sem parsear mensagem. 16 testes, incluindo um que lê o **fonte** e falha se `pg`, ORM, framework de servidor ou pacote privado aparecerem: sem ele, alguém desfaz a separação "reusando um tipo" e ninguém percebe.
+- **Shebang no artefato do CLI e versão vinda do manifesto.** Um `bin` de npm sem `#!/usr/bin/env node` é um arquivo que o shell não executa, e o npm não injeta a linha. A versão passa a ser substituída em build-time a partir do `package.json`: `--version` dizia `0.1.0-alpha` enquanto o manifesto dizia outra coisa, e versão mentindo é o primeiro dado perdido num relatório de bug. 5 testes, um deles assertando o artefato construído, não o fonte.
+
 - **`packages/mcp` e `packages/eval` entram no lint.** Os dois nunca foram lintados: o `mcp` estava fora do bloco de override de testes (e por isso acusava 288 problemas ao ser ligado), e o `eval` não pertencia a nenhum tsconfig, então o type-aware linting **quebrava** em vez de reportar. O lint agora cobre os 6 pacotes, com 0 erros.
 - **A suíte e2e passa a rodar no CI** (`pnpm run test:e2e`, no job `contract` do `integration.yml`, que já tem Postgres).
 

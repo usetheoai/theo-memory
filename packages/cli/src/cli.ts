@@ -43,6 +43,11 @@ import { runMcpServer } from '@usetheo/memory-mcp';
 import type { RunMcpServerOptions } from '@usetheo/memory-mcp';
 import { Command, InvalidArgumentError, Option } from 'commander';
 
+// Substituido em build-time por `scripts/add-cli-shebang.mjs` a partir do
+// manifesto do pacote. Um literal escrito a mao diverge — foi o que aconteceu:
+// `--version` dizia 0.1.0-alpha enquanto o manifesto dizia outra coisa.
+const CLI_VERSION = '__CLI_VERSION__';
+
 import { registerConfigCommand } from './run-config.js';
 import { runForget } from './run-forget.js';
 import { runHealth } from './run-health.js';
@@ -144,7 +149,7 @@ export function buildProgram(): Command {
   program
     .name('themory')
     .description('@usetheo/memory CLI — managed three-tier memory layer')
-    .version('0.1.0-alpha');
+    .version(CLI_VERSION);
 
   // EC-3 + EC-6 absorption: commander's default exit on invalid-arg /
   // invalid-option-arg is code 1. Plan ADR D4 + plan T0.1 tests 16-18
