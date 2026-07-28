@@ -38,7 +38,7 @@ Works with any LLM. No graph DB. No lock-in. Apache-2.0.
 
 | Document | What it covers |
 |---|---|
-| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | Layer boundaries, the 13 DIP interfaces, write and search pipelines |
+| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | Layer boundaries, the DIP ports, write and search pipelines |
 | [`docs/RUNBOOK.md`](./docs/RUNBOOK.md) | Deployment, migrations, key rotation, incident response |
 | [`docs/EVALUATION.md`](./docs/EVALUATION.md) | How retrieval quality is measured, and against what |
 | [`docs/adrs/`](./docs/adrs/) | Architecture decision records |
@@ -90,8 +90,8 @@ const facts = await memory.user('alice').recall('UI preferences');
 - **OpenMemory drop-in** — `themory mcp --compat openmemory` serves the OpenMemory tool surface over SSE for Cursor / Claude Desktop / Windsurf / Cline
 - **Selectable embedder** — `THEOMEM_EMBEDDER=local` (on-device Xenova MiniLM) or `openai` (`text-embedding-3-small`, no on-device model)
 - **Docker-ready** — distroless image < 200 MB with healthcheck
-- **Observable** — 16 OpenTelemetry events + per-handler spans
-- **Tested** — ~970 contract/unit tests + 540+ integration tests against real pgvector, across 270+ test files
+- **Observable** — 56 typed OpenTelemetry events + per-handler spans
+- **Tested** — ~970 contract/unit tests + 540+ integration tests against real pgvector, across 400+ test files
 
 ## Requirements
 
@@ -102,29 +102,30 @@ const facts = await memory.user('alice').recall('UI preferences');
 | An LLM API key | — | Fact extraction and reflection. Any OpenAI-compatible endpoint works via `OPENAI_BASE_URL` |
 | An embedder | — | On-device by default (no key needed); OpenAI embeddings optional — see [Quickstart](#quickstart) |
 
-`pnpm` is required to build from source (this is a pnpm workspace); consuming the published package needs only npm.
+`pnpm` is required to build from source — this is a pnpm workspace, so `npm install` will not wire the packages correctly.
 
 ## Quickstart
 
-```bash
-# 1. Install
-npm install @usetheo/memory
+> **How this ships today.** The server, the MCP server and the `themory` CLI are distributed as a
+> **Docker image** — they are not an npm binary. The npm package `@usetheo/memory` is the
+> **TypeScript SDK**, and it is **not published yet** (see [Status](#status)); until it is, use the
+> SDK by cloning the repo — see [Contributing](#contributing).
 
-# 2. Start Postgres + pgvector
+```bash
+# 1. Start Postgres + pgvector
 docker run -d --name pgvector -e POSTGRES_USER=themem -e POSTGRES_PASSWORD=themem \
   -e POSTGRES_DB=themem -p 5432:5432 ankane/pgvector:v0.5.1
 
-# 3. Configure
-cp .env.example .env
-# Set OPENAI_API_KEY (required) and THEMEMORY_API_KEY (optional, enables auth)
-
-# 4. Apply schema
-export THEOMEM_PG_URI=postgresql://themem:themem@localhost:5432/themem
-npm run db:push
-
-# 5. Start
-npx themory server
+# 2. Start the server — it applies pending migrations before it binds the port
+docker run -p 8080:8080 \
+  -e THEOMEM_PG_URI=postgresql://themem:themem@host.docker.internal:5432/themem \
+  -e OPENAI_API_KEY=sk-... \
+  -e THEOMEM_EMBEDDER=openai \
+  ghcr.io/usetheoai/themory:0.1.0-alpha
 ```
+
+On Linux, replace `host.docker.internal` with the host IP or run both containers on one Docker
+network. From a clone, the equivalent of step 2 is `pnpm run build && node dist/agent-tools/cli.js server`.
 
 **Embedder selection** — set `THEOMEM_EMBEDDER`:
 
@@ -205,7 +206,7 @@ Built on [Hono](https://hono.dev) with auto-generated [OpenAPI 3.1](https://swag
 
 ### Accountable forgetting (opt-in)
 
-Every recall discards candidates — sub-threshold matches, redundant near-duplicates. Most memory layers throw the *reason* away. When you enable tracing (`THEOMEM_RECALL_TRACE=true`), each recall persists one row per **dropped** candidate with its full score breakdown (semantic / bm25 / entity / composite / threshold) and the drop reason (`semantic_gate` / `sub_threshold` / `nan` / `mmr_redundant`), keyed by the `recallId` the recall response returns:
+Every recall discards candidates — sub-threshold matches, redundant near-duplicates. The *reason* is normally lost. When you enable tracing (`THEOMEM_RECALL_TRACE=true`), each recall persists one row per **dropped** candidate with its full score breakdown (semantic / bm25 / entity / composite / threshold) and the drop reason (`semantic_gate` / `sub_threshold` / `nan` / `mmr_redundant`), keyed by the `recallId` the recall response returns:
 
 ```bash
 # recall returns a recallId in its envelope …
@@ -219,7 +220,7 @@ Default OFF (recall is byte-unchanged and writes nothing). The read is scoped to
 
 ## Multi-tenancy & RBAC
 
-Ship a multi-tenant product without bolting on a separate auth service. Two layers — **workspace isolation** and **role-based access** — are enforced server-side from the credential, never from the request body. Both live in the free package (peers commonly gate this to a paid tier).
+Ship a multi-tenant product without bolting on a separate auth service. Two layers — **workspace isolation** and **role-based access** — are enforced server-side from the credential, never from the request body. Both live in the free package.
 
 ### Workspace isolation
 
@@ -281,8 +282,8 @@ Add `themory` to your project-local `.mcp.json` (Claude Code reads this file fro
 {
   "mcpServers": {
     "themory": {
-      "command": "npx",
-      "args": ["@usetheo/memory", "mcp"],
+      "command": "node",
+      "args": ["/absolute/path/to/theo-memory/dist/agent-tools/cli.js", "mcp"],
       "env": {
         "THEOMEM_PG_URI": "postgresql://themem:themem@localhost:5432/themem",
         "OPENAI_API_KEY": "sk-..."
@@ -291,6 +292,10 @@ Add `themory` to your project-local `.mcp.json` (Claude Code reads this file fro
   }
 }
 ```
+
+The path points at a **build from a clone** (`pnpm install && pnpm run build`). There is no npm
+binary to `npx` — see [Quickstart](#quickstart). To run the MCP server from the Docker image
+instead, use the streamable-HTTP transport below rather than stdio.
 
 `OPENAI_BASE_URL` is honored for OpenAI-compatible gateways — e.g. point at OpenRouter with `OPENAI_BASE_URL=https://openrouter.ai/api/v1` to use the free local-embedder + an OpenRouter chat model.
 
@@ -323,13 +328,13 @@ This exposes the OpenMemory tool surface — `add_memories` · `search_memory` �
 ## Docker
 
 ```bash
-docker pull ghcr.io/usetheo/themory:0.1.0-alpha
+docker pull ghcr.io/usetheoai/themory:0.1.0-alpha
 
 docker run -p 8080:8080 \
   -e THEOMEM_PG_URI=postgres://... \
   -e OPENAI_API_KEY=sk-... \
   -e THEOMEM_EMBEDDER=openai \
-  ghcr.io/usetheo/themory:0.1.0-alpha
+  ghcr.io/usetheoai/themory:0.1.0-alpha
 ```
 
 > The currently published tag is `0.1.0-alpha`; release tags are published to GHCR by CI on each version tag. The default image bundles the local embedder (Xenova/ONNX) — set `THEOMEM_EMBEDDER=openai` to use the OpenAI embedding API instead (no on-device model, no HuggingFace download at runtime).
@@ -340,7 +345,7 @@ Distroless Node 22 image, < 200 MB, Trivy-gated (zero CRITICAL/HIGH CVE), health
 # Apply migrations (or `health`) against the distroless image
 docker run --rm --entrypoint /nodejs/bin/node \
   -e THEOMEM_PG_URI=postgres://... \
-  ghcr.io/usetheo/themory:0.1.0-alpha /app/dist/agent-tools/cli.js migrate
+  ghcr.io/usetheoai/themory:0.1.0-alpha /app/dist/agent-tools/cli.js migrate
 ```
 
 ## CI/CD
@@ -365,6 +370,10 @@ vulnerable image is never published. Exemptions go through [`.trivyignore`](./.t
 **mandatory sunset date** and justification — never a blanket ignore.
 
 ## CLI
+
+`themory` ships **inside the Docker image**, not as an npm binary. Run it either from a clone
+(`node dist/agent-tools/cli.js <subcommand>`) or against the image by overriding the entrypoint —
+see [Docker](#docker). The commands below are written as `themory <subcommand>` for readability.
 
 ```bash
 themory server                      # Start REST API
@@ -409,17 +418,21 @@ Both keys are valid simultaneously between steps 1 and 3 — no downtime window.
 
 ## Architecture
 
+A pnpm workspace. `@usetheo/memory` (the SDK) is `packages/core`; everything else is internal.
+
 ```
-src/
-├── core/              Contracts + types (no I/O)
-│   ├── dip/           13 DIP interfaces
-│   ├── extraction/    8-phase write pipeline
-│   └── retrieval/     9-step hybrid search
-├── local/             Postgres + pgvector (15 migrations)
-├── server/            Hono REST + auth + rate-limit + CORS
-├── agent-tools/       MCP server (stdio + HTTP)
-├── embedders/         Local transformer (MiniLM, 384-dim)
-└── llms/              OpenAI-compatible client
+packages/
+├── core/              @usetheo/memory — the SDK (the only published package)
+│   └── src/
+│       ├── domain/dip/          23 DIP ports (one module per port)
+│       ├── domain/extraction/   8-phase write pipeline
+│       ├── domain/retrieval/    9-step hybrid search
+│       └── infrastructure/db/   Postgres + pgvector (29 migrations)
+├── api/               Hono REST + auth + rate-limit + CORS
+├── mcp/               MCP server (stdio + HTTP + OpenMemory-compatible SSE)
+├── cli/               themory CLI (shipped in the Docker image, not on npm)
+├── agent-core/        Helpers shared by cli and mcp
+└── eval/              Retrieval-quality harness
 ```
 
 **Write path:**
@@ -432,7 +445,7 @@ Text → Context → Retrieve existing → LLM extract → Embed → Dedup → P
 Query → Embed → Semantic ANN → BM25 → Entity boost → Score → Threshold → Format
 ```
 
-Layer boundaries, the 13 DIP interfaces and each pipeline phase are documented in
+Layer boundaries, every DIP port and each pipeline phase are documented in
 [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md). Decisions and their rationale live in
 [`docs/adrs/`](./docs/adrs/).
 
@@ -448,11 +461,11 @@ npm run lint                # Zero warnings
 | Metric | Value |
 |---|---|
 | Contract / unit tests | ~970 passing |
-| Test files | 270+ |
+| Test files | 400+ |
 | Integration tests | 540+ (against `ankane/pgvector:v0.5.1`) |
 | Source lines | ~20,000 |
 | DIP interfaces | 13 |
-| Migrations | 18 |
+| Migrations | 29 |
 
 How retrieval quality is measured — datasets, judges, and what the numbers do and do not mean —
 is in [`docs/EVALUATION.md`](./docs/EVALUATION.md). Deployment, migrations, key rotation and
@@ -478,8 +491,8 @@ one against the code:
 | Multi-tenant isolation + RBAC | Workspace boundary + `owner`/`admin`/`member`, in the free package |
 
 <sub>The three we would point at first: **code-as-skill** memory (a tier for executable
-procedures), **multi-tenancy with full RBAC in the OSS package** rather than reserved for a
-hosted plan, and a **plain-Postgres** deployment. Theo Memory itself is
+procedures), **multi-tenancy with full RBAC in the OSS package**, and a **plain-Postgres**
+deployment. Theo Memory itself is
 **[pre-release](#status)** — see Status for exactly what that means.</sub>
 
 ## Roadmap
@@ -493,8 +506,8 @@ hosted plan, and a **plain-Postgres** deployment. Theo Memory itself is
 | v0.7 | Episodic → semantic distillation | **Shipped** |
 | v1.1 | Multi-peer + bi-temporal | **Shipped** |
 | v1.5 | Semantic recall cache | **Shipped** |
-| v0.5 | OpenMemory MCP-shape compatibility (drop-in over SSE) | **Shipped** |
-| v0.6 | Selectable embedder (`THEOMEM_EMBEDDER` local / OpenAI) | **Shipped** |
+| — | OpenMemory MCP-shape compatibility (drop-in over SSE) | **Shipped** |
+| — | Selectable embedder (`THEOMEM_EMBEDDER` local / OpenAI) | **Shipped** |
 | v1.0 | Contract stable / production-ready | In progress |
 | — | Agentic tool-use + injection/command safety sandbox | Planned |
 | — | Layered config + `themory config` subcommand | Planned |
@@ -504,7 +517,7 @@ hosted plan, and a **plain-Postgres** deployment. Theo Memory itself is
 
 ## Status
 
-> **Pre-release — and honest about it.** Feature-complete for the core use case and validated across 107 end-to-end scenarios (REST, MCP, CLI, browser), plus continuous real-usage evidence: our own team runs on it. Not yet published to npm. The `production-ready` label waits for v1.0, when we freeze the contract. Until then you can run it, self-host it, and build on it — we would just rather say that plainly than print a badge we can't defend yet.
+> **Pre-release — and honest about it.** Feature-complete for the core use case, covered by ~970 contract/unit tests and 540+ integration tests against a real pgvector, plus continuous real-usage evidence: our own team runs on it. Not yet published to npm. The `production-ready` label waits for v1.0, when we freeze the contract. Until then you can run it, self-host it, and build on it — we would just rather say that plainly than print a badge we can't defend yet.
 
 ## Support
 
