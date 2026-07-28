@@ -10,12 +10,19 @@
 # Não existe mecanismo cross-owner. A chamada passou a falhar no parse ("workflow was not found"),
 # derrubando o workflow inteiro — nem o job de deploy chegava a ser criado.
 #
-# DÍVIDA CONSCIENTE, COM DATA DE VALIDADE. O original existe para ser "the single hardened image
-# pipeline for the whole org"; esta cópia duplica exatamente aquilo que deveria ser único, e vai
-# divergir com o tempo. QUANDO `usetheodev/theo` MIGRAR PARA `usetheoai`, APAGUE ESTE ARQUIVO e
-# devolva o `publish.yml` para `uses: usetheodev/theo/...` (novo dono). O teste
-# `tests/integration/publish-workflow.test.ts` fixa qual referência está em uso e tem de ser
-# atualizado no mesmo commit — ele é o alarme contra esta cópia virar permanente por esquecimento.
+# DÍVIDA CONSCIENTE, COM DATA DE VALIDADE: SUNSET 2026-10-26.
+#
+# O original existe para ser "the single hardened image pipeline for the whole org"; esta cópia
+# duplica exatamente aquilo que deveria ser único, e já divergiu em quatro pontos (abaixo).
+# QUANDO `usetheodev/theo` MIGRAR PARA `usetheoai`, APAGUE ESTE ARQUIVO e devolva o `publish.yml`
+# para `uses: usetheoai/theo/...`. O teste `tests/integration/publish-workflow.test.ts` fixa qual
+# referência está em uso e tem de ser atualizado no mesmo commit.
+#
+# A data acima é VERIFICADA por teste (`a divida da copia vendorizada tem sunset`), que fica
+# vermelho depois dela. Isso é deliberado: até 2026-07-28 a dívida dizia ter "data de validade"
+# sem ter data nenhuma — prosa que não expira não é prazo, é intenção. Ao vencer, há duas saídas
+# honestas, e ambas exigem um commit: migrar (apagar a cópia) ou estender a data reconhecendo que
+# a divergência cresceu mais um trimestre.
 #
 # DIFERENÇAS EM RELAÇÃO AO ORIGINAL — quatro, e nenhuma é cosmética:
 #   1. `registry` default → `ghcr.io/usetheoai`. Um run de `usetheoai` recebe GITHUB_TOKEN de

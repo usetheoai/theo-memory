@@ -46,6 +46,36 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     expect(yaml).toMatch(/image:\s*themory\b/);
   });
 
+  test('a divida da copia vendorizada tem sunset, e ele ainda nao venceu', () => {
+    // O cabecalho da copia sempre disse "DIVIDA CONSCIENTE, COM DATA DE VALIDADE"
+    // — e ate 2026-07-28 nao trazia data nenhuma. Prosa que nao expira nao e
+    // prazo, e intencao; e intencao nao segura duplicacao de pipeline.
+    //
+    // Este teste faz a data existir de fato. Ao vencer, ha duas saidas honestas,
+    // e as duas exigem um commit: migrar (apagar a copia, voltar ao reusable) ou
+    // estender a data RECONHECENDO que a divergencia ganhou mais um trimestre.
+    // O que ele impede e a terceira saida, a que acontece sozinha: esquecer.
+    const vendored = readFileSync(resolve(REPO_ROOT, '.github/workflows/build-publish.yml'), 'utf-8');
+
+    const match = /SUNSET (\d{4})-(\d{2})-(\d{2})/.exec(vendored);
+    expect(match, 'o cabecalho precisa declarar SUNSET YYYY-MM-DD').not.toBeNull();
+
+    const [, y, m, d] = match as RegExpExecArray;
+    const sunset = Date.UTC(Number(y), Number(m) - 1, Number(d));
+    const hoje = Date.now();
+
+    expect(
+      hoje,
+      `A copia vendorizada de build-publish.yml venceu em ${y}-${m}-${d}.\n` +
+        'Duas saidas, ambas com commit:\n' +
+        '  (a) usetheodev/theo migrou para usetheoai? Apague o arquivo, devolva\n' +
+        '      publish.yml para `uses: usetheoai/theo/...` e atualize os testes\n' +
+        '      desta suite no MESMO commit.\n' +
+        '  (b) Ainda nao migrou? Estenda o SUNSET no cabecalho, ciente de que as\n' +
+        '      quatro divergencias documentadas continuam crescendo.\n',
+    ).toBeLessThan(sunset);
+  });
+
   test('the vendored copy exists and publishes to the usetheoai namespace', () => {
     // Guarda de coerência: enquanto o `publish.yml` apontar para a cópia local, ela TEM de existir.
     const vendored = readFileSync(resolve(REPO_ROOT, '.github/workflows/build-publish.yml'), 'utf-8');
