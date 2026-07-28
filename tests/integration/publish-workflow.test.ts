@@ -384,6 +384,29 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     expect(vendored, 'sem ancora terminal, qualquer ref casa').toMatch(/build-publish\\\.yml@refs\/\(heads\|tags\)\/\.\+\$/);
   });
 
+  test('test_dockerfile_parseia_cada_from', () => {
+    // Defeito real, pego so pelo run de verdade (F-xval-2): a T2.2 anotou a tag
+    // original num comentario NA MESMA LINHA do `FROM`. O Docker so trata `#`
+    // como comentario no INICIO da linha — no meio, ele vira argumento, e
+    // `FROM img@sha AS builder   # node:22-slim` fica com 5 argumentos.
+    //
+    //   ERROR: dockerfile parse error on line 38: FROM requires either one or
+    //   three arguments
+    //
+    // O teste anterior conferia que o digest ESTAVA la; nunca que o arquivo
+    // PARSEIA. Digest presente num Dockerfile que nao constroi e pior que
+    // nenhum: o gate fica verde e a imagem nunca sai.
+    const dockerfile = readFileSync(resolve(REPO_ROOT, 'Dockerfile'), 'utf-8');
+    for (const [n, line] of dockerfile.split('\n').entries()) {
+      if (!/^FROM\s/.test(line)) continue;
+      const args = line.trim().split(/\s+/).slice(1);
+      expect(
+        args.length,
+        `Dockerfile:${n + 1} — FROM aceita 1 ou 3 argumentos, tem ${args.length}: ${line}`,
+      ).toBeOneOf([1, 3]);
+    }
+  });
+
   test('test_bases_do_dockerfile_pinadas_por_digest', () => {
     // T2.2 — a cadeia pina as ENTRADAS (21/21 actions por SHA) e assina a SAIDA
     // (cosign no digest), mas a base sobre a qual tudo e construido flutuava numa
