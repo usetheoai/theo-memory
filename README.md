@@ -359,10 +359,14 @@ Every release image is **cosign-signed with identity-pinned verification** and s
 | manual dispatch | smoke | unsigned build |
 
 > **Image renamed (2026-07-28): `themory` → `theo-memory`.** The image now carries the repository
-> name, matching every sibling project (`theo-lens`, `theo-rag`, `theo-db`). `ghcr.io/usetheoai/themory`
-> **was not deleted** — its tags stay pullable; it simply stops receiving new builds. If you pull
-> `:develop` from the old path, you will keep getting the last build published under it, with no error
-> and no signal. Repoint to `ghcr.io/usetheoai/theo-memory`.
+> name, matching every sibling project (`theo-lens`, `theo-rag`, `theo-db`).
+>
+> **The old path stops resolving — repoint now.** An earlier revision of this note claimed the old
+> tags stayed pullable. That was wrong, and measuring it corrected the record: after the rename,
+> `ghcr.io/usetheoai/themory` resolves no tag at all — not `:develop`, not `:0.56.0`, not `:0.27.0`.
+> The dev host proved it in production, failing every reconcile for 26 minutes until it was
+> repointed. If you pin the old path, pin a **digest** you already hold locally; a tag there will
+> not resolve.
 
 > **Namespace changed (2026-07-27).** Images used to publish to `ghcr.io/usetheodev/themory`. The
 > repository moved to the `usetheoai` organization, and a workflow run there cannot push to the

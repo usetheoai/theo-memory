@@ -3,10 +3,17 @@
 O `publish-npm.yml` publica por **OIDC**. Não há segredo de longa duração no caminho de
 publicação.
 
-**Estado (2026-07-28):** o *trusted publisher* está registrado no npmjs.com
-(`usetheoai/theo-memory` → `publish-npm.yml`, sem environment, permissões `npm publish` +
-`npm stage publish`), e `NODE_AUTH_TOKEN` foi removido do workflow. Falta uma coisa: um
-publish real que **prove** o caminho OIDC ponta a ponta.
+**Estado: PROVADO em 2026-07-28.** `@usetheo/memory@0.3.0` foi publicado por OIDC, sem
+token no caminho. A prova é conclusiva por construção: `NODE_AUTH_TOKEN` já não existia no
+workflow, então não havia outro meio de autenticar. O secret `NPM_TOKEN` foi removido do
+repositório.
+
+Verificação independente:
+
+```
+npm view @usetheo/memory version   →  0.3.0
+dist-tags                          →  { "latest": "0.3.0" }
+```
 
 ## Por que isso importa
 
@@ -60,12 +67,14 @@ Rode `publish-npm.yml` por `workflow_dispatch` com `dry_run` **desligado** numa 
 O `dry_run` não serve como prova: ele pula o step de publish inteiro, então não exercita
 autenticação nenhuma.
 
-## Depois da prova
+## O que resta — e é a parte que realmente importa
 
-1. `gh secret delete NPM_TOKEN -R usetheoai/theo-memory` — hoje ele já não é referenciado
-   por workflow algum; segue no repositório só como caminho de rollback.
-2. Revogue os tokens no npmjs.com. **Remover do GitHub não os invalida** — enquanto não
-   forem revogados no emissor, continuam válidos para quem os tiver.
+O secret saiu do GitHub, mas **isso não revoga nada**. Os tokens continuam válidos no
+npmjs.com para quem os tiver, até serem revogados **no emissor**.
+
+Em **npmjs.com → Access Tokens → revoke**, revogue os tokens de publicação deste pacote.
+Enquanto isso não for feito, a superfície de ataque é a mesma de antes — só ficou menos
+visível.
 
 ## Uma ressalva honesta
 

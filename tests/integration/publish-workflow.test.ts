@@ -140,6 +140,40 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     );
   });
 
+  test(':latest so sai de codigo promovido a main — tag nao e promocao', () => {
+    // `:latest` e a referencia que a reconciliacao de PRODUCAO consome.
+    //
+    // Ela ja era condicionada a `refs/tags/v*`, mas TAG NAO E PROMOCAO: nada
+    // impedia taggear um commit de develop, de um branch de trabalho ou de um
+    // fork-merge e publicar :latest a partir dele. O contrato do ciclo de
+    // release (develop -> main por PR, tag no merge) era DISCIPLINA, e a
+    // diferenca entre disciplina e enforcement so aparece no dia em que alguem
+    // taggeia no lugar errado — com producao puxando.
+    //
+    // Verificado contra a realidade em 2026-07-28 via a API de compare:
+    //   v0.56.0 (em main)        -> behind    -> aceita
+    //   origin/develop (nao promovido) -> diverged -> rejeita
+    const yaml = readFileSync(WORKFLOW_PATH, 'utf-8');
+    const vendored = readFileSync(resolve(REPO_ROOT, '.github/workflows/build-publish.yml'), 'utf-8');
+
+    expect(vendored, ':latest continua restrito a tag semver').toMatch(
+      /value=latest,enable=\$\{\{\s*startsWith\(github\.ref,\s*'refs\/tags\/v'\)/,
+    );
+    expect(yaml, 'a guarda de promocao precisa existir').toMatch(/guard-release-on-main:/);
+    expect(yaml, 'a guarda so avalia tags').toMatch(
+      /if:\s*\$\{\{\s*startsWith\(github\.ref,\s*'refs\/tags\/v'\)\s*\}\}/,
+    );
+    expect(yaml, 'compara a posicao do commit em relacao a main').toMatch(
+      /compare\/main\.\.\.\$\{SHA\}/,
+    );
+    expect(yaml, 'so identical e behind significam promovido').toMatch(/identical\|behind\)/);
+    // Sem o `needs`, a guarda existiria mas nao gatearia nada — o modo de falha
+    // mais silencioso possivel: um job verde ao lado de um publish que ignorou.
+    expect(yaml, 'o job da imagem precisa DEPENDER da guarda').toMatch(
+      /needs:\s*guard-release-on-main/,
+    );
+  });
+
   test('arm64 e construido na release e NAO em todo push de develop (custo de emulacao)', () => {
     // Duas assercoes com intencoes opostas, de proposito.
     //

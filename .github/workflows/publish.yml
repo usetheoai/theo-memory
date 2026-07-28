@@ -70,6 +70,44 @@ permissions:
   packages: write
   id-token: write   # keyless cosign via GitHub OIDC (release only)
 jobs:
+  # A TAG DE RELEASE TEM DE ESTAR EM `main` — senão `:latest` sai de código não promovido.
+  #
+  # `:latest` é a referência que a reconciliação de PRODUÇÃO consome. Ela já era condicionada a
+  # `refs/tags/v*`, mas tag não é promoção: nada impedia taggear um commit de `develop`, de um
+  # branch de trabalho ou de um fork-merge e publicar `:latest` a partir dele. O contrato do ciclo
+  # de release (`develop → main` por PR, tag no merge) era DISCIPLINA, não enforcement — e a
+  # diferença só aparece no dia em que alguém taggeia no lugar errado, com produção puxando.
+  #
+  # Usa a API em vez de `git merge-base`: dispensa checkout (o histórico completo deste repo é caro
+  # de buscar só para responder sim/não) e roda em segundos.
+  #
+  # `compare/main...<sha>` devolve a posição do commit RELATIVA a main:
+  #   identical -> a tag é exatamente o head de main            (ok)
+  #   behind    -> a tag é um ancestral de main; main avançou   (ok — foi promovida)
+  #   ahead     -> a tag tem commits que main não tem           (NÃO promovida)
+  #   diverged  -> históricos separados                         (NÃO promovida)
+  guard-release-on-main:
+    runs-on: ${{ fromJSON('["blacksmith-8vcpu-ubuntu-2404"]') }}
+    steps:
+      - name: A tag esta em main?
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          STATUS="$(gh api "repos/${GITHUB_REPOSITORY}/compare/main...${SHA}" --jq .status)"
+          echo "posicao de ${SHA} em relacao a main: ${STATUS}"
+          case "${STATUS}" in
+            identical|behind)
+              echo "OK — a tag esta em main; :latest pode ser publicada." ;;
+            *)
+              echo "::error::A tag ${GITHUB_REF_NAME} NAO esta em main (${STATUS})." >&2
+              echo "::error::':latest' alimenta a reconciliacao de PRODUCAO e so pode sair de codigo promovido." >&2
+              echo "::error::Promova develop -> main por PR e taggeie o commit de merge." >&2
+              exit 1 ;;
+          esac
+
   # Chama a CÓPIA VENDORIZADA local, não o reusable de `usetheodev/theo`.
   #
   # POR QUÊ: `usetheodev/theo` é privado e de outro dono desde a transferência deste repo para a
@@ -82,6 +120,10 @@ jobs:
   # `.github/workflows/build-publish.yml`. O teste `tests/integration/publish-workflow.test.ts`
   # fixa qual referência está em uso e falha se as duas coisas não andarem juntas.
   image:
+    # A guarda roda em todo disparo e sai imediatamente quando nao e tag — o job existe
+    # para que `needs` seja incondicional aqui. Com `needs` condicional, um job pulado
+    # arrastaria o `image` junto e nenhuma imagem seria publicada em `develop`.
+    needs: guard-release-on-main
     uses: ./.github/workflows/build-publish.yml
     with:
       # `theo-memory`, nao `themory`: e o nome do repositorio, que e o padrao dos

@@ -365,9 +365,13 @@ Toda imagem de release é **assinada com cosign, com verificação fixada por id
 
 > **Imagem renomeada (2026-07-28): `themory` → `theo-memory`.** A imagem passa a carregar o nome do
 > repositório, como em todos os projetos irmãos (`theo-lens`, `theo-rag`, `theo-db`).
-> `ghcr.io/usetheoai/themory` **não foi apagada** — suas tags seguem baixáveis; ela apenas deixa de
-> receber builds novos. Se você puxar `:develop` do caminho antigo, vai continuar recebendo o último
-> build publicado nele, sem erro e sem aviso. Aponte para `ghcr.io/usetheoai/theo-memory`.
+>
+> **O caminho antigo deixa de resolver — reaponte agora.** Uma versão anterior desta nota afirmava
+> que as tags antigas seguiam baixáveis. Estava errado, e a medição corrigiu o registro: depois da
+> renomeação, `ghcr.io/usetheoai/themory` não resolve tag alguma — nem `:develop`, nem `:0.56.0`,
+> nem `:0.27.0`. O host de dev provou isso em produção, falhando toda reconciliação por 26 minutos
+> até ser reapontado. Se você fixa o caminho antigo, fixe um **digest** que já tenha localmente;
+> tag de lá não resolve.
 
 > **Namespace mudou (2026-07-27).** As imagens eram publicadas em `ghcr.io/usetheodev/themory`. O
 > repositório passou para a organização `usetheoai`, e um workflow rodando lá não consegue dar push
