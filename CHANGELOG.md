@@ -1,8 +1,21 @@
 # Changelog
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
 ## [Unreleased]
+
+### Added
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.56.0] - 2026-07-28
 
 ### Added
 
@@ -66,15 +79,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **CI: `useblacksmith/cache` deliberadamente NÃO adotado.** A doc da Blacksmith registra que a action foi arquivada e que o cache é interceptado de forma transparente, então `actions/setup-node` com `cache: pnpm` permanece como está. Migrar para a action da Blacksmith teria trocado código funcionando por uma dependência sem manutenção.
 
-### Deprecated
-
 ### Removed
 
 - **Os quatro relatórios de benchmark comparativo contra um concorrente nomeado foram removidos** (os arquivos `*-vs-*.md` de `docs/benchmarks/`: full-longmemeval, M27 write-quality, M28 recall-crossval, M29 speaker-attribution). Eram claims head-to-head de performance sem reprodução independente — exatamente o que a disciplina de public-copy § 4 e a ADR-0020 barram, e um deles era uma execução parcial (139 de 500 exemplos, interrompida por esgotamento de crédito). Num repositório público, um número comparativo não reproduzível contra um projeto nomeado é risco reputacional sem contrapartida técnica. As medições próprias que sobrevivem (M21/M22/M23/M24) continuam em `docs/benchmarks/`, agora sem citar concorrente.
 
 - **A seção "How it compares" do README saiu**, substituída por "What's distinctive", que descreve as capacidades do próprio projeto sem tabela comparativa nem nome de terceiro. A tabela anterior era honesta (fonte por projeto, marcada como comparação de capacidades e não de performance), mas comparar concorrentes no próprio README é posicionamento, não documentação.
-
-### Fixed
 
 ### Security
 
