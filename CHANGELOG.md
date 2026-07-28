@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- Prosa de `CLAUDE.md` e do CHANGELOG restaurada após a reescrita de histórico de 2026-07-28. A substituição mecânica de nomes de terceiros produziu trechos agramaticais ("NOT the Python NLP library.** the Python NLP library is Python", "no the Python NLP library/Python"); cicatrizes de uma limpeza anterior que removera só os nomes, deixando crases vazias e "the the", também foram fechadas. Nenhuma afirmação técnica foi alterada — só a redação. Entradas de versões já released foram tocadas **apenas** onde a substituição as havia quebrado gramaticalmente; isso é restauração do texto publicado, não revisão do que foi entregue.
+
 ### Deprecated
 
 ### Removed
@@ -623,7 +625,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 - **Benchmark feature removed entirely** (v0.8 independent benchmark reproduction): `benchmarks/`, `docs/benchmarks/`, `packages/core/src/domain/benchmarks/**`, the `BenchmarkAdapter` DIP (`dip/benchmark-adapter.ts`) + its `index.ts` type exports, `vitest.benchmark.config.ts`, the `test:benchmark`/`download-fixtures` npm scripts, and all benchmark tests/fixtures. `tsc --noEmit` green; no remaining references.
 - 445 dangling `@see .claude/…` reference comment lines + hyphenated prior-art tags from 168 `packages/*/src` + scripts source files (the `.claude/` tree they pointed at was removed). Comment-only; `tsc --noEmit` green; no behavior change.
-- Public `## Comparison` section (competitor matrix + footnotes/source links) from README; the `` code-comment tag and the external competitor-repo hyperlinks in README + the v0.2 status presentation. Product docs unchanged otherwise; the OpenMemory-compat feature (a shipped interop surface) is retained.
+- Public `## Comparison` section (competitor matrix + footnotes/source links) from README; the vendor code-comment tag and the external competitor-repo hyperlinks in README + the v0.2 status presentation. Product docs unchanged otherwise; the OpenMemory-compat feature (a shipped interop surface) is retained.
 - Internal prior-art `@see`/reference comment lines from 14 shipped `packages/core` source files (dedup, scoring/lemmatization, retrieval/extraction pipelines, embedders, DIP interfaces, schema). These pointed at internal `knowledge-base/` coordinates that do not exist for an npm consumer; behavior unchanged (comment-only removal, `tsc --noEmit` green).
 
 
@@ -951,7 +953,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [0.10.0] - 2026-06-20
 
 ### Added
-- Entity extraction (nodes) — the `entities` table is now populated from memory text on `remember`. A new `EntityExtractor` DIP (`CompromiseEntityExtractor` default: JS-native NLP via the optional `compromise` package + regex fallback, no the Python NLP library/Python) extracts PROPER/QUOTED/COMPOUND/NOUN nodes; a new `MemoryEntityStore` DIP (`PgMemoryEntityStore` default) persists them (deduped per `(workspace, scope, type, normalized_key)`) + links them to source memories (`memory_entities` table, migration `0018`). `GET /v1/scopes/:type/:id/entities` now serves the REAL deduplicated entities with `memory_count` + `last_seen_at` (response shape unchanged) when the read port is wired; the `attributed_to`-derived fallback is preserved otherwise. Entity linking is `entityBoost`-gated (default on) and fail-soft (a failure emits `entity_linking_failed` and never fails `remember`). Caveat: entity linking runs on the `infer:true` write path only; the `infer:false` verbatim fast-path does not yet extract entities (follow-up). (#entity-extraction-nodes-slice1)
+- Entity extraction (nodes) — the `entities` table is now populated from memory text on `remember`. A new `EntityExtractor` DIP (`CompromiseEntityExtractor` default: JS-native NLP via the optional `compromise` package + regex fallback, no Python NER toolkit) extracts PROPER/QUOTED/COMPOUND/NOUN nodes; a new `MemoryEntityStore` DIP (`PgMemoryEntityStore` default) persists them (deduped per `(workspace, scope, type, normalized_key)`) + links them to source memories (`memory_entities` table, migration `0018`). `GET /v1/scopes/:type/:id/entities` now serves the REAL deduplicated entities with `memory_count` + `last_seen_at` (response shape unchanged) when the read port is wired; the `attributed_to`-derived fallback is preserved otherwise. Entity linking is `entityBoost`-gated (default on) and fail-soft (a failure emits `entity_linking_failed` and never fails `remember`). Caveat: entity linking runs on the `infer:true` write path only; the `infer:false` verbatim fast-path does not yet extract entities (follow-up). (#entity-extraction-nodes-slice1)
 
 ## [0.9.0] - 2026-06-19
 
@@ -1080,7 +1082,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **code-review-fixes-v0-2-1** T1.2 — BREAKING: `createApp` throws when `NODE_ENV=production` and `THEMORY_CORS_ORIGIN` is unset. Previously defaulted to wildcard `*` with a stderr warning. Development/test mode unchanged (OWASP A01:2021, ADR D2, EC-2).
 - **theocloud-release-and-docker-rebuild** T2.1 — `docker-compose.prod.yaml` default image updated from `ghcr.io/usetheo/themory:0.1.0-alpha` to `usetheo/themory:0.2.0` (Docker Hub primary per ADR D1 + EC-3 alignment).
 - **theocloud-release-and-docker-rebuild** T3.2 — README Docker section leads with Docker Hub (`docker pull usetheo/themory:0.2.0`); GHCR noted as alternative. All `0.1.0-alpha` references removed from README and Dockerfile.
-- **cross-validation-roadmap** — Roadmap (README + CLAUDE.md) extended with 5 post-P0 backlog items derived from the `/loop-cross-validation` run against `the reference project` (2026-06-15): agentic tool-use + injection sandbox, layered config + `themory config`, optional cross-encoder reranker DIP, embedder registry + more providers, ingest robustness. All FROZEN under PRIORITY 0 (Inquebrável Rule 10) — documented for traceability, not active work. Two in-scope hardening candidates also flagged (`packages/mcp` build breakage; test-pyramid + dead-error audit). Watcher daemon explicitly discarded.
+- **cross-validation-roadmap** — Roadmap (README + CLAUDE.md) extended with 5 post-P0 backlog items derived from the `/loop-cross-validation` run against a reference project (2026-06-15): agentic tool-use + injection sandbox, layered config + `themory config`, optional cross-encoder reranker DIP, embedder registry + more providers, ingest robustness. All FROZEN under PRIORITY 0 (Inquebrável Rule 10) — documented for traceability, not active work. Two in-scope hardening candidates also flagged (`packages/mcp` build breakage; test-pyramid + dead-error audit). Watcher daemon explicitly discarded.
 
 
 ### Fixed
