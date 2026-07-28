@@ -56,6 +56,24 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     expect(yaml, 'o nome antigo nao pode voltar em silencio').not.toMatch(/image:\s*themory\b/);
   });
 
+  test('test_gates_de_seguranca_usam_digest_nao_tag', () => {
+    // T2.1 — security-sast.yml rodava `semgrep/semgrep` (tag implicita :latest) e
+    // `gitleaks:latest`, ambos com $PWD montado RW, enquanto actionlint.yml no MESMO
+    // repo digest-pina e comenta que ":latest num gate de seguranca e a mesma classe
+    // de risco". O principio estava escrito e nao aplicado justamente no arquivo que
+    // roda os scanners.
+    //
+    // EC-2: o digest e o do INDICE (manifest list), nao o de plataforma — pinar o
+    // manifesto amd64 quebraria qualquer consumidor arm64.
+    const sast = readFileSync(resolve(REPO_ROOT, '.github/workflows/security-sast.yml'), 'utf-8');
+    const integration = readFileSync(resolve(REPO_ROOT, '.github/workflows/integration.yml'), 'utf-8');
+
+    expect(sast).toMatch(/@sha256:[0-9a-f]{64}/);
+    expect(sast, 'tag mutavel num gate de seguranca').not.toMatch(/docker run[^\n]*:latest/);
+    expect(sast, 'semgrep sem tag resolve :latest').not.toMatch(/semgrep\/semgrep\s/);
+    expect(integration, 'service container tambem e dependencia').toMatch(/image:\s*\S+@sha256:[0-9a-f]{64}/);
+  });
+
   test('a divida da copia vendorizada tem sunset, e ele ainda nao venceu', () => {
     // O cabecalho da copia sempre disse "DIVIDA CONSCIENTE, COM DATA DE VALIDADE"
     // — e ate 2026-07-28 nao trazia data nenhuma. Prosa que nao expira nao e
