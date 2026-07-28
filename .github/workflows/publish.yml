@@ -197,6 +197,5 @@ jobs:
     # secrets-inherit finding. DOCKERHUB_* are empty here → Docker Hub push is skipped
     # (GHCR still publishes via the run's GITHUB_TOKEN).
     secrets:
-      GOMOD_TOKEN: ${{ secrets.GOMOD_TOKEN }}
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}

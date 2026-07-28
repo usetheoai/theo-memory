@@ -58,6 +58,24 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     expect(yaml, 'o nome antigo nao pode voltar em silencio').not.toMatch(/image:\s*themory\b/);
   });
 
+  test('test_build_nao_recebe_credencial_que_nao_usa', () => {
+    // T4.1 — o build recebia `GOMOD_TOKEN` como segredo do BuildKit. Medido:
+    //   - o Dockerfile NUNCA monta `--mount=type=secret,id=gomod_token`
+    //   - nao existe `go.mod` em lugar nenhum deste repositorio
+    //
+    // O proprio comentario do input revelava a origem — leitura cross-repo de um
+    // modulo Go privado. Esta copia foi vendorizada de um reusable escrito para
+    // um repo Go; a credencial veio junto e nunca teve consumidor aqui.
+    //
+    // Credencial entregue a um passo que nao a usa e superficie sem contrapartida:
+    // fica disponivel a QUALQUER `RUN` do build e a qualquer camada que o
+    // Dockerfile venha a ganhar depois, sem que ninguem tenha decidido isso.
+    const vendored = readFileSync(resolve(REPO_ROOT, '.github/workflows/build-publish.yml'), 'utf-8');
+    const caller = readFileSync(WORKFLOW_PATH, 'utf-8');
+    expect(vendored, 'segredo Go num repo sem go.mod').not.toMatch(/GOMOD_TOKEN|gomod_token/);
+    expect(caller, 'o chamador tambem nao pode repassa-lo').not.toMatch(/GOMOD_TOKEN/);
+  });
+
   test('test_release_nao_escreve_no_cache_compartilhado', () => {
     // T3.3 — os dois canais dividiam UM escopo de cache (`scope=inputs.image`),
     // com frequencia e tamanho muito diferentes:
