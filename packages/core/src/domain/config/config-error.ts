@@ -14,7 +14,6 @@
  * the message and carried as a field; the underlying error is preserved via
  * `cause`.
  *
- * @see .claude/knowledge-base/plans/layered-config-cli-plan.md § T2.1 (Failure scenarios)
  */
 export class ConfigParseError extends Error {
   override readonly name = 'ConfigParseError' as const;

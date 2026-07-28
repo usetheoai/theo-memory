@@ -1,6 +1,6 @@
 /**
  * M20 (#118) — the stale-dist guard fails FAST with a typed error when the running dist is older
- * than src, and is a no-op otherwise. Negative-case tests (`.claude/rules/testing.md` § 4.1):
+ * than src, and is a no-op otherwise. Negative-case tests:
  * they assert the SPECIFIC typed error + message, not merely "it throws".
  */
 import { mkdtempSync, mkdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs';

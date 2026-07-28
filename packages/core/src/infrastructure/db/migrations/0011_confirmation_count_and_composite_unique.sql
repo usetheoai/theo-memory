@@ -27,8 +27,6 @@
 -- IF NOT EXISTS — re-running the migration against an already-migrated DB
 -- is a no-op at the SQL layer.
 --
--- @see .claude/knowledge-base/plans/principles-alignment-hardening-plan.md § T0.1 + § ADR D5
--- @see .claude/knowledge-base/reviews/principles-alignment-hardening-edge-cases-2026-06-04.md § EC-1 + § EC-4
 -- @see CLAUDE.md § IMPORTANTE — Princípio 1 (confirmação)
 
 -- (a) ADD COLUMN confirmation_count — Princípio 1 confirmação factor

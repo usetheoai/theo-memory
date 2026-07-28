@@ -5,7 +5,6 @@
  * no touching the operator's real ~/.themory. Malformed JSON must fail LOUD
  * (typed ConfigParseError), never a silent empty (plan Failure scenarios).
  *
- * @see .claude/knowledge-base/plans/layered-config-cli-plan.md § T2.1 + T2.2
  */
 import { mkdtempSync, writeFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';

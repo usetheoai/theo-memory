@@ -12,7 +12,6 @@
  *
  * Skipped when THEOMEM_PG_URI is missing (no flaky CI).
  *
- * @see knowledge-base/plans/graph-aware-recall-temporal-correctness-plan.md § T2.1
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';

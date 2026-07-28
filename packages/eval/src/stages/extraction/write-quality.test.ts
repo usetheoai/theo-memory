@@ -25,7 +25,7 @@ describe('write-quality metric (M27 T6.1)', () => {
     expect(singleThirdPersonFactRatio(before).ratio).toBe(0);
   });
 
-  test('a clean REDACTED-grade "after" scores >= 0.90', () => {
+  test('a clean high-grade "after" scores >= 0.90', () => {
     const after = [
       'Recomenda-se uma allowlist com sunset <= 90 dias',
       'hono foi atualizado de 4.12.25 para 4.12.31, fechando tres advisories',

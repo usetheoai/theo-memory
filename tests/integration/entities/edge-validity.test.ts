@@ -12,7 +12,6 @@
  *
  * Skipped when THEOMEM_PG_URI is missing (no flaky CI).
  *
- * @see knowledge-base/plans/edge-level-validity-windows-plan.md § T1.2, T1.3, T1.4, T2.1
  */
 import { randomUUID } from 'node:crypto';
 

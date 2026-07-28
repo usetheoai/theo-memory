@@ -10,7 +10,6 @@
  * env-only deployments are byte-identical to the pre-M25 behavior. Secrets are
  * unaffected (the PG URI is non-secret).
  *
- * @see .claude/knowledge-base/plans/layered-config-cli-plan.md § T3.2
  */
 import { loadConfig, type LoadConfigOptions } from '@usetheo/memory/config';
 

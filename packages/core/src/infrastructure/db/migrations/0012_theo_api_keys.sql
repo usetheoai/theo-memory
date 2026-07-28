@@ -34,9 +34,6 @@
 -- changes. The 0011 migration itself (already shipped in develop) remains
 -- the authoritative source for those memories-table changes.
 --
--- @see .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-plan.md § T0.2
--- @see .claude/knowledge-base/reviews/theo-memory-faang-auth-lifecycle-edge-cases-2026-06-07.md § EC-2
--- @see <HOME>/Projetos/usetheo/theo-cloud/theo/cloud/internal/routes/api_keys.go (canonical Stripe-shape)
 
 CREATE TABLE IF NOT EXISTS "theo_api_keys" (
 	"id" varchar(20) PRIMARY KEY NOT NULL,

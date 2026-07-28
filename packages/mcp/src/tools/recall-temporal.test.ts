@@ -5,7 +5,6 @@
  * resurfaced; asOf point-in-time). Before this task the MCP recall schema dropped
  * both keys silently.
  *
- * @see knowledge-base/plans/graph-aware-recall-temporal-correctness-plan.md § T2.2
  */
 import { describe, expect, it, vi } from 'vitest';
 import { mock } from 'vitest-mock-extended';

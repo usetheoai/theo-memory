@@ -1,10 +1,10 @@
 /**
- * e2e-qa — REDACTED LongMemEval 4-phase QA harness wired to TheMemory.
+ * e2e-qa — LongMemEval 4-phase QA harness wired to TheMemory.
  *
- * Faithfully replicates REDACTED's `memory-benchmarks/benchmarks/longmemeval`
+ * Faithfully replicates the published LongMemEval
  * end-to-end QA methodology, but the memory layer is TheMemory
  * (`createLocalMemory` + real pgvector + LocalTransformerEmbedder + OpenAILLM
- * extraction) instead of the REDACTED SDK. See this stage's README section.
+ * harness. See this stage's README section.
  *
  *   Phase 1 — Ingest    haystack turns via `remember` (scoped per example,
  *                       chronological, capped at TURN_CAP total turns).
@@ -15,7 +15,7 @@
  * Metric: accuracy = fraction judged 'yes' (overall + per question_type +
  * abstention subset). ABSOLUTE binary — no partial credit.
  *
- * Model: openai/gpt-4o-mini via OpenRouter (NOT REDACTED's gpt-5 — scores are NOT
+ * Model: openai/gpt-4o-mini via OpenRouter (a small/cheap model — scores are NOT
  * leaderboard-comparable; this measures whether TheMemory answers LongMemEval).
  *
  * Run (key-gated — SKIPs cleanly without a key or the dataset):
@@ -62,8 +62,10 @@ const RECALL_TOP_K = 10;
 const COVERAGE_TAU = Number(process.env['E2E_QA_COVERAGE_TAU'] ?? '0.15');
 const ABSTAIN_ANSWER = "I don't have that information.";
 const CHAT_MODEL = process.env['OPENAI_CHAT_MODEL'] ?? 'openai/gpt-4o-mini';
+// LongMemEval_oracle is NOT vendored (license + size). Drop the file at the default
+// path below, or point E2E_QA_DATASET at your own copy. Absent => the stage SKIPs.
 const DATASET_PATH =
-  '.claude/knowledge-base/references/REDACTED/tests/evals/data/longmemeval_data/longmemeval_oracle.json';
+  process.env['E2E_QA_DATASET'] ?? 'benchmarks/data/longmemeval_oracle.json';
 // Incremental per-example persistence so an interrupted run is salvageable.
 const OUT_JSONL = process.env['E2E_QA_JSONL'] ?? '';
 
@@ -232,10 +234,10 @@ async function main(): Promise<void> {
     console.log('[e2e-qa] SKIP: OPENAI_API_KEY not set (key-gated eval; no keyless run).');
     return;
   }
-  // The dataset is the gitignored REDACTED reference clone — absent in CI. SKIP
+  // The dataset is not vendored (see DATASET_PATH) — absent in CI. SKIP
   // cleanly rather than fail when it is not present.
   if (!existsSync(DATASET_PATH)) {
-    console.log(`[e2e-qa] SKIP: dataset not found at ${DATASET_PATH} (reference clone absent).`);
+    console.log(`[e2e-qa] SKIP: dataset not found at ${DATASET_PATH} (set E2E_QA_DATASET to override).`);
     return;
   }
 

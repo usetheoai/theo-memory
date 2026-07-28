@@ -18,7 +18,6 @@
  * its SHA-256 hash is parameterized. The parameterization is the safety
  * gate; SQL metachars in the token are inert via this path.
  *
- * @see <HOME>/Projetos/usetheo/theo-cloud/theo/cloud/internal/routes/api_keys.go (Stripe-shape canonical)
  */
 import { createHash } from 'node:crypto';
 

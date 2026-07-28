@@ -85,7 +85,7 @@ describe('migration guard — no CREATE INDEX CONCURRENTLY in journal-applied mi
 
     expect(
       offenders,
-      `These migration .sql files use CREATE INDEX CONCURRENTLY, which crashes drizzle's single-transaction migrate() (SQLSTATE 25001) at deploy. Run the CONCURRENTLY build OUT-OF-BAND instead — see .claude/rules/architecture.md § 10.4. Offenders: ${offenders.join(', ')}`,
+      `These migration .sql files use CREATE INDEX CONCURRENTLY, which crashes drizzle's single-transaction migrate() (SQLSTATE 25001) at deploy. Run the CONCURRENTLY build OUT-OF-BAND instead. Offenders: ${offenders.join(', ')}`,
     ).toEqual([]);
   });
 });

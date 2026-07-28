@@ -9,7 +9,6 @@
  *   - per-workspace opt-out (`THEOMEM_RECALL_TRACE_DISABLED_WORKSPACES`)
  *   - retention window    (`THEOMEM_RECALL_TRACE_MAX_AGE_SECONDS`)
  *
- * @see knowledge-base/discoveries/blueprints/recall-trace-governance-blueprint.md
  */
 
 /**

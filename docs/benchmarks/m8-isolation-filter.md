@@ -20,5 +20,5 @@ load-bearing difference is the **plan shape**: the composite index yields a dire
 `Index Scan` (no heap recheck), whereas without it Postgres falls back to a
 `Bitmap Heap Scan` that re-checks `user_id`/`session_id`/`t_invalid` on the heap. That
 recheck cost grows with row count and with lower selectivity, so the composite index
-is the correct at-scale choice (REDACTED's partition-key-in-every-index discipline,
+is the correct at-scale choice (the partition-key-in-every-index discipline,
 blueprint Q2) even though the 20k-row delta is modest.
