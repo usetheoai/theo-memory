@@ -24,7 +24,7 @@ prohibited by the project's Rule 4. See § Residual risk.
 | Surface | Before | After |
 |---|---|---|
 | Competitor mentions in tracked files | 253 | **0** |
-| `openmemory` in tracked files (kept — shipped feature) | 146 | 130 |
+| `openmemory` in tracked files (kept — shipped feature) | 146 | 134 |
 | Competitor mentions in commit messages | 43 | **43 (unchanged — see below)** |
 | Secrets (gitleaks, full tree) | 0 | 0 |
 | Developer absolute paths (`/home/<user>/…`) in tracked files | 11 | **0** |
@@ -76,6 +76,15 @@ entirely; the "Honesty discipline" subsection underneath it was kept and promote
 An earlier partial cleanup had stripped the competitor *names* from this table but left the
 sentences, producing text like `**** ($24M)` and `— 's headline feature`. Those scars are gone.
 
+### The ADR record — an honest loss
+
+ADR-0001 through ADR-0015 were authored in the untracked working directory and **were never
+committed**, so they no longer exist anywhere. They were already gone before this audit began;
+nothing here destroyed them. ADR-0016 onward were recoverable from git history and now live in
+[`docs/adrs/`](adrs/) as tracked files. `CLAUDE.md` links the recovered ones and cites the rest as
+plain text rather than as dead links — the summaries in `CLAUDE.md` and the Roadmap are now the
+only record of those decisions.
+
 ### The reference-clones section in `CLAUDE.md`
 
 Described three `--depth 1` clones under `.claude/knowledge-base/references/` used for design
@@ -86,7 +95,7 @@ longer exists.
 
 ## What was deliberately kept
 
-**`openmemory` — 130 mentions, all intentional.** This is not a leak. It is the name of a
+**`openmemory` — 134 mentions, all intentional.** This is not a leak. It is the name of a
 third-party MCP tool surface that TheMemory implements for interoperability
 (`themory mcp --compat openmemory`, Roadmap Item 26), so that clients already wired to that
 surface work against this server unchanged. The flag is a locked name; removing the term would
@@ -156,19 +165,23 @@ pipx install git-filter-repo   # or: pip install --user git-filter-repo
 
 # 2. Author the replacement list. One rule per line.
 #    Cover BOTH exposures: competitor names AND the dev-host IP/paths/username.
-cat > /tmp/replacements.txt <<'EOF'
-regex:(?i)\bREDACTED\b==>the reference implementation
-regex:(?i)\bREDACTED\b==>the reference implementation
-regex:(?i)\bREDACTED\b==>the reference implementation
-regex:(?i)\bzep\b==>the reference implementation
-<THE_DEV_HOST_IP>==><DEV_HOST>
-EOF
+#    Derive the term list from the audit itself rather than typing it here — this
+#    document is public, and hardcoding the names would put them back in the tree.
+python3 /path/to/loop-check-licence/scripts/scan_mentions.py \
+  --db-path /tmp/audit.db --target "$PWD" >/dev/null
+sqlite3 -noheader /tmp/audit.db \
+  "SELECT DISTINCT 'regex:(?i)\b' || term || '\b==>the reference implementation'
+     FROM mention_findings
+    WHERE match_kind = 'commit_message' AND term != 'openmemory'" > /tmp/replacements.txt
+echo '<THE_DEV_HOST_IP>==><DEV_HOST>' >> /tmp/replacements.txt
+cat /tmp/replacements.txt   # review before running
 
 # 3. Rewrite commit messages only (--replace-message leaves file contents alone).
 git filter-repo --replace-message /tmp/replacements.txt --force
 
 # 4. Verify BEFORE pushing. Expect zero hits.
-git log --all --format=%B | grep -icE 'REDACTED|REDACTED|REDACTED|\bzep\b'
+git log --all --format=%B \
+  | grep -icFf <(sed -E 's/^regex:\(\?i\)..b//; s/..b==>.*$//' /tmp/replacements.txt)
 
 # 5. Push. This is the irreversible step, and it requires temporarily lifting
 #    branch protection on main/develop/workspace.
