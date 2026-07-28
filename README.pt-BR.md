@@ -359,7 +359,7 @@ Toda imagem de release é **assinada com cosign, com verificação fixada por id
 
 | Gatilho | Canal | Resultado |
 |---|---|---|
-| push em `develop` | preview | `ghcr.io/usetheoai/theo-memory:develop` (+ `:develop-<short>`) |
+| push em `develop` | preview | `ghcr.io/usetheoai/theo-memory:develop` (+ `:develop-<short>`) — **assinado com cosign** |
 | tag semver `v*` | release | `ghcr.io/usetheoai/theo-memory:<version>` — **assinada com cosign + verificação fixada por identidade** + SBOM/SLSA |
 | dispatch manual | smoke | mesmo build do `develop`, **assinado com cosign** (a assinatura é incondicional) |
 

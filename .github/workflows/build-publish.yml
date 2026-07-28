@@ -13,7 +13,7 @@
 # DÍVIDA CONSCIENTE, COM DATA DE VALIDADE: SUNSET 2026-10-26.
 #
 # O original existe para ser "the single hardened image pipeline for the whole org"; esta cópia
-# duplica exatamente aquilo que deveria ser único, e já divergiu em quatro pontos (abaixo).
+# duplica exatamente aquilo que deveria ser único, e já divergiu em OITO pontos (abaixo).
 # QUANDO `usetheodev/theo` MIGRAR PARA `usetheoai`, APAGUE ESTE ARQUIVO e devolva o `publish.yml`
 # para `uses: usetheoai/theo/...`. O teste `tests/integration/publish-workflow.test.ts` fixa qual
 # referência está em uso e tem de ser atualizado no mesmo commit.
@@ -24,7 +24,7 @@
 # honestas, e ambas exigem um commit: migrar (apagar a cópia) ou estender a data reconhecendo que
 # a divergência cresceu mais um trimestre.
 #
-# DIFERENÇAS EM RELAÇÃO AO ORIGINAL — quatro, e nenhuma é cosmética:
+# DIFERENÇAS EM RELAÇÃO AO ORIGINAL — OITO, e nenhuma é cosmética:
 #   1. `registry` default → `ghcr.io/usetheoai`. Um run de `usetheoai` recebe GITHUB_TOKEN de
 #      outro escopo e NÃO tem push no namespace `ghcr.io/usetheodev`.
 #   2. `runner` default → label da Blacksmith. O build original morria por `No space left on
@@ -59,10 +59,16 @@
 #      desta — é o guarda de confused-deputy. PORTAR PARA O ORIGINAL.
 #
 # Fora estes OITO pontos, o resto é idêntico ao original, incluindo os SHAs pinados de cada
-# action. Um teste de contrato (`publish-workflow.test.ts`) falha se uma divergência nova
-# entrar sem aparecer nesta lista — porque é esta lista que a pessoa vai seguir no dia em que
-# o reusable original voltar a ser acessível, e um ledger incompleto desfaz correções em
-# silêncio.
+# action.
+#
+# O QUE O TESTE DE CONTRATO GARANTE, exatamente: `publish-workflow.test.ts` confere que a
+# contagem declarada acima bate com o número de itens enumerados, e que os quatro pontos
+# desta remediação aparecem citados. Ele NÃO detecta uma divergência nova por conta própria —
+# não tem acesso ao original para comparar. Uma versão anterior deste comentário afirmava que
+# sim; era overclaim, e o `/review` pegou. Manter o ledger completo continua sendo
+# responsabilidade de quem edita este arquivo, porque é esta lista que a pessoa vai seguir no
+# dia em que o reusable original voltar a ser acessível — e um ledger incompleto desfaz
+# correções em silêncio.
 name: build-publish (vendored)
 on:
   workflow_call:

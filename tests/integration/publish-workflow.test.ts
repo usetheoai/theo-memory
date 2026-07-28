@@ -243,6 +243,27 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     for (const item of ['timeout-minutes', 'GOMOD_TOKEN', 'cache-to', 'certificate-identity-regexp']) {
       expect(header, `divergencia nao declarada no ledger: ${item}`).toContain(item);
     }
+
+    // A CONTAGEM declarada tem de bater com os itens enumerados. Pega o caso real
+    // que o /review encontrou: a lista cresceu de 4 para 8 e duas frases do mesmo
+    // cabecalho continuaram dizendo "quatro". Ledger que se contradiz nao orienta
+    // ninguem.
+    //
+    // Limite honesto: isto NAO detecta divergencia nova — o teste nao tem acesso
+    // ao original para comparar. Ele so garante coerencia interna do ledger.
+    const enumerados = (header.match(/^#\s+\d+\.\s/gm) ?? []).length;
+    const porExtenso: Record<string, number> = {
+      quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10,
+    };
+    const declarados = [...header.matchAll(/divergiu em (\w+) pontos|ORIGINAL — (\w+),/gi)]
+      .map((m) => porExtenso[(m[1] ?? m[2]).toLowerCase()])
+      .filter((n): n is number => typeof n === 'number');
+    expect(declarados.length, 'o ledger precisa declarar quantas divergencias tem').toBeGreaterThan(0);
+    for (const n of declarados) {
+      expect(n, `contagem declarada (${n}) nao bate com ${enumerados} itens enumerados`).toBe(
+        enumerados,
+      );
+    }
   });
 
   test('test_tabela_de_publicacao_do_readme_bate_com_o_workflow', () => {
@@ -265,6 +286,20 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
           // para mata-la.
           /unsigned build|build (n[aã]o assinado|sem assinatura)|sem assinatura/i,
         );
+      }
+      // `sign: true` e incondicional, entao TODO canal da tabela tem de declarar a
+      // assinatura — nao so os que alguem lembrou de atualizar. O achado original
+      // fechou so em ingles: a linha do `develop` no pt-BR ficou sem a mencao, e o
+      // teste (que so proibia "unsigned") nao pegou a OMISSAO.
+      if (assinaSempre) {
+        const canais = doc
+          .split('\n')
+          .filter((l) => /^\|\s*(push|dispatch|manual|tag)/i.test(l));
+        for (const canal of canais) {
+          expect(canal, `${f}: canal sem declarar assinatura`).toMatch(
+            /cosign|assinad/i,
+          );
+        }
       }
       if (!/dockerhub_image\s*:/.test(caller)) {
         expect(doc, `${f}: cita canal Docker Hub que o workflow nao publica`).not.toMatch(
