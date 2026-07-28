@@ -33,14 +33,12 @@ on:
       - '.claude/**'
       - '**/*.md'
       - 'docs/**'
-      - 'knowledge-base/**'
   push:
     branches: [develop]
     paths-ignore:
       - '.claude/**'
       - '**/*.md'
       - 'docs/**'
-      - 'knowledge-base/**'
 
 permissions:
   contents: read

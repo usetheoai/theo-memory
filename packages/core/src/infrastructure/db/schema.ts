@@ -597,7 +597,7 @@ export const recallCache = pgTable(
  * `theo-memory-faang-auth-lifecycle` § T0.2 + ADRs D2 + D5 + D6.
  *
  * Mirrors the cloud-repo Stripe-shape impl at
- * `/home/paulo/Projetos/usetheo/theo-cloud/theo/cloud/internal/routes/api_keys.go:50-115`
+ * the platform's canonical Stripe-shape key routes
  * — single unified `theo_live_*` key per ADR D1 of the cloud plan; SHA-256
  * hash-at-rest per D4; 12-char prefix display per D3; soft-delete via
  * `revoked_at` per D7; `rotated_from` self-FK powers the lineage recursive

@@ -5,7 +5,7 @@
     "themory": {
       "command": "node",
       "args": [
-        "/home/paulo/Projetos/usetheo/theo-memory/dist/agent-tools/cli.js",
+        "/absolute/path/to/theo-memory/dist/agent-tools/cli.js",
         "mcp"
       ],
       "env": {

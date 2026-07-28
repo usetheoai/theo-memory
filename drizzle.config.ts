@@ -13,7 +13,6 @@ import { defineConfig } from 'drizzle-kit';
  * drizzle-kit 0.21+; dialect configured here, not on the CLI). Per ADR D1.10 + SEPA
  * initial-brief MINOR finding.
  *
- * @see .claude/knowledge-base/plans/v0-1-local-runtime-plan.md § T0.4
  * @see ADR D1.10 — forced bump to drizzle-kit ^0.31.0 for security
  */
 export default defineConfig({

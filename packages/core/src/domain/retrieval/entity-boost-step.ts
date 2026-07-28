@@ -68,7 +68,7 @@ export interface EntityBoostDeps {
  * The third case emits `entity_boost_degraded`. Recall is a read path, so losing the third
  * signal beats returning an error to the caller — but a silent degradation would recreate
  * the very defect this change fixes: a boost that is quietly always zero and that nobody
- * can see. Swallowing without recording would also violate `.claude/rules/error-handling.md`
+ * can see. Swallowing without recording would also violate the project's error-handling rule
  * § 2.
  */
 export async function computeEntityBoost(

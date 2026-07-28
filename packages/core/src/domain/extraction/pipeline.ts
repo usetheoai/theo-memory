@@ -302,7 +302,7 @@ export async function runExtractionPipeline(
     // `options.attributedTo` is the ORIGIN of the turn — the Stop hook sets it to
     // 'assistant' for assistant-produced summaries and 'user' for explicit user
     // captures. It is AUTHORITATIVE when present, so an assistant summary can never
-    // masquerade as a user fact (REDACTED discipline: "its suggestions never become
+    // masquerade as a user fact (extraction discipline: "its suggestions never become
     // your stated preferences"). The LLM per-fact `attributed_to` is the FALLBACK
     // for attribution-agnostic multi-peer ingestion (v1.1). This mirrors the
     // infer:false path (infer-false-path.ts) so both write paths agree.

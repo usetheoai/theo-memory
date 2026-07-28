@@ -1,12 +1,3 @@
-# Reference projects — study material only, never committed.
-# Clones live here for inspiration / design study.
-.claude/knowledge-base/references/**
-# Cycle kit — versioned (skills/rules/hooks/commands/scripts + settings). Only
-# generated/large runtime output underneath is ignored.
-.claude/knowledge-base/tools/**
-.claude/knowledge-base/discoveries/snapshots/**
-.claude/agents/**
-
 # Node.js
 node_modules/
 dist/
@@ -40,13 +31,13 @@ Thumbs.db
 *.swp
 *.swo
 
-# Claude Code — personal-only files (per .claude/settings.local.json.example)
-.claude/settings.local.json
+# Claude Code working directory — per-developer session state, never committed.
+# Not to be confused with .claude-plugin/ (the published plugin manifest) or
+# docs/claude-code-kit/ (the shipped hooks kit), both of which ARE tracked.
+.claude/
 CLAUDE.local.md
-.claude/.session
-.claude/scratch/
 
-# Python tooling caches (from .claude/skills/plan-confidence + plan-improve)
+# Python tooling caches
 **/__pycache__/
 *.pyc
 *.pyo
@@ -59,43 +50,18 @@ CLAUDE.local.md
 htmlcov/
 *.egg-info/
 
-# Skill local state — per-session metrics, memory, trajectories, episodes
-# (covers ralph-loop and any future skill that drops a .theo/ working dir)
+# Per-session skill/agent working dirs
 **/.theo/
-
-# Per-invocation halt-loop driver prompts written by /implement, /discover-execute,
-# /discover-improve, /plan-improve before invoking ralph-loop. See
-# .claude/rules/loop-engine-convention.md § "How to invoke ralph-loop:ralph-loop safely".
-.claude/halt-loop-prompts/
-
-# ralph-loop plugin state (session-local; recreated per invocation)
-.claude/ralph-loop.local.md
-
-# Halt-loop progress files (state JSON written each iteration; gitignored — audit
-# trail lives in commits + reviews/, not in progress JSON).
-.claude/knowledge-base/implementations/.progress-*.json
-.claude/knowledge-base/discoveries/.progress-*.json
-
-# Compaction snapshots auto-written by Claude Code /compact (system-internal;
-# regenerable; not authoritative state).
-.claude/.compaction-snapshots/
-
-# v0.8 benchmark fixtures + results (downloaded at install time per ADR D4)
-benchmarks/data/
-benchmarks/results/
-
-cross-validation-output/
-
-# Dogfood degradation logs (transient hook output; audit lives in manifest + evidence/)
-.claude/knowledge-base/dogfood/degradations/
 .dev-mcp-client/
 halt-loop-prompts/
 
+# Benchmark fixtures + results — datasets are fetched, never vendored
+# (LongMemEval_oracle: license + size). See E2E_QA_DATASET.
+benchmarks/data/
+benchmarks/results/
+
 # JS coverage output
 coverage/
-
-# Scratch dir do ciclo — nunca versionar (bloqueou vazamento de segredo em 2026-07-24)
-.claude/tmp/
 
 # theo-memory Claude Code plugin manifest (tracked despite the global .mcp.json ignore)
 !docs/claude-code-kit/.mcp.json

@@ -77,7 +77,7 @@ describe('entityBoost (non-decreasing + saturating — #125)', () => {
   });
 
   test('negative numLinked returns 0 (defensive guard — never negative boost)', () => {
-    // Negative case (`.claude/rules/testing.md` § 4.1): numLinked comes from a Map size and is
+    // Negative case: numLinked comes from a Map size and is
     // non-negative by construction, but the `n<=0` guard must return exact 0, not a negative
     // value the `n/(n+c)` formula would produce at n<0 (or a divide near n=-c).
     expect(entityBoost(-1)).toBe(0);

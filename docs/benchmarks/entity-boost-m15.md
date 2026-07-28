@@ -117,7 +117,7 @@ measure that gap.
 
 ## Guard rails
 
-Per `.claude/rules/public-copy.md` § 4, no comparative "faster than" or "better than" claim is
+Per the project's public-copy discipline, no comparative "faster than" or "better than" claim is
 made anywhere in this document, and none may be derived from it: comparative claims require a
 reproducible artifact plus independent third-party reproduction, and this benchmark has
 neither. It is an internal before/after measurement of one feature.

@@ -6,7 +6,6 @@
  * assertion: an env-only deployment MUST resolve to the exact same URI as before
  * (env wins over any file per ADR-2).
  *
- * @see .claude/knowledge-base/plans/layered-config-cli-plan.md § T3.2
  */
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

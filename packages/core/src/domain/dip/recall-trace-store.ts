@@ -124,7 +124,6 @@ export interface RecallTraceStoreConfig {
    * A workspace listed here writes ZERO trace rows even when the deployment
    * enabled tracing (the write gate returns no trace context). Bounds growth at
    * the source; checked in-memory at the write gate (NO per-recall DB read).
-   * @see knowledge-base/discoveries/blueprints/recall-trace-governance-blueprint.md (ADR-2)
    */
   readonly disabledWorkspaces?: readonly string[];
 }
@@ -171,7 +170,6 @@ export interface RecallTraceStore {
  * (SRP + the ADR-0008 2-method cap on the store): housekeeping is a distinct
  * concern from read/write.
  *
- * @see knowledge-base/discoveries/blueprints/recall-trace-governance-blueprint.md (ADR-1)
  */
 export interface RecallTraceRetentionPolicy {
   /**

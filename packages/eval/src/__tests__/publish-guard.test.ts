@@ -2,7 +2,7 @@
  * T0.1 — Publish guard.
  *
  * D1's central risk (Drawbacks & Risks): `@usetheo/memory-eval` sits adjacent
- * to four PUBLISHED packages in the workspace. REDACTED avoids this by keeping its
+ * to four PUBLISHED packages in the workspace. The established fix is to keep the
  * eval in a separate repo; we keep it in-monorepo, so the fence is:
  *
  *   1. `package.json` MUST be `"private": true` (npm refuses to publish).

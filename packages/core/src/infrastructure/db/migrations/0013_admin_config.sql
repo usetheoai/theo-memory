@@ -11,8 +11,6 @@
 -- rejected by the bootstrap-token layer with 401 BOOTSTRAP_CONSUMED —
 -- closes the EC-3 silent-backdoor exploit.
 --
--- @see .claude/knowledge-base/plans/theo-memory-faang-auth-lifecycle-plan.md § T2.2.1
--- @see .claude/knowledge-base/reviews/theo-memory-faang-auth-lifecycle-edge-cases-2026-06-07.md § EC-3
 
 CREATE TABLE IF NOT EXISTS "admin_config" (
 	"id" integer DEFAULT 1 PRIMARY KEY NOT NULL,

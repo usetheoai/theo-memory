@@ -8,7 +8,6 @@
  *
  * PURE — no fs / os / env / Date / Math.random.
  *
- * @see .claude/knowledge-base/plans/layered-config-cli-plan.md § T1.2 + ADR-3
  */
 
 /**
