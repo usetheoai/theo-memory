@@ -476,6 +476,7 @@ git clone https://github.com/usetheoai/theo-memory.git
 cd theo-memory
 corepack enable          # pins the pnpm version from package.json
 pnpm install
+pnpm run build           # required on a fresh clone — packages resolve via dist/
 docker compose up -d pgvector
 pnpm test
 ```
