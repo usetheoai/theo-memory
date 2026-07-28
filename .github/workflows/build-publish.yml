@@ -17,7 +17,7 @@
 # `tests/integration/publish-workflow.test.ts` fixa qual referência está em uso e tem de ser
 # atualizado no mesmo commit — ele é o alarme contra esta cópia virar permanente por esquecimento.
 #
-# DIFERENÇAS EM RELAÇÃO AO ORIGINAL — três, e nenhuma é cosmética:
+# DIFERENÇAS EM RELAÇÃO AO ORIGINAL — quatro, e nenhuma é cosmética:
 #   1. `registry` default → `ghcr.io/usetheoai`. Um run de `usetheoai` recebe GITHUB_TOKEN de
 #      outro escopo e NÃO tem push no namespace `ghcr.io/usetheodev`.
 #   2. `runner` default → label da Blacksmith. O build original morria por `No space left on
@@ -26,6 +26,13 @@
 #      assinatura keyless é derivada do repo+path do workflow; mantê-la apontando para
 #      `usetheodev/theo` faria a verificação de release falhar — ou, pior, aceitar assinatura
 #      produzida por outro workflow. É o guard de confused-deputy, tem de acompanhar a cópia.
+#   4. `attest` separado de `sign` (+ `platforms` e os `outputs` de digest). No original, `sign`
+#      empacotava cosign + SBOM + proveniência `mode=max` num input só — e como `mode=max` é caro,
+#      a única escolha viável era "tudo na release". O efeito era que o artefato REALMENTE
+#      IMPLANTADO (`:develop`, que o reconciliador puxa a cada 5 min) não tinha assinatura alguma:
+#      a garantia vivia num canal diferente do que roda. Separados, assina-se sempre (segundos) e
+#      atesta-se só onde a auditoria consome. PORTAR ESTA MUDANÇA PARA O ORIGINAL — senão o retorno
+#      ao reusable, quando `theo` migrar, silenciosamente desfaz a assinatura do canal implantado.
 #
 # Todo o resto é idêntico ao original, incluindo os SHAs pinados de cada action.
 name: build-publish (vendored)
@@ -36,8 +43,20 @@ on:
       dockerfile:      { required: true,  type: string }
       context:         { required: false, type: string,  default: "." }
       registry:        { required: false, type: string,  default: "ghcr.io/usetheoai" }
-      sign:            { required: false, type: boolean, default: false }   # SBOM+provenance(mode=max)+cosign — release only
+      sign:            { required: false, type: boolean, default: false }   # cosign keyless sign by digest — barato (~segundos)
       verify:          { required: false, type: boolean, default: false }   # identity-pinned cosign verify (needs sign=true)
+      # SBOM + proveniencia SLSA (mode=max). SEPARADO de `sign` de proposito.
+      #
+      # O input `sign` original empacotava tres coisas de custo muito diferente:
+      # cosign (segundos), SBOM e proveniencia mode=max (export grande — o
+      # proprio comentario do cache-to abaixo registra que o servico de cache do
+      # GHA devolve 500/BlobNotFound justamente nesses exports).
+      #
+      # Empacotadas, a unica escolha era "tudo na release" — e isso deixava o
+      # artefato REALMENTE IMPLANTADO (`:develop`, que o reconciliador puxa) sem
+      # assinatura nenhuma. A garantia existia num canal diferente do que roda.
+      # Separadas, da para assinar sempre e atestar so onde a auditoria consome.
+      attest:          { required: false, type: boolean, default: false }
       trivy:           { required: false, type: boolean, default: false }   # CRITICAL/HIGH Trivy gate before push (uses .trivyignore if present)
       dockerhub_image: { required: false, type: string,  default: "" }      # e.g. "usetheo/themory" — also push to Docker Hub when DOCKERHUB_TOKEN is set
       # Arquiteturas do manifesto publicado. Default `linux/amd64` — o mesmo
@@ -165,7 +184,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       # --- Build + push (cache-identical to the scanned image when trivy=true) ---
-      - name: Build + push (SBOM + SLSA mode=max on release)
+      - name: Build + push (SBOM + SLSA mode=max quando attest=true)
         id: build
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
         with:
@@ -180,8 +199,8 @@ jobs:
           platforms: ${{ inputs.platforms }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          sbom: ${{ inputs.sign }}
-          provenance: ${{ inputs.sign && 'mode=max' || 'false' }}
+          sbom: ${{ inputs.attest }}
+          provenance: ${{ inputs.attest && 'mode=max' || 'false' }}
           cache-from: type=gha,scope=${{ inputs.image }}
           # ignore-error: the GitHub Actions cache service (type=gha) intermittently 500s /
           # returns BlobNotFound on export (esp. large mode=max exports on self-hosted
@@ -195,7 +214,7 @@ jobs:
         if: ${{ inputs.sign }}
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
 
-      - name: Keyless sign by digest (release only)
+      - name: Keyless sign by digest
         if: ${{ inputs.sign }}
         run: cosign sign --yes "${{ inputs.registry }}/${{ inputs.image }}@${{ steps.build.outputs.digest }}"
 

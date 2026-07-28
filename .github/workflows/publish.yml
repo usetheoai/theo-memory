@@ -93,8 +93,19 @@ jobs:
       registry: ghcr.io/usetheoai
       trivy: true
       dockerhub_image: usetheo/themory   # pushed only when the DOCKERHUB_TOKEN secret is set
-      sign: ${{ startsWith(github.ref, 'refs/tags/v') }}
-      verify: ${{ startsWith(github.ref, 'refs/tags/v') }}
+      # Assinar SEMPRE — inclusive em develop. O reconciliador do host puxa
+      # `:develop` a cada 5 min, entao era exatamente o artefato em execucao que
+      # nao tinha assinatura: a garantia existia no canal de release, que nao e o
+      # que roda. Cosign keyless custa segundos, e `id-token: write` ja esta
+      # declarado. Verificar junto, senao assina-se sem saber se a assinatura
+      # presta.
+      sign: true
+      verify: true
+      # SBOM + proveniencia SLSA mode=max SO na release. Este e o export pesado —
+      # o proprio reusable registra que o cache do GHA devolve 500/BlobNotFound
+      # justamente nele — e quem consome atestacao e auditoria, nao o
+      # reconciliador.
+      attest: ${{ startsWith(github.ref, 'refs/tags/v') }}
       # arm64 SO na release. O build ja leva ~14 min a frio pelo double-build do
       # gate Trivy, e arm64 aqui sai por emulacao (QEMU) — ligar em todo push de
       # develop cobraria esse preco a cada iteracao, sem consumidor ARM hoje: o

@@ -63,10 +63,41 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     expect(vendored).not.toMatch(/certificate-identity-regexp.*usetheodev\\?\/theo\\?\//);
   });
 
-  test('requests cosign sign + identity-pinned verify on a release tag (decision 1 / EC-2)', () => {
+  test('assina TODO artefato publicado, e atesta (SBOM/SLSA) so na release', () => {
+    // O canal assinado tem de ser o canal IMPLANTADO. O reconciliador do host
+    // puxa `:develop` a cada 5 min; com `sign` amarrado a tag de release, era
+    // exatamente o artefato em execucao que nao tinha assinatura — a garantia
+    // vivia num canal que ninguem roda.
+    //
+    // A separacao entre `sign` e `attest` e o que torna isso possivel: cosign
+    // custa segundos, enquanto SBOM + proveniencia mode=max e o export pesado
+    // (o reusable registra que o cache do GHA devolve 500/BlobNotFound nele).
+    // Empacotados, a unica escolha viavel era "tudo na release".
+    //
+    // Este teste trava as duas pontas para que a regressao seja ruidosa: voltar
+    // `sign` para release-only nao quebraria build nem push — so deixaria o que
+    // roda sem assinatura, de novo, e em silencio.
     const yaml = readFileSync(WORKFLOW_PATH, 'utf-8');
-    expect(yaml).toMatch(/sign:\s*\$\{\{\s*startsWith\(github\.ref,\s*'refs\/tags\/v'\)/);
-    expect(yaml).toMatch(/verify:\s*\$\{\{\s*startsWith\(github\.ref,\s*'refs\/tags\/v'\)/);
+    const vendored = readFileSync(resolve(REPO_ROOT, '.github/workflows/build-publish.yml'), 'utf-8');
+
+    expect(yaml, 'sign tem de valer para todo push, nao so para tag').toMatch(/sign:\s*true/);
+    expect(yaml, 'verificar junto — assinar sem verificar nao prova nada').toMatch(
+      /verify:\s*true/,
+    );
+    expect(yaml, 'sign NAO pode voltar a ser condicional a tag').not.toMatch(
+      /sign:\s*\$\{\{\s*startsWith\(github\.ref/,
+    );
+    expect(yaml, 'attest (export pesado) fica restrito a release').toMatch(
+      /attest:\s*\$\{\{\s*startsWith\(github\.ref,\s*'refs\/tags\/v'\)/,
+    );
+
+    // E o reusable precisa mesmo tratar os dois como inputs distintos.
+    expect(vendored, 'attest tem de ser input proprio').toMatch(
+      /attest:\s*\{\s*required:\s*false/,
+    );
+    expect(vendored, 'sbom/provenance seguem attest, nao sign').toMatch(
+      /sbom:\s*\$\{\{\s*inputs\.attest\s*\}\}[\s\S]{0,120}provenance:\s*\$\{\{\s*inputs\.attest/,
+    );
   });
 
   test('arm64 e construido na release e NAO em todo push de develop (custo de emulacao)', () => {
