@@ -13,9 +13,15 @@ git clone https://github.com/usetheoai/theo-memory.git
 cd theo-memory
 corepack enable                 # pins pnpm@10.34.1 from package.json#packageManager
 pnpm install
+pnpm run build                  # REQUIRED before the first test run — see below
 docker compose up -d pgvector   # Postgres 16 + pgvector, the only external dependency
 pnpm test                       # contract + unit suite, no database required
 ```
+
+**The build is not optional on a fresh clone.** The workspace packages resolve each other
+through subpath exports that point at `dist/`, so a checkout with no `dist/` fails typecheck with
+`Cannot find module '@usetheo/memory/theokit'` — in code you did not touch. CI runs Build before
+Lint and typecheck for the same reason.
 
 Node 20 or newer is required (`engines` is enforced — `.npmrc` sets `engine-strict=true`).
 
