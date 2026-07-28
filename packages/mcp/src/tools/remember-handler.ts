@@ -11,12 +11,12 @@
  * @see ADR D4 — reuse memoryFromCtx
  */
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-
 import type { Memory } from '@usetheo/memory/contract';
 import type { RememberOptions } from '@usetheo/memory/contract';
-import { routeScopedMemory } from './route-scoped-memory.js';
 
 import { INPUT_SCHEMA, TOOL_NAME } from './remember-schema.js';
+import { routeScopedMemory } from './route-scoped-memory.js';
+
 
 export { TOOL_NAME };
 

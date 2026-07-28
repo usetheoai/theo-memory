@@ -12,14 +12,14 @@
  * behavior. Verifier impls are vi.fn() stubs (no real DB / no real OIDC issuer).
  *
  */
+import type { AuthVerifier, Principal } from '@usetheo/memory/contract';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { AuthVerifier, Principal } from '@usetheo/memory/contract';
-import { withBearerAuth } from '../auth/with-bearer-auth.js';
 import { workspaceFromRequest } from '../auth/request-workspace.js';
+import { withBearerAuth } from '../auth/with-bearer-auth.js';
+import type { McpServer } from '../server.js';
 import { connectStdio } from '../transports/stdio.js';
 import { connectStreamableHttp } from '../transports/streamable-http.js';
-import type { McpServer } from '../server.js';
 
 const VALID_THEO_LIVE = `theo_live_${'a'.repeat(40)}`;
 const JWT_LIKE = 'eyJhbGciOiJSUzI1NiJ9.payload.signature';
@@ -128,7 +128,7 @@ describe('withBearerAuth — workspace resolution (T2.1, #82)', () => {
   });
 
   it('concurrent test — two requests with different keys attach to their OWN req (no shared state / happens-before observation)', async () => {
-    const seen: Array<string | undefined> = [];
+    const seen: (string | undefined)[] = [];
     const delegate = vi.fn((req: Parameters<ReturnType<typeof withBearerAuth>>[0]) => {
       seen.push(workspaceFromRequest(req));
     });

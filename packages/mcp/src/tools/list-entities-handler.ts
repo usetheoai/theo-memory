@@ -11,11 +11,10 @@
  * @see packages/api/src/server/handlers/entities.ts:88 — REST counterpart (same store call)
  */
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-
-import { DEFAULT_WORKSPACE_ID } from '@usetheo/memory/contract';
 import type { Filters, Memory, MemoryEntityStore } from '@usetheo/memory/contract';
-import { getScope } from '@usetheo/memory-agent-core';
+import { DEFAULT_WORKSPACE_ID } from '@usetheo/memory/contract';
 import { MissingScopeError } from '@usetheo/memory/contract';
+import { getScope } from '@usetheo/memory-agent-core';
 
 import { INPUT_SCHEMA, TOOL_NAME } from './list-entities-schema.js';
 

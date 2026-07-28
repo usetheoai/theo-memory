@@ -18,16 +18,15 @@
  *
  */
 import type { CallToolResult, ListToolsResult } from '@modelcontextprotocol/sdk/types.js';
-import { z } from 'zod';
-
 import { MissingScopeError } from '@usetheo/memory/contract';
 import type { Memory, MemoryItem } from '@usetheo/memory/contract';
 import { memoryFromCtx } from '@usetheo/memory/theokit';
 import { getScope } from '@usetheo/memory-agent-core';
-import { workspaceScopedMemory } from '../tools/workspace-scoped-memory.js';
+import { z } from 'zod';
 
 import { MAX_CONTENT_BYTES, MAX_QUERY_BYTES } from '../tools/constants.js';
 import { emitToolSchema } from '../tools/schema-emit.js';
+import { workspaceScopedMemory } from '../tools/workspace-scoped-memory.js';
 
 // ── Tool wire-names (OpenMemory contract) ──────────────────────────────────
 export const ADD_MEMORIES = 'add_memories' as const;
@@ -84,7 +83,7 @@ function errorResult(message: string): CallToolResult {
   return { content: [{ type: 'text', text: `Error: ${message}` }], isError: true };
 }
 
-type Deps = { memoryFactory: () => Memory };
+interface Deps { memoryFactory: () => Memory }
 
 export async function addMemoriesHandler(args: unknown, deps: Deps): Promise<CallToolResult> {
   const parsed = AddMemoriesInput.parse(args);

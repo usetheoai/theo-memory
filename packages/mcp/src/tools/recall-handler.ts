@@ -10,12 +10,12 @@
  * @see EC-6 — empty-recall content shape lock
  */
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-
 import type { MemoryItemWithScore } from '@usetheo/memory/contract';
 import type { Memory } from '@usetheo/memory/contract';
-import { routeScopedMemory } from './route-scoped-memory.js';
 
 import { INPUT_SCHEMA, TOOL_NAME } from './recall-schema.js';
+import { routeScopedMemory } from './route-scoped-memory.js';
+
 
 export { TOOL_NAME };
 

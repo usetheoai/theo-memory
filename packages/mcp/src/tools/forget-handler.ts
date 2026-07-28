@@ -22,13 +22,13 @@
  * @see EC-14 — forget unknown-id idempotent
  */
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-
 import { MemoryNotFound } from '@usetheo/memory/contract';
 import type { Memory } from '@usetheo/memory/contract';
 import { getScope } from '@usetheo/memory-agent-core';
-import { routeScopedMemory } from './route-scoped-memory.js';
 
 import { INPUT_SCHEMA, TOOL_NAME } from './forget-schema.js';
+import { routeScopedMemory } from './route-scoped-memory.js';
+
 
 export { TOOL_NAME };
 

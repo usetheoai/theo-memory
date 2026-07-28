@@ -15,12 +15,12 @@ import {
   ListToolsRequestSchema,
   type ServerCapabilities,
 } from '@modelcontextprotocol/sdk/types.js';
-
 import { withScope, tryGetScope } from '@usetheo/memory-agent-core';
 import type { McpServerOptions } from '@usetheo/memory-agent-core';
+
+import { buildOpenMemoryToolsList, openMemoryDispatch } from './openmemory/tools.js';
 import { dispatch } from './tools/dispatch.js';
 import { buildToolsListResponse } from './tools/list-handler.js';
-import { buildOpenMemoryToolsList, openMemoryDispatch } from './openmemory/tools.js';
 
 /**
  * MCP `_meta` key for per-call user-scope override. Reverse-DNS namespaced

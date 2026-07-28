@@ -3,6 +3,7 @@ import type { IncomingMessage } from 'node:http';
 import { describe, expect, it } from 'vitest';
 
 import { attachUser, attachWorkspace } from '../auth/request-workspace.js';
+
 import { scopeFromRequest } from './streamable-http.js';
 
 /**

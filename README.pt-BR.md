@@ -126,7 +126,7 @@ docker run -p 8080:8080 \
   -e THEOMEM_PG_URI=postgresql://themem:themem@host.docker.internal:5432/themem \
   -e OPENAI_API_KEY=sk-... \
   -e THEOMEM_EMBEDDER=openai \
-  ghcr.io/usetheoai/themory:0.1.0-alpha
+  ghcr.io/usetheoai/theo-memory:0.1.0-alpha
 ```
 
 No Linux, troque `host.docker.internal` pelo IP do host ou rode os dois containers na mesma rede
@@ -333,13 +333,13 @@ Isso expõe a superfície de ferramentas do OpenMemory — `add_memories` · `se
 ## Docker
 
 ```bash
-docker pull ghcr.io/usetheoai/themory:0.1.0-alpha
+docker pull ghcr.io/usetheoai/theo-memory:0.1.0-alpha
 
 docker run -p 8080:8080 \
   -e THEOMEM_PG_URI=postgres://... \
   -e OPENAI_API_KEY=sk-... \
   -e THEOMEM_EMBEDDER=openai \
-  ghcr.io/usetheoai/themory:0.1.0-alpha
+  ghcr.io/usetheoai/theo-memory:0.1.0-alpha
 ```
 
 > A tag publicada no momento é `0.1.0-alpha`; tags de release são publicadas no GHCR pelo CI a cada tag de versão. A imagem padrão embute o embedder local (Xenova/ONNX) — defina `THEOMEM_EMBEDDER=openai` para usar a API de embedding da OpenAI (sem modelo on-device, sem download do HuggingFace em runtime).
@@ -350,7 +350,7 @@ Imagem distroless Node 22, < 200 MB, com gate do Trivy (zero CVE CRITICAL/HIGH) 
 # Aplique migrations (ou `health`) contra a imagem distroless
 docker run --rm --entrypoint /nodejs/bin/node \
   -e THEOMEM_PG_URI=postgres://... \
-  ghcr.io/usetheoai/themory:0.1.0-alpha /app/dist/agent-tools/cli.js migrate
+  ghcr.io/usetheoai/theo-memory:0.1.0-alpha /app/dist/agent-tools/cli.js migrate
 ```
 
 ## CI/CD
@@ -359,13 +359,23 @@ Toda imagem de release é **assinada com cosign, com verificação fixada por id
 
 | Gatilho | Canal | Resultado |
 |---|---|---|
-| push em `develop` | preview | `ghcr.io/usetheoai/themory:develop` (+ `:develop-<short>`) |
-| tag semver `v*` | release | `ghcr.io/usetheoai/themory:<version>` — **assinada com cosign + verificação fixada por identidade** + SBOM/SLSA (+ Docker Hub `usetheo/themory` quando `DOCKERHUB_TOKEN` está definida) |
+| push em `develop` | preview | `ghcr.io/usetheoai/theo-memory:develop` (+ `:develop-<short>`) |
+| tag semver `v*` | release | `ghcr.io/usetheoai/theo-memory:<version>` — **assinada com cosign + verificação fixada por identidade** + SBOM/SLSA (+ Docker Hub `usetheo/theo-memory` quando `DOCKERHUB_TOKEN` está definida) |
 | dispatch manual | smoke | build sem assinatura |
+
+> **Imagem renomeada (2026-07-28): `themory` → `theo-memory`.** A imagem passa a carregar o nome do
+> repositório, como em todos os projetos irmãos (`theo-lens`, `theo-rag`, `theo-db`).
+>
+> **O caminho antigo deixa de resolver — reaponte agora.** Uma versão anterior desta nota afirmava
+> que as tags antigas seguiam baixáveis. Estava errado, e a medição corrigiu o registro: depois da
+> renomeação, `ghcr.io/usetheoai/themory` não resolve tag alguma — nem `:develop`, nem `:0.56.0`,
+> nem `:0.27.0`. O host de dev provou isso em produção, falhando toda reconciliação por 26 minutos
+> até ser reapontado. Se você fixa o caminho antigo, fixe um **digest** que já tenha localmente;
+> tag de lá não resolve.
 
 > **Namespace mudou (2026-07-27).** As imagens eram publicadas em `ghcr.io/usetheodev/themory`. O
 > repositório passou para a organização `usetheoai`, e um workflow rodando lá não consegue dar push
-> no namespace da conta anterior, então as imagens novas vão para `ghcr.io/usetheoai/themory`. **O
+> no namespace da conta anterior, então as imagens novas vão para `ghcr.io/usetheoai/theo-memory`. **O
 > pacote antigo não foi apagado** — tags históricas (por exemplo `:0.27.0`) seguem baixáveis pelo
 > caminho antigo. O que o caminho antigo deixou de receber são builds novos, então fixe em
 > `ghcr.io/usetheoai/...` daqui em diante.

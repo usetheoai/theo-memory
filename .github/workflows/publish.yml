@@ -70,6 +70,44 @@ permissions:
   packages: write
   id-token: write   # keyless cosign via GitHub OIDC (release only)
 jobs:
+  # A TAG DE RELEASE TEM DE ESTAR EM `main` — senão `:latest` sai de código não promovido.
+  #
+  # `:latest` é a referência que a reconciliação de PRODUÇÃO consome. Ela já era condicionada a
+  # `refs/tags/v*`, mas tag não é promoção: nada impedia taggear um commit de `develop`, de um
+  # branch de trabalho ou de um fork-merge e publicar `:latest` a partir dele. O contrato do ciclo
+  # de release (`develop → main` por PR, tag no merge) era DISCIPLINA, não enforcement — e a
+  # diferença só aparece no dia em que alguém taggeia no lugar errado, com produção puxando.
+  #
+  # Usa a API em vez de `git merge-base`: dispensa checkout (o histórico completo deste repo é caro
+  # de buscar só para responder sim/não) e roda em segundos.
+  #
+  # `compare/main...<sha>` devolve a posição do commit RELATIVA a main:
+  #   identical -> a tag é exatamente o head de main            (ok)
+  #   behind    -> a tag é um ancestral de main; main avançou   (ok — foi promovida)
+  #   ahead     -> a tag tem commits que main não tem           (NÃO promovida)
+  #   diverged  -> históricos separados                         (NÃO promovida)
+  guard-release-on-main:
+    runs-on: ${{ fromJSON('["blacksmith-8vcpu-ubuntu-2404"]') }}
+    steps:
+      - name: A tag esta em main?
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          STATUS="$(gh api "repos/${GITHUB_REPOSITORY}/compare/main...${SHA}" --jq .status)"
+          echo "posicao de ${SHA} em relacao a main: ${STATUS}"
+          case "${STATUS}" in
+            identical|behind)
+              echo "OK — a tag esta em main; :latest pode ser publicada." ;;
+            *)
+              echo "::error::A tag ${GITHUB_REF_NAME} NAO esta em main (${STATUS})." >&2
+              echo "::error::':latest' alimenta a reconciliacao de PRODUCAO e so pode sair de codigo promovido." >&2
+              echo "::error::Promova develop -> main por PR e taggeie o commit de merge." >&2
+              exit 1 ;;
+          esac
+
   # Chama a CÓPIA VENDORIZADA local, não o reusable de `usetheodev/theo`.
   #
   # POR QUÊ: `usetheodev/theo` é privado e de outro dono desde a transferência deste repo para a
@@ -82,9 +120,24 @@ jobs:
   # `.github/workflows/build-publish.yml`. O teste `tests/integration/publish-workflow.test.ts`
   # fixa qual referência está em uso e falha se as duas coisas não andarem juntas.
   image:
+    # A guarda roda em todo disparo e sai imediatamente quando nao e tag — o job existe
+    # para que `needs` seja incondicional aqui. Com `needs` condicional, um job pulado
+    # arrastaria o `image` junto e nenhuma imagem seria publicada em `develop`.
+    needs: guard-release-on-main
     uses: ./.github/workflows/build-publish.yml
     with:
-      image: themory
+      # `theo-memory`, nao `themory`: e o nome do repositorio, que e o padrao dos
+      # irmaos (theo-lens -> theo-lens, theo-rag -> theo-rag, theo-db -> theo-db).
+      #
+      # O pacote antigo `ghcr.io/usetheoai/themory` NAO e apagado — as tags
+      # historicas seguem puxaveis; ele so deixa de receber builds novos.
+      #
+      # ATENCAO AO CONSUMIDOR: o reconciliador do host puxa este nome por default
+      # (dev/theo-memory/reconcile.sh). Renomear aqui sem atualizar la nao quebra
+      # nada visivelmente — o host simplesmente para de receber versao nova,
+      # convergindo para sempre na ultima imagem antiga. Falha silenciosa. A troca
+      # do reconciliador vem DEPOIS do primeiro build com o nome novo, nunca antes.
+      image: theo-memory
       dockerfile: ./Dockerfile
       context: .
       # Namespace do NOVO dono. Um run de `usetheoai` recebe GITHUB_TOKEN de outro escopo e não
@@ -92,9 +145,36 @@ jobs:
       # namespace errado. A imagem passa a ser `ghcr.io/usetheoai/themory`.
       registry: ghcr.io/usetheoai
       trivy: true
-      dockerhub_image: usetheo/themory   # pushed only when the DOCKERHUB_TOKEN secret is set
-      sign: ${{ startsWith(github.ref, 'refs/tags/v') }}
-      verify: ${{ startsWith(github.ref, 'refs/tags/v') }}
+      # Alinhado ao GHCR pelo mesmo motivo. Dormente hoje: sem DOCKERHUB_TOKEN o
+      # step de login e pulado e nada e empurrado para o Docker Hub — nenhum dos
+      # projetos irmaos publica la.
+      dockerhub_image: usetheo/theo-memory   # pushed only when the DOCKERHUB_TOKEN secret is set
+      # Assinar SEMPRE — inclusive em develop. O reconciliador do host puxa
+      # `:develop` a cada 5 min, entao era exatamente o artefato em execucao que
+      # nao tinha assinatura: a garantia existia no canal de release, que nao e o
+      # que roda. Cosign keyless custa segundos, e `id-token: write` ja esta
+      # declarado. Verificar junto, senao assina-se sem saber se a assinatura
+      # presta.
+      sign: true
+      verify: true
+      # SBOM + proveniencia SLSA mode=max SO na release. Este e o export pesado —
+      # o proprio reusable registra que o cache do GHA devolve 500/BlobNotFound
+      # justamente nele — e quem consome atestacao e auditoria, nao o
+      # reconciliador.
+      attest: ${{ startsWith(github.ref, 'refs/tags/v') }}
+      # arm64 SO na release. O build ja leva ~14 min a frio pelo double-build do
+      # gate Trivy, e arm64 aqui sai por emulacao (QEMU) — ligar em todo push de
+      # develop cobraria esse preco a cada iteracao, sem consumidor ARM hoje: o
+      # dev roda em host amd64.
+      #
+      # Na release o preco se paga: uma imagem so-amd64 nao roda em no Graviton,
+      # e o erro no cluster e obscuro. O delta medido entre a familia AMD e o
+      # Graviton foi ~$100/mes numa unica maquina de 8 vCPU / 32 GB, entao a
+      # portabilidade do artefato de release e o que mantem essa escolha aberta.
+      #
+      # Quando/se o deploy passar a consumir ARM continuamente, mover para
+      # 'linux/amd64,linux/arm64' incondicional — e aceitar o tempo de build.
+      platforms: ${{ startsWith(github.ref, 'refs/tags/v') && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
       # Mesma frota de todo job deste repo. O reusable declara `runner` como STRING e faz o
       # `fromJSON` do lado dele (build-publish.yml: `runs-on: ${{ fromJSON(inputs.runner) }}`),
       # entao aqui vai a string JSON literal — NAO envolver em fromJSON, que produziria um array

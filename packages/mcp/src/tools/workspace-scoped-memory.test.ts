@@ -9,12 +9,12 @@
  *  - relies on an active `withScope` (EC-3 precondition — throws MissingScopeError
  *    outside one, like every existing handler).
  */
-import { describe, expect, it, vi } from 'vitest';
-import { mock } from 'vitest-mock-extended';
 
 import { MissingScopeError } from '@usetheo/memory/contract';
 import type { Memory } from '@usetheo/memory/contract';
 import { withScope } from '@usetheo/memory-agent-core';
+import { describe, expect, it, vi } from 'vitest';
+import { mock } from 'vitest-mock-extended';
 
 describe('workspaceScopedMemory (T1.2 — single workspace-binding seam)', () => {
   it('binds withWorkspace(ws) when the active scope carries a workspaceId', async () => {

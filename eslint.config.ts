@@ -17,7 +17,7 @@ export default tseslint.config(
     // v0-8-fixes-cycle-1 T3.2 + EC-4: benchmarks/scripts/ at repo root
     // (NOT under src/) — extracted runner scaffold + 3 CLI runners now
     // gain lint enforcement (previously escaped via src/{...} pattern).
-    files: ['packages/core/src/**/*.ts', 'packages/api/src/**/*.ts', 'packages/cli/src/**/*.ts', 'packages/agent-core/src/**/*.ts', 'benchmarks/scripts/**/*.ts'],
+    files: ['packages/core/src/**/*.ts', 'packages/api/src/**/*.ts', 'packages/cli/src/**/*.ts', 'packages/agent-core/src/**/*.ts', 'packages/mcp/src/**/*.ts', 'benchmarks/scripts/**/*.ts'],
     plugins: {
       import: importPlugin,
     },
@@ -68,6 +68,9 @@ export default tseslint.config(
       'packages/agent-core/src/**/*.test.ts',
       'packages/cli/src/**/*.test.ts',
       'packages/cli/src/**/*.test-d.ts',
+      'packages/mcp/src/**/__tests__/**/*.ts',
+      'packages/mcp/src/**/*.test.ts',
+      'packages/mcp/src/**/*.test-d.ts',
     ],
     rules: {
       '@typescript-eslint/no-unused-vars': 'off',
@@ -92,6 +95,28 @@ export default tseslint.config(
     files: ['benchmarks/scripts/**/*.ts'],
     rules: {
       'no-console': 'off',
+    },
+  },
+  {
+    // packages/eval was unlintable: type-aware rules need the file to belong to a
+    // tsconfig project, and it belongs to none of the ones above — so eslint
+    // crashed rather than reporting violations, and the package was simply left
+    // out of the lint script. It has its own tsconfig.typecheck.json; point the
+    // parser at that instead of forcing eval into the contract project.
+    files: ['packages/eval/src/**/*.ts'],
+    languageOptions: {
+      parserOptions: {
+        project: ['./packages/eval/tsconfig.typecheck.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    rules: {
+      // An evaluation harness is a CLI: printing results is its whole job.
+      'no-console': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
+      '@typescript-eslint/require-await': 'off',
+      '@typescript-eslint/unbound-method': 'off',
+      'import/order': 'off',
     },
   },
 );

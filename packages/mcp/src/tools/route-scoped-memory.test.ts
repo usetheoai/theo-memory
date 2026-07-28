@@ -5,9 +5,9 @@
  * so the routing choice can never cross the (workspace, user) isolation boundary — the
  * agent only picks a session sub-partition of its OWN user space.
  */
+import { withScope } from '@usetheo/memory-agent-core';
 import { describe, expect, it, vi } from 'vitest';
 
-import { withScope } from '@usetheo/memory-agent-core';
 
 import { routeScopedMemory } from './route-scoped-memory.js';
 

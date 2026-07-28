@@ -11,10 +11,7 @@
  *
  */
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-
 import type { Memory, SkillExecutionOptions } from '@usetheo/memory/contract';
-import { namespacedRepoId } from './namespaced-repo-id.js';
-import { workspaceScopedMemory } from './workspace-scoped-memory.js';
 import {
   MemoryNotFound,
   SkillExecutionNotConfiguredError,
@@ -23,6 +20,9 @@ import {
 } from '@usetheo/memory/contract';
 
 import { INPUT_SCHEMA, TOOL_NAME } from './execute-skill-schema.js';
+import { namespacedRepoId } from './namespaced-repo-id.js';
+import { workspaceScopedMemory } from './workspace-scoped-memory.js';
+
 
 export { TOOL_NAME };
 

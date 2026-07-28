@@ -3,9 +3,9 @@
  *
  * @see ADR-M14-1 — the arg carries only `id`; isolation is by construction (scope = Principal)
  */
+import { withScope } from '@usetheo/memory-agent-core';
 import { describe, expect, test, vi } from 'vitest';
 
-import { withScope } from '@usetheo/memory-agent-core';
 
 import { getMemoryHandler } from './get-memory-handler.js';
 

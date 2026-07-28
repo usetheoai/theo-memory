@@ -15,14 +15,14 @@
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.contract.json",
     "prebuild:clean": "node -e \"const{rmSync}=require('node:fs');rmSync('dist',{recursive:true,force:true});\"",
-    "build": "npm run prebuild:clean && npm run build:core && tsc -p tsconfig.build.json && npm run postbuild:move-cli && npm run postbuild:copy-import && npm run postbuild:copy-migrations && npm run postbuild:rewrite-aliases",
+    "build": "npm run prebuild:clean && npm run build:core && tsc -p tsconfig.build.json && npm run postbuild:move-cli && npm run postbuild:copy-import && npm run postbuild:copy-migrations && npm run postbuild:rewrite-aliases && npm run postbuild:shebang",
     "build:core": "node -e \"require('node:fs').rmSync('packages/core/dist',{recursive:true,force:true})\" && tsc -p packages/core/tsconfig.build.json && node -e \"const{cpSync,existsSync}=require('node:fs');const s='packages/core/src/infrastructure/db/migrations',d='packages/core/dist/infrastructure/db/migrations';if(existsSync(s)){cpSync(s,d,{recursive:true});console.error('[core] migrations copied to '+d);}\"",
     "postbuild:rewrite-aliases": "node scripts/rewrite-dist-aliases.mjs",
     "postbuild:move-cli": "node -e \"const{renameSync,rmSync,existsSync}=require('node:fs');const s='dist/cli/src',d='dist/agent-tools';if(existsSync(s)){if(existsSync(d))rmSync(d,{recursive:true});renameSync(s,d);try{require('node:fs').rmdirSync('dist/cli')}catch{};console.error('CLI moved to dist/agent-tools/')}\"",
     "prepack": "npm run build",
     "postbuild:copy-migrations": "node -e \"const{cpSync,existsSync,mkdirSync}=require('node:fs');const dest='dist/core/src/infrastructure/db/migrations';if(existsSync('packages/core/src/infrastructure/db/migrations')){mkdirSync(dest,{recursive:true});cpSync('packages/core/src/infrastructure/db/migrations',dest,{recursive:true});console.error('migrations copied to '+dest);}\"",
     "test:type": "tsc --noEmit -p tsconfig.contract.json --strict",
-    "lint": "eslint 'packages/core/src/**/*.ts' 'packages/api/src/**/*.ts' 'packages/cli/src/**/*.ts' 'packages/agent-core/src/**/*.ts' --no-error-on-unmatched-pattern",
+    "lint": "eslint 'packages/core/src/**/*.ts' 'packages/api/src/**/*.ts' 'packages/cli/src/**/*.ts' 'packages/agent-core/src/**/*.ts' 'packages/mcp/src/**/*.ts' 'packages/eval/src/**/*.ts' --no-error-on-unmatched-pattern",
     "test": "vitest run --config vitest.contract.config.ts",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "pretest:e2e": "npm run build",
@@ -38,7 +38,8 @@
     "eval:forgetting": "pnpm --filter @usetheo/memory-eval run eval:forgetting",
     "eval:distillation": "pnpm --filter @usetheo/memory-eval run eval:consolidation",
     "test:all": "pnpm -r test && pnpm test",
-    "postbuild:copy-import": "node -e \"const{cpSync,existsSync,mkdirSync}=require('node:fs');const src='packages/cli/src/import',dest='dist/agent-tools/import';if(existsSync(src)){mkdirSync(dest,{recursive:true});cpSync(src,dest,{recursive:true});console.error('[cli] import engine (.mjs) copied to '+dest);}\""
+    "postbuild:copy-import": "node -e \"const{cpSync,existsSync,mkdirSync}=require('node:fs');const src='packages/cli/src/import',dest='dist/agent-tools/import';if(existsSync(src)){mkdirSync(dest,{recursive:true});cpSync(src,dest,{recursive:true});console.error('[cli] import engine (.mjs) copied to '+dest);}\"",
+    "postbuild:shebang": "node scripts/add-cli-shebang.mjs"
   },
   "dependencies": {
     "@hono/node-server": "^2.0.5",

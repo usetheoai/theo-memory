@@ -25,6 +25,7 @@
  * @see F-arch-7 = F-wire-1 absorption (cycle-1 review report)
  * @see FOLLOW-UP at run-mcp-server.ts:93-94 — conditional gating sequel
  */
+import type { Pool } from 'pg';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockPoolEnd = vi.fn();
@@ -257,7 +258,7 @@ describe('T4.1 — resolveMcpModes 14-cell precedence matrix (ADR D1 + ADR D2 + 
 describe('resolveBearerAuth — requireCredential wiring (M16 #84)', () => {
   it('test_env_require_credential_reaches_bearer_options', async () => {
     const { resolveBearerAuth } = await import('./run-mcp-server.js');
-    const fakePool = {} as unknown as import('pg').Pool;
+    const fakePool = {} as unknown as Pool;
     const prev = process.env['THEMEMORY_REQUIRE_CREDENTIAL'];
     process.env['THEMEMORY_REQUIRE_CREDENTIAL'] = 'true';
     try {
@@ -273,7 +274,7 @@ describe('resolveBearerAuth — requireCredential wiring (M16 #84)', () => {
 
   it('test_require_credential_absent_by_default', async () => {
     const { resolveBearerAuth } = await import('./run-mcp-server.js');
-    const fakePool = {} as unknown as import('pg').Pool;
+    const fakePool = {} as unknown as Pool;
     const prev = process.env['THEMEMORY_REQUIRE_CREDENTIAL'];
     delete process.env['THEMEMORY_REQUIRE_CREDENTIAL'];
     try {

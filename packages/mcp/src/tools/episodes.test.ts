@@ -10,14 +10,14 @@
  * @see ADR D6 — Protocol (thrown McpError) vs Execution (returned isError) errors
  */
 import { McpError } from '@modelcontextprotocol/sdk/types.js';
+import type { Memory, MemoryItem, ScopedMemory } from '@usetheo/memory/contract';
+import { withScope } from '@usetheo/memory-agent-core';
 import { describe, expect, it, vi } from 'vitest';
 import { mock } from 'vitest-mock-extended';
 
-import type { Memory, MemoryItem, ScopedMemory } from '@usetheo/memory/contract';
-import { withScope } from '@usetheo/memory-agent-core';
 
-import { OUTPUT_SCHEMA } from './episodes-schema.js';
 import { dispatch } from './dispatch.js';
+import { OUTPUT_SCHEMA } from './episodes-schema.js';
 
 const FIXED_DATE = new Date('2026-05-24T12:00:00.000Z');
 const ALICE_CTX = { session: { userId: 'alice' } } as const;

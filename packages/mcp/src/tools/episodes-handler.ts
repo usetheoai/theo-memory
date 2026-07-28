@@ -11,13 +11,13 @@
  * @see packages/core/src/domain/episode.ts — EpisodeListOptions / EpisodePage
  */
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-
 import type { EpisodeListOptions, Memory, MemoryItem } from '@usetheo/memory/contract';
 import { memoryFromCtx } from '@usetheo/memory/theokit';
 import { getScope } from '@usetheo/memory-agent-core';
-import { workspaceScopedMemory } from './workspace-scoped-memory.js';
 
 import { INPUT_SCHEMA, TOOL_NAME } from './episodes-schema.js';
+import { workspaceScopedMemory } from './workspace-scoped-memory.js';
+
 
 export { TOOL_NAME };
 
