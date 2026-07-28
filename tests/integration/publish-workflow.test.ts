@@ -69,6 +69,41 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     expect(yaml).toMatch(/verify:\s*\$\{\{\s*startsWith\(github\.ref,\s*'refs\/tags\/v'\)/);
   });
 
+  test('arm64 e construido na release e NAO em todo push de develop (custo de emulacao)', () => {
+    // Duas assercoes com intencoes opostas, de proposito.
+    //
+    // (1) A capacidade tem de existir: uma imagem so-amd64 nao roda em no
+    //     Graviton, e o erro no cluster e obscuro. O delta medido entre a
+    //     familia AMD e o Graviton foi ~$100/mes numa maquina de 8 vCPU/32 GB.
+    //
+    // (2) Ela NAO pode estar ligada em develop: arm64 aqui sai por emulacao
+    //     (QEMU) sobre um build que ja leva ~14 min a frio pelo double-build do
+    //     gate Trivy. Ligar em todo push cobraria esse preco por iteracao, sem
+    //     consumidor ARM hoje. Este teste e o que impede a mudanca silenciosa —
+    //     ela nao quebraria nada, so tornaria cada push mais lento, e ninguem
+    //     ligaria uma coisa a outra semanas depois.
+    const caller = readFileSync(WORKFLOW_PATH, 'utf-8');
+    const vendored = readFileSync(resolve(REPO_ROOT, '.github/workflows/build-publish.yml'), 'utf-8');
+
+    expect(vendored, 'o reusable precisa aceitar platforms como input').toMatch(
+      /platforms:\s*\{\s*required:\s*false/,
+    );
+    expect(vendored, 'o default tem de ser amd64 — custo zero para quem nao opta').toMatch(
+      /platforms:[\s\S]{0,80}default:\s*"linux\/amd64"/,
+    );
+    expect(vendored, 'o build precisa repassar o input ao build-push-action').toMatch(
+      /platforms:\s*\$\{\{\s*inputs\.platforms\s*\}\}/,
+    );
+    expect(vendored, 'QEMU e necessario para cross-arch e deve ser condicional').toMatch(
+      /setup-qemu-action@[0-9a-f]{40}/,
+    );
+
+    // O chamador liga arm64 SOMENTE em tag de release.
+    expect(caller, 'arm64 so na release').toMatch(
+      /platforms:\s*\$\{\{\s*startsWith\(github\.ref,\s*'refs\/tags\/v'\)\s*&&\s*'linux\/amd64,linux\/arm64'\s*\|\|\s*'linux\/amd64'/,
+    );
+  });
+
   test('o reusable EXPORTA o digest — sem isso o deploy nao tem como ser idempotente', () => {
     // O digest e o unico identificador imutavel do que foi publicado. Ele ja era
     // calculado e usado para assinar, mas morria no fim do job: `workflow_call`

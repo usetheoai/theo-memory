@@ -40,6 +40,20 @@ on:
       verify:          { required: false, type: boolean, default: false }   # identity-pinned cosign verify (needs sign=true)
       trivy:           { required: false, type: boolean, default: false }   # CRITICAL/HIGH Trivy gate before push (uses .trivyignore if present)
       dockerhub_image: { required: false, type: string,  default: "" }      # e.g. "usetheo/themory" — also push to Docker Hub when DOCKERHUB_TOKEN is set
+      # Arquiteturas do manifesto publicado. Default `linux/amd64` — o mesmo
+      # comportamento de antes, custo zero.
+      #
+      # POR QUE E INPUT E NAO CONSTANTE: arm64 aqui e construido por EMULACAO
+      # (QEMU), e este build ja leva ~14 min a frio pelo double-build do gate
+      # Trivy (ver comentario no login do GHCR). Ligar arm64 em todo push de
+      # develop cobraria esse preco em cada iteracao. Quem chama decide onde a
+      # portabilidade vale o tempo.
+      #
+      # O ganho e concreto quando o destino e ARM: uma imagem so-amd64 nao roda
+      # em no Graviton, e o erro no cluster e obscuro. O custo medido da
+      # alternativa (familia AMD em vez de Graviton) foi ~$100/mes numa unica
+      # maquina de 8 vCPU / 32 GB.
+      platforms:       { required: false, type: string,  default: "linux/amd64" }
       runner:          { required: false, type: string,  default: '["blacksmith-8vcpu-ubuntu-2404"]' }   # JSON array
     secrets:
       GOMOD_TOKEN:        { required: false }   # cross-repo read for the pinned private theo-contracts module
@@ -76,6 +90,13 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
+
+      # QEMU so e necessario para construir arquitetura diferente da do runner.
+      # Condicional porque o setup nao e de graca e a maioria dos runs e amd64
+      # nativo — pagar por ele em todo push seria taxa sem contrapartida.
+      - name: Set up QEMU (emulacao cross-arch)
+        if: ${{ inputs.platforms != 'linux/amd64' }}
+        uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
 
       - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
 
@@ -151,6 +172,12 @@ jobs:
           context: ${{ inputs.context }}
           file: ${{ inputs.dockerfile }}
           push: true
+          # O gate Trivy acima permanece SINGLE-ARCH de proposito: ele usa
+          # `load: true`, e o docker local nao carrega manifest list. Scanear a
+          # arch nativa do runner e o que da para fazer sem um segundo job por
+          # arquitetura — e as CVEs de sistema operacional sao as mesmas base
+          # image, nao variam por arch na pratica.
+          platforms: ${{ inputs.platforms }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           sbom: ${{ inputs.sign }}

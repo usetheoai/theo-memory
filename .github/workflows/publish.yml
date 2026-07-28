@@ -95,6 +95,19 @@ jobs:
       dockerhub_image: usetheo/themory   # pushed only when the DOCKERHUB_TOKEN secret is set
       sign: ${{ startsWith(github.ref, 'refs/tags/v') }}
       verify: ${{ startsWith(github.ref, 'refs/tags/v') }}
+      # arm64 SO na release. O build ja leva ~14 min a frio pelo double-build do
+      # gate Trivy, e arm64 aqui sai por emulacao (QEMU) — ligar em todo push de
+      # develop cobraria esse preco a cada iteracao, sem consumidor ARM hoje: o
+      # dev roda em host amd64.
+      #
+      # Na release o preco se paga: uma imagem so-amd64 nao roda em no Graviton,
+      # e o erro no cluster e obscuro. O delta medido entre a familia AMD e o
+      # Graviton foi ~$100/mes numa unica maquina de 8 vCPU / 32 GB, entao a
+      # portabilidade do artefato de release e o que mantem essa escolha aberta.
+      #
+      # Quando/se o deploy passar a consumir ARM continuamente, mover para
+      # 'linux/amd64,linux/arm64' incondicional — e aceitar o tempo de build.
+      platforms: ${{ startsWith(github.ref, 'refs/tags/v') && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
       # Mesma frota de todo job deste repo. O reusable declara `runner` como STRING e faz o
       # `fromJSON` do lado dele (build-publish.yml: `runs-on: ${{ fromJSON(inputs.runner) }}`),
       # entao aqui vai a string JSON literal — NAO envolver em fromJSON, que produziria um array
