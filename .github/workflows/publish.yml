@@ -48,9 +48,11 @@ on:
       # serial compartilhada por cinco repositórios.
       - 'docs/**'
       - 'agents/**'
-      # Mudar um workflow não muda a imagem. Para exercitar uma alteração NESTE arquivo,
-      # use o `workflow_dispatch` declarado abaixo — é o escape hatch previsto.
-      - '.github/**'
+      # `.github/**` NAO entra aqui (ADR-5). O comentario anterior dizia "mudar um workflow
+      # nao muda a imagem" — falso para `build-publish.yml`, que DEFINE como a imagem e
+      # construida (Dockerfile, plataformas, cache, assinatura). Confundia CONTEUDO da imagem
+      # com PROCESSO de construcao. E, como este workflow agora invoca os gates, ignorar
+      # `.github/**` faria mudanca de workflow deixar de rodar os testes que a validam.
   workflow_dispatch:
 # Pushes sucessivos em develop devem SUPERSEDER (cancelar) o run mais antigo em vez de empilhar:
 # só a imagem mais nova interessa, e build cancelado é minuto de runner economizado. Antes de o
@@ -108,6 +110,17 @@ jobs:
               exit 1 ;;
           esac
 
+  # Os gates rodam AQUI, invocados por `workflow_call` — uma definicao, dois invocadores
+  # (PR chama direto; push chega por este workflow). `workflow_call` e sincrono no mesmo
+  # run e preserva `github.sha`, ao contrario de `workflow_run`.
+  gate-ci:
+    uses: ./.github/workflows/ci.yml
+
+  gate-contract:
+    uses: ./.github/workflows/integration.yml
+    secrets:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
   # Chama a CÓPIA VENDORIZADA local, não o reusable de `usetheodev/theo`.
   #
   # POR QUÊ: `usetheodev/theo` é privado e de outro dono desde a transferência deste repo para a
@@ -123,7 +136,7 @@ jobs:
     # A guarda roda em todo disparo e sai imediatamente quando nao e tag — o job existe
     # para que `needs` seja incondicional aqui. Com `needs` condicional, um job pulado
     # arrastaria o `image` junto e nenhuma imagem seria publicada em `develop`.
-    needs: guard-release-on-main
+    needs: [guard-release-on-main, gate-ci, gate-contract]
     uses: ./.github/workflows/build-publish.yml
     with:
       # `theo-memory`, nao `themory`: e o nome do repositorio, que e o padrao dos

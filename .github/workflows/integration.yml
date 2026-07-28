@@ -30,13 +30,12 @@ name: Integration (Postgres)
 # o culpado está em algum ponto entre os commits do dia, e bissectar custa mais do que teria
 # custado o gate. Se o volume de commits/dia crescer, reavaliar.
 on:
+  # Invocado pelo publish.yml num push (ADR-5) e disparado direto num PR.
+  workflow_call:
+    secrets:
+      OPENAI_API_KEY: { required: false }
   pull_request:
     branches: [develop, main]
-    paths-ignore:
-      - '.claude/**'
-      - '**/*.md'
-  push:
-    branches: [develop]
     paths-ignore:
       - '.claude/**'
       - '**/*.md'

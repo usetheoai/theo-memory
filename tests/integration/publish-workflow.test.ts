@@ -23,6 +23,8 @@ const REPO_ROOT = resolve(fileURLToPath(import.meta.url), '../../..');
 const WORKFLOW_PATH = resolve(REPO_ROOT, '.github/workflows/publish.yml');
 const TRIVYIGNORE_PATH = resolve(REPO_ROOT, '.trivyignore');
 
+const workflowText = (): string => readFileSync(WORKFLOW_PATH, 'utf-8');
+
 describe('publish workflow (caller of the reusable build-publish) + .trivyignore', () => {
   test('declares permissions: packages: write (EC-44)', () => {
     expect(readFileSync(WORKFLOW_PATH, 'utf-8')).toMatch(/permissions:\s*[\s\S]*?packages:\s*write/);
@@ -54,6 +56,26 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     // erro algum.
     expect(yaml).toMatch(/image:\s*theo-memory\b/);
     expect(yaml, 'o nome antigo nao pode voltar em silencio').not.toMatch(/image:\s*themory\b/);
+  });
+
+  test('test_imagem_so_publica_apos_os_gates', () => {
+    // T1.2 — publish.yml tinha UM `needs` (a propria guarda) e nao existe
+    // `workflow_run` em nenhum workflow, entao a imagem era construida e empurrada
+    // EM PARALELO ao CI. Push com teste vermelho publicava :develop, e o
+    // reconciliador o puxava em <=5 min.
+    //
+    // ADR-5: publish.yml deixa de ignorar `.github/**`. O comentario que justificava
+    // o ignore ("mudar um workflow nao muda a imagem") e falso para build-publish.yml,
+    // que DEFINE como a imagem e construida. Sem essa remocao, invocar os gates daqui
+    // os faria herdar o ignore e mudanca de workflow deixaria de rodar os testes que
+    // validam workflows — inclusive este.
+    const yaml = workflowText();
+
+    expect(yaml).toMatch(/needs:[\s\S]{0,140}gate-ci/);
+    expect(yaml).toMatch(/gate-contract/);
+    expect(yaml, 'ADR-5: workflow define o build, entao mudanca dele reconstroi').not.toMatch(
+      /paths-ignore:[\s\S]{0,200}'\.github\/\*\*'/,
+    );
   });
 
   test('test_identidade_do_cosign_e_ancorada', () => {
@@ -211,7 +233,7 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     // Sem o `needs`, a guarda existiria mas nao gatearia nada — o modo de falha
     // mais silencioso possivel: um job verde ao lado de um publish que ignorou.
     expect(yaml, 'o job da imagem precisa DEPENDER da guarda').toMatch(
-      /needs:\s*guard-release-on-main/,
+      /needs:[\s\[]*guard-release-on-main/,   // lista desde T1.2: [guard, gate-ci, gate-contract]
     );
   });
 

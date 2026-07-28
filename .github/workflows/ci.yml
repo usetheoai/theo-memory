@@ -27,14 +27,10 @@ name: CI
 # de push (pós-merge) pega o que só existe DEPOIS do merge — dois PRs verdes isoladamente que se
 # quebram juntos (conflito semântico). São escopos diferentes, não redundância.
 on:
+  # Invocado pelo publish.yml num push (ADR-5) e disparado direto num PR.
+  workflow_call:
   pull_request:
     branches: [develop, main]
-    paths-ignore:
-      - '.claude/**'
-      - '**/*.md'
-      - 'docs/**'
-  push:
-    branches: [develop]
     paths-ignore:
       - '.claude/**'
       - '**/*.md'
