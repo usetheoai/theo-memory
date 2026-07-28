@@ -419,30 +419,29 @@ npm run lint                # Zero warnings
 | DIP interfaces | 13 |
 | Migrations | 18 |
 
-## How it compares
+## What's distinctive
 
-The agent-memory space is healthy and moving fast — REDACTED, REDACTED, and REDACTED's REDACTED are all
-strong, Apache-2.0, self-hostable projects. This is a **capability** comparison of the
-**open-source surfaces** (not a performance benchmark, and not the vendors' hosted tiers),
-best-effort from each project's public repo **as of July 2026**. Corrections welcome — open a PR.
+The agent-memory space is healthy and moving fast, and there are several good
+Apache-2.0, self-hostable projects to choose from. Rather than score them against each
+other, here is what Theo Memory itself commits to — verify each one against the code:
 
-| | **Theo Memory** | [REDACTED](https://github.com/REDACTEDai/REDACTED) | [REDACTED](https://github.com/REDACTED-ai/REDACTED) | [REDACTED](https://github.com/REDACTED/REDACTED) (REDACTED OSS) |
-|---|---|---|---|---|
-| License | Apache-2.0 | Apache-2.0 | Apache-2.0 | Apache-2.0 |
-| Primary language | **TypeScript** | TypeScript + Python | Python | Python |
-| Default store | Postgres + pgvector | pgvector / others | Postgres | Neo4j (graph DB) |
-| Memory model | `user` · `session` · `agent` · **`skills`** | user · session · agent | memory blocks | temporal graph + episodes |
-| Hybrid retrieval (semantic + BM25 + entity) | ✅ | ✅ | n/d | ✅ (+ graph) |
-| Point-in-time / temporal | ✅ `recall({ asOf })` | ✅ time-aware retrieval | n/d | ✅ bi-temporal |
-| **Code-as-skill memory** | ✅ executable skill library | ❌ | ❌ | ❌ |
-| MCP memory server | ✅ 4 tools + OpenMemory drop-in | via OpenMemory server | n/d | ✅ |
-| REST API (OSS) | ✅ Hono + OpenAPI 3.1 | ✅ self-hosted server | ✅ | ✅ FastAPI |
-| Multi-tenant isolation + RBAC (OSS) | ✅ workspace + `owner`/`admin`/`member` | hosted Platform ¹ | n/d ² | REDACTED Cloud ³ |
-| No graph DB required | ✅ plain Postgres | ✅ | ✅ | ❌ needs Neo4j/graph |
+| Capability | What ships in this repo |
+|---|---|
+| License | Apache-2.0, for everything below — no capability gated behind a hosted tier |
+| Primary language | **TypeScript**, end to end |
+| Default store | **Plain Postgres + pgvector** — no graph database to operate |
+| Memory model | `user` · `session` · `agent` · **`skills`** |
+| Hybrid retrieval | Semantic + BM25 + entity boost, additively scored |
+| Point-in-time / temporal | Bi-temporal rows, queried with `recall({ asOf })` |
+| **Code-as-skill memory** | An executable skill library — store *and* recall procedures, not just facts |
+| MCP memory server | 4 native tools, plus an OpenMemory-shaped drop-in surface |
+| REST API | Hono + OpenAPI 3.1, auto-derived from the zod schemas |
+| Multi-tenant isolation + RBAC | Workspace boundary + `owner`/`admin`/`member`, in the free package |
 
-<sub>✅ present in the OSS project · ❌ absent · `n/d` = not determinable from the public repo. **Where Theo Memory is genuinely different:** (a) a **code-as-skill** memory tier (store + recall executable procedures), (b) **multi-tenant isolation + full `owner`/`admin`/`member` RBAC in the free OSS package** — peers commonly gate equivalent tenancy/RBAC to their hosted tiers, and (c) a **plain-Postgres** deployment (no graph database to run). Where peers are strong: REDACTED ships a large provider catalog + temporal reasoning; REDACTED is a first-class **temporal knowledge graph**. Theo Memory itself is **[pre-release](#status)**.</sub>
-
-<br><sub>Sources (validate these): ¹ REDACTED — [repo](https://github.com/REDACTEDai/REDACTED) (OSS self-hosted server has auth; multi-tenancy/RBAC positioned in the hosted Platform). ² REDACTED — [repo](https://github.com/REDACTED-ai/REDACTED) (OSS self-host; RBAC/tenancy not documented in the OSS repo). ³ REDACTED/REDACTED — [repo](https://github.com/REDACTED/REDACTED) (OSS engine + FastAPI server + MCP server; auth/multi-user positioned in REDACTED Cloud). All three are Apache-2.0.</sub>
+<sub>The three we would point at first: **code-as-skill** memory (a tier for executable
+procedures), **multi-tenancy with full RBAC in the OSS package** rather than reserved for a
+hosted plan, and a **plain-Postgres** deployment. Theo Memory itself is
+**[pre-release](#status)** — see Status for exactly what that means.</sub>
 
 ## Roadmap
 
@@ -470,15 +469,20 @@ best-effort from each project's public repo **as of July 2026**. Corrections wel
 
 ## Contributing
 
+This is a **pnpm workspace** — `npm install` will not wire the packages correctly.
+
 ```bash
 git clone https://github.com/usetheoai/theo-memory.git
 cd theo-memory
-npm install
+corepack enable          # pins the pnpm version from package.json
+pnpm install
 docker compose up -d pgvector
-npm test
+pnpm test
 ```
 
-We welcome issues, PRs, and feedback. See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
+We welcome issues, PRs, and feedback. See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines,
+[SECURITY.md](./SECURITY.md) for reporting a vulnerability, and
+[CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md).
 
 ## License
 

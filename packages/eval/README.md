@@ -68,9 +68,9 @@ is only as honest as its golden set:
 If you add fixtures, add negative and ambiguous ones — a suite that only tests
 the happy path is half a suite.
 
-## e2e-qa stage — REDACTED LongMemEval counter-proof (key-gated)
+## e2e-qa stage — LongMemEval counter-proof (key-gated)
 
-`src/stages/e2e-qa/` faithfully replicates REDACTED's `memory-benchmarks/longmemeval`
+`src/stages/e2e-qa/` faithfully replicates the published LongMemEval
 end-to-end QA methodology (ingest → recall → generate → binary LLM-judge → accuracy),
 wired to TheMemory. It is a **counter-proof**: an independent methodology that
 cross-validates the per-stage extraction eval.
@@ -83,4 +83,4 @@ pnpm --filter @usetheo/memory-eval eval:e2e-qa   # SKIPs cleanly without a key o
 
 Key-gated (no keyless CI run), heavy (~2.5 min/example, LLM-bound), and NOT wired into the
 automatic CI gate. Recorded result + honest disclosure: `docs/benchmarks/m21-e2e-qa-longmemeval.md`
-(75% / 9-of-12 on gpt-4o-mini — NOT leaderboard-comparable to REDACTED's gpt-5 figure).
+(75% / 9-of-12 on gpt-4o-mini — NOT comparable to any published leaderboard figure).

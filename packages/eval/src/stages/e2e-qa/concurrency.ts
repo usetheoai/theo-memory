@@ -3,7 +3,7 @@
  * fully scope-isolated (`memory.user('lme_<question_id>')`), so processing several
  * at once is data-safe and produces the SAME per-example scores as serial — it only
  * cuts wall-clock (the full 500-question run is LLM-extraction-bound). Serial is the
- * default (limit=1); a limit > 1 is what makes the REDACTED-comparable full run feasible.
+ * default (limit=1); a limit > 1 is what makes the full run feasible.
  */
 
 /**

@@ -5,7 +5,7 @@ import type { MemoryEntityStore } from './memory-entity-store.js';
 /**
  * T2.1 — port contract conformance.
  *
- * The domain declares the port before any SQL exists (`.claude/rules/architecture.md` § 2).
+ * The domain declares the port before any SQL exists.
  * This test pins the contract so every implementer — the pg adapter and every test double —
  * has to satisfy it, rather than the requirement living only in prose.
  */

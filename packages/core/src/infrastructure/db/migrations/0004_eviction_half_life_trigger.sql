@@ -38,8 +38,6 @@
 -- reproduction; test exercises eventual consistency via Promise.all UPDATE +
 -- SELECT then re-SELECT).
 --
--- @see .claude/knowledge-base/plans/v0-4b-forgetting-pipeline-plan.md § T2.2
--- @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T9.2 (F-dom-pg-4)
 CREATE OR REPLACE FUNCTION memories_reset_half_life_on_importance_update()
 RETURNS TRIGGER AS $$
 BEGIN

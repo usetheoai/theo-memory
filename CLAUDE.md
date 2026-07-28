@@ -43,7 +43,7 @@ Rastreabilidade é parte do contrato, não opcional. Cada decisão de gravar/ign
 
 Contract between Claude and the **TheMemory / `@usetheo/memory`** project (the **managed memory** community auxiliary of [Theo](../CLAUDE.md)). Read this file **and** the root `CLAUDE.md` before editing anything here.
 
-This file complements `/home/paulo/Projetos/usetheo/CLAUDE.md` and `/home/paulo/.claude/CLAUDE.md`. Root rules apply unconditionally. TheMemory-specific rules layer on top.
+This file layers TheMemory-specific rules on top of the workspace-level and global engineering contracts.
 
 ---
 
@@ -119,7 +119,7 @@ Honest disclosure (Rule 3):
 
 Honest classification (Rule 3 + Rule 10):
 
-- **This is NOT the cut data-adapter.** The "Adapters (, , ) — cut 2026-05-21" decision rejected *wrapping a vendor's data SDK as a backend*. This is **MCP protocol/tool-shape interoperability** — it maps the OpenMemory tool names onto our existing `remember`/`recall`/`forget` verbs; no `the vendor SDK` dependency, no vendor backend. It therefore falls under **P0 sub-goal 3 (MCP available + reliable)**, not a freeze violation. The cut stays in force for true vendor data-adapters.
+- **This is NOT the cut data-adapter.** The "Adapters — cut 2026-05-21" decision rejected *wrapping a vendor's data SDK as a backend*. This is **MCP protocol/tool-shape interoperability** — it maps the OpenMemory tool names onto our existing `remember`/`recall`/`forget` verbs; no vendor SDK dependency, no vendor backend. It therefore falls under **P0 sub-goal 3 (MCP available + reliable)**, not a freeze violation. The cut stays in force for true vendor data-adapters.
 - **Slug:** `openmemory-mcp-compat` (Roadmap Item 26). Governance: discover → blueprint → plan → implement → review, like any P0-hardening cycle.
 - **Scope guardrail:** MCP tool-shape + transport compatibility only. NOT the OpenMemory dashboard UI, NOT importing the `openmemory/` Docker stack, NOT a data-SDK dependency. The local `` reference clone (`openmemory/`) is read-only study material for the discover.
 
@@ -313,7 +313,7 @@ The strategic review of 2026-05-21 documented three explicit overrides of the ro
 
 - **Cross-Project Rule 6 — vendor lock-in exception.** TheoKit + TheMemory + TheoCloud is a deliberate single-platform consolidation. Walk-away from this specific combination costs a memory migration. Local OSS runtime stays open; the rest of the funnel remains lock-in-free. Source: root `CLAUDE.md` § Cross-Project Rules 6.
 - **Phase 1 scope expansion — TheoCloud completeness.** TheMemory enters Phase 1 as expansion of TheoCloud capacity, NOT as a 7th vertical productization. Classified as "line item on the TheoCloud invoice", analog Vercel KV. Source: root `CLAUDE.md` § Phase (now), "Expanded into scope 2026-05-21".
-- **License — Apache-2.0, aligned with monorepo standard.** The 2026-05-14 license standardization mandates Apache-2.0 for every OSS product. TheMemory was carved out as an MIT exception on 2026-05-21; the carve-out was reverted on 2026-06-09 — explicit patent grant + trademark protection in Apache-2.0 are net-positive for embeds in proprietary systems, and all direct competitors (, , /) are Apache-2.0. Source: root `CLAUDE.md` § Product Hierarchy.
+- **License — Apache-2.0, aligned with monorepo standard.** The 2026-05-14 license standardization mandates Apache-2.0 for every OSS product. TheMemory was carved out as an MIT exception on 2026-05-21; the carve-out was reverted on 2026-06-09 — explicit patent grant + trademark protection in Apache-2.0 are net-positive for embeds in proprietary systems, and the comparable projects in this space are Apache-2.0. Source: root `CLAUDE.md` § Product Hierarchy.
 
 ### Fourth scope tier — RepoScope (2026-05-30, v0.6)
 
@@ -410,7 +410,7 @@ These are NOT features — they qualify as P0 hardening and may proceed now:
 
 | Item | Status | Rationale |
 |---|---|---|
-| Adapters (, , ) | Out of scope (cut 2026-05-21) | Focus on being native backend, not wrapper. `@usetheo/sdk` already ships 3 `MemoryAdapter` packages (2026-05-20) for that use case. |
+| Vendor data-SDK adapters | Out of scope (cut 2026-05-21) | Focus on being native backend, not wrapper. `@usetheo/sdk` already ships 3 `MemoryAdapter` packages (2026-05-20) for that use case. |
 | Recency × importance × relevance scoring | Deferred to v0.4a behind strategy interface | README v1 promised; locked 2026-05-21 — v0.1 ships additive -style (production-tested). Multiplicative becomes opt-in strategy at v0.4a. |
 | Demo `examples/chat-with-memory` eviction wiring via `createLocalMemory({ eviction })` | Deferred to follow-up cycle (paused 2026-05-31 via hotfix `b2909ff`) | F-T4.1-2 regression: when eviction is enabled AND `rememberTurn` calls `Promise.all([userScoped.remember, sessionScoped.remember])` in parallel, the `postRememberHook` + `CapacityBasedTrigger.fire` pipeline consumes user-scope rows even with scope size 0. Race-condition root cause; debugging deferred. Core eviction WORKS via the SDK direct path (integration suite 67/67 PASS); the disabled wiring is consumer-demo-only. |
 | EC-9 skill-scope `asOf` (`memory.skills(repoId).recall({ asOf })`) | Deferred to follow-up cycle per plan v1-1 v1.3 ADR D4 amendment | v1.1 ships `asOf` for memory scopes only. Skill-scope adds extra ADR-0010 coordination — kept v1.1 focused. |
@@ -422,7 +422,6 @@ Detailed history of infrastructure cycles. Source-of-truth for "what landed when
 
 | Artifact | Shipped |
 |---|---|
-| `.claude/knowledge-base/references/` clones ( + + , `--depth 1`, gitignored) | 2026-05-21 |
 | `README.md` + strategic placement (Community auxiliary Apache-2.0 per 2026-06-09 realignment, TheoKit-native, vector-based hybrid, two runtimes) | 2026-05-21 |
 | This `CLAUDE.md` (3 root overrides + RepoScope ADR-0010 + ADR-0011 supplementary) | 2026-05-21; updated 2026-05-30, 2026-06-03, 2026-06-04 (x3 — PRIORITY 0 lock + p0-api-sdk fix-cycle close) |
 | `examples/chat-with-memory/` Next.js demo (4 tabs over User/Session/Skills/History) | 2026-05-30 (`22f148b`) |
@@ -463,42 +462,12 @@ Detailed history of infrastructure cycles. Source-of-truth for "what landed when
 
 ---
 
-## Competitive superiority matrix
-
-How each roadmap item maps to a specific competitor weakness.
-
-| Competitor | Their moat | Our attack | Roadmap item(s) |
-|---|---|---|---|
-| **** ($24M) | Drop-in simplicity, vector-centric, large provider catalog | Same architecture + reflection + long-tail forgetting + skill library + bi-temporal local OSS (v1.1) + multi-region premium cloud (v0.5) + TheoKit-native default-on | 2, 5, 6, 7, 8, 3, 12 |
-| **** ($10M) | Function-calling memory + sleep-time agents | Function-calling memory **without** agent-loop lock-in (we are primitive, not framework) | 4, 5 |
-| **/** (YC W24) | Bi-temporal knowledge graph with audit | Bi-temporal queries (`asOf`) shipped in v1.1 local OSS (Apache-2.0) — 's headline feature now commodity under our license. Multi-region replication + audit-mgmt remain the v0.5 cloud premium. Graph backend separately tracked as Item 14 (v1.3). | 12, 7, 14 |
-| **** ($5.35M) | Theory-of-mind / identity modeling | Multi-peer `attributed_to` **without** AGPL restriction (Apache-2.0) | 12 |
-| **** | Ontologies + poly-store | Typed domain ontologies without poly-store complexity | 15 |
-| **** | Procedural memory via prompt rewriting | Procedural skill library **with** automatic refactoring (, ships executable code not just prompts) | 8 |
-| **All competitors ** | No documented read-side query cache layer | Semantic recall cache via query-embedding cosine — caches `recall` results without re-running pipeline + LLM rerank on near-duplicate queries. Greenfield surface. | 19 |
-| ** Memory** | Block composition with priority truncation | Three-scope tier model + reflection + skill library (their blocks have no identity, no procedural) | 1, 5, 8 |
-| **Vector DBs** (///etc.) | Multi-tenancy at scale | Real semantic memory primitives (extraction, consolidation, scoring, forgetting) on top of pgvector | 2, 5, 9 |
-
-### Honesty discipline (Inquebrável Rule 3)
+## Honesty discipline (Inquebrável Rule 3)
 
 - **No production claims** until v1.0 with benchmarks reproduced independently. The README's Status section is the authoritative declaration; never weaken it without a PR-level decision.
 - **No `production-ready` badge** in the README or marketing — TheMemory is the explicit exception to the monorepo "production-ready" claim (2026-05-15 lock).
 - **Roadmap moves backward via PR with one-line rationale.** Items don't disappear silently. Removed items appear as `Removed` with date and reason.
 - **Caveat disclosure is non-negotiable.** Every shipped feature lists its caveats in its `Acceptance + caveat` cell above. No silent omission.
-
----
-
-## Reference projects (study material)
-
-The `.claude/knowledge-base/references/` directory contains three clones (`--depth 1`, 2026-05-21) used for design study. **Read-only — never `npm install`, `pip install`, or edit them.**
-
-| Project | Tamanho | License | Status of exploration |
-|---|---|---|---|
-| [``](./.claude/knowledge-base/references//) | 78 MB | Apache-2.0 | Primary architectural reference (vector + LLM extraction + hybrid retrieval) |
-| [``](./.claude/knowledge-base/references//) | 34 MB | Apache-2.0 | Postgres + pgvector schema, Alembic migrations, sleep-time agents (reflection design) |
-| [``](./.claude/knowledge-base/references//) | 3.9 MB | MIT | Procedural memory via prompt rewriting |
-
-The directory is **gitignored** (see `.gitignore`) — clones never enter git.
 
 ---
 
@@ -526,7 +495,7 @@ The directory is **gitignored** (see `.gitignore`) — clones never enter git.
 9. **No paper names in code** per `.claude/rules/no-paper-names-in-code.md` (promoted 2026-05-30). Knowledge-base docs MAY cite / / / etc.; `src/**` + tests MUST NOT.
 10. **PRIORITY 0 HARDENING discipline** (locked 2026-06-04; **feature freeze LIFTED 2026-06-21** — see § PRIORITY 0 → Amendment 2026-06-21). The 3 P0 sub-goals (API correct + SDK functional + MCP available) remain the quality bar and take precedence when a new feature conflicts with hardening. The categorical FREEZE on Items 13/14/15 + Phase V is NO LONGER in force (full unfreeze, project-owner sign-off). **`production-ready`/v1.0 label remains an owner release decision** — both technical gates are resolved (2026-07-20): `/dogfood` `EVIDENCE_SUFFICIENT` + the comparative-benchmark gate DROPPED per ADR-0020 (Item 11). The unfreeze does NOT touch the honesty discipline: no `production-ready` label until the owner cuts v1.0, and no comparative claim without `public-copy.md § 4`.
 
-Full text: `/home/paulo/.claude/CLAUDE.md`. Cross-project rules: `/home/paulo/Projetos/usetheo/CLAUDE.md`.
+Full text lives in the global and workspace-level engineering contracts.
 
 ---
 

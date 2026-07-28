@@ -2,7 +2,7 @@
  * Unit coverage for the session registry's lifecycle rules.
  *
  * Each case pins a behaviour that was written to fix a specific defect and had no
- * regression test — the `/review` of M7 flagged exactly that gap. `.claude/rules/testing.md`
+ * regression test — the review of M7 flagged exactly that gap. The testing rules
  * § 3 requires every bug fix to start from a failing test; these backfill the ones
  * that were missing.
  */

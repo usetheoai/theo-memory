@@ -22,7 +22,6 @@
  *   npm run db:repair-v0-4b-partial-state              (dry-run: report only)
  *   npm run db:repair-v0-4b-partial-state -- --apply   (perform the repair)
  *
- * @see .claude/knowledge-base/plans/v0-4b-fixes-cycle-plan.md § T11.1b + EC-4 reversal
  * @see docs/RUNBOOK.md § 4 (cross-version partial-state recovery)
  */
 

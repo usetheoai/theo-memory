@@ -3,7 +3,6 @@
  * exposes the layered-config public surface (resolveConfig / loadConfig /
  * isSecretKey / maskSecret / ConfigParseError).
  *
- * @see .claude/knowledge-base/plans/layered-config-cli-plan.md § T2.2
  */
 import { describe, expect, it } from 'vitest';
 

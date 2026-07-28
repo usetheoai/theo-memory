@@ -2,7 +2,7 @@
  * `infer:false` verbatim fast-path — split from pipeline-helpers.ts per the
  * 300-line module budget (SRP: the raw-store path is its own responsibility).
  *
- * Blueprint D1 (#111): this path performs NO inline entity extraction — REDACTED
+ * Blueprint D1 (#111): this path performs NO inline entity extraction — upstream
  * parity. The graph for verbatim memories comes from the async LLM batch
  * backfill (blueprint D2).
  */
@@ -68,7 +68,7 @@ export async function runInferFalsePath(
   if (vectors.length > 0) {
     const outcomes = await deps.vectorStore.insert(vectors, ids, payloads);
     // Blueprint D1 (#111, supersedes the 2026-06-20 item-2 fix): the verbatim path
-    // performs NO inline entity extraction — REDACTED-upstream parity. The English-only
+    // performs NO inline entity extraction — upstream parity. The English-only
     // heuristic fallback over global corpora produced 83% graph noise; the graph for
     // verbatim memories is populated by the async LLM batch backfill (blueprint D2),
     // multilingual by construction and out of the hot path.

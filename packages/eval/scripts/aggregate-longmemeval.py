@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""Aggregate N LongMemEval e2e-qa run JSONL files into a REDACTED-comparable report.
+"""Aggregate N LongMemEval e2e-qa run JSONL files into a report.
 
 Each input is one run's JSONL (one ExampleResult per line, with `correct`,
 `questionType`, `ingestErrors`). Emits per-run + across-run mean/std, per-type
-breakdown, an honest ingestError tally, and the comparison vs REDACTED's published
-LongMemEval number. HONEST: same-model / same-dataset is required for the compare
-to mean anything; the caveats are printed with the number, not hidden.
+breakdown, and an honest ingestError tally.
+
+This reports TheMemory's OWN measurement only. It deliberately emits no
+comparison against another system: a cross-system number is meaningless without
+the same model, the same dataset and the same judge, and the project ships no
+comparative claim (see the public-copy discipline).
 
 Usage:  aggregate-longmemeval.py run1.jsonl run2.jsonl run3.jsonl [--out report.md]
 """
@@ -16,16 +19,13 @@ import statistics
 import sys
 from collections import defaultdict
 
-REDACTED_LONGMEMEVAL = 94.4  # REDACTED published (README.md) — their pipeline/cloud stack.
-REDACTED_BASELINE = 67.8     # the baseline REDACTED reports beating.
-
 CAVEATS = [
-    "- **Model:** gpt-4o-mini (REDACTED's OSS default) — REDACTED's 94.4 headline likely uses their "
-    "tuned cloud stack, NOT gpt-4o-mini. NOT leaderboard-identical.",
-    "- **Judge:** our judge is STRICTER (#148 abstention-is-miss guard short-circuits before the "
-    "LLM judge), which LOWERS our number vs a lenient judge.",
-    "- **Pipeline:** this is *TheMemory's* extraction/retrieval on LongMemEval, not REDACTED's — both "
-    "are systems evaluated on the same dataset; pipeline differs.",
+    "- **Model:** gpt-4o-mini — a small/cheap model. This number is NOT comparable to any "
+    "published leaderboard figure produced with a different model.",
+    "- **Judge:** the judge is STRICT (#148 abstention-is-miss guard short-circuits before the "
+    "LLM judge), which LOWERS the number relative to a lenient judge.",
+    "- **Pipeline:** this measures *TheMemory's* extraction/retrieval on LongMemEval. It says "
+    "nothing about any other system.",
     "- **Ingestion:** TURN_CAP=40 turns/example; a non-zero ingest-error tally above would mean "
     "throttling → invalid run.",
 ]
@@ -59,26 +59,13 @@ def fmt_mean_std(vals: list[float]) -> str:
 
 def _header_block(runs: list[dict], overalls: list[float]) -> list[str]:
     return [
-        "# TheMemory vs REDACTED — full LongMemEval_oracle reproduction\n",
+        "# TheMemory — full LongMemEval_oracle reproduction\n",
         f"- Runs: **{len(runs)}** · questions/run: **{runs[0]['total']}** · model: "
         "**openai/gpt-4o-mini** (OpenRouter) · embedder: LocalTransformer(384) · reflect ON.\n",
         f"- **TheMemory overall: {fmt_mean_std(overalls)}** "
         f"(per-run: {', '.join(f'{o:.1f}%' for o in overalls)}).\n",
         f"- Ingest errors across all runs: **{sum(r['ingest_errors'] for r in runs)}** "
         "(non-zero would invalidate the run — rate-limit/throttle).\n",
-    ]
-
-
-def _compare_block(runs: list[dict], overalls: list[float]) -> list[str]:
-    return [
-        "## vs REDACTED (published, README)\n",
-        "| System | LongMemEval | Notes |",
-        "|---|---|---|",
-        f"| **TheMemory** (this run) | **{fmt_mean_std(overalls)}** | gpt-4o-mini, full "
-        f"{runs[0]['total']} oracle Qs, stricter #148 abstention-is-miss judge |",
-        f"| REDACTED (published) | {REDACTED_LONGMEMEVAL} | their pipeline/cloud stack; "
-        f"baseline they beat = {REDACTED_BASELINE} |",
-        "",
     ]
 
 
@@ -100,7 +87,6 @@ def build_report(runs: list[dict]) -> str:
     blocks = (
         _header_block(runs, overalls)
         + [""]
-        + _compare_block(runs, overalls)
         + _per_type_block(runs)
         + ["## Honest comparability caveats (Rule 3)\n", *CAVEATS]
     )

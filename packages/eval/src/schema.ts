@@ -6,7 +6,7 @@
  * known-good run; the regression gate (T1.3) compares candidate scores against
  * it. Every field is bounded and validated at read time so a corrupt baseline
  * JSON fails-closed with a typed ZodError, never a silent pass (Princípio 3 —
- * auditable; ADR D3). Mirrors REDACTED's `EvalItem`/`UnifiedResult` shape and our
+ * auditable; ADR D3). Mirrors the established `EvalItem`/`UnifiedResult` shape and our
  * own `tests/fixtures/distillation/loader.ts` Zod-at-read precedent.
  */
 import { z } from 'zod';
