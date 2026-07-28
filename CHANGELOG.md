@@ -3,6 +3,32 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
+### Added
+
+- **A imagem só publica depois que os gates passam.** O `publish.yml` tinha um único `needs` — a própria guarda de tag — e não existia `workflow_run` em nenhum workflow: a imagem era construída e empurrada **em paralelo** ao CI. Um push com teste vermelho publicava `:develop`, e a reconciliação o puxava em até 5 min. O gate do Trivy já barrava CVE; barrar CVE mas não teste vermelho era arbitrário. O `ci.yml` e o `integration.yml` ganham `workflow_call` e perdem o gatilho de push — uma definição, dois invocadores: PR chama direto, push chega pelo publish. `workflow_call` é síncrono no mesmo run e preserva `github.sha`, ao contrário de `workflow_run`, que quebraria a guarda (ela compara `github.sha` com `main`). O mesmo push passa a rodar os gates **uma** vez, não duas.
+- **Guarda de promoção no publish do npm.** O canal do npm dispara no mesmo evento que o da imagem (`push: tags: v*`) mas nascia sem guarda — `npm publish` saía de qualquer tag. Aceita **só** `identical`, e essa é a divergência deliberada em relação ao canal da imagem: lá, `behind` é legítimo (re-release de versão antiga); aqui é o oposto, porque uma versão **nova** apontando para código **antigo** publica sem conflito e vira `latest` no registry, sem sinal algum.
+- **`docs/devops-audit-known-gaps.md`** — o que a auditoria de CI/CD **não** fechou, com quem decide e como sair de lá. A seção que importa mais que a lista é "O que a auditoria não cobre": conteúdo da imagem ao longo do tempo, código da aplicação, e custo real da frota (os minutos não transitam pelo billing, então todo número de custo é estimado a partir de segundos de runner, nunca medido). Um leitor que assume cobertura maior do que existe confia em garantia que ninguém deu.
+
+### Changed
+
+- **As três imagens-base do Dockerfile passam a ser fixadas por digest**, não por tag. Tag é mutável: o mesmo `Dockerfile` produzia imagens diferentes em dias diferentes, e a diferença aparecia como falha sem causa aparente. `ARG NODE_VERSION` saiu junto — ficou sem consumidor depois da fixação.
+- **Os gates de segurança passam a referenciar as ferramentas por digest.** Um scanner puxado por tag pode mudar de comportamento entre dois runs do mesmo commit, e um gate que muda sozinho não é um gate.
+- **A identidade do cosign ganha âncora terminal.** A expressão do `--certificate-identity-regexp` não terminava com `$`, então casava qualquer sufixo. É o guarda contra confused-deputy: sem a âncora, uma assinatura produzida por **outro** workflow seria aceita como se fosse desta.
+- **Teto de tempo no job de build.** O job mais caro do repositório rodava com o teto padrão de 360 min numa frota cobrada por minuto — um job pendurado ali é caixa, não cota. 30 min contra um p95 medido de 305 s. Precisa ficar dentro do reusable: o GitHub **não honra** `timeout-minutes` em job `uses:`, então aplicá-lo no chamador seria silenciosamente inerte.
+- **A release deixa de escrever no cache de build compartilhado.** Os dois canais dividiam um escopo com frequência e tamanho muito diferentes: `develop` é todo push, amd64, quente; tag é rara, multi-arch, export `mode=max`. O cache tem teto por repositório e despeja por LRU — o export raro e grande da release despeja as camadas quentes do `develop`, e os builds de `develop` passam a rodar frios. Ler continua sempre (de graça); só escrever fica fora de tag.
+- **O compose de produção passa a apontar para o registry que de fato publicamos.** O default era `usetheo/theo-memory:0.2.0`, uma coordenada de Docker Hub que **não resolve** — e o comentário apresentava o Docker Hub como principal e o GHCR como alternativa, o inverso exato da realidade. Quem seguia o arquivo recebia `manifest unknown`. Caminho documentado que nunca foi percorrido é pior que caminho ausente: parece testado.
+- **O número de tamanho da imagem passa a declarar o eixo.** Os READMEs diziam `< 200 MB`, sem eixo. Medido sobre `:develop`: **170,5 MB comprimida** (o que o registry reporta) e **541,0 MB descomprimida** (o que o disco recebe) — fator de 3,2×. A afirmação não era falsa; era ambígua no eixo que importa para quem provisiona disco, e o erro só apareceria com o volume cheio.
+
+### Removed
+
+- **`GOMOD_TOKEN` sai do build.** Medido: o Dockerfile **nunca** monta `--mount=type=secret,id=gomod_token`, e não existe `go.mod` em lugar nenhum deste repositório. O próprio comentário do input entregava a origem — leitura cross-repo de um módulo Go privado; a cópia do workflow foi vendorizada de um reusable escrito para um repo Go e a credencial veio junto. Credencial entregue a um passo que não a usa fica disponível a qualquer `RUN` do build e a qualquer camada futura, sem que ninguém tenha decidido isso. Honestamente: isto **não revoga** o segredo no emissor, e não toca o reusable original, onde ele é legítimo.
+- **`dockerhub_image` sai do publish.** Canal declarado que nunca publicou e não tem credencial para publicar — sem os secrets `DOCKERHUB_*`, o passo era pulado em silêncio.
+
+### Security
+
+- **O scanner de segredo deixa de filtrar por caminho.** O `security-sast.yml` roda gitleaks e ignorava `**/*.md` e `.claude/**`: um segredo colado num README, num runbook ou num script de hook pulava o scanner inteiro. Não é hipotético — prosa é justamente onde credencial vaza por acidente, num exemplo de configuração ou num passo-a-passo de setup. Filtrar por **caminho** um gate que procura **conteúdo** inverte o propósito dele. Os gates de teste podem continuar ignorando prosa, porque markdown não muda comportamento de runtime; o de segredo não pode.
+
+
 ## [0.57.0] - 2026-07-28
 
 ### Added
