@@ -6,7 +6,6 @@
  * Workspace-scoped (from the auth-trusted ScopedContext, never the args).
  *
  * @see packages/api/src/server/handlers/recall-traces.ts (S2 REST twin)
- * @see knowledge-base/discoveries/blueprints/recall-trace-governance-blueprint.md (ADR-3)
  */
 import { z } from 'zod';
 

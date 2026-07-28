@@ -181,7 +181,7 @@ export function generateAdditiveExtractionPrompt(
   // caller stays byte-identical. When the turn is the assistant's, a HIGH-PRIORITY prefix
   // overrides the default `user` speaker baked into SYSTEM_PROMPT (same override mechanism
   // the ontology/language prefixes use — see the renderOntologyDirective note). Grounded in
-  // REDACTED (references/REDACTED configs/prompts.py AGENT_CONTEXT_SUFFIX): "For agent actions, use
+  // Agent-context discipline: "For agent actions, use
   // direct statements: 'Agent recommended [X]'" + attribute correctly.
   const speakerToken = attributedTo === 'assistant' ? 'assistant' : 'user';
   const speakerPrefix = speakerToken === 'assistant'

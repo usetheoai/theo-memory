@@ -17,7 +17,7 @@
  * of its granted scope. If a future route forgets the scope guard, the relevant
  * row turns green where it must be 403 and this suite fails.
  *
- * @see usetheodev/theo-memory#77
+ * @see usetheoai/theo-memory#77
  */
 import { describe, expect, it, vi } from 'vitest';
 

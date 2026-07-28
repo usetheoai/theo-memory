@@ -1,7 +1,6 @@
 /**
  * M25 T1.1 RED — pure layered-config resolver.
  *
- * @see .claude/knowledge-base/plans/layered-config-cli-plan.md § T1.1
  */
 import { describe, expect, it } from 'vitest';
 

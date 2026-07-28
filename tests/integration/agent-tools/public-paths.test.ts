@@ -18,7 +18,23 @@ import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
 
 const REPO_ROOT = resolve(__dirname, '..', '..', '..');
-const NPM_BIN = '<HOME>/.nvm/versions/node/v20.19.2/bin/npm';
+// Resolve npm from PATH so this gate runs for every contributor and on CI.
+// (It used to point at one developer's nvm install, which silently skipped the
+// gate everywhere else.) Undefined when npm is absent -> the block skips.
+function resolveNpmBin(): string | undefined {
+  const exts = process.platform === 'win32' ? ['.cmd', '.exe', ''] : [''];
+  for (const dir of (process.env['PATH'] ?? '').split(process.platform === 'win32' ? ';' : ':')) {
+    if (dir === '') continue;
+    for (const ext of exts) {
+      const candidate = resolve(dir, `npm${ext}`);
+      if (existsSync(candidate)) return candidate;
+    }
+  }
+  return undefined;
+}
+
+const NPM_BIN = resolveNpmBin();
+const HAS_NPM = NPM_BIN !== undefined;
 
 interface PackageJsonShape {
   exports?: Record<string, unknown>;
@@ -56,16 +72,15 @@ describe('package.json — agent-tools bin entry (ADR D8)', () => {
   });
 });
 
-// The build block shells out to a hardcoded dev-machine npm path (NPM_BIN) and
-// re-runs a full `npm run build` in-test. CI has neither that path nor a
+// The build block re-runs a full `npm run build` in-test. CI has no
 // pnpm-workspace-compatible root `npm run build`; the build is already verified by
-// the CI Build step. Skip this block when NPM_BIN is absent (CI) — the three
+// the CI Build step. Skip this block when npm is not on PATH — the three
 // describes above still assert the real public-surface invariants.
-describe.skipIf(!existsSync(NPM_BIN))('EC-1 absorption gate — build pipeline emits dist/agent-tools/cli.js', () => {
+describe.skipIf(!HAS_NPM)('EC-1 absorption gate — build pipeline emits dist/agent-tools/cli.js', () => {
   test('npm run build emits dist/agent-tools/cli.js (slow — runs tsc full pass)', () => {
     // EC-1 (plan v1.1): build pipeline MUST be verified upfront; bin entry depends on this.
     // SEPA pre-RED MAJOR finding: tsc exit 0 alone is NOT proof — verify the actual file exists.
-    execFileSync(NPM_BIN, ['run', 'build'], { cwd: REPO_ROOT, stdio: 'pipe', encoding: 'utf-8' });
+    execFileSync(NPM_BIN as string, ['run', 'build'], { cwd: REPO_ROOT, stdio: 'pipe', encoding: 'utf-8' });
     expect(existsSync(resolve(REPO_ROOT, 'dist', 'agent-tools', 'cli.js'))).toBe(true);
   }, 30_000);
 });

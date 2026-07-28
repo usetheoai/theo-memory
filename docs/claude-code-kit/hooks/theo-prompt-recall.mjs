@@ -22,7 +22,7 @@ const TOP_K = 5;
 // M14 T1.2 — an EXPLICIT user capture directive. When the user says "remember this" (etc.),
 // the resulting memory is authored by the USER (attributedTo:'user'), not the assistant — so it
 // carries the weight of a stated preference. Detection is intentionally conservative (explicit
-// verbs only) to avoid mis-attributing ordinary requests. Mirrors REDACTED's on_user_prompt.sh:85.
+// verbs only) to avoid mis-attributing ordinary requests.
 const USER_REMEMBER_DIRECTIVE =
   /\b(remember (this|that)|lembre(-se)? (disso|disto|que)|save (this|that) to memory|anota[er]? que)\b/i;
 
@@ -40,7 +40,7 @@ export function detectUserRememberDirective(prompt) {
  */
 export async function buildRecallContext({ input, post, env }) {
   const prompt = typeof input.prompt === 'string' ? input.prompt : '';
-  // Skip short prompts — régua `< MIN`, alinhada ao REDACTED on_user_prompt.sh:25.
+  // Skip short prompts — régua `< MIN`.
   if (prompt.length < MIN_PROMPT_CHARS) return null;
   // No token → no recall (EC-2). The Principal is resolved from the credential on the
   // server; without it we cannot scope safely, so we degrade to silent (never guess).

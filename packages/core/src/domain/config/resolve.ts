@@ -10,7 +10,6 @@
  * The I/O (reading the files, mapping env) lives in the infrastructure loader
  * (`packages/core/src/infrastructure/config/load.ts`) per architecture.md § 2.
  *
- * @see .claude/knowledge-base/plans/layered-config-cli-plan.md § T1.1 + ADR-1
  */
 
 /** One config source. Higher index in the array wins on conflict. */

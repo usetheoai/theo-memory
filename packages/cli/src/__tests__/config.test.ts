@@ -5,7 +5,6 @@
  * coupling; never touches the operator's real ~/.themory). Covers the security
  * line: `set` refuses secret keys (env-only, ADR-3); `get`/`list` mask secrets.
  *
- * @see .claude/knowledge-base/plans/layered-config-cli-plan.md § T3.1
  */
 import { mkdtempSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

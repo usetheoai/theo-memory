@@ -9,8 +9,6 @@
 -- JSONB array column shipped at v0.4a (`src/local/pgvector-store.ts:71`);
 -- no schema change to `memories` is required.
 --
--- @see .claude/knowledge-base/plans/v0-7-distillation-pipeline-plan.md § T0.1 + ADR D3
--- @see .claude/knowledge-base/reviews/v0-7-distillation-pipeline-edge-cases-2026-06-01.md § EC-3 + EC-9
 CREATE TABLE IF NOT EXISTS "consolidation_history" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"kept_memory_id" uuid,

@@ -47,7 +47,6 @@ on:
       # uma imagem idêntica, além de CI, SAST, eval e integration — seis runs numa fila
       # serial compartilhada por cinco repositórios.
       - 'docs/**'
-      - 'knowledge-base/**'
       - 'agents/**'
       # Mudar um workflow não muda a imagem. Para exercitar uma alteração NESTE arquivo,
       # use o `workflow_dispatch` declarado abaixo — é o escape hatch previsto.

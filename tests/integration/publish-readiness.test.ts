@@ -36,8 +36,23 @@ import { describe, expect, test } from 'vitest';
 
 const REPO_ROOT = resolve(__dirname, '..', '..');
 const PACKAGE_DIR = resolve(REPO_ROOT, 'packages', 'core');
-const NPM_BIN = '<HOME>/.nvm/versions/node/v20.19.2/bin/npm';
-const HAS_NPM = existsSync(NPM_BIN);
+// Resolve npm from PATH so this gate runs for every contributor and on CI.
+// (It used to point at one developer's nvm install, which silently skipped the
+// gate everywhere else.) Undefined when npm is absent -> the block skips.
+function resolveNpmBin(): string | undefined {
+  const exts = process.platform === 'win32' ? ['.cmd', '.exe', ''] : [''];
+  for (const dir of (process.env['PATH'] ?? '').split(process.platform === 'win32' ? ';' : ':')) {
+    if (dir === '') continue;
+    for (const ext of exts) {
+      const candidate = resolve(dir, `npm${ext}`);
+      if (existsSync(candidate)) return candidate;
+    }
+  }
+  return undefined;
+}
+
+const NPM_BIN = resolveNpmBin();
+const HAS_NPM = NPM_BIN !== undefined;
 
 interface PackageJsonShape {
   private?: boolean;
@@ -52,7 +67,7 @@ function readPackageJson(): PackageJsonShape {
 
 /** Run `npm pack --dry-run --json` in the publishable package and return the packed file paths. */
 function packedPaths(): Set<string> {
-  const output = execFileSync(NPM_BIN, ['pack', '--dry-run', '--json'], {
+  const output = execFileSync(NPM_BIN as string, ['pack', '--dry-run', '--json'], {
     cwd: PACKAGE_DIR,
     encoding: 'utf-8',
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -99,7 +114,7 @@ describe('package.json — publishable shape (@usetheo/memory = packages/core)',
 
 describe('publish-readiness — gate executable (cwd = packages/core)', () => {
   test.skipIf(!HAS_NPM)('npm run publish:check exits 0 (tarball shape valid for registry)', () => {
-    const result = execFileSync(NPM_BIN, ['run', 'publish:check'], {
+    const result = execFileSync(NPM_BIN as string, ['run', 'publish:check'], {
       cwd: PACKAGE_DIR,
       encoding: 'utf-8',
       stdio: ['ignore', 'pipe', 'pipe'],

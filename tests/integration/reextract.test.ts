@@ -1,7 +1,7 @@
 /**
  * M13 T3.1 integration — reextract engine vs real pgvector (deterministic LLM stub).
  *
- * Mirrors the REDACTED test regime (blueprint Q7): LLM STUB + REAL DB for the
+ * Mirrors the reference test regime (blueprint Q7): LLM STUB + REAL DB for the
  * merge/supersede mechanics, exact-equality asserts. Covers the plan's EC-1
  * (scope inheritance), EC-3 (existing semantic identity) and the E2E supersede.
  *

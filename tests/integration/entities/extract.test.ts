@@ -120,7 +120,7 @@ if (PG_URI === undefined || PG_URI === '') {
     });
 
     test('item-2: infer:false (verbatim) does NOT extract inline — graph comes from the reextract backfill', async () => {
-      // Phase A D1 (multilingual-entity-extraction, REDACTED parity): the verbatim
+      // Phase A D1 (multilingual-entity-extraction, upstream parity): the verbatim
       // path persists the raw text and runs NO inline entity extraction — the
       // 83%-noise incident came from the EN-only heuristic firing here. The
       // graph for verbatim/imported memories is produced by the M13

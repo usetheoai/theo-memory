@@ -137,7 +137,7 @@ if (PG_URI === undefined || PG_URI === '') {
 
       // Persist the real numbers for the implementation report (§ Benchmark) — the plan's
       // "real number, not estimate" gate.
-      const outDir = 'knowledge-base/implementations';
+      const outDir = 'benchmarks/results';
       mkdirSync(outDir, { recursive: true });
       writeFileSync(
         `${outDir}/claude-code-kit-recall-parity-benchmark.json`,

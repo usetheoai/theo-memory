@@ -39,7 +39,7 @@ export function buildRememberPayload({ input, env, attributedTo }) {
     body: {
       ...(sessionId ? { sessionId } : env.userId ? { userId: env.userId } : {}),
       text,
-      // M27 T3.1 — extract durable facts from the turn (the REDACTED-grade distillation
+      // M27 T3.1 — extract durable facts from the turn (the distillation
       // discipline + backstop gate live server-side). Explicit, not defaulted: the
       // stale "stores verbatim" comment was wrong, and the kit must never dump raw
       // narration as one memory.
