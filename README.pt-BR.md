@@ -111,10 +111,10 @@ const facts = await memory.user('alice').recall('UI preferences');
 
 ## Início rápido
 
-> **Como isto é distribuído hoje.** O servidor, o servidor MCP e o CLI `themory` são distribuídos
-> como **imagem Docker** — não como binário npm. O pacote npm `@usetheo/memory` é o **SDK
-> TypeScript**, e ele **ainda não foi publicado** (veja [Status](#status)); até lá, use o SDK
-> clonando o repositório — veja [Contribuindo](#contribuindo).
+> **Como isto é distribuído hoje.** São dois artefatos diferentes. O **SDK** está no npm —
+> `npm install @usetheo/memory`. O **servidor, o servidor MCP e o CLI `themory`** vêm na
+> **imagem Docker**; não há binário npm para eles, então `npx themory` não existe.
+> Rode-os a partir da imagem, ou de um clone — veja [Contribuindo](#contribuindo).
 
 ```bash
 # 1. Suba Postgres + pgvector
@@ -524,7 +524,7 @@ puro**. O Theo Memory em si está em
 
 ## Status
 
-> **Pré-release — e honesto quanto a isso.** Completo em funcionalidade para o caso de uso central, coberto por ~970 testes de contrato/unidade e 540+ testes de integração contra um pgvector real, além de evidência contínua de uso real: nosso próprio time roda em cima dele. Ainda não publicado no npm. O rótulo `production-ready` espera a v1.0, quando congelarmos o contrato. Até lá você pode rodar, auto-hospedar e construir em cima — só preferimos dizer isso com todas as letras a estampar um selo que ainda não conseguimos defender.
+> **Pré-release — e honesto quanto a isso.** Completo em funcionalidade para o caso de uso central, coberto por ~970 testes de contrato/unidade e 540+ testes de integração contra um pgvector real, além de evidência contínua de uso real: nosso próprio time roda em cima dele. O SDK está no npm em `0.2.0`; o contrato ainda não está congelado, então trate versões minor como breaking. O rótulo `production-ready` espera a v1.0, quando congelarmos o contrato. Até lá você pode rodar, auto-hospedar e construir em cima — só preferimos dizer isso com todas as letras a estampar um selo que ainda não conseguimos defender.
 
 ## Suporte
 

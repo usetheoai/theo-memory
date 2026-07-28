@@ -102,3 +102,11 @@ jobs:
 
       - name: Typecheck
         run: pnpm run typecheck
+
+      # `packages/api` carries its own vitest config, and NOTHING invoked it: the root
+      # `test` script runs vitest.contract.config.ts, whose include globs never listed
+      # packages/api. 39 files / 302 tests — auth, RBAC, cross-user isolation, the REST
+      # handlers — passed locally and were never executed by CI. They need no database
+      # (~12s), so they belong in this job rather than in the Postgres one.
+      - name: Test — REST API package
+        run: pnpm --filter @usetheo/memory-api test

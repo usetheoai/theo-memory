@@ -106,10 +106,10 @@ const facts = await memory.user('alice').recall('UI preferences');
 
 ## Quickstart
 
-> **How this ships today.** The server, the MCP server and the `themory` CLI are distributed as a
-> **Docker image** — they are not an npm binary. The npm package `@usetheo/memory` is the
-> **TypeScript SDK**, and it is **not published yet** (see [Status](#status)); until it is, use the
-> SDK by cloning the repo — see [Contributing](#contributing).
+> **How this ships today.** Two different artifacts. The **SDK** is on npm —
+> `npm install @usetheo/memory`. The **server, MCP server and `themory` CLI** ship in the
+> **Docker image**; there is no npm binary for them, so `npx themory` does not exist.
+> Run them from the image, or from a clone — see [Contributing](#contributing).
 
 ```bash
 # 1. Start Postgres + pgvector
@@ -517,7 +517,7 @@ deployment. Theo Memory itself is
 
 ## Status
 
-> **Pre-release — and honest about it.** Feature-complete for the core use case, covered by ~970 contract/unit tests and 540+ integration tests against a real pgvector, plus continuous real-usage evidence: our own team runs on it. Not yet published to npm. The `production-ready` label waits for v1.0, when we freeze the contract. Until then you can run it, self-host it, and build on it — we would just rather say that plainly than print a badge we can't defend yet.
+> **Pre-release — and honest about it.** Feature-complete for the core use case, covered by ~970 contract/unit tests and 540+ integration tests against a real pgvector, plus continuous real-usage evidence: our own team runs on it. The SDK is on npm at `0.2.0`; the contract is not frozen yet, so treat minor versions as breaking. The `production-ready` label waits for v1.0, when we freeze the contract. Until then you can run it, self-host it, and build on it — we would just rather say that plainly than print a badge we can't defend yet.
 
 ## Support
 

@@ -3,7 +3,14 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
+### Added
+
+- **Workflow de publicação no npm (`publish-npm.yml`).** O SDK `@usetheo/memory` não tinha caminho de release algum: os 7 workflows existentes constroem, testam ou publicam a imagem Docker, e nada chegava ao npm — a última publicação foi manual, em 2026-06-10. Dispara em tag `v*` e por `workflow_dispatch` (dry-run por padrão), roda typecheck + lint + testes antes, valida o manifesto do pacote (falha se `dist/index.js`, os `.d.ts` ou os `.sql` de migration faltarem no tarball) e **pula limpo** quando a versão já está no registry. Sem `--provenance`: o npm exige repositório público e este é privado.
+
 ### Fixed
+
+- **302 testes do pacote REST não rodavam no CI.** `packages/api` tem config própria de vitest, mas ninguém a invocava: o script `test` da raiz usa `vitest.contract.config.ts`, cujos globs nunca listaram `packages/api`. São 39 arquivos — auth, RBAC, isolamento cross-user, handlers REST — passando localmente e nunca executados pelo pipeline. Agora rodam no job `static` do `ci.yml` (não precisam de banco; ~12s).
+- README afirmava que `@usetheo/memory` **não estava publicado no npm**. Está: `0.0.0-rc.3`, `0.0.0-rc.4` e `0.2.0`, com `latest` em `0.2.0` desde 2026-06-10. O que de fato não existe é binário npm do CLI — são dois artefatos diferentes, e o texto agora separa os dois.
 
 - **O README documentava um CLI que não existe para quem instala do npm.** Nenhum pacote publicável declara `bin` — a distribuição é por imagem Docker (ADR D2-a, "no npm bin; CLI via Docker"). `npx themory server`, `npx @usetheo/memory mcp` e toda a seção CLI falhariam. O Quickstart agora é Docker-first e declara como o produto é distribuído hoje.
 - **Namespace Docker inexistente.** O README mandava `docker pull ghcr.io/usetheo/themory` — namespace que não aparece em nenhum workflow. O correto é `ghcr.io/usetheoai/themory`, o que a própria seção CI/CD logo abaixo já dizia.
