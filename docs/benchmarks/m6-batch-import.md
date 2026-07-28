@@ -1,6 +1,6 @@
 # Benchmark — M6 batch import vs per-fact (the rate-limit bottleneck)
 
-**Date:** 2026-07-21 · **Target:** the deployed theo-memory REST at `165.227.121.20:8080` (real
+**Date:** 2026-07-21 · **Target:** the deployed theo-memory REST at `<DEV_HOST>:8080` (real
 `ankane/pgvector:v0.5.1` + real OpenAI embedder) · **Runs:** 3 each (mean ± stddev).
 **Harness:** a client-side loop (`/tmp/.../m6-bench.mjs`) — batch of 30 facts in one
 `POST /v1/remember/batch` vs 20 individual `POST /v1/remember`, unique texts per run.
