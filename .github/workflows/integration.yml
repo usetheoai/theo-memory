@@ -39,6 +39,7 @@ on:
     paths-ignore:
       - '.claude/**'
       - '**/*.md'
+      - 'docs/**'
   # Noturno 03:00 UTC — a suíte cara roda uma vez por dia contra develop, não por commit.
   schedule:
     - cron: '0 3 * * *'

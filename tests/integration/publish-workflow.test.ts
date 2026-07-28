@@ -58,6 +58,26 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     expect(yaml, 'o nome antigo nao pode voltar em silencio').not.toMatch(/image:\s*themory\b/);
   });
 
+  test('test_scanner_de_segredo_nao_ignora_prosa', () => {
+    // T3.2 — o security-sast roda gitleaks, um scanner de SEGREDO, e ignorava
+    // `**/*.md` e `.claude/**`. Segredo colado num README ou num hook pulava o
+    // scanner inteiro.
+    //
+    // Nao e hipotetico: prosa e justamente onde credencial vaza por acidente —
+    // um exemplo de configuracao, um runbook, um passo-a-passo de setup. Filtrar
+    // por caminho um gate que procura CONTEUDO inverte o proposito dele.
+    //
+    // Os gates de TESTE podem ignorar prosa (markdown nao muda comportamento de
+    // runtime). O de SEGREDO nao pode.
+    // Casa a CHAVE YAML, nao a palavra — o comentario que EXPLICA a ausencia e
+    // documentacao util, e um teste que proibisse cita-la empurraria a explicacao
+    // para fora do arquivo. Mesma licao ja fixada no teste do NODE_AUTH_TOKEN.
+    const sast = readFileSync(resolve(REPO_ROOT, '.github/workflows/security-sast.yml'), 'utf-8');
+    expect(sast, 'scanner de segredo nao pode filtrar por caminho').not.toMatch(
+      /^\s*paths-ignore\s*:/m,
+    );
+  });
+
   test('test_job_de_build_tem_timeout', () => {
     // T3.1 — o job mais caro do repo rodava com o teto padrao de 360 min numa frota
     // cobrada por MINUTO (Blacksmith): um job pendurado e caixa, nao cota.

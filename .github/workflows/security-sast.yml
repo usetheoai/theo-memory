@@ -19,16 +19,17 @@ name: Security SAST
 # GATILHOS: PR para `develop` ou `main` (gate antes de entrar no trunk) + push em `develop`
 # (verificação pós-merge). Ver o racional completo em `ci.yml`.
 on:
+  # SEM paths-ignore, de proposito. O gitleaks aqui procura CONTEUDO, nao codigo:
+  # credencial vaza por acidente justamente em prosa — exemplo de configuracao,
+  # runbook, passo-a-passo de setup — e em script de hook. Filtrar por caminho um
+  # gate que procura conteudo inverte o proposito dele.
+  #
+  # Os gates de TESTE (ci, integration, eval) podem ignorar prosa, porque markdown
+  # nao muda comportamento de runtime. Este nao pode.
   pull_request:
     branches: [develop, main]
-    paths-ignore:
-      - '.claude/**'
-      - '**/*.md'
   push:
     branches: [develop]
-    paths-ignore:
-      - '.claude/**'
-      - '**/*.md'
 
 permissions:
   contents: read
