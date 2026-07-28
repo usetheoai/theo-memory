@@ -1,0 +1,124 @@
+name: publish-npm
+
+# The SDK (`@usetheo/memory` = packages/core) had NO release path: every other
+# workflow builds, tests or publishes the Docker image, and nothing ever reached
+# npm. The package was last published by hand on 2026-06-10.
+#
+# Git tags and the package version are deliberately DECOUPLED here: tags track the
+# product release (the Docker image, currently v0.56.x) while packages/core carries
+# its own SDK version (0.2.0). So this workflow does not derive a version from the
+# tag — it publishes whatever `packages/core/package.json` declares, and skips
+# cleanly when that version is already on the registry.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Pack and validate, but do not publish"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-npm-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: publish @usetheo/memory
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The published artifact is built from source; a stale dist/ would ship
+      # whatever was last built locally.
+      - name: Build
+        run: pnpm run build
+
+      - name: Quality gates before publishing
+        run: |
+          pnpm run typecheck
+          pnpm run lint
+          pnpm test
+
+      - name: Resolve version and check the registry
+        id: version
+        run: |
+          set -euo pipefail
+          NAME=$(node -p "require('./packages/core/package.json').name")
+          VERSION=$(node -p "require('./packages/core/package.json').version")
+          echo "name=$NAME"       >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          # `npm view <pkg>@<version> version` exits non-zero when it is absent,
+          # which is the signal we want — not an error.
+          if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::$NAME@$VERSION is already on npm — nothing to publish."
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::$NAME@$VERSION is not on npm yet."
+          fi
+
+      # Catches the failure mode this repo has hit before: a files[] allow-list
+      # that omits something the package needs at runtime.
+      - name: Verify pack manifest
+        working-directory: packages/core
+        run: |
+          set -euo pipefail
+          npm pack --dry-run --json > /tmp/pack.json
+          COUNT=$(node -p "JSON.parse(require('fs').readFileSync('/tmp/pack.json','utf8'))[0].files.length")
+          echo "files in tarball: $COUNT"
+          test "$COUNT" -gt 0 || { echo "::error::empty tarball"; exit 1; }
+          node -e "
+            const p = JSON.parse(require('fs').readFileSync('/tmp/pack.json','utf8'))[0];
+            const paths = p.files.map(f => f.path);
+            const need = [
+              [/^dist\/index\.js$/,           'dist entrypoint'],
+              [/^dist\/index\.d\.ts$/,        'type declarations'],
+              [/migrations\/.*\.sql$/,        'SQL migrations'],
+            ];
+            const missing = need.filter(([re]) => !paths.some(x => re.test(x)));
+            if (missing.length) {
+              console.error('missing from tarball: ' + missing.map(m => m[1]).join(', '));
+              process.exit(1);
+            }
+            console.log('pack manifest OK');
+          "
+
+      - name: Publish
+        if: steps.version.outputs.published == 'false' && inputs.dry_run != true
+        working-directory: packages/core
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        # No --provenance: npm provenance requires a public repository, and this
+        # one is private. Revisit when the repo goes public.
+        run: npm publish --access public
+
+      - name: Summary
+        run: |
+          {
+            echo "### npm publish"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| package | \`${{ steps.version.outputs.name }}\` |"
+            echo "| version | \`${{ steps.version.outputs.version }}\` |"
+            echo "| already on npm | ${{ steps.version.outputs.published }} |"
+            echo "| dry run | ${{ inputs.dry_run || false }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
