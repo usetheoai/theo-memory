@@ -64,6 +64,7 @@ export default defineConfig({
       // dockerfile-entrypoint, config-parity) — reclassificar todos e trabalho
       // proprio, nao carona neste commit.
       'tests/integration/publish-workflow.test.ts',
+      'tests/integration/publish-npm-workflow.test.ts',
     ],
     // Agent worktrees under .claude/worktrees/ are throwaway checkouts that may
     // hold deliberately reverted code (a verifier proving a test goes RED). Left

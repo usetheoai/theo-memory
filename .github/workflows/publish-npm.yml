@@ -23,9 +23,10 @@ on:
 permissions:
   contents: read
   # Trusted publishing (OIDC): o npm troca este token de identidade efemera por
-  # autorizacao de publish, sem segredo armazenado. Inofensivo enquanto o
-  # trusted publisher nao estiver configurado no npmjs.com — o publish cai no
-  # NODE_AUTH_TOKEN, que segue como ponte (ver o step Publish).
+  # autorizacao de publish. Nao ha segredo armazenado no caminho — o trusted
+  # publisher esta registrado no npmjs.com para usetheoai/theo-memory +
+  # publish-npm.yml, sem environment. Sem esta permissao nao existe token OIDC
+  # para trocar, e o publish falha na autenticacao.
   id-token: write
 
 concurrency:
@@ -120,13 +121,17 @@ jobs:
       - name: Publish
         if: steps.version.outputs.published == 'false' && inputs.dry_run != true
         working-directory: packages/core
-        env:
-          # PONTE, nao destino. Com o trusted publisher configurado no npmjs.com
-          # o npm autoriza por OIDC e este token deixa de ser consultado; ele
-          # segue aqui para que a proxima release nao quebre ANTES da
-          # configuracao existir. Removê-lo e o ultimo passo da migracao, depois
-          # de um publish por OIDC comprovado — ver docs/npm-trusted-publishing.md.
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        # SEM NODE_AUTH_TOKEN — de proposito. O trusted publisher esta registrado
+        # no npmjs.com (usetheoai/theo-memory, publish-npm.yml, sem environment),
+        # entao a autorizacao vem do OIDC deste run.
+        #
+        # POR QUE NAO DEIXAR O TOKEN COMO REDE: porque ele nao seria rede, seria
+        # venda nos olhos. Com o token presente o npm pode autenticar por ele e
+        # o publish passa mesmo que a configuracao OIDC esteja errada — a
+        # migracao pareceria feita sem estar, e so se descobriria no dia em que
+        # o token fosse revogado. Falha ruidosa aqui vale mais que sucesso
+        # ambiguo; o rollback e uma linha.
+        #
         # Sem --provenance: a geracao de provenance exige repositorio PUBLICO, e
         # este e privado. Isso vale para provenance apenas — o trusted publishing
         # em si NAO exige repo publico (doc do npm, verificada em 2026-07-28).

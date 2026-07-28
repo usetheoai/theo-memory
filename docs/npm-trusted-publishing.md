@@ -1,9 +1,12 @@
 # Publicação no npm sem token armazenado (trusted publishing)
 
-O `publish-npm.yml` está pronto para publicar por **OIDC**, sem segredo de longa duração.
-Falta um passo que só o dono do pacote pode dar: registrar o *trusted publisher* no
-npmjs.com. Enquanto ele não existir, o publish continua usando `NPM_TOKEN` — a ponte
-segue funcionando, e nada quebra.
+O `publish-npm.yml` publica por **OIDC**. Não há segredo de longa duração no caminho de
+publicação.
+
+**Estado (2026-07-28):** o *trusted publisher* está registrado no npmjs.com
+(`usetheoai/theo-memory` → `publish-npm.yml`, sem environment, permissões `npm publish` +
+`npm stage publish`), e `NODE_AUTH_TOKEN` foi removido do workflow. Falta uma coisa: um
+publish real que **prove** o caminho OIDC ponta a ponta.
 
 ## Por que isso importa
 
@@ -22,37 +25,47 @@ rotacionar.
 | Node 22.14+ | abaixo disso o recurso não existe |
 | npm ≥ 11.5.1 | passo explícito — o Node 22 embarca npm 10.x |
 
-## O que falta — no npmjs.com
+## A configuração no npmjs.com (feita)
 
-Em **Settings do pacote `@usetheo/memory` → Trusted publishers → Add**, informe:
+Em **Settings do pacote `@usetheo/memory` → Trusted publishers**:
 
 | Campo | Valor |
 |---|---|
 | Organization / user | `usetheoai` |
 | Repository | `theo-memory` |
 | Workflow filename | `publish-npm.yml` |
-| Environment | *(deixe vazio — o workflow não usa GitHub Environment)* |
-| Allowed actions | `npm publish` |
+| Environment | *(vazio — o workflow não usa GitHub Environment)* |
+| Allowed actions | `npm publish`, `npm stage publish` |
 
-O nome do workflow precisa bater **exatamente**. É ele que amarra a autorização a este
-arquivo específico: outro workflow do mesmo repositório não consegue publicar.
+Três coisas amarram a autorização, e as três são verificadas por
+`tests/integration/publish-npm-workflow.test.ts`: o **nome do arquivo** (renomear quebra o
+publish, e o erro não diz que foi o rename), a **ausência de environment** (declarar um faz
+o claim divergir) e `id-token: write` **sem sobrescrita no nível do job** — permissions de
+job substituem as do workflow em vez de somar, e a falha resultante aparece como erro de
+autenticação, o que manda quem investiga para o lado errado.
 
-## Como confirmar que funcionou
+## Por que o token foi removido antes da prova
 
-Rode o `publish-npm.yml` por `workflow_dispatch` com `dry_run` desligado numa versão nova.
-No log do step `Publish`, o npm informa que autenticou por OIDC. Se ele cair no token, a
-configuração não está valendo — reveja o nome do workflow.
+`NODE_AUTH_TOKEN` saiu do step de publish junto com o registro do publisher, em vez de
+ficar como rede de segurança. A razão: **ele não seria rede, seria venda nos olhos.** Com o
+token presente, o npm pode autenticar por ele e o publish passa mesmo com a configuração
+OIDC errada — a migração pareceria concluída, e a descoberta viria no dia em que o token
+fosse revogado, ou seja, no pior dia possível.
 
-## O último passo, e só depois da prova
+Falha ruidosa vale mais que sucesso ambíguo. O rollback é uma linha.
 
-Com um publish por OIDC comprovado:
+## Como provar
 
-1. Remova `NODE_AUTH_TOKEN` do step `Publish`.
-2. Remova o secret `NPM_TOKEN` do repositório.
-3. Revogue o token no npmjs.com — remover do GitHub não o invalida.
+Rode `publish-npm.yml` por `workflow_dispatch` com `dry_run` **desligado** numa versão nova.
+O `dry_run` não serve como prova: ele pula o step de publish inteiro, então não exercita
+autenticação nenhuma.
 
-Fazer isso **antes** da prova quebra a próxima release. Fazer depois elimina a credencial
-de verdade.
+## Depois da prova
+
+1. `gh secret delete NPM_TOKEN -R usetheoai/theo-memory` — hoje ele já não é referenciado
+   por workflow algum; segue no repositório só como caminho de rollback.
+2. Revogue os tokens no npmjs.com. **Remover do GitHub não os invalida** — enquanto não
+   forem revogados no emissor, continuam válidos para quem os tiver.
 
 ## Uma ressalva honesta
 
