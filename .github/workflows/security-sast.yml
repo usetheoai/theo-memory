@@ -70,6 +70,14 @@ jobs:
               --exclude '*.spec.ts' \
               /src/packages
       - name: Secret scan (gitleaks — theo_live_ keys, #126)
+        # ESCOPO = A RAIZ, nao `packages/`. Ate 2026-07-28 este scan lia so `/src/packages`,
+        # enquanto o workflow ja tinha perdido o `paths-ignore` sob a justificativa de que
+        # "prosa e onde credencial vaza por acidente". A justificativa estava certa e o
+        # escopo a contradizia: README, runbook, `docs/` e `.claude/` ficavam de fora, e o
+        # unico efeito da remocao do filtro era rodar o job em push so-de-docs sem ganhar
+        # cobertura alguma. Gate cuja justificativa nao corresponde ao que ele faz e pior
+        # que gate ausente — alguem le a justificativa e para de procurar.
+        #
         # Targeted preventive gate: a hardcoded theo_live_ API key added to the production tree
         # fails CI. Scans the working tree (not git history) with `.gitleaks.toml`, so it does not
         # re-flag the already-exposed keys #126 tracks for the OWNER to rotate (history rewrite is
@@ -77,4 +85,4 @@ jobs:
         run: |
           docker run --rm -v "$PWD:/src" \
             ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
-            dir /src/packages --config /src/.gitleaks.toml --no-banner --exit-code 1
+            dir /src --config /src/.gitleaks.toml --no-banner --exit-code 1

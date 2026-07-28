@@ -177,6 +177,24 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     }
   });
 
+  test('test_scanner_de_segredo_alcanca_a_prosa_que_diz_alcancar', () => {
+    // F-dom-infra-1 — a T3.2 removeu `paths-ignore` do security-sast alegando
+    // que prosa e onde credencial vaza por acidente. A alegacao estava certa; a
+    // premissa sobre o scanner, NAO: `gitleaks dir /src/packages` nunca leu
+    // prosa. README, runbook, docs/ e .claude/ ficavam fora do escopo.
+    //
+    // Ou seja: a remocao do filtro comprou ZERO cobertura e passou a rodar um
+    // job de ~3 min em todo push so-de-docs. A correcao nao e restaurar o
+    // filtro — e fazer o scanner alcancar o que eu afirmei que ele alcancava.
+    // Gate cuja justificativa nao corresponde ao que ele faz e pior que gate
+    // ausente: alguem le a justificativa e para de procurar.
+    const sast = readFileSync(resolve(REPO_ROOT, '.github/workflows/security-sast.yml'), 'utf-8');
+    const gitleaks = sast.match(/gitleaks[\s\S]{0,600}?--no-banner[^\n]*/)?.[0] ?? '';
+    expect(gitleaks, 'o scan de segredo tem de partir da raiz, nao de packages/').toMatch(
+      /\bdir\s+\/src\b(?!\/)/,
+    );
+  });
+
   test('test_scanner_de_segredo_nao_ignora_prosa', () => {
     // T3.2 — o security-sast roda gitleaks, um scanner de SEGREDO, e ignorava
     // `**/*.md` e `.claude/**`. Segredo colado num README ou num hook pulava o
