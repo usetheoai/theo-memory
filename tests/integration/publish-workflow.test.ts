@@ -58,6 +58,34 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     expect(yaml, 'o nome antigo nao pode voltar em silencio').not.toMatch(/image:\s*themory\b/);
   });
 
+  test('test_compose_aponta_para_o_registry_que_publicamos', () => {
+    // T4.3 — o compose de producao trazia por default `usetheo/theo-memory:0.2.0`,
+    // uma coordenada de Docker Hub. Medido em 2026-07-28:
+    //   docker.io/usetheo/theo-memory:0.2.0   NAO RESOLVE
+    //   ghcr.io/usetheoai/theo-memory:latest  RESOLVE
+    //   secrets DOCKERHUB_USERNAME / DOCKERHUB_TOKEN  NAO EXISTEM
+    //
+    // O push para Docker Hub nunca aconteceu e nao pode acontecer — sem
+    // credencial, o passo e pulado em silencio. Quem seguia o compose recebia
+    // `manifest unknown`. Caminho documentado que nunca foi percorrido e PIOR que
+    // caminho ausente: parece testado.
+    //
+    // O gate: a coordenada da NOSSA imagem tem de sair do mesmo registry para
+    // onde o publish empurra. Imagem de terceiro (pgvector) e outro assunto.
+    const compose = readFileSync(resolve(REPO_ROOT, 'docker-compose.prod.yaml'), 'utf-8');
+    const ours = compose
+      .split('\n')
+      .filter((l) => /^\s*image:/.test(l) && /theo-memory|themory/.test(l));
+    expect(ours.length, 'o compose deve referenciar a nossa imagem').toBeGreaterThan(0);
+    for (const line of ours) {
+      expect(line, 'default tem de sair do registry que publicamos').toMatch(
+        /ghcr\.io\/usetheoai\/theo-memory/,
+      );
+    }
+    // E o workflow nao pode declarar um canal Docker Hub que nunca publicou.
+    expect(readFileSync(WORKFLOW_PATH, 'utf-8')).not.toMatch(/dockerhub_image\s*:/);
+  });
+
   test('test_tamanho_da_imagem_declara_qual_eixo', () => {
     // T4.2 — os dois READMEs diziam "< 200 MB", sem eixo. Medido em 2026-07-28
     // sobre `ghcr.io/usetheoai/theo-memory:develop`:

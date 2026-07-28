@@ -161,7 +161,6 @@ jobs:
       # Alinhado ao GHCR pelo mesmo motivo. Dormente hoje: sem DOCKERHUB_TOKEN o
       # step de login e pulado e nada e empurrado para o Docker Hub — nenhum dos
       # projetos irmaos publica la.
-      dockerhub_image: usetheo/theo-memory   # pushed only when the DOCKERHUB_TOKEN secret is set
       # Assinar SEMPRE — inclusive em develop. O reconciliador do host puxa
       # `:develop` a cada 5 min, entao era exatamente o artefato em execucao que
       # nao tinha assinatura: a garantia existia no canal de release, que nao e o
