@@ -34,7 +34,48 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # A TAG TEM DE ESTAR NO HEAD DE `main` — senão o npm publica de código não promovido.
+  #
+  # Este workflow dispara no MESMO evento que o `publish.yml` (`push: tags: v*`), e nasceu
+  # sem guarda: `npm publish --access public` saía de qualquer tag. A guarda foi escrita
+  # para o canal da imagem e esquecida aqui — a auditoria de 2026-07-28 pegou (DO-D1,
+  # `DO-D2-secret-no-environment`, ambos high).
+  #
+  # ACEITA SÓ `identical`, e essa é a diferença deliberada em relação ao `publish.yml`.
+  # Lá, `behind` (a tag é ancestral de main) é legítimo: re-release de versão antiga.
+  # Aqui é o oposto — uma versão NOVA apontando para código ANTIGO publica sem conflito
+  # e vira `latest` no registry, sem sinal algum. Release de npm sai do head de `main`.
+  #
+  # Usa a API de compare em vez de `git merge-base`: dispensa clonar o histórico só para
+  # responder sim/não, e roda em segundos.
+  guard-release-on-main:
+    runs-on: ${{ fromJSON('["blacksmith-8vcpu-ubuntu-2404"]') }}
+    steps:
+      - name: A tag esta no head de main?
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          STATUS="$(gh api "repos/${GITHUB_REPOSITORY}/compare/main...${SHA}" --jq .status)"
+          echo "posicao de ${SHA} em relacao a main: ${STATUS}"
+          case "${STATUS}" in
+            identical)
+              echo "OK — a tag e o head de main; o publish no npm pode seguir." ;;
+            *)
+              echo "::error::A tag ${GITHUB_REF_NAME} nao e o head de main (${STATUS})." >&2
+              echo "::error::O npm publica um artefato imutavel; ele so pode sair de codigo promovido." >&2
+              echo "::error::'behind' tambem reprova aqui: versao nova sobre codigo antigo vira latest no registry." >&2
+              echo "::error::Promova develop -> main por PR e taggeie o commit de merge." >&2
+              exit 1 ;;
+          esac
+
   publish:
+    # A guarda roda em todo disparo e sai imediatamente quando nao e tag — o job existe
+    # para que `needs` seja incondicional aqui. Com `needs` condicional, um job pulado
+    # arrastaria o publish junto.
+    needs: guard-release-on-main
     name: publish @usetheo/memory
     runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 20
