@@ -56,6 +56,21 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     expect(yaml, 'o nome antigo nao pode voltar em silencio').not.toMatch(/image:\s*themory\b/);
   });
 
+  test('test_bases_do_dockerfile_pinadas_por_digest', () => {
+    // T2.2 — a cadeia pina as ENTRADAS (21/21 actions por SHA) e assina a SAIDA
+    // (cosign no digest), mas a base sobre a qual tudo e construido flutuava numa
+    // tag continuamente reconstruida (:nonroot). Era o unico elo movel.
+    //
+    // EC-2 — digest de INDICE, nao de plataforma. A release e multi-arch
+    // (amd64+arm64); pinar o manifesto amd64 passaria verde em develop e
+    // quebraria so na tag, ao resolver a base para arm64.
+    const dockerfile = readFileSync(resolve(REPO_ROOT, 'Dockerfile'), 'utf-8');
+    const froms = dockerfile.split('\n').filter((l) => l.startsWith('FROM'));
+
+    expect(froms).toHaveLength(3);
+    for (const line of froms) expect(line).toMatch(/@sha256:[0-9a-f]{64}/);
+  });
+
   test('test_gates_de_seguranca_usam_digest_nao_tag', () => {
     // T2.1 — security-sast.yml rodava `semgrep/semgrep` (tag implicita :latest) e
     // `gitleaks:latest`, ambos com $PWD montado RW, enquanto actionlint.yml no MESMO
