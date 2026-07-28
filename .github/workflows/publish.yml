@@ -42,6 +42,10 @@ on:
     paths-ignore:
       - '.claude/**'
       - '**/*.md'
+      # Alinhado com ci/integration/eval (F-tests-3). Sem esta linha, um push que
+      # toca so `docs/**` nao era ignorado aqui e disparava build de imagem, apesar
+      # de os tres gates o ignorarem — trabalho pago sem mudar o artefato.
+      - 'docs/**'
       # Adicionados em 2026-07-27: nada aqui entra na imagem. Medido no commit `6b333d9`,
       # que tocou só workflows + CHANGELOG e mesmo assim disparou build + push de
       # uma imagem idêntica, além de CI, SAST, eval e integration — seis runs numa fila

@@ -73,6 +73,13 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
       .filter((l) => !/^\s*\|[\s|:-]+\|\s*$/.test(l))
       .filter((l) => !/\bGap\b.*\bDono\b/.test(l));
     expect(rows.length, 'a tabela de gaps nao pode estar vazia').toBeGreaterThan(3);
+
+    // F-xval-3 — cada gap tem de citar o ID do achado da auditoria que o originou.
+    // Sem o ID, ninguem consegue ligar "o que ficou aberto" a "o que a auditoria
+    // encontrou": a proxima auditoria re-descobre tudo do zero e o documento vira
+    // prosa solta em vez de rastro.
+    const ids = doc.match(/DO-D\d[0-9A-Za-z-]+/g) ?? [];
+    expect(new Set(ids).size, 'gaps sem ID de achado da auditoria').toBeGreaterThanOrEqual(4);
     for (const row of rows) {
       const cells = row.split('|').slice(1, -1).map((c) => c.trim());
       expect(cells.length, `linha com colunas faltando: ${row}`).toBe(4);
