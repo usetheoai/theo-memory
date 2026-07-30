@@ -10,11 +10,24 @@ title = "theo-memory secret scan"
 
 [[rules]]
 id = "theo-live-api-key"
-description = "Hardcoded theo_live_ API key (a real key is a long hex string, not a template literal)"
-# A real key is `theo_live_` + a long hex secret. Test fixtures build keys with a template
-# (`theo_live_${randomUUID()...}`), so the char after the prefix is `$` — this regex never matches
-# them; only a genuinely hardcoded hex secret trips it.
-regex = '''theo_live_[a-f0-9]{20,}'''
+description = "Hardcoded theo_live_ API key (base64url, >=40 chars — o formato canonico do produto)"
+# CORRIGIDO: a regra anterior era `theo_live_[a-f0-9]{20,}` — SO HEXADECIMAL — e a descricao dela
+# afirmava que "a real key is a long hex string". Nao e. O formato canonico do produto esta em
+# `packages/api/src/server/auth/dual-validation.ts:22`:
+#
+#     /^theo_live_[A-Za-z0-9_-]{40,}$/   — prefixo + >=40 chars base64url (canonico: 43)
+#
+# Base64url usa maiusculas, `-` e `_`. Uma chave real cair inteira em [a-f0-9] por 40 chars tem
+# probabilidade ~(16/64)^40: nunca acontece. Ou seja, o gate criado para PREVENIR a recorrencia do
+# #126 nao conseguia detectar uma chave real — guarda que existe e nao guarda, que e pior que
+# guarda nenhuma, porque a presenca dela faz o problema parecer resolvido.
+#
+# PROVADO: plantei uma chave de formato real na arvore e o gitleaks reportou "no leaks found".
+#
+# A racionalizacao sobre template literals CONTINUA valendo, e por construcao: `theo_live_${...}`
+# tem `$` logo apos o prefixo, e `$` nao pertence a [A-Za-z0-9_-]. Fixtures sinteticas seguem sem
+# casar, sem depender do allowlist abaixo.
+regex = '''theo_live_[A-Za-z0-9_-]{40,}'''
 keywords = ["theo_live_"]
 
 [rules.allowlist]
