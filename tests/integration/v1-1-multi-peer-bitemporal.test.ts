@@ -158,14 +158,32 @@ describe.skipIf(PG_URI === '')(
  expect(items.length).toBeGreaterThan(0);
  const id = items[0]!.id;
 
- const tBeforeForget = new Date();
+ // AS DUAS ANCORAS VEM DO RELOGIO DO BANCO, nao do processo de teste.
+ //
+ // `t_valid` e `t_invalid` sao gravados com `NOW()` — relogio do POSTGRES. Ancorar o `asOf` em
+ // `new Date()` compara dois relogios diferentes; ler `NOW()` do proprio banco elimina essa
+ // dependencia inteira, de graca (uma query, ja temos o pool).
+ //
+ // HONESTIDADE SOBRE O QUE ISTO **NAO** PROVA: este teste reprova no CI e eu NAO consegui
+ // reproduzi-lo localmente contra `ankane/pgvector:v0.5.1` real — 7/7 verde com e sem esta
+ // mudanca. Minha primeira hipotese era desvio de relogio entre app e banco, e ela foi REFUTADA
+ // pela medicao correta: 0ms de desvio sobre a conexao TCP. Os "80ms" que eu havia medido antes
+ // eram latencia do `docker exec`, nao relogio — metodo errado.
+ //
+ // Entao esta mudanca fica pelo seu proprio merito (ancora e coluna no mesmo relogio), NAO como
+ // correcao provada do vermelho do CI. A causa daquele segue aberta, com a evidencia que eu tinha,
+ // para quem for investigar nao repetir a hipotese ja descartada.
+ const dbNow = async (): Promise<Date> =>
+   (await pool.query<{ now: Date }>('SELECT NOW() AS now')).rows[0]!.now;
+ 
+ const tBeforeForget = await dbNow();
  // Small pause so t_invalid > tBeforeForget after soft-delete.
  await new Promise((resolve) => setTimeout(resolve, 50));
 
  await memory.forget(id); // soft-delete: sets t_invalid = NOW()
 
  await new Promise((resolve) => setTimeout(resolve, 50));
- const tAfterForget = new Date();
+ const tAfterForget = await dbNow();
 
  // Historical asOf — fact was valid at tBeforeForget; predicate keeps it.
  const recoverable = await memory.user(ALICE).recall('lavender', { asOf: tBeforeForget, threshold: 0 });
