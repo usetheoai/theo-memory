@@ -1,5 +1,5 @@
 # Image publish.
-#   develop push → build ./Dockerfile → ghcr.io/usetheoai/themory:develop (+ :develop-<sha>)
+#   develop push → build ./Dockerfile → ghcr.io/usetheoai/theo-memory:develop (+ :develop-<sha>)
 #                  atrás do gate Trivy CRITICAL/HIGH.
 #   v* tag       → :X.Y.Z + :X.Y + :latest, SBOM + SLSA + keyless cosign.
 #
@@ -146,7 +146,7 @@ jobs:
       # `theo-memory`, nao `themory`: e o nome do repositorio, que e o padrao dos
       # irmaos (theo-lens -> theo-lens, theo-rag -> theo-rag, theo-db -> theo-db).
       #
-      # O pacote antigo `ghcr.io/usetheoai/themory` NAO e apagado — as tags
+      # O pacote antigo `ghcr.io/usetheodev/themory` NAO e apagado — as tags
       # historicas seguem puxaveis; ele so deixa de receber builds novos.
       #
       # ATENCAO AO CONSUMIDOR: o reconciliador do host puxa este nome por default
@@ -159,7 +159,8 @@ jobs:
       context: .
       # Namespace do NOVO dono. Um run de `usetheoai` recebe GITHUB_TOKEN de outro escopo e não
       # tem push em `ghcr.io/usetheodev` — deixar no default publicaria (ou tentaria publicar) no
-      # namespace errado. A imagem passa a ser `ghcr.io/usetheoai/themory`.
+      # namespace errado. A imagem e `ghcr.io/usetheoai/theo-memory` (nome do repositorio;
+      # `themory` foi o nome ANTIGO e nao resolve mais — medido, nem `:develop` nem tag alguma).
       registry: ghcr.io/usetheoai
       trivy: true
       sign: true
