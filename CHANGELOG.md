@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **`docs/devops-audit-known-gaps.md`** — o que a auditoria de CI/CD **não** fechou, com quem decide e como sair de lá. A seção que importa mais que a lista é "O que a auditoria não cobre": conteúdo da imagem ao longo do tempo, código da aplicação, e custo real da frota (os minutos não transitam pelo billing, então todo número de custo é estimado a partir de segundos de runner, nunca medido). Um leitor que assume cobertura maior do que existe confia em garantia que ninguém deu.
 
 ### Changed
+- Hook de validação de comandos ficou mais rápido: ~6 processos por chamada de ferramenta em vez de ~50, sem mudança de comportamento
 
 - **As três imagens-base do Dockerfile passam a ser fixadas por digest**, não por tag. Tag é mutável: o mesmo `Dockerfile` produzia imagens diferentes em dias diferentes, e a diferença aparecia como falha sem causa aparente. `ARG NODE_VERSION` saiu junto — ficou sem consumidor depois da fixação.
 - **Os gates de segurança passam a referenciar as ferramentas por digest.** Um scanner puxado por tag pode mudar de comportamento entre dois runs do mesmo commit, e um gate que muda sozinho não é um gate.
