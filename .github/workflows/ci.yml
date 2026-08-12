@@ -29,12 +29,6 @@ name: CI
 on:
   # Invocado pelo publish.yml num push (ADR-5) e disparado direto num PR.
   workflow_call:
-  pull_request:
-    branches: [develop, main]
-    paths-ignore:
-      - '.claude/**'
-      - '**/*.md'
-      - 'docs/**'
 
 permissions:
   contents: read

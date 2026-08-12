@@ -26,8 +26,6 @@ on:
   #
   # Os gates de TESTE (ci, integration, eval) podem ignorar prosa, porque markdown
   # nao muda comportamento de runtime. Este nao pode.
-  pull_request:
-    branches: [develop, main]
   push:
     branches: [develop]
 

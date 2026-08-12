@@ -14,6 +14,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **`docs/devops-audit-known-gaps.md`** — o que a auditoria de CI/CD **não** fechou, com quem decide e como sair de lá. A seção que importa mais que a lista é "O que a auditoria não cobre": conteúdo da imagem ao longo do tempo, código da aplicação, e custo real da frota (os minutos não transitam pelo billing, então todo número de custo é estimado a partir de segundos de runner, nunca medido). Um leitor que assume cobertura maior do que existe confia em garantia que ninguém deu.
 
 ### Changed
+
+- Abrir um PR não dispara mais esteira: o gatilho `pull_request` foi removido dos 5 workflows que o declaravam (`actionlint.yml`, `ci.yml`, `eval.yml`, `integration.yml`, `security-sast.yml`). CI passa a rodar **somente no merge** — push em `develop`/`main` — por decisão do dono (2026-08-12). A cobertura no merge não se perde: estes workflows são invocados como gate pelo `publish.yml`, que dispara no push para `develop`. Se este repositório tiver *required status checks* configurados no GitHub para PRs, eles precisam ser removidos lá, senão o PR fica travado esperando um check que nunca reporta.
 - Hook de validação de comandos ficou mais rápido: ~6 processos por chamada de ferramenta em vez de ~50, sem mudança de comportamento
 
 - **As três imagens-base do Dockerfile passam a ser fixadas por digest**, não por tag. Tag é mutável: o mesmo `Dockerfile` produzia imagens diferentes em dias diferentes, e a diferença aparecia como falha sem causa aparente. `ARG NODE_VERSION` saiu junto — ficou sem consumidor depois da fixação.
