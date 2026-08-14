@@ -67,3 +67,17 @@ export { createLocalMemory, createMemory } from './factory.js';
 export { type CreateMemoryPresetConfig, InvalidPresetConfig } from './preset.js';
 // T1.4: migrations
 export { runMigrations } from './migrations-runner.js';
+// Tenant isolation: the request-bound workspace context and the pool that
+// applies it. Exported so the API layer can bind the scope per request and
+// wrap the pool it hands to the stores.
+export {
+  withWorkspaceScope,
+  withCrossWorkspaceScope,
+  currentScope,
+  isCrossWorkspace,
+  requireScopeValue,
+  WorkspaceScopeError,
+  type WorkspaceScope,
+  type CrossWorkspaceScope,
+} from './workspace-scope.js';
+export { tenantScopedPool, describeScope } from './tenant-scoped-pool.js';

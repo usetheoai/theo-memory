@@ -18,6 +18,7 @@ import type { Context } from 'hono';
 import type { AdminApiOptions, CreateServerOptions } from '../app.js';
 import { bearerAuth, requireRole, requireScopeOnPrincipal } from '../auth/middleware.js';
 import { requireScope } from '../auth/scope-verifier.js';
+import { workspaceScope } from '../middleware/workspace-scope.js';
 import {
   createKeyHandler,
   lineageKeyHandler,
@@ -212,6 +213,12 @@ export function registerRoutes(app: OpenAPIHono, options: CreateServerOptions): 
     registerAdminRoutes(app, adminApi, membersRepo);
   }
   app.use('/v1/*', bearerAuth(authVerifier, { requireCredential: requireCredential === true }));
+  // Immediately after the Principal is resolved, and before any route can touch
+  // the database: bind the workspace so PostgreSQL enforces the boundary itself
+  // (migration 0029). Ordering is the security property — a scope taken from
+  // caller input instead of the Principal would let a client name someone
+  // else's workspace and have RLS faithfully honour it.
+  app.use('/v1/*', workspaceScope());
   if (membersRepo !== undefined) {
     registerMemberRoutes(app, membersRepo);
   }

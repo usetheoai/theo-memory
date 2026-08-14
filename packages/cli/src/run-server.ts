@@ -18,6 +18,7 @@ import {
   PgUsageCounterStore,
   PgRoutingPolicyStore,
   PgRoutingAuditStore,
+  tenantScopedPool,
 } from '@usetheo/memory';
 import type { AuthVerifier } from '@usetheo/memory/contract';
 import type { Memory } from '@usetheo/memory/contract';
@@ -119,12 +120,27 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
   const embedderKind = resolveEmbedderKind();
   const embedderDim = embeddingDimForKind(embedderKind);
 
-  const pool = new Pool({ connectionString: pgUri });
+  // Two views of one pool, and the split is the point.
+  //
+  // `rawPool` is used for schema migrations and liveness probes — work that has
+  // no tenant and must not pretend to have one.
+  //
+  // `pool` is the workspace-scoped view every store receives: each connection it
+  // hands out carries `app.workspace_id` from the request scope, which is what
+  // the fail-closed policies in migration 0029 read. Stores are unchanged; they
+  // still just receive "a Pool".
+  //
+  // Handing the raw pool to a store would silently disable tenant isolation for
+  // that store alone — the failure mode this whole change exists to remove — so
+  // the raw handle is deliberately named apart and used in exactly two places.
+  const rawPool = new Pool({ connectionString: pgUri });
+  const pool = tenantScopedPool(rawPool);
 
-  // ADR D8 — migrate-on-startup BEFORE port binds.
+  // ADR D8 — migrate-on-startup BEFORE port binds. Runs on the RAW pool: DDL has
+  // no workspace, and the scoped pool would (correctly) refuse for lack of scope.
   if (!shouldSkipMigrations()) {
     try {
-      await runMigrations(pool, { embeddingDim: embedderDim });
+      await runMigrations(rawPool, { embeddingDim: embedderDim });
     } catch (err) {
       process.stderr.write(
         `themory server: migrations failed (${err instanceof Error ? err.message : String(err)})\n`,
@@ -159,8 +175,10 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
   })();
 
   // dbProbe closure — thin (no timeout); healthDbHandler owns the 2s race.
+  // Raw pool: a liveness probe has no workspace, and the scoped pool would
+  // (correctly) refuse rather than invent one.
   const dbProbe = async (): Promise<void> => {
-    await pool.query('SELECT 1');
+    await rawPool.query('SELECT 1');
   };
 
   const apiKey = readApiKey();
@@ -203,13 +221,21 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
   // and now answers 401 SCOPE_INSUFFICIENT — same net rejection but
   // different envelope, breaks the contract).
   const bootstrapToken = resolveBootstrapToken();
+  // Both of these run BEFORE the workspace scope exists, so both take the RAW
+  // pool — the scoped one would (correctly) refuse for lack of a scope.
+  //
+  //   * Credential resolution is what DISCOVERS the workspace. Scoping it would
+  //     be circular: you would need the workspace to read the row that says
+  //     which workspace the key belongs to.
+  //   * The admin sub-app mounts ahead of bearerAuth by design (it resolves
+  //     theo_live_* keys through its own lookup), so no scope is bound yet.
   const adminApi = bootstrapToken !== undefined
-    ? { pool, bootstrapToken }
+    ? { pool: rawPool, bootstrapToken }
     : undefined;
   // When admin path active without OIDC, swap to ApiKeyAuthVerifier so
   // theo_live_* keys auth via SHA-256 lookup against theo_api_keys.
   if (adminApi !== undefined && oidcCfg === null) {
-    authVerifier = new ApiKeyAuthVerifier(pool);
+    authVerifier = new ApiKeyAuthVerifier(rawPool);
   }
 
   // Memory is injected via a small shim that surfaces an honest error if
@@ -263,7 +289,13 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
   // maxAge from THEOMEM_RECALL_TRACE_MAX_AGE_SECONDS (validated: fail-fast on a
   // non-positive/non-finite value — FX2 /review M4-R2 — never a silent full-wipe).
   const retentionCron = resolveRecallTraceEnabled()
-    ? startRecallTraceRetentionCron(new PgRecallTraceRetention(pool), {
+    // Retention prunes traces across EVERY workspace, so it cannot run on the
+    // scoped pool — there is no single workspace to scope it to. It takes the raw
+    // handle, which means that once migration 0029 is applied this cron must
+    // connect as `themory_worker` (the role the *_worker_cross_workspace policies
+    // grant) or it will prune nothing. Silently pruning nothing is the failure to
+    // watch for here: the cron still "succeeds", it just stops doing its job.
+    ? startRecallTraceRetentionCron(new PgRecallTraceRetention(rawPool), {
         maxAgeSeconds: resolveRecallTraceMaxAgeSeconds(),
       })
     : undefined;
@@ -277,7 +309,7 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
   installServerLifecycle({
     listener,
     port,
-    pool,
+    pool: rawPool,
     ...(retentionCron !== undefined ? { retentionCron } : {}),
     shutdownTimeoutMs: SHUTDOWN_TIMEOUT_MS,
   });

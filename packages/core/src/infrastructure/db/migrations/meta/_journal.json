@@ -204,6 +204,13 @@
       "when": 1784808170551,
       "tag": "0028_entities_superseded_by_index",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1784808170552,
+      "tag": "0029_rls_fail_closed",
+      "breakpoints": true
     }
   ]
 }

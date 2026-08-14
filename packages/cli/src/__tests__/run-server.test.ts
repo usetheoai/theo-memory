@@ -46,6 +46,11 @@ vi.mock('@usetheo/memory', () => ({
   // must mirror the import list or vitest fails the whole file at load.
   PgRoutingPolicyStore: class MockPgRoutingPolicyStore {},
   PgRoutingAuditStore: class MockPgRoutingAuditStore {},
+  // Tenant isolation (migration 0029): runServer wraps the raw pool so every
+  // store receives the workspace-scoped view. Identity here — these tests assert
+  // composition wiring, not RLS behaviour, which is covered against a real
+  // database in the integration suite.
+  tenantScopedPool: (p: unknown) => p,
 }));
 
 // FLAKY-boot-import — `run-server.ts` importa `@usetheo/memory-agent-core` e

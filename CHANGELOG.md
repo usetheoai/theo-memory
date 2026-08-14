@@ -3,6 +3,11 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
+### Security
+- **O isolamento entre workspaces passou a ser aplicado pelo banco de dados.** Um cliente não consegue mais ler nem escrever memórias de outro, mesmo que uma consulta esqueça o filtro. Antes não havia barreira alguma no banco: o que separava os dados era o filtro escrito à mão em 43 consultas espalhadas por 27 arquivos, e um esquecimento devolvia dados de outro workspace sem erro, sem log e sem teste vermelho. Agora são 15 tabelas com política restritiva — a ausência de contexto não devolve tudo, devolve nada. (migration 0029)
+- **O contexto do workspace passou a viajar junto com a requisição.** Ele nasce da credencial autenticada, nunca de algo que o cliente envia, e é aplicado a cada conexão obtida do pool. O código de acesso a dados não mudou. Quando uma operação roda sem contexto, o sistema **falha alto** em vez de devolver uma lista vazia — vazio é ambíguo e passa por "não há dados"; um erro nomeia o problema onde ele nasceu.
+- **As varreduras que legitimamente atravessam todos os workspaces** (retenção, manutenção) passam a exigir um papel próprio e declarado. Sem ele, esse tipo de trabalho precisa percorrer workspace por workspace — que é o comportamento mais seguro e o motivo de a permissão ampla ser opcional em vez de presumida.
+
 ### Added
 
 - **`GET /v1/health/ready`** — the ecosystem's canonical readiness name, and the one shape this service did NOT serve. It previously fell through to the authenticated surface and answered 401, which a probe reads as a credential problem on a healthy service rather than a missing route. It answers from the database probe, not the liveness one. The four existing paths (`/v1/health`, `/v1/health/db`, `/v1/healthz`, `/v1/healthz/ready`) are unchanged: they have callers, and removal is a separate item after a deprecation deadline. (B-118)

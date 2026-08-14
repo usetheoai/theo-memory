@@ -74,3 +74,6 @@ ROADMAP.md
 # Saida de auditoria (loop-devops-audit) — contem topologia do host e achados;
 # vive na arvore do repo e nao pode ser commitada num repo que sera aberto.
 devops-audit-output/
+
+# Backups gerados por ferramenta de patch — nunca versionados
+.claude/.patch-backups/
