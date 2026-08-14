@@ -133,7 +133,25 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
   // Handing the raw pool to a store would silently disable tenant isolation for
   // that store alone — the failure mode this whole change exists to remove — so
   // the raw handle is deliberately named apart and used in exactly two places.
-  const rawPool = new Pool({ connectionString: pgUri });
+  // Pool bounds are DECLARED, never inherited.
+  //
+  // node-postgres defaults to an unbounded connection lifetime: a client taken once
+  // is reused until it errors. Against a managed Postgres that fails over, or a proxy
+  // that recycles behind the scenes, the pool keeps handing out connections to a
+  // server that is no longer there — and the symptom is a slow trickle of failed
+  // queries rather than a restart anyone would notice. `maxLifetimeSeconds` retires
+  // each client on a schedule instead.
+  //
+  // Absent configuration is worse than a wrong value: a wrong one is visible in a
+  // diff and arguable, an absent one is invisible and inherited from whatever the
+  // library ships next.
+  const rawPool = new Pool({
+    connectionString: pgUri,
+    max: 10,
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 5_000,
+    maxLifetimeSeconds: 3_600,
+  });
   const pool = tenantScopedPool(rawPool);
 
   // ADR D8 — migrate-on-startup BEFORE port binds. Runs on the RAW pool: DDL has
