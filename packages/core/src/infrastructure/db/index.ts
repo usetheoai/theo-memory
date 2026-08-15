@@ -91,6 +91,12 @@ export {
   resetWorkspaceWriteModeForTests,
 } from './workspace-write-scope.js';
 export {
+  assertRequestPoolIsolated,
+  measureRequestPosture,
+  requestPostureRefusal,
+  type RequestPosture,
+} from './request-pool-guard.js';
+export {
   assertBackgroundPoolCrossWorkspace,
   measureBackgroundReach,
   backgroundReachRefusal,

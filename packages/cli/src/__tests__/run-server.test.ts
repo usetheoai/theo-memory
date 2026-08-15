@@ -34,6 +34,9 @@ vi.mock('@hono/node-server', () => ({
 }));
 
 const mockRequireStrictWorkspaceWrites = vi.fn();
+const mockAssertRequestPoolIsolated = vi.fn(() =>
+  Promise.resolve({ role: 'themory_app', superuser: false, bypassRls: false }),
+);
 const mockAssertBackgroundPoolCrossWorkspace = vi.fn(() =>
   Promise.resolve({ role: 'themory_worker', bypassRls: false, policy: 'recall_traces_worker_cross_workspace' }),
 );
@@ -62,6 +65,11 @@ vi.mock('@usetheo/memory', () => ({
   // ordem certa; o COMPORTAMENTO do guard é provado sem banco em
   // packages/core/src/infrastructure/db/workspace-write-scope.unit.test.ts.
   requireStrictWorkspaceWrites: mockRequireStrictWorkspaceWrites,
+  // O guard que mede se o papel do banco é contido pelas policies. O servidor o
+  // chama ANTES de bindar a porta; o comportamento dele é provado sem banco em
+  // packages/core/src/infrastructure/db/request-pool-guard.unit.test.ts e contra
+  // papéis reais em tests/integration/tenant-isolation/request-pool-guard.test.ts.
+  assertRequestPoolIsolated: mockAssertRequestPoolIsolated,
   assertBackgroundPoolCrossWorkspace: mockAssertBackgroundPoolCrossWorkspace,
 }));
 
@@ -220,6 +228,10 @@ describe('T2.3 — runServer composition contract', () => {
     // até alguém ler o banco e estranhar — que é o modo de falha que este
     // trabalho inteiro existe para eliminar.
     expect(mockRequireStrictWorkspaceWrites).toHaveBeenCalled();
+    // E o guard do pool de requisição, que é a pré-condição de tudo: sem ele o
+    // servidor pode subir sobre um papel que ignora RLS, e aí nenhuma das outras
+    // camadas está protegendo nada.
+    expect(mockAssertRequestPoolIsolated).toHaveBeenCalled();
   });
 
   it('48. fails fast with exit 1 when migrations throw (DB unreachable proxy)', async () => {

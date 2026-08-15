@@ -20,6 +20,7 @@ import {
   PgRoutingAuditStore,
   tenantScopedPool,
   assertBackgroundPoolCrossWorkspace,
+  assertRequestPoolIsolated,
   requireStrictWorkspaceWrites,
 } from '@usetheo/memory';
 import type { AuthVerifier } from '@usetheo/memory/contract';
@@ -47,6 +48,7 @@ import { OidcAuthVerifier } from '@usetheo/memory-api';
 import { createServer, parseRequireCredentialEnv } from '@usetheo/memory-api';
 import { Pool } from 'pg';
 
+import { resolveMigratePgUri } from './resolve-migrate-pg-uri.js';
 import { resolvePgUri } from './resolve-pg-uri.js';
 import { resolveWorkerPgUri } from './resolve-worker-pg-uri.js';
 import { installServerLifecycle, type ServerListenerLike } from './server-lifecycle.js';
@@ -157,17 +159,64 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
   });
   const pool = tenantScopedPool(rawPool);
 
-  // ADR D8 — migrate-on-startup BEFORE port binds. Runs on the RAW pool: DDL has
-  // no workspace, and the scoped pool would (correctly) refuse for lack of scope.
+  // A PRÉ-CONDIÇÃO DE TUDO, medida antes de bindar a porta.
+  //
+  // O pool escopado aplica `app.workspace_id` em cada conexão, e as policies da
+  // 0029 leem esse valor — mas nada disso vale se o papel do banco IGNORA row
+  // level security. Superusuário e BYPASSRLS ignoram: sobre eles o FORCE não faz
+  // nada, o WITH CHECK não recusa nada, e um vazamento entre inquilinos não
+  // produz erro algum. Todo o resto deste arquivo estaria protegendo um controle
+  // desligado, e a suíte continuaria verde porque roda no mesmo papel.
+  //
+  // Recusar aqui é a diferença entre descobrir isso em segundos e descobrir numa
+  // auditoria. A mensagem diz qual papel usar e onde ele é criado.
+  try {
+    const posture = await assertRequestPoolIsolated(rawPool);
+    process.stderr.write(
+      `themory server: conexão de requisição contida pelas policies (papel "${posture.role}").\n`,
+    );
+  } catch (err) {
+    process.stderr.write(
+      `themory server: ${err instanceof Error ? err.message : String(err)}\n`,
+    );
+    process.exit(1);
+    return;
+  }
+
+  // ADR D8 — migrate-on-startup ANTES de bindar a porta. DDL não tem workspace,
+  // então roda no pool CRU; o escopado (corretamente) recusaria por falta de escopo.
+  //
+  // E ROda NO PAPEL DO DONO, não no de requisição. A colisão é real e apareceu no
+  // teste de boot da CLI: o papel de aplicação é `NOSUPERUSER NOBYPASSRLS` e
+  // deliberadamente não tem DDL — se as migrations rodassem por ele, o boot
+  // morreria em `permission denied`. Separar as duas conexões é o que o engine já
+  // faz, e é a consequência natural de ter um papel contido atendendo requisição.
+  //
+  // `THEOMEM_MIGRATE_PG_URI` ausente → migra pela própria conexão de requisição,
+  // que é o comportamento anterior e continua correto em qualquer ambiente cujo
+  // papel de requisição seja o dono (o guard acima recusa apenas superusuário e
+  // BYPASSRLS, não o dono comum).
+  const migrateUri = resolveMigratePgUri() ?? process.env['THEOMEM_MIGRATE_PG_URI'] ?? pgUri;
   if (!shouldSkipMigrations()) {
+    const migratePool =
+      migrateUri === pgUri
+        ? rawPool
+        : new Pool({ connectionString: migrateUri, max: 2, connectionTimeoutMillis: 5_000 });
     try {
-      await runMigrations(rawPool, { embeddingDim: embedderDim });
+      await runMigrations(migratePool, { embeddingDim: embedderDim });
     } catch (err) {
       process.stderr.write(
-        `themory server: migrations failed (${err instanceof Error ? err.message : String(err)})\n`,
+        `themory server: migrations failed (${err instanceof Error ? err.message : String(err)})\n` +
+          (migrateUri === pgUri
+            ? 'themory server: as migrations rodaram pela conexão de REQUISIÇÃO. Se ela é o ' +
+              'papel de aplicação (sem DDL, por desenho), aponte THEOMEM_MIGRATE_PG_URI para o ' +
+              'dono do schema — ver docs/security/database-roles.md.\n'
+            : ''),
       );
       process.exit(1);
       return;
+    } finally {
+      if (migratePool !== rawPool) await migratePool.end().catch(() => undefined);
     }
   }
 

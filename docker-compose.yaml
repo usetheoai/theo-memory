@@ -26,6 +26,13 @@ services:
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
+      # Cria `themory_app` e `themory_worker` na primeira subida do volume. O
+      # usuário do compose é SUPERUSUÁRIO e superusuário ignora row level
+      # security: apontar o serviço para ele faz a isolação da 0029 valer zero,
+      # e o guard de boot recusa subir. Este arquivo é o que dá ao dev um papel
+      # correto para apontar. Volume já existente: rode `dev/roles.sql` à mão.
+      - ./dev/roles.sql:/docker-entrypoint-initdb.d/10-roles.sql:ro
+    volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-themem} -d ${POSTGRES_DB:-themem}"]

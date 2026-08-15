@@ -19,6 +19,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 
 import { createIsolatedDb } from './_helpers/isolated-db.js';
@@ -115,6 +116,9 @@ describe.skipIf(!existsSync(CLI_DIST))(
 const HAS_PG_URI =
   process.env['THEOMEM_PG_URI'] !== undefined && process.env['THEOMEM_PG_URI'] !== '';
 
+const SERVER_APP_ROLE = 'themory_app_cli_boot';
+const SERVER_APP_PASSWORD = 'cli-boot-app';
+
 describe.skipIf(!existsSync(CLI_DIST) || !HAS_PG_URI)(
   'T2.3 — themory server subcommand (real pg)',
   () => {
@@ -125,11 +129,37 @@ describe.skipIf(!existsSync(CLI_DIST) || !HAS_PG_URI)(
     // (run-server.ts), which would migrate the SHARED db to 384 and break every
     // 1536-dim test that runs later. Point the spawned server at its own DB.
     let isoUri = '';
+    // A conexão que o servidor spawnado usa para ATENDER — papel contido, como
+    // em produção. O guard de boot recusa superusuário, e este teste exercita
+    // justamente o boot: apontá-lo para o dono faria o servidor recusar subir e
+    // o teste falharia com `listen timeout`, sem dizer por quê.
+    let appUri = '';
     let dropIso: (() => Promise<void>) | undefined;
     beforeAll(async () => {
       const iso = await createIsolatedDb();
       isoUri = iso.uri;
       dropIso = iso.dropDb;
+
+      // O papel é do CLUSTER, então basta existir; os privilégios vêm da
+      // migration 0032, que este banco já traz por clonar o template migrado.
+      // Criado depois do clone, o grant da 0032 não o alcançou — por isso os
+      // GRANTs são reemitidos aqui, na forma exata da migration.
+      await iso.pool.query(`DROP ROLE IF EXISTS ${SERVER_APP_ROLE}`).catch(() => undefined);
+      await iso.pool.query(
+        `CREATE ROLE ${SERVER_APP_ROLE} LOGIN PASSWORD '${SERVER_APP_PASSWORD}' NOSUPERUSER NOBYPASSRLS`,
+      );
+      await iso.pool.query(`GRANT USAGE ON SCHEMA public TO ${SERVER_APP_ROLE}`);
+      await iso.pool.query(
+        `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${SERVER_APP_ROLE}`,
+      );
+      await iso.pool.query(
+        `GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ${SERVER_APP_ROLE}`,
+      );
+
+      const parsed = new URL(isoUri);
+      parsed.username = SERVER_APP_ROLE;
+      parsed.password = SERVER_APP_PASSWORD;
+      appUri = parsed.toString();
       // Note: do NOT end iso.pool here — dropIso() (dropDb) ends it exactly once
       // before DROP DATABASE. The spawned server uses isoUri via its own pool.
     });
@@ -145,7 +175,10 @@ describe.skipIf(!existsSync(CLI_DIST) || !HAS_PG_URI)(
       const childEnv: NodeJS.ProcessEnv = {
         ...process.env,
         OPENAI_API_KEY: process.env['OPENAI_API_KEY'] ?? 'sk-fake-test-key-for-boot',
-        THEOMEM_PG_URI: isoUri,
+        // Atende pelo papel contido; MIGRA pelo dono. É a separação que produção
+        // exige — o papel de aplicação não tem DDL, por desenho.
+        THEOMEM_PG_URI: appUri,
+        THEOMEM_MIGRATE_PG_URI: isoUri,
         ...env,
       };
       const child = spawn(process.execPath, [CLI_DIST, 'server', ...args], {
@@ -161,6 +194,14 @@ describe.skipIf(!existsSync(CLI_DIST) || !HAS_PG_URI)(
         if (!child.killed) child.kill('SIGKILL');
       }
       if (dropIso) await dropIso();
+      // O papel é do CLUSTER e sobrevive ao DROP DATABASE — deixá-lo para trás
+      // faz a próxima execução falhar no CREATE ROLE.
+      const admin = new pg.Pool({ connectionString: process.env['THEOMEM_PG_URI'], max: 1 });
+      try {
+        await admin.query(`DROP ROLE IF EXISTS ${SERVER_APP_ROLE}`);
+      } finally {
+        await admin.end();
+      }
     });
 
     test('39. SIGTERM closes server with exit 0 (EC-32)', async () => {
