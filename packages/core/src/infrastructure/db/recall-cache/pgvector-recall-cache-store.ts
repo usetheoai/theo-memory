@@ -86,7 +86,7 @@ const GET_SQL = `SELECT result_set, threshold_used, (1 - (query_embedding <=> $2
 const INSERT_SQL = `INSERT INTO recall_cache
     (scope_key, query_embedding, result_set, expires_at, threshold_used, workspace_id)
   VALUES ($1, $2::vector, $3, NOW() + ($4 || ' seconds')::INTERVAL, $5,
-          current_setting('app.workspace_id', true))`;
+          COALESCE(NULLIF(current_setting('app.workspace_id', true), ''), 'default'))`;
 
 /** Capacity probe for LRU eviction inside the SERIALIZABLE tx (T1.2 / EC-7). */
 const COUNT_SCOPE_SQL = `SELECT COUNT(*)::int AS count FROM recall_cache WHERE scope_key = $1`;

@@ -128,6 +128,41 @@ describe('escritas em tabela escopada sob um workspace real', () => {
     expect(rows[0]?.workspace_id).toBe(WS);
   });
 
+  it('dois_workspaces_com_o_mesmo_user_id_tem_contadores_separados', async () => {
+    // O upsert casava a linha pelo escopo e só por ele. `user_id` é escolhido
+    // pelo cliente — `admin` é o exemplo óbvio —, então o UPDATE encontrava a
+    // linha do OUTRO inquilino e incrementava o contador dele: a reflexão de um
+    // cliente disparada pela atividade de outro.
+    //
+    // O índice único não impedia nada disso, e por um motivo que quase passou
+    // batido: NULLs são DISTINTOS num índice único, e um escopo de usuário tem
+    // sessão e agente nulos. A migration 0031 corrige os dois lados — coluna de
+    // workspace na chave e NULLS NOT DISTINCT —, mas quem faz ESTE teste passar
+    // é o predicado de workspace no UPDATE. Sem ele, o segundo lê 2.
+    const store = new PgvectorStore(scopedPool);
+    const OUTRO = 'ws-scoped-insert-vizinho';
+    const MESMO_USER = 'u-compartilhado';
+
+    const meu = await withWorkspaceScope(WS, async () =>
+      store.bumpReflectionCounter({ userId: MESMO_USER }),
+    );
+    const vizinho = await withWorkspaceScope(OUTRO, async () =>
+      store.bumpReflectionCounter({ userId: MESMO_USER }),
+    );
+
+    // Cada um começa do zero. Se o índice ainda ignorasse o workspace, ou o
+    // segundo leria 2 (incrementou o contador alheio), ou explodiria na colisão.
+    expect(meu).toBe(1);
+    expect(vizinho).toBe(1);
+
+    const { rows } = await db.pool.query<{ workspace_id: string; count: number }>(
+      `SELECT workspace_id, count FROM reflection_counters
+        WHERE scope_user_id = $1 ORDER BY workspace_id`,
+      [MESMO_USER],
+    );
+    expect(rows.map((r) => r.workspace_id)).toEqual([WS, OUTRO].sort());
+  });
+
   it('o_registro_de_consolidacao_grava', async () => {
     const store = new PgvectorStore(scopedPool);
 

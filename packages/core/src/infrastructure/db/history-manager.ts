@@ -34,10 +34,17 @@ type HistoryAction = 'remember' | 'forget' | 'reflect';
  * de receber por parâmetro mantém a garantia num lugar só: uma escrita nova não
  * pode esquecer de passar o que ninguém precisa passar.
  *
- * Sem contexto o `current_setting` devolve NULL e a coluna é NOT NULL — a escrita
- * falha alto. É o comportamento desejado: silêncio aqui foi o defeito original.
+ * O `COALESCE` não é decoração. O SDK local entrega um `Pool` CRU aos stores —
+ * é o modo single-tenant, e nele não existe contexto para ler; o `NULLIF` cobre
+ * o outro lado da mesma moeda, porque o wrapper zera o contexto ao devolver a
+ * conexão ao pool e `current_setting` passa a devolver string vazia, não NULL.
+ * Sem os dois, a escrita quebraria em todo caminho que não passa pelo wrapper.
+ *
+ * O fallback é exatamente o DEFAULT que a coluna já tinha, então o modo
+ * single-tenant fica byte-a-byte como era. O que muda é o outro caso: com
+ * contexto, a linha nasce NO workspace certo em vez de em `default`.
  */
-const SCOPE_FROM_CONNECTION = sql<string>`current_setting('app.workspace_id', true)`;
+const SCOPE_FROM_CONNECTION = sql<string>`COALESCE(NULLIF(current_setting('app.workspace_id', true), ''), 'default')`;
 
 /**
  * Schema shape exposed to Drizzle's generic. Bundling the three v0.1 tables
