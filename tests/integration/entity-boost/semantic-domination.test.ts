@@ -43,6 +43,8 @@ const queryEmbedder: Embedder = {
 };
 
 let db: IsolatedDb;
+/** O papel contido, fixado no workspace do arquivo — ver `_helpers/isolated-db.ts`. */
+let scopedPool: pg.Pool;
 let vectorStore: PgvectorStore;
 let entityStore: PgMemoryEntityStore;
 let highUnlinkedId = '';
@@ -51,7 +53,7 @@ let veryLowLinkedId = '';
 
 async function seed(vec: number[]): Promise<string> {
   const id = randomUUID();
-  await db.pool.query(
+  await scopedPool.query(
     `INSERT INTO memories (id, workspace_id, user_id, text, hash, embedding, payload)
      VALUES ($1, $2, $3, $4, $5, $6::vector, '{}'::jsonb)`,
     [id, WORKSPACE, USER, 'anotacao neutra sem sobreposicao lexical', randomUUID(), `[${vec.join(',')}]`],
@@ -60,7 +62,7 @@ async function seed(vec: number[]): Promise<string> {
 }
 
 async function linkSaoPaulo(memoryId: string): Promise<void> {
-  const { rows } = await db.pool.query<{ id: string }>(
+  const { rows } = await scopedPool.query<{ id: string }>(
     `INSERT INTO entities (id, workspace_id, user_id, name, embedding, payload, type, normalized_key)
      VALUES ($1, $2, $3, 'sao paulo', $4::vector, '{}'::jsonb, 'NOUN', 'são_paulo')
      ON CONFLICT (workspace_id, COALESCE(user_id,''), COALESCE(session_id,''),
@@ -68,7 +70,7 @@ async function linkSaoPaulo(memoryId: string): Promise<void> {
      DO UPDATE SET name = entities.name RETURNING id`,
     [randomUUID(), WORKSPACE, USER, `[${Array(DIM).fill(0).join(',')}]`],
   );
-  await db.pool.query(`INSERT INTO memory_entities (memory_id, entity_id) VALUES ($1, $2)`, [
+  await scopedPool.query(`INSERT INTO memory_entities (memory_id, entity_id) VALUES ($1, $2)`, [
     memoryId,
     rows[0]?.id,
   ]);
@@ -86,9 +88,10 @@ async function rankedIds(): Promise<string[]> {
 
 beforeAll(async () => {
   db = await createIsolatedDb({ embeddingDim: DIM });
-  vectorStore = new PgvectorStore(db.pool, { embeddingDim: DIM });
-  entityStore = new PgMemoryEntityStore(db.pool);
-  await db.pool.query(`INSERT INTO workspaces (id, name) VALUES ($1,$1) ON CONFLICT DO NOTHING`, [WORKSPACE]);
+  scopedPool = db.poolPinnedTo('default');
+  vectorStore = new PgvectorStore(scopedPool, { embeddingDim: DIM });
+  entityStore = new PgMemoryEntityStore(scopedPool);
+  await scopedPool.query(`INSERT INTO workspaces (id, name) VALUES ($1,$1) ON CONFLICT DO NOTHING`, [WORKSPACE]);
 
   // Semantic 0.9, no entity link — the strong-but-unlinked candidate the boost competes against.
   highUnlinkedId = await seed(atCosine(0.9));

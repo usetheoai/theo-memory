@@ -11,9 +11,13 @@
  * Measured here against a real database, with three connections over the same
  * two workspaces' rows:
  *
- *   themory (owner, FORCE RLS, no context) -> 0 rows
- *   the application role, one context      -> 1 row   (its own workspace)
- *   themory_worker                         -> 2 rows  (via a NAMED policy)
+ *   themory_app, no context     -> 0 rows  (fail-closed)
+ *   themory_app, one context    -> 1 row   (its own workspace)
+ *   themory_worker              -> 2 rows  (via a NAMED policy)
+ *
+ * The setup connection is refused for a third reason, asserted below: it is the
+ * role in THEOMEM_PG_URI, a superuser here, and the guard refuses reach that
+ * comes from ignoring the policies rather than from being granted them.
  *
  * @see packages/core/src/infrastructure/db/background-pool-reach.ts
  * @see packages/core/src/infrastructure/db/migrations/0029_rls_fail_closed.sql
@@ -31,9 +35,6 @@ import { createIsolatedDb, type IsolatedDb } from '../_helpers/isolated-db.js';
 
 /** The name is not a choice: migration 0029 looks for exactly this role. */
 const WORKER_ROLE = 'themory_worker';
-const WORKER_PASSWORD = 'worker-reach-test';
-const APP_ROLE = 'themory_app_reach_test';
-const APP_PASSWORD = 'app-reach-test';
 
 const WS_A = 'ws-reach-a';
 const WS_B = 'ws-reach-b';
@@ -43,16 +44,9 @@ let db: IsolatedDb;
 let workerPool: pg.Pool;
 let appPool: pg.Pool;
 
-function uriForRole(uri: string, role: string, password: string): string {
-  const parsed = new URL(uri);
-  parsed.username = role;
-  parsed.password = password;
-  return parsed.toString();
-}
-
-/** Inserts one trace row under an explicit workspace context (FORCE RLS applies to the owner too). */
+/** Inserts one trace row under an explicit workspace context. */
 async function seedTrace(workspaceId: string): Promise<void> {
-  const client = await db.pool.connect();
+  const client = await appPool.connect();
   try {
     await client.query(`SELECT set_config('app.workspace_id', $1, false)`, [workspaceId]);
     await client.query(
@@ -68,55 +62,25 @@ async function seedTrace(workspaceId: string): Promise<void> {
 }
 
 beforeAll(async () => {
-  // A FRESH database: migration 0029 only creates the worker policies when the
-  // role already exists, so the role has to be there before migrations run.
-  // Cloning the pre-migrated template would silently skip them.
+  // A FRESH database: 0029 only creates the worker policies, and 0030/0032 only
+  // issue their grants, when the roles already exist. They do — global-setup
+  // provisions them cluster-wide before the template is built — so running the
+  // migrations here against an empty database reproduces the real sequence.
+  // (The file must NOT create or drop the roles itself: they are shared with
+  // every other file in the suite, and a stray DROP would cut their connections.)
   db = await createIsolatedDb({ fresh: true });
 
-  for (const [role, password] of [
-    [WORKER_ROLE, WORKER_PASSWORD],
-    [APP_ROLE, APP_PASSWORD],
-  ] as const) {
-    await db.pool.query(`DROP ROLE IF EXISTS ${role}`);
-    await db.pool.query(
-      `CREATE ROLE ${role} LOGIN PASSWORD '${password}' NOSUPERUSER NOBYPASSRLS`,
-    );
-  }
+  await runMigrations(db.setupPool);
 
-  await runMigrations(db.pool);
-
-  // The application role gets ordinary table access and NO worker policy — the
-  // shape a normal deployment has.
-  await db.pool.query(`GRANT USAGE ON SCHEMA public TO ${APP_ROLE}`);
-  await db.pool.query(
-    `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${APP_ROLE}`,
-  );
+  appPool = db.pool;
+  workerPool = db.crossWorkspacePool('this file exists to measure the crossing itself');
 
   await seedTrace(WS_A);
   await seedTrace(WS_B);
-
-  workerPool = new pg.Pool({
-    connectionString: uriForRole(db.uri, WORKER_ROLE, WORKER_PASSWORD),
-    max: 2,
-  });
-  appPool = new pg.Pool({
-    connectionString: uriForRole(db.uri, APP_ROLE, APP_PASSWORD),
-    max: 2,
-  });
 }, 60_000);
 
 afterAll(async () => {
-  await workerPool?.end();
-  await appPool?.end();
   await db?.dropDb();
-  // Roles are cluster-wide, so they outlive the dropped database.
-  const admin = new pg.Pool({ connectionString: process.env['THEOMEM_PG_URI'], max: 1 });
-  try {
-    await admin.query(`DROP ROLE IF EXISTS ${WORKER_ROLE}`);
-    await admin.query(`DROP ROLE IF EXISTS ${APP_ROLE}`);
-  } finally {
-    await admin.end();
-  }
 });
 
 describe('background pool reach', () => {
@@ -166,11 +130,12 @@ describe('background pool reach', () => {
     // Unlike the engine, this package puts FORCE ROW LEVEL SECURITY on every
     // scoped table and grants the owner no maintenance policy — so the owner is
     // not a special case here, it simply has no reach either.
-    const reach = await measureBackgroundReach(db.pool, TABLE);
+    const reach = await measureBackgroundReach(db.setupPool, TABLE);
 
-    // The template's owner connection may be a superuser in some setups; the
-    // assertion below holds in both shapes, for two different reasons.
-    await expect(assertBackgroundPoolCrossWorkspace(db.pool, TABLE)).rejects.toThrow(
+    // The setup connection is the role in THEOMEM_PG_URI, which in this repo's
+    // compose is a superuser; the assertion holds in both shapes, for two
+    // different reasons, so it does not encode the local environment.
+    await expect(assertBackgroundPoolCrossWorkspace(db.setupPool, TABLE)).rejects.toThrow(
       reach.bypassRls ? /BYPASSRLS/ : /ZERO rows/,
     );
   });

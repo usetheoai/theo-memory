@@ -32,6 +32,8 @@ const DISTRACTORS_PER_TOPIC = 3;
 const K = 1;
 
 let db: IsolatedDb;
+/** O papel contido, fixado no workspace do arquivo — ver `_helpers/isolated-db.ts`. */
+let scopedPool: pg.Pool;
 let vectorStore: PgvectorStore;
 let entityStore: PgMemoryEntityStore;
 
@@ -77,7 +79,7 @@ function topicEmbedder(topic: number): Embedder {
 
 async function seed(text: string, vec: number[]): Promise<string> {
   const id = randomUUID();
-  await db.pool.query(
+  await scopedPool.query(
     `INSERT INTO memories (id, workspace_id, user_id, text, hash, embedding, payload)
      VALUES ($1, $2, $3, $4, $5, $6::vector, '{}'::jsonb)`,
     [id, WORKSPACE, USER, text, randomUUID(), `[${vec.join(',')}]`],
@@ -86,7 +88,7 @@ async function seed(text: string, vec: number[]): Promise<string> {
 }
 
 async function link(memoryId: string, key: string): Promise<void> {
-  const { rows } = await db.pool.query<{ id: string }>(
+  const { rows } = await scopedPool.query<{ id: string }>(
     `INSERT INTO entities (id, workspace_id, user_id, name, embedding, payload, type, normalized_key)
      VALUES ($1, $2, $3, $4, $5::vector, '{}'::jsonb, 'NOUN', $6)
      ON CONFLICT (workspace_id, COALESCE(user_id,''), COALESCE(session_id,''),
@@ -95,7 +97,7 @@ async function link(memoryId: string, key: string): Promise<void> {
      RETURNING id`,
     [randomUUID(), WORKSPACE, USER, key.replace(/_/g, ' '), `[${Array(DIM).fill(0).join(',')}]`, key],
   );
-  await db.pool.query(`INSERT INTO memory_entities (memory_id, entity_id) VALUES ($1, $2)`, [
+  await scopedPool.query(`INSERT INTO memory_entities (memory_id, entity_id) VALUES ($1, $2)`, [
     memoryId,
     rows[0]?.id,
   ]);
@@ -150,8 +152,9 @@ async function measure(withBoost: boolean): Promise<Measurement> {
 
 beforeAll(async () => {
   db = await createIsolatedDb({ embeddingDim: DIM });
-  vectorStore = new PgvectorStore(db.pool, { embeddingDim: DIM });
-  entityStore = new PgMemoryEntityStore(db.pool);
+  scopedPool = db.poolPinnedTo('default');
+  vectorStore = new PgvectorStore(scopedPool, { embeddingDim: DIM });
+  entityStore = new PgMemoryEntityStore(scopedPool);
 
   for (let topic = 0; topic < TOPICS; topic += 1) {
     const vec = topicVector(topic);

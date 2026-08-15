@@ -30,9 +30,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createIsolatedDb, type IsolatedDb } from '../_helpers/isolated-db.js';
 
-const APP_ROLE = 'themory_app_rls_test';
-const APP_PASSWORD = 'rls-test';
-
 const WS_A = 'ws-isolation-a';
 const WS_B = 'ws-isolation-b';
 
@@ -42,35 +39,22 @@ let restrictedRaw: pg.Pool;
 /** The same role, seen through the scoped wrapper the application uses. */
 let scoped: pg.Pool;
 
-/** Rebuilds the connection string for a different role on the same database. */
-function uriForRole(uri: string, role: string, password: string): string {
-  const parsed = new URL(uri);
-  parsed.username = role;
-  parsed.password = password;
-  return parsed.toString();
-}
-
 beforeAll(async () => {
   db = await createIsolatedDb();
 
-  // A role that RLS can actually bind to: not the owner, not a superuser.
-  await db.pool.query(`DROP ROLE IF EXISTS ${APP_ROLE}`);
-  await db.pool.query(
-    `CREATE ROLE ${APP_ROLE} LOGIN PASSWORD '${APP_PASSWORD}' NOSUPERUSER NOBYPASSRLS`,
-  );
-  await db.pool.query(`GRANT USAGE ON SCHEMA public TO ${APP_ROLE}`);
-  await db.pool.query(
-    `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${APP_ROLE}`,
-  );
-  await db.pool.query(`GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ${APP_ROLE}`);
+  // `db.pool` is already the role RLS can bind to — `themory_app`, NOSUPERUSER
+  // NOBYPASSRLS, with the grants migration 0032 issues. The file used to mint
+  // its own role for this; the harness now guarantees it for every file, which
+  // is the whole point of #196.
+  restrictedRaw = db.pool;
+  scoped = tenantScopedPool(db.pool);
 
-  const appUri = uriForRole(db.uri, APP_ROLE, APP_PASSWORD);
-  restrictedRaw = new pg.Pool({ connectionString: appUri, max: 4 });
-  scoped = tenantScopedPool(new pg.Pool({ connectionString: appUri, max: 4 }));
-
-  // Seed one row per workspace, as the owner (which the policies exempt).
+  // Seeding two workspaces IS a crossing, and it says so. Doing it over the
+  // setup pool would work too — for the wrong reason, by ignoring the policies
+  // rather than by holding a policy that permits it.
+  const seed = db.crossWorkspacePool('seeds one row in each of two workspaces');
   for (const ws of [WS_A, WS_B]) {
-    await db.pool.query(
+    await seed.query(
       `INSERT INTO reflection_counters (workspace_id, scope_user_id, count)
        VALUES ($1, $2, 1)`,
       [ws, `user-of-${ws}`],
@@ -79,9 +63,6 @@ beforeAll(async () => {
 }, 120_000);
 
 afterAll(async () => {
-  await restrictedRaw?.end();
-  await scoped?.end();
-  await db.pool.query(`DROP ROLE IF EXISTS ${APP_ROLE}`).catch(() => undefined);
   await db.dropDb();
 });
 
@@ -174,8 +155,10 @@ describe('tenant isolation is enforced by PostgreSQL, not by the query author', 
     expect(updated, "workspace A must not update B's rows").toBe(0);
     expect(deleted, "workspace A must not delete B's rows").toBe(0);
 
-    // Confirmed from outside the policy, so a filtered read cannot fake success.
-    const survivor = await db.pool.query<{ count: string }>(
+    // Confirmed from outside the policy, so a filtered read cannot fake success:
+    // the contained pool would see nothing here whether the row survived or was
+    // deleted, and those are the two outcomes this test has to tell apart.
+    const survivor = await db.setupPool.query<{ count: string }>(
       `SELECT count FROM reflection_counters WHERE workspace_id = $1`,
       [WS_B],
     );

@@ -26,6 +26,9 @@ import { createIsolatedDb, type IsolatedDb } from '../_helpers/isolated-db.js';
 const WORKSPACE = 'ws-live-m16';
 
 let db: IsolatedDb;
+/** Atravessa workspaces de propósito — ver `_helpers/isolated-db.ts`. */
+/** Papel contido, fixado no workspace deste arquivo. */
+let scopedPool: pg.Pool;
 let verifier: ApiKeyAuthVerifier;
 let aliceSecret = '';
 
@@ -62,14 +65,20 @@ async function seedKey(pool: pg.Pool, userId: string): Promise<string> {
 
 beforeAll(async () => {
   db = await createIsolatedDb({ embeddingDim: 384 });
-  await runMigrations(db.pool);
-  await db.pool.query(
+  // Um workspace, dois usuários — e o eixo de usuário NÃO é uma policy: alice e
+  // bob compartilham o workspace, então a policy admite os dois e só o código os
+  // separa. É esse código que este arquivo mede, sobre o papel contido fixado no
+  // workspace do teste.
+  scopedPool = db.poolPinnedTo(WORKSPACE);
+  // Migrations são DDL: papel de setup, nunca o de requisição.
+  await runMigrations(db.setupPool);
+  await db.crossWorkspacePool('cria a linha do workspace deste arquivo').query(
     `INSERT INTO workspaces (id, name) VALUES ($1, $1) ON CONFLICT DO NOTHING`,
     [WORKSPACE],
   );
-  verifier = new ApiKeyAuthVerifier(db.pool);
-  aliceSecret = await seedKey(db.pool, 'live-alice');
-  await seedKey(db.pool, 'live-bob');
+  verifier = new ApiKeyAuthVerifier(scopedPool);
+  aliceSecret = await seedKey(scopedPool, 'live-alice');
+  await seedKey(scopedPool, 'live-bob');
 }, 180_000);
 
 afterAll(async () => {
@@ -115,8 +124,8 @@ describe('MCP bearer auth — user impersonation (real verifier)', () => {
     const hash = createHash('sha256').update(secret).digest('hex');
     // A user row with an empty id satisfies the FK; the corrupt state the issue describes is a
     // key BOUND to it (user_id = '') rather than null. Reachable by direct write / backfill.
-    await db.pool.query(`INSERT INTO users (id, email) VALUES ('', 'blank@example.test') ON CONFLICT DO NOTHING`);
-    await db.pool.query(
+    await scopedPool.query(`INSERT INTO users (id, email) VALUES ('', 'blank@example.test') ON CONFLICT DO NOTHING`);
+    await scopedPool.query(
       `INSERT INTO theo_api_keys
          (id, subject, tenant_id, key_name, key_hash, key_prefix, scopes, workspace_id, user_id)
        VALUES ($1, 'blank', 'self', 'blank', $2, $3, $4::jsonb, $5, '')`,
@@ -144,7 +153,7 @@ describe('MCP bearer auth — user impersonation (real verifier)', () => {
     const { createHash } = await import('node:crypto');
     const hash = createHash('sha256').update(secret).digest('hex');
     // Workspace-level (user_id NULL) key bearing platform-admin — the gateway credential shape.
-    await db.pool.query(
+    await scopedPool.query(
       `INSERT INTO theo_api_keys
          (id, subject, tenant_id, key_name, key_hash, key_prefix, scopes, workspace_id, user_id)
        VALUES ($1, 'gw', 'self', 'gw', $2, $3, $4::jsonb, $5, NULL)`,

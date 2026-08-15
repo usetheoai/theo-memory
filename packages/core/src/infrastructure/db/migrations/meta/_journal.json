@@ -232,6 +232,13 @@
       "when": 1784808170555,
       "tag": "0032_app_role_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1784808170556,
+      "tag": "0033_worker_sequence_grants",
+      "breakpoints": true
     }
   ]
 }

@@ -2,10 +2,11 @@
  * O guard de requisição contra papéis reais — e a prova de que a diferença
  * entre eles não é cosmética.
  *
- * A suíte inteira deste repositório conecta como superusuário, e superusuário
- * IGNORA row level security. Isso significa que toda asserção de isolamento
- * feita sobre a conexão padrão mede um controle desligado — o modo de falha que
- * este trabalho documentou no engine e depois repetiu aqui.
+ * Superusuário IGNORA row level security. Enquanto a suíte inteira conectava
+ * como um, toda asserção de isolamento media um controle desligado — o modo de
+ * falha que este trabalho documentou no engine e depois repetiu aqui. O #196
+ * inverteu o padrão: `db.pool` é o papel contido, e o pool de setup continua
+ * disponível justamente para que esta comparação seja possível.
  *
  * Este arquivo mede os dois papéis lado a lado, na mesma base, com as mesmas
  * linhas: o de aplicação enxerga um workspace por vez, o superusuário enxerga
@@ -22,7 +23,6 @@ import { createIsolatedDb, type IsolatedDb } from '../_helpers/isolated-db.js';
 
 /** O nome não é escolha: a migration 0032 concede para exatamente este papel. */
 const APP_ROLE = 'themory_app';
-const APP_PASSWORD = 'app-guard-test';
 
 const WS_A = 'ws-guard-a';
 const WS_B = 'ws-guard-b';
@@ -30,15 +30,8 @@ const WS_B = 'ws-guard-b';
 let db: IsolatedDb;
 let appPool: pg.Pool;
 
-function uriForRole(uri: string, role: string, password: string): string {
-  const parsed = new URL(uri);
-  parsed.username = role;
-  parsed.password = password;
-  return parsed.toString();
-}
-
 async function seed(workspaceId: string): Promise<void> {
-  const client = await db.pool.connect();
+  const client = await appPool.connect();
   try {
     await client.query(`SELECT set_config('app.workspace_id', $1, false)`, [workspaceId]);
     await client.query(
@@ -57,35 +50,26 @@ async function seed(workspaceId: string): Promise<void> {
 }
 
 beforeAll(async () => {
-  // Base FRESCA: a 0032 concede só se o papel já existir, então ele precisa
-  // existir antes das migrations. Clonar o template pré-migrado pularia o grant.
+  // Base FRESCA: a 0032 concede só se o papel já existir, e aqui a ordem é a de
+  // produção — o papel vem do global-setup (existe antes de tudo), e as
+  // migrations rodam sobre uma base vazia. Clonar o template também funcionaria;
+  // rodar do zero prova que o grant é emitido pela migration, não herdado.
+  //
+  // O papel NÃO é criado nem removido por este arquivo: `themory_app` é
+  // compartilhado com a suíte inteira, e um DROP daqui derrubaria a conexão de
+  // outro arquivo rodando em paralelo.
   db = await createIsolatedDb({ fresh: true });
 
-  await db.pool.query(`DROP ROLE IF EXISTS ${APP_ROLE}`);
-  await db.pool.query(
-    `CREATE ROLE ${APP_ROLE} LOGIN PASSWORD '${APP_PASSWORD}' NOSUPERUSER NOBYPASSRLS`,
-  );
+  await runMigrations(db.setupPool);
 
-  await runMigrations(db.pool);
+  appPool = db.pool;
 
   await seed(WS_A);
   await seed(WS_B);
-
-  appPool = new pg.Pool({
-    connectionString: uriForRole(db.uri, APP_ROLE, APP_PASSWORD),
-    max: 2,
-  });
 }, 60_000);
 
 afterAll(async () => {
-  await appPool?.end();
   await db?.dropDb();
-  const admin = new pg.Pool({ connectionString: process.env['THEOMEM_PG_URI'], max: 1 });
-  try {
-    await admin.query(`DROP ROLE IF EXISTS ${APP_ROLE}`);
-  } finally {
-    await admin.end();
-  }
 });
 
 describe('guard do pool de requisição', () => {
@@ -125,7 +109,7 @@ describe('guard do pool de requisição', () => {
       scoped.release();
     }
 
-    const { rows } = await db.pool.query<{ count: string }>(
+    const { rows } = await db.setupPool.query<{ count: string }>(
       `SELECT count(*)::text AS count FROM routing_policies`,
     );
 
@@ -134,13 +118,13 @@ describe('guard do pool de requisição', () => {
   });
 
   it('o_boot_recusa_a_conexao_que_ignora_as_policies', async () => {
-    const posture = await measureRequestPosture(db.pool);
+    const posture = await measureRequestPosture(db.setupPool);
     expect(
       posture.superuser || posture.bypassRls,
-      'esta suíte conecta como superusuário — se isso mudar, o teste precisa de outro alvo',
+      'o pool de setup é o papel do THEOMEM_PG_URI — se ele deixar de ignorar as policies, este teste precisa de outro alvo',
     ).toBe(true);
 
-    await expect(assertRequestPoolIsolated(db.pool)).rejects.toThrow(/SUPERUSUÁRIO|BYPASSRLS/);
-    await expect(assertRequestPoolIsolated(db.pool)).rejects.toThrow(/themory_app/);
+    await expect(assertRequestPoolIsolated(db.setupPool)).rejects.toThrow(/SUPERUSUÁRIO|BYPASSRLS/);
+    await expect(assertRequestPoolIsolated(db.setupPool)).rejects.toThrow(/themory_app/);
   });
 });

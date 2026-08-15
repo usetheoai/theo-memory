@@ -26,6 +26,34 @@ const MIGRATIONS_DIR = join(
 /** Name of the migrated template database cloned by `createIsolatedDb()`. */
 export const TEMPLATE_DB = 'themem_template';
 
+/**
+ * The three roles the suite runs as, and the whole point of provisioning them
+ * HERE rather than per test file.
+ *
+ * Migrations 0029/0030/0032 are conditional: they create the cross-workspace
+ * policies and issue the grants ONLY if the role already exists. So the roles
+ * have to exist BEFORE the template is migrated — then every `CREATE DATABASE …
+ * TEMPLATE` clone inherits the grants for free, and no test file pays for them.
+ *
+ * They are also cluster-wide, which is why a test file must NOT create or drop
+ * them: files run in parallel, and one file's `DROP ROLE` would pull the floor
+ * out from under another's connection.
+ */
+export const APP_ROLE = 'themory_app';
+export const WORKER_ROLE = 'themory_worker';
+/**
+ * As MESMAS senhas do `dev/roles.sql`, de propósito.
+ *
+ * O provisionamento abaixo faz `ALTER ROLE … PASSWORD` quando o papel já existe,
+ * porque a suíte precisa conseguir logar mesmo num cluster onde alguém criou o
+ * papel antes. Se a senha da suíte divergisse da do compose, rodar os testes
+ * trocaria a senha por baixo do `THEOMEM_PG_URI` do desenvolvedor e o próximo
+ * `themory server` falharia na autenticação — um efeito colateral que ninguém
+ * associaria a ter rodado a suíte.
+ */
+export const APP_PASSWORD = 'themory_app';
+export const WORKER_PASSWORD = 'themory_worker';
+
 /** Derive the admin (`/postgres`) URI from a database URI. */
 function adminUriFrom(uri: string): string {
   return uri.replace(/\/[^/]*$/, '/postgres');
@@ -66,6 +94,39 @@ async function applyMigrations(pool: pg.Pool): Promise<void> {
   }
 }
 
+/**
+ * Create (or re-password) the two non-superuser roles, idempotently.
+ *
+ * `NOSUPERUSER NOBYPASSRLS` is not decoration — it is the entire property under
+ * test. A role with either attribute ignores row level security completely, and
+ * a suite that measures isolation over such a role measures nothing.
+ */
+async function provisionRoles(adminUri: string): Promise<void> {
+  const admin = new pg.Pool({ connectionString: adminUri, max: 1 });
+  try {
+    for (const [role, password] of [
+      [APP_ROLE, APP_PASSWORD],
+      [WORKER_ROLE, WORKER_PASSWORD],
+    ] as const) {
+      // ALTER on the existing branch so the suite can log in even when the role
+      // was created elsewhere (an older `dev/roles.sql`, a hand-made role). The
+      // password it sets is the compose one, so the ALTER is a no-op in the
+      // normal case and never breaks a developer's connection string.
+      await admin.query(`
+        DO $$ BEGIN
+          IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${role}') THEN
+            ALTER ROLE ${role} LOGIN PASSWORD '${password}' NOSUPERUSER NOBYPASSRLS;
+          ELSE
+            CREATE ROLE ${role} LOGIN PASSWORD '${password}' NOSUPERUSER NOBYPASSRLS;
+          END IF;
+        END $$;
+      `);
+    }
+  } finally {
+    await admin.end();
+  }
+}
+
 /** DROP + CREATE a database via an admin connection to `/postgres`. */
 async function recreateDatabase(adminUri: string, dbName: string): Promise<void> {
   const adminPool = new pg.Pool({ connectionString: adminUri, max: 1 });
@@ -82,6 +143,11 @@ export async function setup(): Promise<void> {
   if (!uri) return; // Tests will skip via describe.skipIf
 
   const adminUri = adminUriFrom(uri);
+
+  // 0. The roles FIRST: 0029/0030/0032 only wire a role that already exists,
+  //    and the template built below is what every isolated database is cloned
+  //    from. Roles after migrations would produce clones with no grants.
+  await provisionRoles(adminUri);
 
   // 1. Build the migrated TEMPLATE database. Must have ZERO open connections
   //    when a test later clones it (CREATE DATABASE … TEMPLATE requirement),

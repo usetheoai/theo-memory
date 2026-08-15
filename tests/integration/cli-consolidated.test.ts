@@ -116,9 +116,6 @@ describe.skipIf(!existsSync(CLI_DIST))(
 const HAS_PG_URI =
   process.env['THEOMEM_PG_URI'] !== undefined && process.env['THEOMEM_PG_URI'] !== '';
 
-const SERVER_APP_ROLE = 'themory_app_cli_boot';
-const SERVER_APP_PASSWORD = 'cli-boot-app';
-
 describe.skipIf(!existsSync(CLI_DIST) || !HAS_PG_URI)(
   'T2.3 — themory server subcommand (real pg)',
   () => {
@@ -128,40 +125,21 @@ describe.skipIf(!existsSync(CLI_DIST) || !HAS_PG_URI)(
     // Isolated DB: `themory server` boot runs runMigrations({ embeddingDim: 384 })
     // (run-server.ts), which would migrate the SHARED db to 384 and break every
     // 1536-dim test that runs later. Point the spawned server at its own DB.
-    let isoUri = '';
-    // A conexão que o servidor spawnado usa para ATENDER — papel contido, como
-    // em produção. O guard de boot recusa superusuário, e este teste exercita
-    // justamente o boot: apontá-lo para o dono faria o servidor recusar subir e
-    // o teste falharia com `listen timeout`, sem dizer por quê.
+    // MIGRA pelo papel de setup (DDL), ATENDE pelo papel contido. É a separação
+    // que produção exige, e o guard de boot recusa superusuário — apontar o
+    // servidor para o pool de setup faria o boot ser recusado e o teste falharia
+    // com `listen timeout`, sem dizer por quê.
+    let setupUri = '';
     let appUri = '';
     let dropIso: (() => Promise<void>) | undefined;
     beforeAll(async () => {
       const iso = await createIsolatedDb();
-      isoUri = iso.uri;
+      setupUri = iso.setupUri;
+      appUri = iso.uri;
       dropIso = iso.dropDb;
-
-      // O papel é do CLUSTER, então basta existir; os privilégios vêm da
-      // migration 0032, que este banco já traz por clonar o template migrado.
-      // Criado depois do clone, o grant da 0032 não o alcançou — por isso os
-      // GRANTs são reemitidos aqui, na forma exata da migration.
-      await iso.pool.query(`DROP ROLE IF EXISTS ${SERVER_APP_ROLE}`).catch(() => undefined);
-      await iso.pool.query(
-        `CREATE ROLE ${SERVER_APP_ROLE} LOGIN PASSWORD '${SERVER_APP_PASSWORD}' NOSUPERUSER NOBYPASSRLS`,
-      );
-      await iso.pool.query(`GRANT USAGE ON SCHEMA public TO ${SERVER_APP_ROLE}`);
-      await iso.pool.query(
-        `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${SERVER_APP_ROLE}`,
-      );
-      await iso.pool.query(
-        `GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ${SERVER_APP_ROLE}`,
-      );
-
-      const parsed = new URL(isoUri);
-      parsed.username = SERVER_APP_ROLE;
-      parsed.password = SERVER_APP_PASSWORD;
-      appUri = parsed.toString();
-      // Note: do NOT end iso.pool here — dropIso() (dropDb) ends it exactly once
-      // before DROP DATABASE. The spawned server uses isoUri via its own pool.
+      // O papel e seus privilégios vêm do harness: `themory_app` é provisionado
+      // pelo global-setup antes do template ser migrado, então o clone já chega
+      // com os GRANTs da 0032. Nada a criar aqui.
     });
 
     function spawnServer(
@@ -178,7 +156,7 @@ describe.skipIf(!existsSync(CLI_DIST) || !HAS_PG_URI)(
         // Atende pelo papel contido; MIGRA pelo dono. É a separação que produção
         // exige — o papel de aplicação não tem DDL, por desenho.
         THEOMEM_PG_URI: appUri,
-        THEOMEM_MIGRATE_PG_URI: isoUri,
+        THEOMEM_MIGRATE_PG_URI: setupUri,
         ...env,
       };
       const child = spawn(process.execPath, [CLI_DIST, 'server', ...args], {
@@ -194,14 +172,6 @@ describe.skipIf(!existsSync(CLI_DIST) || !HAS_PG_URI)(
         if (!child.killed) child.kill('SIGKILL');
       }
       if (dropIso) await dropIso();
-      // O papel é do CLUSTER e sobrevive ao DROP DATABASE — deixá-lo para trás
-      // faz a próxima execução falhar no CREATE ROLE.
-      const admin = new pg.Pool({ connectionString: process.env['THEOMEM_PG_URI'], max: 1 });
-      try {
-        await admin.query(`DROP ROLE IF EXISTS ${SERVER_APP_ROLE}`);
-      } finally {
-        await admin.end();
-      }
     });
 
     test('39. SIGTERM closes server with exit 0 (EC-32)', async () => {
@@ -235,11 +205,14 @@ describe.skipIf(!existsSync(CLI_DIST) || !HAS_PG_URI)(
       // reflection_counters + __drizzle_migrations on the SHARED db, breaking
       // every later test that assumed the schema) — integration-suite-stabilization.
       const { createIsolatedDb } = await import('./_helpers/isolated-db.js');
-      const { uri, dropDb } = await createIsolatedDb({ fresh: true });
+      // `themory migrate` é DDL: roda pelo papel de setup, como em produção. O
+      // papel de aplicação não tem DDL por desenho, e apontar a migrate para ele
+      // falha com `must be owner of …`.
+      const { setupUri, dropDb } = await createIsolatedDb({ fresh: true });
       try {
         const runOnce = async (): Promise<{ exitCode: number | null; stdout: string }> => {
           const child = spawn(process.execPath, [CLI_DIST, 'migrate'], {
-            env: { ...process.env, THEOMEM_PG_URI: uri },
+            env: { ...process.env, THEOMEM_PG_URI: setupUri },
             stdio: ['ignore', 'pipe', 'pipe'],
           });
           let stdout = '';

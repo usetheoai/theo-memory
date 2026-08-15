@@ -14,9 +14,12 @@ import { PgRecallTraceStore } from '@usetheo/memory/recall-trace-pg';
 import { createIsolatedDb, type IsolatedDb } from '../_helpers/isolated-db.js';
 
 let db: IsolatedDb;
+/** O papel contido, fixado no workspace do arquivo — ver `_helpers/isolated-db.ts`. */
+let scopedPool: pg.Pool;
 
 beforeAll(async () => {
   db = await createIsolatedDb({ fresh: true, embeddingDim: 384 });
+  scopedPool = db.poolPinnedTo('ws-1');
 }, 60_000);
 
 afterAll(async () => {
@@ -39,7 +42,7 @@ const batchOf = (recallId: string, n: number) => ({
 });
 
 test('test_pg_store_record_getbyid_roundtrip — record(3) then getByRecallId returns 3 with breakdown', async () => {
-  const store = new PgRecallTraceStore(db.pool);
+  const store = new PgRecallTraceStore(scopedPool);
   await store.record(batchOf('r-round', 3));
 
   const got = await store.getByRecallId('r-round', 'ws-1');
@@ -66,19 +69,19 @@ test('test_pg_store_record_getbyid_roundtrip — record(3) then getByRecallId re
 });
 
 test('cap: maxRowsPerRecall truncates the persisted rows', async () => {
-  const store = new PgRecallTraceStore(db.pool, { maxRowsPerRecall: 2 });
+  const store = new PgRecallTraceStore(scopedPool, { maxRowsPerRecall: 2 });
   await store.record(batchOf('r-cap', 5));
   expect(await store.getByRecallId('r-cap', 'ws-1')).toHaveLength(2);
 });
 
 test('empty batch is a no-op (no INSERT)', async () => {
-  const store = new PgRecallTraceStore(db.pool);
+  const store = new PgRecallTraceStore(scopedPool);
   await store.record({ recallId: 'r-empty', workspaceId: 'ws-1', scopeKey: 'user:u1', rows: [] });
   expect(await store.getByRecallId('r-empty', 'ws-1')).toEqual([]);
 });
 
 test('test_pg_store_preserves_null_composite — semantic_gate row round-trips as null (EC-6)', async () => {
-  const store = new PgRecallTraceStore(db.pool);
+  const store = new PgRecallTraceStore(scopedPool);
   await store.record({
     recallId: 'r-null',
     workspaceId: 'ws-1',

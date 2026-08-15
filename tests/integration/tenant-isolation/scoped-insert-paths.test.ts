@@ -65,6 +65,15 @@ afterAll(async () => {
   await db?.dropDb();
 });
 
+/**
+ * As leituras de verificação usam `db.setupPool`, não o pool contido, e isso é
+ * deliberado: a asserção aqui é *em qual workspace a linha caiu*. Um leitor
+ * contido ao workspace certo não enxerga uma linha arquivada no workspace
+ * errado — ela sumiria em vez de aparecer errada, e o teste falharia dizendo
+ * "0 linhas" em vez de "workspace_id = 'default'". Ver a linha errada é o que
+ * dá o diagnóstico.
+ */
+
 describe('escritas em tabela escopada sob um workspace real', () => {
   it('o_historico_unitario_grava', async () => {
     const manager = new DrizzleHistoryManager(drizzle(scopedPool));
@@ -73,7 +82,7 @@ describe('escritas em tabela escopada sob um workspace real', () => {
       await manager.addHistory(memoryId, null, 'valor novo', 'ADD');
     });
 
-    const { rows } = await db.pool.query<{ workspace_id: string }>(
+    const { rows } = await db.setupPool.query<{ workspace_id: string }>(
       `SELECT workspace_id FROM history WHERE memory_id = $1`,
       [memoryId],
     );
@@ -92,7 +101,7 @@ describe('escritas em tabela escopada sob um workspace real', () => {
       ]);
     });
 
-    const { rows } = await db.pool.query<{ count: string }>(
+    const { rows } = await db.setupPool.query<{ count: string }>(
       `SELECT count(*)::text AS count FROM history
         WHERE memory_id = $1 AND workspace_id = $2`,
       [memoryId, WS],
@@ -108,7 +117,7 @@ describe('escritas em tabela escopada sob um workspace real', () => {
     );
 
     expect(count).toBe(1);
-    const { rows } = await db.pool.query<{ workspace_id: string }>(
+    const { rows } = await db.setupPool.query<{ workspace_id: string }>(
       `SELECT workspace_id FROM reflection_counters WHERE scope_user_id = 'u-scoped'`,
     );
     expect(rows[0]?.workspace_id).toBe(WS);
@@ -121,7 +130,7 @@ describe('escritas em tabela escopada sob um workspace real', () => {
       await cache.set(embedding(), { kind: 'user', userId: 'u-scoped' }, [], 60, WS);
     });
 
-    const { rows } = await db.pool.query<{ workspace_id: string }>(
+    const { rows } = await db.setupPool.query<{ workspace_id: string }>(
       `SELECT workspace_id FROM recall_cache`,
     );
     expect(rows).toHaveLength(1);
@@ -155,7 +164,7 @@ describe('escritas em tabela escopada sob um workspace real', () => {
     expect(meu).toBe(1);
     expect(vizinho).toBe(1);
 
-    const { rows } = await db.pool.query<{ workspace_id: string; count: number }>(
+    const { rows } = await db.setupPool.query<{ workspace_id: string; count: number }>(
       `SELECT workspace_id, count FROM reflection_counters
         WHERE scope_user_id = $1 ORDER BY workspace_id`,
       [MESMO_USER],
@@ -178,7 +187,7 @@ describe('escritas em tabela escopada sob um workspace real', () => {
       ]);
     });
 
-    const { rows } = await db.pool.query<{ workspace_id: string }>(
+    const { rows } = await db.setupPool.query<{ workspace_id: string }>(
       `SELECT workspace_id FROM consolidation_history WHERE kept_memory_id = $1`,
       [memoryId],
     );

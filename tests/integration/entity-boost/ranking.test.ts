@@ -61,12 +61,14 @@ const headroomEmbedder: Embedder = {
 };
 
 let db: IsolatedDb;
+/** O papel contido, fixado no workspace do arquivo — ver `_helpers/isolated-db.ts`. */
+let scopedPool: pg.Pool;
 let vectorStore: PgvectorStore;
 let entityStore: PgMemoryEntityStore;
 
 async function seedMemory(text: string, vec: number[]): Promise<string> {
   const id = randomUUID();
-  await db.pool.query(
+  await scopedPool.query(
     `INSERT INTO memories (id, workspace_id, user_id, text, hash, embedding, payload)
      VALUES ($1, $2, $3, $4, $5, $6::vector, '{}'::jsonb)`,
     [id, WORKSPACE, USER, text, randomUUID(), `[${vec.join(',')}]`],
@@ -76,7 +78,7 @@ async function seedMemory(text: string, vec: number[]): Promise<string> {
 
 /** Reuses the entity row when it already exists — one entity, many linked memories. */
 async function linkEntity(memoryId: string, normalizedKey: string): Promise<void> {
-  const { rows } = await db.pool.query<{ id: string }>(
+  const { rows } = await scopedPool.query<{ id: string }>(
     `INSERT INTO entities (id, workspace_id, user_id, name, embedding, payload, type, normalized_key)
      VALUES ($1, $2, $3, $4, $5::vector, '{}'::jsonb, 'NOUN', $6)
      ON CONFLICT (workspace_id, COALESCE(user_id,''), COALESCE(session_id,''),
@@ -92,7 +94,7 @@ async function linkEntity(memoryId: string, normalizedKey: string): Promise<void
       normalizedKey,
     ],
   );
-  await db.pool.query(`INSERT INTO memory_entities (memory_id, entity_id) VALUES ($1, $2)`, [
+  await scopedPool.query(`INSERT INTO memory_entities (memory_id, entity_id) VALUES ($1, $2)`, [
     memoryId,
     rows[0]?.id,
   ]);
@@ -118,8 +120,9 @@ let irrelevantLinkedId = '';
 
 beforeAll(async () => {
   db = await createIsolatedDb({ embeddingDim: DIM });
-  vectorStore = new PgvectorStore(db.pool, { embeddingDim: DIM });
-  entityStore = new PgMemoryEntityStore(db.pool);
+  scopedPool = db.poolPinnedTo('default');
+  vectorStore = new PgvectorStore(scopedPool, { embeddingDim: DIM });
+  entityStore = new PgMemoryEntityStore(scopedPool);
 
   // The UNLINKED memory is seeded FIRST on purpose. Postgres' ordering of exactly-tied rows
   // favours the earlier row, so seeding the linked one first would let the test pass on
@@ -237,7 +240,7 @@ describe('computeEntityBoost against the real entity store', () => {
       '../../../packages/core/src/infrastructure/db/pg-linked-keys.js'
     );
 
-    const linkedKeys = await queryLinkedKeysForMemories(db.pool, {
+    const linkedKeys = await queryLinkedKeysForMemories(scopedPool, {
       memoryIds: [linkedId],
       filters: { user_id: USER, workspace_id: WORKSPACE },
     });

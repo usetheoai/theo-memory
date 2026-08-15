@@ -49,7 +49,7 @@ if (PG_URI === undefined || PG_URI === '') {
 
     beforeAll(async () => {
       const iso = await createIsolatedDb();
-      pool = iso.pool;
+      pool = iso.crossWorkspacePool('mede o isolamento da governanca entre workspaces');
       dropDb = iso.dropDb;
       policies = new PgRoutingPolicyStore(pool);
       audit = new PgRoutingAuditStore(pool);

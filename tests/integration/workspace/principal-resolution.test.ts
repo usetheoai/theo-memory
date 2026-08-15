@@ -86,7 +86,7 @@ if (PG_URI === undefined || PG_URI === '') {
 
     beforeAll(async () => {
       const iso = await createIsolatedDb();
-      pool = iso.pool;
+      pool = iso.poolPinnedTo('ws-acme');
       dropDb = iso.dropDb;
       verifier = new ApiKeyAuthVerifier(pool);
     }, 30_000);

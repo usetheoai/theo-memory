@@ -70,12 +70,15 @@ if (PG_URI === undefined || PG_URI === '') {
   describe('M14 Phase 5 — per-prompt recall coverage benchmark', () => {
     let pool: pg.Pool;
     let dropDb: () => Promise<void>;
+    /** DDL e TRUNCATE: privilégio que o papel de aplicação não tem, por desenho. */
+    let setupPool: pg.Pool;
     let memory: Memory;
 
     beforeAll(async () => {
       const iso = await createIsolatedDb();
-      pool = iso.pool;
+      pool = iso.poolPinnedTo('tn-bench');
       dropDb = iso.dropDb;
+      setupPool = iso.setupPool;
       memory = (
         await createLocalMemory({
           vectorStore: new PgvectorStore(pool),
@@ -90,7 +93,7 @@ if (PG_URI === undefined || PG_URI === '') {
     });
 
     beforeEach(async () => {
-      await pool.query('TRUNCATE memories, entities, memory_entities, entity_edges, history RESTART IDENTITY CASCADE');
+      await setupPool.query('TRUNCATE memories, entities, memory_entities, entity_edges, history RESTART IDENTITY CASCADE');
     });
 
     /** Fraction of live memories never read (last_accessed_at IS NULL) in the bench scope. */
