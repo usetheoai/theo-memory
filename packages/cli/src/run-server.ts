@@ -20,6 +20,7 @@ import {
   PgRoutingAuditStore,
   tenantScopedPool,
   assertBackgroundPoolCrossWorkspace,
+  requireStrictWorkspaceWrites,
 } from '@usetheo/memory';
 import type { AuthVerifier } from '@usetheo/memory/contract';
 import type { Memory } from '@usetheo/memory/contract';
@@ -191,6 +192,12 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
   // unchanged).
   const warmPromise = (async () => {
     memory = await wireMemoryFromPool(pool);
+    // A confirmação, e não a esperança: se algo entregou aos stores um pool CRU
+    // em vez do escopado, o modo de escrita teria caído para single-tenant e
+    // toda escrita sem contexto iria para o balde `default` — que a policy da
+    // 0029 recusaria, uma requisição por vez, em produção. Aqui isso derruba o
+    // boot, que é onde um erro de fiação custa segundos em vez de meses.
+    requireStrictWorkspaceWrites();
     isReady = true;
   })();
 

@@ -216,6 +216,8 @@ export {
   tenantScopedPool,
   describeScope,
   assertBackgroundPoolCrossWorkspace,
+  requireStrictWorkspaceWrites,
+  currentWorkspaceWriteMode,
   measureBackgroundReach,
   backgroundReachRefusal,
   type BackgroundReach,

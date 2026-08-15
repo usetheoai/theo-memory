@@ -17,34 +17,27 @@
  */
 import { eq, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import type { Pool } from 'pg';
 
 import type { HistoryBatchRecord, HistoryManager } from '../../domain/dip/history-manager.js';
 import type { HistoryEntry } from '../../domain/history-entry.js';
 
 import { history } from './schema.js';
 import type { entities, memories } from './schema.js';
+import { configureWorkspaceWritesFromPool, workspaceIdForWrite } from './workspace-write-scope.js';
 
 type HistoryAction = 'remember' | 'forget' | 'reflect';
 
 /**
- * O workspace da conexão, lido no próprio banco.
+ * O workspace de uma linha nova, decidido em código e não no SQL.
  *
- * `tenantScopedPool` já aplica `app.workspace_id` a cada conexão que entrega, e
- * é esse mesmo valor que as policies da migration 0029 comparam. Ler dele em vez
- * de receber por parâmetro mantém a garantia num lugar só: uma escrita nova não
- * pode esquecer de passar o que ninguém precisa passar.
+ * Estrito por padrão: sem escopo, `workspaceIdForWrite` lança o mesmo
+ * `WorkspaceScopeError` que o pool lança ao recusar uma conexão sem contexto. O
+ * fallback single-tenant existe, mas só depois de declarado pelo ponto de
+ * construção — nunca como comportamento padrão desta função.
  *
- * O `COALESCE` não é decoração. O SDK local entrega um `Pool` CRU aos stores —
- * é o modo single-tenant, e nele não existe contexto para ler; o `NULLIF` cobre
- * o outro lado da mesma moeda, porque o wrapper zera o contexto ao devolver a
- * conexão ao pool e `current_setting` passa a devolver string vazia, não NULL.
- * Sem os dois, a escrita quebraria em todo caminho que não passa pelo wrapper.
- *
- * O fallback é exatamente o DEFAULT que a coluna já tinha, então o modo
- * single-tenant fica byte-a-byte como era. O que muda é o outro caso: com
- * contexto, a linha nasce NO workspace certo em vez de em `default`.
+ * @see workspace-write-scope.ts — por que isto é uma declaração, não um default
  */
-const SCOPE_FROM_CONNECTION = sql<string>`COALESCE(NULLIF(current_setting('app.workspace_id', true), ''), 'default')`;
 
 /**
  * Schema shape exposed to Drizzle's generic. Bundling the three v0.1 tables
@@ -65,7 +58,16 @@ interface ThemoryV01Schema {
 type HistoryDb = NodePgDatabase<ThemoryV01Schema>;
 
 export class DrizzleHistoryManager implements HistoryManager {
-  constructor(private readonly db: HistoryDb) {}
+  constructor(private readonly db: HistoryDb) {
+    // Mesma fronteira dos outros stores: o pool que entra decide o modo de
+    // escrita. Aqui ele chega dentro do handle do drizzle (`$client`), então é
+    // de lá que se lê — em vez de acrescentar um parâmetro que todo chamador
+    // teria de lembrar de passar, e cujo esquecimento seria invisível.
+    const client = (db as unknown as { $client?: Pool }).$client;
+    if (client !== undefined) {
+      configureWorkspaceWritesFromPool(client);
+    }
+  }
 
   async addHistory(
     memoryId: string,
@@ -88,7 +90,7 @@ export class DrizzleHistoryManager implements HistoryManager {
       // de passar. Omiti-lo caía no DEFAULT 'default': antes da migration 0029
       // isso gravava a linha no inquilino errado em silêncio; depois dela, a
       // escrita passou a ser recusada para todo workspace que não fosse esse.
-      workspaceId: SCOPE_FROM_CONNECTION,
+      workspaceId: workspaceIdForWrite('addHistory'),
       event: action,
       prevText: previousValue,
       newText: newValue,
@@ -102,7 +104,7 @@ export class DrizzleHistoryManager implements HistoryManager {
     }
     const rows = records.map((r) => ({
       memoryId: r.memoryId,
-      workspaceId: SCOPE_FROM_CONNECTION,
+      workspaceId: workspaceIdForWrite('batchAddHistory'),
       event: r.action,
       prevText: r.previousValue,
       newText: r.newValue,

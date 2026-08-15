@@ -27,6 +27,8 @@
 import type { Pool, PoolClient, QueryResult } from 'pg';
 
 import { currentScope, isCrossWorkspace, requireScopeValue } from './workspace-scope.js';
+import { SCOPED_POOL } from './workspace-write-scope.js';
+
 
 /** The GUC the policies read. Must match the migration. */
 const SCOPE_SETTING = 'app.workspace_id';
@@ -105,6 +107,13 @@ async function scopedConnect(pool: Pool): Promise<PoolClient> {
 export function tenantScopedPool(pool: Pool): Pool {
   const handler: ProxyHandler<Pool> = {
     get(target, prop, receiver) {
+      // A marca. Quem constrói os stores precisa distinguir "pool que garante
+      // contexto" de "pool cru", e essa distinção decide de onde vem o
+      // workspace de uma linha nova. Um símbolo global responde isso sem
+      // acoplar o construtor a esta implementação (nem a `instanceof Proxy`,
+      // que não existe).
+      if (prop === SCOPED_POOL) return true;
+
       if (prop === 'connect') {
         return () => scopedConnect(target);
       }

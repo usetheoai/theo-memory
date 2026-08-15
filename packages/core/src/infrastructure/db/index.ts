@@ -84,6 +84,13 @@ export { tenantScopedPool, describeScope } from './tenant-scoped-pool.js';
 // The other half of the same guarantee: work that must span workspaces asserts
 // that it CAN, over a named policy, before it starts.
 export {
+  requireStrictWorkspaceWrites,
+  currentWorkspaceWriteMode,
+  configureWorkspaceWritesFromPool,
+  workspaceIdForWrite,
+  resetWorkspaceWriteModeForTests,
+} from './workspace-write-scope.js';
+export {
   assertBackgroundPoolCrossWorkspace,
   measureBackgroundReach,
   backgroundReachRefusal,
