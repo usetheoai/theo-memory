@@ -215,6 +215,10 @@ export {
   WorkspaceScopeError,
   tenantScopedPool,
   describeScope,
+  assertBackgroundPoolCrossWorkspace,
+  measureBackgroundReach,
+  backgroundReachRefusal,
+  type BackgroundReach,
   type WorkspaceScope,
   type CrossWorkspaceScope,
 } from './infrastructure/db/index.js';

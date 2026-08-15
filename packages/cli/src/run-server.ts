@@ -19,6 +19,7 @@ import {
   PgRoutingPolicyStore,
   PgRoutingAuditStore,
   tenantScopedPool,
+  assertBackgroundPoolCrossWorkspace,
 } from '@usetheo/memory';
 import type { AuthVerifier } from '@usetheo/memory/contract';
 import type { Memory } from '@usetheo/memory/contract';
@@ -46,6 +47,7 @@ import { createServer, parseRequireCredentialEnv } from '@usetheo/memory-api';
 import { Pool } from 'pg';
 
 import { resolvePgUri } from './resolve-pg-uri.js';
+import { resolveWorkerPgUri } from './resolve-worker-pg-uri.js';
 import { installServerLifecycle, type ServerListenerLike } from './server-lifecycle.js';
 import { assertDistNotStale } from './stale-dist-guard.js';
 
@@ -306,17 +308,59 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
   // M4 T3.1 — start the recall-trace retention cron under the same opt-in flag.
   // maxAge from THEOMEM_RECALL_TRACE_MAX_AGE_SECONDS (validated: fail-fast on a
   // non-positive/non-finite value — FX2 /review M4-R2 — never a silent full-wipe).
-  const retentionCron = resolveRecallTraceEnabled()
-    // Retention prunes traces across EVERY workspace, so it cannot run on the
-    // scoped pool — there is no single workspace to scope it to. It takes the raw
-    // handle, which means that once migration 0029 is applied this cron must
-    // connect as `themory_worker` (the role the *_worker_cross_workspace policies
-    // grant) or it will prune nothing. Silently pruning nothing is the failure to
-    // watch for here: the cron still "succeeds", it just stops doing its job.
-    ? startRecallTraceRetentionCron(new PgRecallTraceRetention(rawPool), {
-        maxAgeSeconds: resolveRecallTraceMaxAgeSeconds(),
-      })
-    : undefined;
+  //
+  // Retention prunes traces across EVERY workspace, so it cannot run on the
+  // scoped pool — there is no single workspace to scope it to. It also cannot
+  // run on the raw application pool: migration 0029 is fail-closed, so over that
+  // connection the DELETE matches nothing, commits, and reports success. The
+  // cron keeps "succeeding" while the table grows forever.
+  //
+  // So it gets its own pool, on `themory_worker`, and the reach is ASSERTED
+  // before the first tick. The assertion refuses two connections for opposite
+  // reasons: one that cannot cross workspaces (silent no-op) and one that
+  // crosses via BYPASSRLS (silent bypass, invisible in pg_policies). Booting
+  // without it is what turned a broken job into an invisible one.
+  let workerPool: Pool | undefined;
+  let retentionCron: { stop: () => Promise<void> } | undefined;
+  if (resolveRecallTraceEnabled()) {
+    const workerUri = resolveWorkerPgUri() ?? process.env['THEOMEM_WORKER_PG_URI'];
+    if (workerUri === undefined || workerUri.length === 0) {
+      process.stderr.write(
+        'themory server: recall-trace retention is enabled but THEOMEM_WORKER_PG_URI is unset. ' +
+          'The sweep spans every workspace; over the application connection the fail-closed ' +
+          'policies of migration 0029 would make it delete zero rows and report success. ' +
+          'Point THEOMEM_WORKER_PG_URI at the themory_worker role, or unset THEOMEM_RECALL_TRACE.\n',
+      );
+      process.exit(1);
+      return;
+    }
+    workerPool = new Pool({
+      connectionString: workerUri,
+      // Small on purpose: one cron tick at a time. Same declared lifetime as the
+      // request pool — an inherited default is invisible, a wrong value is not.
+      max: 2,
+      idleTimeoutMillis: 30_000,
+      connectionTimeoutMillis: 5_000,
+      maxLifetimeSeconds: 3_600,
+    });
+    try {
+      const reach = await assertBackgroundPoolCrossWorkspace(workerPool, 'recall_traces');
+      process.stderr.write(
+        `themory server: recall-trace retention crosses workspaces as "${reach.role}" ` +
+          `via policy "${reach.policy}".\n`,
+      );
+    } catch (err) {
+      process.stderr.write(
+        `themory server: refusing to start recall-trace retention — ${err instanceof Error ? err.message : String(err)}\n`,
+      );
+      await workerPool.end().catch(() => undefined);
+      process.exit(1);
+      return;
+    }
+    retentionCron = startRecallTraceRetentionCron(new PgRecallTraceRetention(workerPool), {
+      maxAgeSeconds: resolveRecallTraceMaxAgeSeconds(),
+    });
+  }
 
   const listener = serve({ fetch: app.fetch, port, hostname: host }, (info: { port: number }) => {
     process.stdout.write(`themory server: listening on ${host}:${String(info.port)}\n`);
@@ -329,6 +373,7 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
     port,
     pool: rawPool,
     ...(retentionCron !== undefined ? { retentionCron } : {}),
+    ...(workerPool !== undefined ? { workerPool } : {}),
     shutdownTimeoutMs: SHUTDOWN_TIMEOUT_MS,
   });
 

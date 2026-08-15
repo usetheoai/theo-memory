@@ -581,3 +581,25 @@ export class SessionsListingNotSupported extends Error {
     Object.setPrototypeOf(this, SessionsListingNotSupported.prototype);
   }
 }
+
+/**
+ * Thrown at boot when a pool intended for background, workspace-spanning work
+ * cannot actually reach across workspaces — or reaches through a privilege
+ * nobody declared.
+ *
+ * A retention sweep exists to look at every workspace's rows. Migration 0029
+ * made the tables fail-closed, so over a connection with no cross-workspace
+ * policy the sweep does not error: it deletes zero rows and returns, which
+ * looks exactly like a quiet night. Refusing to start is the only way that
+ * silence becomes something a person can read.
+ *
+ * @see infrastructure/db/background-pool-reach.ts — the measurement
+ */
+export class BackgroundPoolReachError extends Error {
+  override readonly name = 'BackgroundPoolReachError' as const;
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    Object.setPrototypeOf(this, BackgroundPoolReachError.prototype);
+  }
+}
