@@ -1283,10 +1283,14 @@ export class PgvectorStore implements VectorStore {
           );
         }
         await client.query(
+          // workspace_id vem do contexto da conexão — o mesmo valor que a policy
+          // compara. Omitido, caía no DEFAULT 'default' e a linha de auditoria
+          // nascia no inquilino errado (ou, sob a policy, era recusada).
           `INSERT INTO consolidation_history (
              kept_memory_id, rejected_memory_ids, reason, policy_name,
-             original_episode_ids
-           ) VALUES ($1, $2::jsonb, $3, $4, $5::jsonb)`,
+             original_episode_ids, workspace_id
+           ) VALUES ($1, $2::jsonb, $3, $4, $5::jsonb,
+                     current_setting('app.workspace_id', true))`,
           [
             r.keptMemoryId,
             JSON.stringify([...r.rejectedMemoryIds]),
@@ -1339,11 +1343,13 @@ export class PgvectorStore implements VectorStore {
         WHERE scope_user_id IS NOT DISTINCT FROM $1
           AND scope_session_id IS NOT DISTINCT FROM $2
           AND scope_agent_id IS NOT DISTINCT FROM $3
+          AND workspace_id = current_setting('app.workspace_id', true)
         RETURNING count
       ),
       inserted AS (
-        INSERT INTO reflection_counters (scope_user_id, scope_session_id, scope_agent_id, count)
-        SELECT $1, $2, $3, 1
+        INSERT INTO reflection_counters
+               (scope_user_id, scope_session_id, scope_agent_id, count, workspace_id)
+        SELECT $1, $2, $3, 1, current_setting('app.workspace_id', true)
         WHERE NOT EXISTS (SELECT 1 FROM updated)
         RETURNING count
       )

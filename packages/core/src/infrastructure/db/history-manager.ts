@@ -27,6 +27,19 @@ import type { entities, memories } from './schema.js';
 type HistoryAction = 'remember' | 'forget' | 'reflect';
 
 /**
+ * O workspace da conexão, lido no próprio banco.
+ *
+ * `tenantScopedPool` já aplica `app.workspace_id` a cada conexão que entrega, e
+ * é esse mesmo valor que as policies da migration 0029 comparam. Ler dele em vez
+ * de receber por parâmetro mantém a garantia num lugar só: uma escrita nova não
+ * pode esquecer de passar o que ninguém precisa passar.
+ *
+ * Sem contexto o `current_setting` devolve NULL e a coluna é NOT NULL — a escrita
+ * falha alto. É o comportamento desejado: silêncio aqui foi o defeito original.
+ */
+const SCOPE_FROM_CONNECTION = sql<string>`current_setting('app.workspace_id', true)`;
+
+/**
  * Schema shape exposed to Drizzle's generic. Bundling the three v0.1 tables
  * (memories + entities + history) into one local type avoids:
  *   - namespace import (`import * as schema`) which the project's lint forbids
@@ -63,6 +76,12 @@ export class DrizzleHistoryManager implements HistoryManager {
     const timestamp = createdAt ?? new Date();
     await this.db.insert(history).values({
       memoryId,
+      // O workspace vem do contexto da conexão, que é exatamente o valor que a
+      // policy compara — não de um argumento que cada chamador teria de lembrar
+      // de passar. Omiti-lo caía no DEFAULT 'default': antes da migration 0029
+      // isso gravava a linha no inquilino errado em silêncio; depois dela, a
+      // escrita passou a ser recusada para todo workspace que não fosse esse.
+      workspaceId: SCOPE_FROM_CONNECTION,
       event: action,
       prevText: previousValue,
       newText: newValue,
@@ -76,6 +95,7 @@ export class DrizzleHistoryManager implements HistoryManager {
     }
     const rows = records.map((r) => ({
       memoryId: r.memoryId,
+      workspaceId: SCOPE_FROM_CONNECTION,
       event: r.action,
       prevText: r.previousValue,
       newText: r.newValue,

@@ -11,6 +11,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- **Quatro escritas nasciam no workspace errado.** O histórico (unitário e em lote), o contador de reflexão, o cache de recall e o registro de consolidação gravavam sem dizer a que workspace pertenciam — e caíam no valor padrão `default`. Antes da isolação no banco isso arquivava a linha no inquilino errado em silêncio; depois dela, a mesma escrita passa a ser recusada para qualquer workspace que não seja esse, trocando um vazamento silencioso por uma funcionalidade quebrada. Agora as quatro leem o workspace do próprio contexto da conexão — o mesmo valor que a política compara —, então uma escrita nova não pode esquecer de passar o que ninguém precisa passar. Nenhuma delas tinha teste sob um workspace real: a suíte roda como superusuário, que ignora a isolação, e por isso todas permaneciam verdes enquanto o produto quebrava.
+
 - **`withCrossWorkspaceScope` passou a recusar em vez de conceder uma travessia que nunca existiu.** O nome anunciava um escape hatch para trabalho que atravessa workspaces; a implementação punha o contexto em string vazia, e a política compara a coluna contra exatamente esse valor — a "travessia" não casava com linha nenhuma. Quem chamasse recebia lista vazia e nenhum erro: o mesmo silêncio que toda esta linha de trabalho existe para eliminar, agora vestindo o nome da saída de emergência. Passa a lançar, com a mensagem dizendo por quê e apontando o caminho que funciona (`withWorkspaceScope`, workspace a workspace). Sob RLS fail-closed não existe travessia real em processo: ela exigiria uma policy nomeando um papel, que é decisão tomada em outro lugar, de propósito.
 
 
