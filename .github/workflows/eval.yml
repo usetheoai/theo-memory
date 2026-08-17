@@ -12,12 +12,6 @@ name: eval
 # GATILHOS: PR para `develop` ou `main` (gate antes de entrar no trunk) + push em `develop`
 # (verificação pós-merge). Ver o racional completo em `ci.yml`.
 on:
-  pull_request:
-    branches: [develop, main]
-    paths-ignore:
-      - '.claude/**'
-      - '**/*.md'
-      - 'docs/**'
   push:
     branches: [develop]
     paths-ignore:

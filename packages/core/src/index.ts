@@ -204,3 +204,25 @@ export {
   type CleanupResult,
   type PollutionReason,
 } from './application/cleanup-write-quality.js';
+
+// Tenant isolation (migration 0029): the workspace scope bound per request and
+// the pool wrapper that pushes it down to PostgreSQL for the RLS policies.
+export {
+  withWorkspaceScope,
+  withCrossWorkspaceScope,
+  currentScope,
+  isCrossWorkspace,
+  WorkspaceScopeError,
+  tenantScopedPool,
+  describeScope,
+  assertBackgroundPoolCrossWorkspace,
+  assertRequestPoolIsolated,
+  measureRequestPosture,
+  requireStrictWorkspaceWrites,
+  currentWorkspaceWriteMode,
+  measureBackgroundReach,
+  backgroundReachRefusal,
+  type BackgroundReach,
+  type WorkspaceScope,
+  type CrossWorkspaceScope,
+} from './infrastructure/db/index.js';

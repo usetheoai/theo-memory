@@ -27,6 +27,8 @@ const WORKSPACE = 'default';
 const QUERY = 'moro em São Paulo';
 
 let db: IsolatedDb;
+/** O papel contido, fixado no workspace do arquivo — ver `_helpers/isolated-db.ts`. */
+let scopedPool: pg.Pool;
 let memory: Memory;
 let dim = 0;
 let linkedId = '';
@@ -35,7 +37,7 @@ let unlinkedId = '';
 /** Seeds a memory row directly, so the test does not depend on an LLM for extraction. */
 async function seed(text: string, vec: number[]): Promise<string> {
   const id = randomUUID();
-  await db.pool.query(
+  await scopedPool.query(
     `INSERT INTO memories (id, workspace_id, user_id, text, hash, embedding, payload)
      VALUES ($1, $2, $3, $4, $5, $6::vector, '{}'::jsonb)`,
     [id, WORKSPACE, USER, text, randomUUID(), `[${vec.join(',')}]`],
@@ -47,11 +49,12 @@ beforeAll(async () => {
   const embedder = new DeterministicStubEmbedder();
   dim = (await embedder.embed('probe')).length;
   db = await createIsolatedDb({ embeddingDim: dim });
+  scopedPool = db.poolPinnedTo('default');
 
   memory = await createLocalMemory({
-    vectorStore: new PgvectorStore(db.pool, { embeddingDim: dim }),
+    vectorStore: new PgvectorStore(scopedPool, { embeddingDim: dim }),
     embedder,
-    memoryEntityStore: new PgMemoryEntityStore(db.pool),
+    memoryEntityStore: new PgMemoryEntityStore(scopedPool),
   });
 
   // Both memories carry the SAME vector — at cosine 0.9 to the query, NOT the query's own vector.
@@ -72,13 +75,13 @@ beforeAll(async () => {
   unlinkedId = await seed('anotacao sobre a cidade', vec);
   linkedId = await seed('anotacao sobre a cidade', vec);
 
-  const { rows } = await db.pool.query<{ id: string }>(
+  const { rows } = await scopedPool.query<{ id: string }>(
     `INSERT INTO entities (id, workspace_id, user_id, name, embedding, payload, type, normalized_key)
      VALUES ($1, $2, $3, 'são paulo', $4::vector, '{}'::jsonb, 'NOUN', 'são_paulo')
      RETURNING id`,
     [randomUUID(), WORKSPACE, USER, `[${Array(dim).fill(0).join(',')}]`],
   );
-  await db.pool.query('INSERT INTO memory_entities (memory_id, entity_id) VALUES ($1, $2)', [
+  await scopedPool.query('INSERT INTO memory_entities (memory_id, entity_id) VALUES ($1, $2)', [
     linkedId,
     rows[0]?.id,
   ]);
@@ -104,9 +107,9 @@ describe('entity boost through the public recall API', () => {
     // ADR-0023: the flag must govern the READ path too. Shipped in a `fix(recall)` commit
     // that carried no test at all.
     const off = await createLocalMemory({
-      vectorStore: new PgvectorStore(db.pool, { embeddingDim: dim }),
+      vectorStore: new PgvectorStore(scopedPool, { embeddingDim: dim }),
       embedder: new DeterministicStubEmbedder(),
-      memoryEntityStore: new PgMemoryEntityStore(db.pool),
+      memoryEntityStore: new PgMemoryEntityStore(scopedPool),
       entityBoost: false,
     });
 

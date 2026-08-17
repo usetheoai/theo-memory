@@ -49,7 +49,12 @@ if (PG_URI === undefined || PG_URI === '') {
 
     beforeAll(async () => {
       const iso = await createIsolatedDb();
-      pool = iso.pool;
+      // Atravessa de propósito: o arquivo mede o isolamento das lojas
+      // SECUNDÁRIAS (cache de recall, skills, eviction) — a chave do cache e o
+      // filtro da varredura. Sobre o pool contido, a policy responderia por elas
+      // e o teste passaria mesmo com a chave do cache voltando a ser
+      // workspace-agnóstica, que é exatamente o vazamento que ele procura.
+      pool = iso.crossWorkspacePool('mede o isolamento das lojas secundárias, não o da policy');
       dropDb = iso.dropDb;
     }, 30_000);
 

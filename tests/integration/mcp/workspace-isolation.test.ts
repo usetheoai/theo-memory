@@ -56,7 +56,7 @@ if (PG_URI === undefined || PG_URI === '') {
 
     beforeAll(async () => {
       const iso = await createIsolatedDb();
-      pool = iso.pool;
+      pool = iso.crossWorkspacePool('mede o isolamento das ferramentas MCP entre dois workspaces');
       dropDb = iso.dropDb;
       base = await createLocalMemory({
         vectorStore: new PgvectorStore(pool),

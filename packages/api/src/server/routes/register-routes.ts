@@ -18,6 +18,7 @@ import type { Context } from 'hono';
 import type { AdminApiOptions, CreateServerOptions } from '../app.js';
 import { bearerAuth, requireRole, requireScopeOnPrincipal } from '../auth/middleware.js';
 import { requireScope } from '../auth/scope-verifier.js';
+import { workspaceScope } from '../middleware/workspace-scope.js';
 import {
   createKeyHandler,
   lineageKeyHandler,
@@ -73,6 +74,17 @@ function registerAuthExemptRoutes(app: OpenAPIHono, options: CreateServerOptions
   const { dbProbe, readinessProbe, oidcDiscovery } = options;
   app.get('/v1/health', (c) => healthHandler(c, readinessProbe));
   app.get('/v1/health/db', (c) => healthDbHandler(c, dbProbe));
+  // B-118 — `/v1/health/ready` is the ecosystem's canonical readiness name (contract D5), and it
+  // was the one shape NOT served here. Before this it fell through to the authenticated surface
+  // and answered 401, which a probe reads as "unauthorized" rather than "not found" — worse than
+  // a 404, because it looks like a credential problem on a healthy service.
+  //
+  // It answers from `dbProbe`, not `readinessProbe`: pointing the canonical readiness name at the
+  // liveness handler would give the ecosystem a route that says "ready" whenever the process is
+  // up, which is the failure D5 exists to remove wearing the right name.
+  app.get('/v1/health/ready', (c) => healthDbHandler(c, dbProbe));
+  // The M6 T1.1 aliases. Kept: they have callers, and the contract's migration is additive —
+  // removal is its own item after a deprecation deadline.
   app.get('/v1/healthz', (c) => healthHandler(c, readinessProbe));
   app.get('/v1/healthz/ready', (c) => healthDbHandler(c, dbProbe));
   app.get('/v1/version', versionHandler);
@@ -201,6 +213,12 @@ export function registerRoutes(app: OpenAPIHono, options: CreateServerOptions): 
     registerAdminRoutes(app, adminApi, membersRepo);
   }
   app.use('/v1/*', bearerAuth(authVerifier, { requireCredential: requireCredential === true }));
+  // Immediately after the Principal is resolved, and before any route can touch
+  // the database: bind the workspace so PostgreSQL enforces the boundary itself
+  // (migration 0029). Ordering is the security property — a scope taken from
+  // caller input instead of the Principal would let a client name someone
+  // else's workspace and have RLS faithfully honour it.
+  app.use('/v1/*', workspaceScope());
   if (membersRepo !== undefined) {
     registerMemberRoutes(app, membersRepo);
   }

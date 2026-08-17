@@ -49,6 +49,7 @@ import {
 } from '../../../domain/dip/recall-cache-store.js';
 import type { MemoryItemWithScore } from '../../../domain/memory-item.js';
 import type { Scope } from '../../../domain/scope.js';
+import { configureWorkspaceWritesFromPool, workspaceIdForWrite } from '../workspace-write-scope.js';
 
 import {
   getRecallCacheHitCounter,
@@ -83,8 +84,9 @@ const GET_SQL = `SELECT result_set, threshold_used, (1 - (query_embedding <=> $2
   LIMIT 1`;
 
 /** `set()` INSERT statement (capacity check runs separately inside the tx). */
-const INSERT_SQL = `INSERT INTO recall_cache (scope_key, query_embedding, result_set, expires_at, threshold_used)
-  VALUES ($1, $2::vector, $3, NOW() + ($4 || ' seconds')::INTERVAL, $5)`;
+const INSERT_SQL = `INSERT INTO recall_cache
+    (scope_key, query_embedding, result_set, expires_at, threshold_used, workspace_id)
+  VALUES ($1, $2::vector, $3, NOW() + ($4 || ' seconds')::INTERVAL, $5, $6)`;
 
 /** Capacity probe for LRU eviction inside the SERIALIZABLE tx (T1.2 / EC-7). */
 const COUNT_SCOPE_SQL = `SELECT COUNT(*)::int AS count FROM recall_cache WHERE scope_key = $1`;
@@ -136,6 +138,11 @@ export class PgvectorRecallCacheStore implements RecallCacheStore {
     config: RecallCacheStoreConfig = {},
     options: PgvectorRecallCacheStoreOptions = {},
   ) {
+    // A fronteira onde o pool entra num store é onde o modo de escrita se
+    // decide: pool marcado por `tenantScopedPool` mantém estrito, pool cru
+    // declara single-tenant. Ver workspace-write-scope.ts.
+    configureWorkspaceWritesFromPool(pool);
+
     this.threshold = config.threshold ?? DEFAULT_THRESHOLD;
     this.ttlSecondsByScopeTier = config.ttlSecondsByScopeTier ?? DEFAULT_TTL_SECONDS_BY_SCOPE_TIER;
     this.maxSizePerScope = config.maxSizePerScope ?? DEFAULT_MAX_SIZE_PER_SCOPE;
@@ -204,6 +211,7 @@ export class PgvectorRecallCacheStore implements RecallCacheStore {
         resultSetJson,
         String(ttlSeconds),
         this.threshold,
+        workspaceIdForWrite('recallCache.set'),
       ]);
     });
   }

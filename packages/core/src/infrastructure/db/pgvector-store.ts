@@ -30,6 +30,7 @@ import type {
   ListSkillsBySubjectArgs,
 } from './skill-store-args.js';
 import { composeTemporalWhere } from './temporal-where.js';
+import { configureWorkspaceWritesFromPool, workspaceIdForWrite } from './workspace-write-scope.js';
 
 type Payload = Record<string, string | number | boolean | null>;
 
@@ -295,6 +296,11 @@ export class PgvectorStore implements VectorStore {
     private readonly pool: Pool,
     options?: { readonly embeddingDim?: number; readonly tracer?: Tracer },
   ) {
+    // A fronteira onde o pool entra num store é onde o modo de escrita se
+    // decide: pool marcado por `tenantScopedPool` mantém estrito, pool cru
+    // declara single-tenant. Ver workspace-write-scope.ts.
+    configureWorkspaceWritesFromPool(pool);
+
     this.embeddingDim = options?.embeddingDim ?? MAX_EMBEDDING_DIM;
     // exactOptionalPropertyTypes: assign only when defined so the field
     // stays `tracer?: Tracer` (not `Tracer | undefined`) — preserves the
@@ -1283,16 +1289,21 @@ export class PgvectorStore implements VectorStore {
           );
         }
         await client.query(
+          // workspace_id é parâmetro, não expressão SQL: quem decide é
+          // `workspaceIdForWrite`, estrito por padrão (sem escopo, lança).
+          // Omitido, isto caía no DEFAULT 'default' e a linha de auditoria
+          // nascia no inquilino errado — ou, sob a policy, era recusada.
           `INSERT INTO consolidation_history (
              kept_memory_id, rejected_memory_ids, reason, policy_name,
-             original_episode_ids
-           ) VALUES ($1, $2::jsonb, $3, $4, $5::jsonb)`,
+             original_episode_ids, workspace_id
+           ) VALUES ($1, $2::jsonb, $3, $4, $5::jsonb, $6)`,
           [
             r.keptMemoryId,
             JSON.stringify([...r.rejectedMemoryIds]),
             r.reason,
             r.policyName,
             JSON.stringify([...r.originalEpisodeIds]),
+            workspaceIdForWrite('persistConsolidations'),
           ],
         );
       }
@@ -1339,11 +1350,13 @@ export class PgvectorStore implements VectorStore {
         WHERE scope_user_id IS NOT DISTINCT FROM $1
           AND scope_session_id IS NOT DISTINCT FROM $2
           AND scope_agent_id IS NOT DISTINCT FROM $3
+          AND workspace_id = $4
         RETURNING count
       ),
       inserted AS (
-        INSERT INTO reflection_counters (scope_user_id, scope_session_id, scope_agent_id, count)
-        SELECT $1, $2, $3, 1
+        INSERT INTO reflection_counters
+               (scope_user_id, scope_session_id, scope_agent_id, count, workspace_id)
+        SELECT $1, $2, $3, 1, $4
         WHERE NOT EXISTS (SELECT 1 FROM updated)
         RETURNING count
       )
@@ -1351,7 +1364,12 @@ export class PgvectorStore implements VectorStore {
       UNION ALL
       SELECT count FROM inserted
     `;
-    const result = await this.pool.query<{ count: string }>(upsertSql, [userId, sessionId, agentId]);
+    const result = await this.pool.query<{ count: string }>(upsertSql, [
+      userId,
+      sessionId,
+      agentId,
+      workspaceIdForWrite('bumpReflectionCounter'),
+    ]);
     const row = result.rows[0];
     if (row === undefined) {
       throw new Error('reflection_counters UPSERT returned no rows');

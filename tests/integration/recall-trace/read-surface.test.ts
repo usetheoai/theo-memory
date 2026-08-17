@@ -36,6 +36,8 @@ const llm: LLM = {
 };
 
 let db: IsolatedDb;
+/** Atravessa workspaces de propósito — ver `_helpers/isolated-db.ts`. */
+let crossingPool: pg.Pool;
 let memory: Memory;
 let store: PgRecallTraceStore;
 let app: ReturnType<typeof createServer>;
@@ -52,10 +54,11 @@ async function post(path: string, body: unknown): Promise<Response> {
 
 beforeAll(async () => {
   db = await createIsolatedDb({ fresh: true, embeddingDim: DIM });
-  const vectorStore = new PgvectorStore(db.pool, { embeddingDim: DIM });
+  crossingPool = db.crossWorkspacePool('a superficie de leitura e comparada contra um workspace vizinho');
+  const vectorStore = new PgvectorStore(crossingPool, { embeddingDim: DIM });
   await vectorStore.initialize();
   memory = await createLocalMemory({ vectorStore, embedder, embeddingDim: DIM, llm, recallTrace: {} });
-  store = new PgRecallTraceStore(db.pool);
+  store = new PgRecallTraceStore(crossingPool);
   app = createServer({ memory, recallTraceStore: store });
   await memory.user('alice').remember('match here');
   await memory.user('alice').remember('far apart');

@@ -3,6 +3,8 @@
  *
  * Extracted from index.ts (T1.3 of architecture-review-fixes plan).
  */
+import type { Pool } from 'pg';
+
 import { MAX_EMBEDDING_DIM } from '../../domain/constants.js';
 import type { Embedder } from '../../domain/dip/embedder.js';
 import {
@@ -48,6 +50,7 @@ import { PgMemoryGraphStore } from './pg-memory-graph-store.js';
 import { PgUsageCounterStore } from './pg-usage-counter-store.js';
 import { PgvectorStore as PgvectorStoreClass } from './pgvector-store.js';
 import { type CreateMemoryPresetConfig, isPresetConfig, resolvePreset } from './preset.js';
+import { configureWorkspaceWritesFromPool } from './workspace-write-scope.js';
 
 // Re-export cache helpers so existing importers from factory.ts still work
 export {
@@ -239,6 +242,18 @@ export async function createLocalMemory(config: LocalMemoryConfig): Promise<Disp
     resolveOntology(config.ontology);
   }
   await probeEmbedder(config.embedder, effectiveDim);
+
+  // De onde virá o `workspace_id` de toda linha nova, decidido AQUI — o único
+  // construtor, compartilhado pelo servidor multi-inquilino e pelo SDK local.
+  // O critério é o POOL, não uma variável de ambiente: um pool marcado por
+  // `tenantScopedPool` garante contexto em cada conexão e mantém o modo
+  // estrito; um pool cru é o modo single-tenant, declarado e anunciado.
+  // O boot do servidor confirma o resultado com `requireStrictWorkspaceWrites`.
+  const poolForWriteMode = (config.vectorStore as { poolForEviction?: Pool }).poolForEviction;
+  if (poolForWriteMode !== undefined) {
+    configureWorkspaceWritesFromPool(poolForWriteMode);
+  }
+
   await config.vectorStore.initialize();
 
   // entity-extraction-nodes-slice1 T3.1 — wire Phase 7 ports when entityBoost is

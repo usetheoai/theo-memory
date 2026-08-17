@@ -31,11 +31,22 @@ const stubLlm: LLM = {
   },
 };
 
-async function seedKey(pool: pg.Pool, token: string, workspaceId: string): Promise<void> {
-  await pool.query(`INSERT INTO workspaces (id, name) VALUES ($1,$1) ON CONFLICT (id) DO NOTHING`, [
-    workspaceId,
-  ]);
-  await pool.query(
+/**
+ * Duas escritas, dois pools, porque são duas naturezas: `workspaces` é escopada
+ * (criar duas é atravessar) e `theo_api_keys` não é (é do caminho de
+ * autenticação, que roda no papel de aplicação).
+ */
+async function seedKey(
+  wsPool: pg.Pool,
+  authPool: pg.Pool,
+  token: string,
+  workspaceId: string,
+): Promise<void> {
+  await wsPool.query(
+    `INSERT INTO workspaces (id, name) VALUES ($1,$1) ON CONFLICT (id) DO NOTHING`,
+    [workspaceId],
+  );
+  await authPool.query(
     `INSERT INTO theo_api_keys (id, subject, tenant_id, workspace_id, key_name, key_hash, key_prefix, scopes)
      VALUES ($1, 'subj', 'self', $2, $3, $4, $5, $6::jsonb)`,
     [
@@ -58,6 +69,8 @@ if (PG_URI === undefined || PG_URI === '') {
 } else {
   describe('workspace isolation — REST e2e (HTTP → middleware → Principal → handler)', () => {
     let pool: pg.Pool;
+    /** Papel de aplicação — as tabelas de autenticação não têm RLS. */
+    let authPool: pg.Pool;
     let dropDb: () => Promise<void>;
     let app: ReturnType<typeof createServer>;
     const tokenA = `theo_live_${randomUUID()}`;
@@ -65,16 +78,23 @@ if (PG_URI === undefined || PG_URI === '') {
 
     beforeAll(async () => {
       const iso = await createIsolatedDb();
-      pool = iso.pool;
+      // Dois pools, dois trabalhos. O STORE atravessa: o servidor atende
+      // requisições de ws-a e ws-b sobre a mesma conexão, e é o filtro da camada
+      // REST que este teste mede. As tabelas de AUTENTICAÇÃO (`theo_api_keys`,
+      // `users`) não são escopadas por workspace e pertencem ao caminho de
+      // requisição — em produção quem as lê é o papel de aplicação, que é quem
+      // as lê aqui.
+      pool = iso.crossWorkspacePool('mede o isolamento da camada REST entre dois workspaces');
+      authPool = iso.pool;
       dropDb = iso.dropDb;
-      await seedKey(pool, tokenA, 'ws-a');
-      await seedKey(pool, tokenB, 'ws-b');
+      await seedKey(pool, authPool, tokenA, 'ws-a');
+      await seedKey(pool, authPool, tokenB, 'ws-b');
       const memory: Memory = await createLocalMemory({
         vectorStore: new PgvectorStore(pool),
         embedder: new DeterministicStubEmbedder(),
         llm: stubLlm,
       });
-      app = createServer({ memory, authVerifier: new ApiKeyAuthVerifier(pool) });
+      app = createServer({ memory, authVerifier: new ApiKeyAuthVerifier(authPool) });
     }, 30_000);
 
     afterAll(async () => {

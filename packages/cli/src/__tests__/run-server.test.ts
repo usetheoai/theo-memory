@@ -33,6 +33,14 @@ vi.mock('@hono/node-server', () => ({
   },
 }));
 
+const mockRequireStrictWorkspaceWrites = vi.fn();
+const mockAssertRequestPoolIsolated = vi.fn(() =>
+  Promise.resolve({ role: 'themory_app', superuser: false, bypassRls: false }),
+);
+const mockAssertBackgroundPoolCrossWorkspace = vi.fn(() =>
+  Promise.resolve({ role: 'themory_worker', bypassRls: false, policy: 'recall_traces_worker_cross_workspace' }),
+);
+
 vi.mock('@usetheo/memory', () => ({
   createLocalMemory: mockCreateLocalMemory,
   runMigrations: mockRunMigrations,
@@ -46,6 +54,23 @@ vi.mock('@usetheo/memory', () => ({
   // must mirror the import list or vitest fails the whole file at load.
   PgRoutingPolicyStore: class MockPgRoutingPolicyStore {},
   PgRoutingAuditStore: class MockPgRoutingAuditStore {},
+  // Tenant isolation (migration 0029): runServer wraps the raw pool so every
+  // store receives the workspace-scoped view. Identity here — these tests assert
+  // composition wiring, not RLS behaviour, which is covered against a real
+  // database in the integration suite.
+  tenantScopedPool: (p: unknown) => p,
+  // O guard de modo de escrita: o servidor multi-inquilino o chama DEPOIS da
+  // fiação e se recusa a subir se os stores tiverem sido construídos sobre um
+  // pool cru. O que este arquivo prova é que a chamada existe e acontece na
+  // ordem certa; o COMPORTAMENTO do guard é provado sem banco em
+  // packages/core/src/infrastructure/db/workspace-write-scope.unit.test.ts.
+  requireStrictWorkspaceWrites: mockRequireStrictWorkspaceWrites,
+  // O guard que mede se o papel do banco é contido pelas policies. O servidor o
+  // chama ANTES de bindar a porta; o comportamento dele é provado sem banco em
+  // packages/core/src/infrastructure/db/request-pool-guard.unit.test.ts e contra
+  // papéis reais em tests/integration/tenant-isolation/request-pool-guard.test.ts.
+  assertRequestPoolIsolated: mockAssertRequestPoolIsolated,
+  assertBackgroundPoolCrossWorkspace: mockAssertBackgroundPoolCrossWorkspace,
 }));
 
 // FLAKY-boot-import — `run-server.ts` importa `@usetheo/memory-agent-core` e
@@ -196,6 +221,17 @@ describe('T2.3 — runServer composition contract', () => {
     await runPromise;
     const readyRes = await serveConfig.fetch(new Request('http://localhost/v1/health'));
     expect(readyRes.status).toBe(200);
+
+    // O guard de modo de escrita roda DEPOIS da fiação e ANTES de a instância
+    // ficar pronta. Se ele parasse de ser chamado, um servidor multi-inquilino
+    // construído sobre um pool cru subiria e gravaria tudo no balde `default`
+    // até alguém ler o banco e estranhar — que é o modo de falha que este
+    // trabalho inteiro existe para eliminar.
+    expect(mockRequireStrictWorkspaceWrites).toHaveBeenCalled();
+    // E o guard do pool de requisição, que é a pré-condição de tudo: sem ele o
+    // servidor pode subir sobre um papel que ignora RLS, e aí nenhuma das outras
+    // camadas está protegendo nada.
+    expect(mockAssertRequestPoolIsolated).toHaveBeenCalled();
   });
 
   it('48. fails fast with exit 1 when migrations throw (DB unreachable proxy)', async () => {

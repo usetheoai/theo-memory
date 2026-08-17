@@ -54,6 +54,8 @@ if (PG_URI === undefined || PG_URI === '') {
   describe('THE GOAL TEST T7.1 — 1000 memories, 30% triadic eviction, recall@10 ≥ 0.70', () => {
     let pool: pg.Pool;
     let dropDb: () => Promise<void>;
+    /** DDL e TRUNCATE: privilégio que o papel de aplicação não tem, por desenho. */
+    let setupPool: pg.Pool;
     let store: PgvectorStore;
     let policy: TriadicScoringPolicy;
     let trigger: CapacityBasedTrigger;
@@ -64,8 +66,9 @@ if (PG_URI === undefined || PG_URI === '') {
       // reset can race with a slow-closing prior-file pool. A dedicated clone
       // makes the recall metric deterministic in the full suite.
       const iso = await createIsolatedDb();
-      pool = iso.pool;
+      pool = iso.poolPinnedTo('default');
       dropDb = iso.dropDb;
+      setupPool = iso.setupPool;
 
       // Drop the HNSW index on this isolated DB so recall@10 is measured by an
       // EXACT sequential cosine scan instead of pgvector's APPROXIMATE index.
@@ -85,7 +88,7 @@ if (PG_URI === undefined || PG_URI === '') {
       // GOAL TEST is about — triadic eviction PRESERVING the rare long-tail
       // (test 2 confirms the eviction SELECTION independently). 700 surviving
       // rows make the exact seq scan trivially fast.
-      await pool.query('DROP INDEX IF EXISTS memories_embedding_hnsw_idx');
+      await setupPool.query('DROP INDEX IF EXISTS memories_embedding_hnsw_idx');
 
       store = new PgvectorStore(pool);
       const neighborProvider = new PgNearestNeighborProvider(pool);

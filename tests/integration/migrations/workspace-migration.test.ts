@@ -39,7 +39,7 @@ if (PG_URI === undefined || PG_URI === '') {
 
     beforeAll(async () => {
       const iso = await createIsolatedDb();
-      pool = iso.pool;
+      pool = iso.setupPool;
       dropDb = iso.dropDb;
     }, 30_000);
 

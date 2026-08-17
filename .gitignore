@@ -34,7 +34,9 @@ Thumbs.db
 # Claude Code working directory — per-developer session state, never committed.
 # Not to be confused with .claude-plugin/ (the published plugin manifest) or
 # docs/claude-code-kit/ (the shipped hooks kit), both of which ARE tracked.
-.claude/
+# .claude/ is now VERSIONED — the Squad ecosystem ships with the repo.
+# The fine-grained exclusions below still apply: caches and per-machine
+# artefacts stay out, because they conflict on every machine.
 CLAUDE.local.md
 
 # Python tooling caches
@@ -72,3 +74,6 @@ ROADMAP.md
 # Saida de auditoria (loop-devops-audit) — contem topologia do host e achados;
 # vive na arvore do repo e nao pode ser commitada num repo que sera aberto.
 devops-audit-output/
+
+# Backups gerados por ferramenta de patch — nunca versionados
+.claude/.patch-backups/

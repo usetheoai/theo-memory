@@ -160,7 +160,7 @@ export function registerAllPaths(registry: OpenAPIRegistry): void {
     method: 'get',
     path: '/v1/health',
     operationId: 'getHealth',
-    summary: 'Readiness probe — process alive.',
+    summary: 'Liveness — the process is up.',
     responses: {
       200: {
         description: 'Ready.',
@@ -173,12 +173,54 @@ export function registerAllPaths(registry: OpenAPIRegistry): void {
     method: 'get',
     path: '/v1/health/db',
     operationId: 'getHealthDb',
-    summary: 'Liveness probe — DB reachable within 2s.',
+    summary: 'The database check that backs readiness — reachable within 2s.',
     responses: {
       200: { description: 'DB OK.', content: { 'application/json': { schema: z.object({ status: z.literal('ok') }) } } },
       503: {
         description: 'DB unreachable, timed out, or no probe configured.',
         content: { 'application/json': { schema: z.object({ status: z.literal('unavailable'), reason: z.string().optional() }) } },
+      },
+    },
+  });
+
+  // B-118 — the canonical readiness and provenance names. Both were SERVED and absent from this
+  // document, and the ecosystem contract checker only reads the document: a route it cannot see is
+  // a route it never checks.
+  //
+  // The two summaries above were also swapped — `/v1/health` was labelled "readiness" and
+  // `/v1/health/db` "liveness", which is the inverse of what each answers.
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/health/ready',
+    operationId: 'getHealthReady',
+    summary: 'Readiness — the service can serve, database included.',
+    responses: {
+      200: { description: 'Ready.', content: { 'application/json': { schema: z.object({ status: z.literal('ok') }) } } },
+      503: {
+        description: 'A dependency is unavailable; do not send traffic here.',
+        content: { 'application/json': { schema: z.object({ status: z.literal('unavailable'), reason: z.string().optional() }) } },
+      },
+    },
+  });
+
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/version',
+    operationId: 'getVersion',
+    summary: 'Which build is answering.',
+    responses: {
+      200: {
+        description: 'Build provenance.',
+        content: {
+          'application/json': {
+            schema: z.object({
+              name: z.string(),
+              version: z.string(),
+              git_sha: z.string().optional(),
+              built_at: z.string().optional(),
+            }),
+          },
+        },
       },
     },
   });

@@ -22,6 +22,12 @@ export interface ServerLifecycleDeps {
   readonly pool: { end: () => Promise<void> };
   /** M4 retention cron handle; `stop()` drains the in-flight tick (FX5). */
   readonly retentionCron?: { stop: () => Promise<void> };
+  /**
+   * The cross-workspace pool the retention sweep runs on, when one exists.
+   * Separate from `pool` because it authenticates as a different role; closed
+   * in the same order for the same reason — after the cron has drained.
+   */
+  readonly workerPool?: { end: () => Promise<void> };
   /** Max ms to wait for the listener to close before forcing shutdown (EC-32). */
   readonly shutdownTimeoutMs: number;
 }
@@ -31,7 +37,7 @@ export interface ServerLifecycleDeps {
  * shutdown. Returns the (idempotent) shutdown function for callers/tests.
  */
 export function installServerLifecycle(deps: ServerLifecycleDeps): () => void {
-  const { listener, port, pool, retentionCron, shutdownTimeoutMs } = deps;
+  const { listener, port, pool, retentionCron, workerPool, shutdownTimeoutMs } = deps;
 
   if (listener.on !== undefined) {
     listener.on('error', (err: NodeJS.ErrnoException) => {
@@ -59,6 +65,7 @@ export function installServerLifecycle(deps: ServerLifecycleDeps): () => void {
           new Promise<void>((resolve) => setTimeout(resolve, shutdownTimeoutMs)),
         ]);
         await retentionCron?.stop(); // M4 FX5 — drain the in-flight sweep before the pool closes
+        await workerPool?.end();
         await pool.end();
       } finally {
         process.exit(0);

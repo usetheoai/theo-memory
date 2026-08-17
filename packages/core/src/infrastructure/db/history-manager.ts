@@ -17,14 +17,27 @@
  */
 import { eq, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import type { Pool } from 'pg';
 
 import type { HistoryBatchRecord, HistoryManager } from '../../domain/dip/history-manager.js';
 import type { HistoryEntry } from '../../domain/history-entry.js';
 
 import { history } from './schema.js';
 import type { entities, memories } from './schema.js';
+import { configureWorkspaceWritesFromPool, workspaceIdForWrite } from './workspace-write-scope.js';
 
 type HistoryAction = 'remember' | 'forget' | 'reflect';
+
+/**
+ * O workspace de uma linha nova, decidido em código e não no SQL.
+ *
+ * Estrito por padrão: sem escopo, `workspaceIdForWrite` lança o mesmo
+ * `WorkspaceScopeError` que o pool lança ao recusar uma conexão sem contexto. O
+ * fallback single-tenant existe, mas só depois de declarado pelo ponto de
+ * construção — nunca como comportamento padrão desta função.
+ *
+ * @see workspace-write-scope.ts — por que isto é uma declaração, não um default
+ */
 
 /**
  * Schema shape exposed to Drizzle's generic. Bundling the three v0.1 tables
@@ -45,7 +58,16 @@ interface ThemoryV01Schema {
 type HistoryDb = NodePgDatabase<ThemoryV01Schema>;
 
 export class DrizzleHistoryManager implements HistoryManager {
-  constructor(private readonly db: HistoryDb) {}
+  constructor(private readonly db: HistoryDb) {
+    // Mesma fronteira dos outros stores: o pool que entra decide o modo de
+    // escrita. Aqui ele chega dentro do handle do drizzle (`$client`), então é
+    // de lá que se lê — em vez de acrescentar um parâmetro que todo chamador
+    // teria de lembrar de passar, e cujo esquecimento seria invisível.
+    const client = (db as unknown as { $client?: Pool }).$client;
+    if (client !== undefined) {
+      configureWorkspaceWritesFromPool(client);
+    }
+  }
 
   async addHistory(
     memoryId: string,
@@ -63,6 +85,12 @@ export class DrizzleHistoryManager implements HistoryManager {
     const timestamp = createdAt ?? new Date();
     await this.db.insert(history).values({
       memoryId,
+      // O workspace vem do contexto da conexão, que é exatamente o valor que a
+      // policy compara — não de um argumento que cada chamador teria de lembrar
+      // de passar. Omiti-lo caía no DEFAULT 'default': antes da migration 0029
+      // isso gravava a linha no inquilino errado em silêncio; depois dela, a
+      // escrita passou a ser recusada para todo workspace que não fosse esse.
+      workspaceId: workspaceIdForWrite('addHistory'),
       event: action,
       prevText: previousValue,
       newText: newValue,
@@ -76,6 +104,7 @@ export class DrizzleHistoryManager implements HistoryManager {
     }
     const rows = records.map((r) => ({
       memoryId: r.memoryId,
+      workspaceId: workspaceIdForWrite('batchAddHistory'),
       event: r.action,
       prevText: r.previousValue,
       newText: r.newValue,

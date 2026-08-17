@@ -41,7 +41,12 @@ Rastreabilidade é parte do contrato, não opcional. Cada decisão de gravar/ign
 
 # CLAUDE.md — TheMemory
 
-Contract between Claude and the **TheMemory / `@usetheo/memory`** project (the **managed memory** community auxiliary of [Theo](../CLAUDE.md)). Read this file **and** the root `CLAUDE.md` before editing anything here.
+Contract between Claude and the **TheMemory / `@usetheo/memory`** project (the **managed memory** community auxiliary of [Theo](https://usetheo.dev)). Read this file **and** the global engineering contract (`~/.claude/CLAUDE.md`) before editing anything here.
+
+> **Layout note (polyrepo).** There is no monorepo-root `CLAUDE.md` anymore. This repo lives at
+> `theo-platform/theo-memory`; sibling groups are `theo-platform/*` (engine, cloud, data products),
+> `theokit-framework/*` (framework, SDK, UI) and `usetheo-labs/*`. Cross-repo links below are
+> relative to that layout.
 
 This file layers TheMemory-specific rules on top of the workspace-level and global engineering contracts.
 
@@ -179,9 +184,9 @@ Honest classification (Rule 3 + Rule 10):
 
 ## What this project is
 
-`@usetheo/memory` (TheMemory) is the **managed three-tier memory layer** of the [Theo](https://usetheo.dev) ecosystem. **vector-based hybrid architecture** (vector + LLM fact extraction + hybrid retrieval), with three scope tiers (**User / Session / Agent**), shipping in two runtimes (**local** Postgres + pgvector for dev/CI, **TheoCloud-managed** for production). **Apache-2.0-licensed.** Native to [TheoKit](../theokit) by design.
+`@usetheo/memory` (TheMemory) is the **managed three-tier memory layer** of the [Theo](https://usetheo.dev) ecosystem. **vector-based hybrid architecture** (vector + LLM fact extraction + hybrid retrieval), with three scope tiers (**User / Session / Agent**), shipping in two runtimes (**local** Postgres + pgvector for dev/CI, **TheoCloud-managed** for production). **Apache-2.0-licensed.** Native to [TheoKit](../../theokit-framework/theokit) by design.
 
-Positioned as a **Community auxiliary** of Theo, alongside [`@usetheo/sdk`](../theokit-sdk) and [`@theokit/ui`](../theo-ui). **Pre-release** (contract being locked; no package published yet) — single exception to the monorepo's "every product is production-ready" claim (2026-05-15 lock).
+Positioned as a **Community auxiliary** of Theo, alongside [`@usetheo/sdk`](../../theokit-framework/theokit-sdk) and [`@theokit/ui`](../../theokit-framework/theokit-ui). **Pre-release** (contract being locked; no package published yet) — single exception to the monorepo's "every product is production-ready" claim (2026-05-15 lock).
 
 **Strategic positioning:** the managed memory line item on the TheoCloud invoice. Analog: Vercel KV ↔ Vercel. Lock-in to TheoKit + TheoCloud is a deliberate feature, not an accident — see `## Architectural Decisions Locked` below.
 
@@ -274,7 +279,7 @@ The `production-ready` token was historically blocked by two hard gates per `dog
 
 ## Voice and Tone
 
-**Locked 2026-05-21** (Option A strategic review — 7th OSS adopter, completing the monorepo's voice contract). TheMemory has adopted the aspirational voice originally scoped to TheoKit. The operational guide — three communication layers (HERO / BODY / DEEP DIVE), vocabulary translation, banned terms list, storytelling rules, before/after examples — lives in [`../theokit/CLAUDE.md`](../theokit/CLAUDE.md). Read it before writing any public copy for this project. This file does not duplicate it.
+**Locked 2026-05-21** (Option A strategic review — 7th OSS adopter, completing the monorepo's voice contract). TheMemory has adopted the aspirational voice originally scoped to TheoKit. The operational guide — three communication layers (HERO / BODY / DEEP DIVE), vocabulary translation, banned terms list, storytelling rules, before/after examples — lives in [`../../theokit-framework/theokit/CLAUDE.md`](../../theokit-framework/theokit/CLAUDE.md). Read it before writing any public copy for this project. This file does not duplicate it.
 
 **Applies to:**
 
@@ -299,7 +304,7 @@ The `production-ready` token was historically blocked by two hard gates per `dog
 - **Pre-release is honest** — never claim production-ready until the owner explicitly declares v1.0 (both technical gates are resolved as of 2026-07-20 per ADR-0020; the label is now an owner call, not a blocker). No comparative "faster-than" claim without satisfying `public-copy.md § 4` in full. Breaks the consistency with the other 6 sub-projects' "production" status deliberately.
 - **Cross-Project Rule 9 (Cloud abstraction)** — cloud runtime user-copy says `memory store`, NEVER a vendor name / `pgvector` / `vector engine` / `vector store engine` etc.
 
-If a piece of TheMemory copy contradicts the locked narrative in [`../CLAUDE.md`](../CLAUDE.md) or the operational rules in [`../theokit/CLAUDE.md`](../theokit/CLAUDE.md), the root and TheoKit rules win — surface the conflict before publishing.
+If a piece of TheMemory copy contradicts the operational rules in [`../../theokit-framework/theokit/CLAUDE.md`](../../theokit-framework/theokit/CLAUDE.md), the TheoKit rules win — surface the conflict before publishing. (The monorepo-root `CLAUDE.md` that used to hold the locked narrative no longer exists after the polyrepo split; TheoKit is the surviving source for voice and narrative.)
 
 ---
 
@@ -458,10 +463,10 @@ Detailed history of infrastructure cycles. Source-of-truth for "what landed when
 | Pillar | Project | Current integration (verify before claiming) |
 | --- | --- | --- |
 | Apex (runtime) | [TheoCloud](../theo) | Cloud runtime depends on Theo PaaS GA. No code today. v0.5 milestone. |
-| Framework | [TheoKit](../theokit) | `@usetheo/memory/theokit` subpath ships v0.2 PR-A (PR #11). `memoryFromCtx(ctx, memory)` auto-scopes via structural typing (zero peer-dep, ADR D1). T4.1-T4.4 + T5.1 in sibling `theokit` repo PR-B pending. |
-| Harness | [`@usetheo/sdk`](../theokit-sdk) | `@usetheo/memory/agent-tools` exposes 4 verbs as MCP tools consumable by any MCP-aware agent loop. `@usetheo/sdk` already ships its own `MemoryAdapter` interface + 3 adapter packages (2026-05-20) — different surface; TheMemory is the runtime, not the adapter. Future: `@usetheo/sdk` may accept TheMemory as a `MemoryAdapter` target. |
-| UI | [`@theokit/ui`](../theo-ui) | `MemoryEditor` primitive already exists in `@theokit/ui` (one of 81 primitives). Natural consumer of TheMemory's API. No wiring today. |
-| Coding assistant | [`theo-code`](../theo-code) | TheoCode has its own memory subsystem (`crates/theo-infra-memory/`). Different domain — no shared code planned. |
+| Framework | [TheoKit](../../theokit-framework/theokit) | `@usetheo/memory/theokit` subpath ships v0.2 PR-A (PR #11). `memoryFromCtx(ctx, memory)` auto-scopes via structural typing (zero peer-dep, ADR D1). T4.1-T4.4 + T5.1 in sibling `theokit` repo PR-B pending. |
+| Harness | [`@usetheo/sdk`](../../theokit-framework/theokit-sdk) | `@usetheo/memory/agent-tools` exposes 4 verbs as MCP tools consumable by any MCP-aware agent loop. `@usetheo/sdk` already ships its own `MemoryAdapter` interface + 3 adapter packages (2026-05-20) — different surface; TheMemory is the runtime, not the adapter. Future: `@usetheo/sdk` may accept TheMemory as a `MemoryAdapter` target. |
+| UI | [`@theokit/ui`](../../theokit-framework/theokit-ui) | `MemoryEditor` primitive already exists in `@theokit/ui` (one of 81 primitives). Natural consumer of TheMemory's API. No wiring today. |
+| Coding assistant | [`theo-code`](../../usetheo-labs/TheoCode) | TheoCode has its own memory subsystem (`crates/theo-infra-memory/`). Different domain — no shared code planned. |
 
 > "Do not invent integration that does not exist yet." (Root `CLAUDE.md` Cross-Project Rule 2.) Verify the actual import / dependency before claiming wiring exists in copy.
 

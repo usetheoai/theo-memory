@@ -54,7 +54,10 @@ if (PG_URI === undefined || PG_URI === '') {
 
     beforeAll(async () => {
       const iso = await createIsolatedDb();
-      pool = iso.pool;
+      // Semeia em 'default' E em 'ws2' para provar que o filtro do STORE separa
+      // os dois — logo, atravessa por definição. Sobre o pool contido a policy
+      // responderia pelo filtro e o teste passaria mesmo sem ele.
+      pool = iso.crossWorkspacePool('semeia dois workspaces para provar o filtro de listSessions');
       dropDb = iso.dropDb;
       store = new PgvectorStore(pool);
       await seed({ text: 'global fact', user: 'alice', minutesAgo: 1 });

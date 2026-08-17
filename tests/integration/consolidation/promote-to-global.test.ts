@@ -8,7 +8,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest'
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 
-import { PgvectorStore } from '@usetheo/memory';
+import { PgvectorStore, withWorkspaceScope } from '@usetheo/memory';
 
 import { createIsolatedDb } from '../_helpers/isolated-db.js';
 
@@ -32,11 +32,19 @@ if (PG_URI === undefined || PG_URI === '') {
     let store: PgvectorStore;
     const WS = 'tn-A';
     const USER = `alice-${randomUUID()}`;
+    /**
+     * O código sob teste resolve o workspace da escrita pelo escopo em vigor
+     * (`workspaceIdForWrite`), não pelo pool. Sem escopo ele cai no modo
+     * single-tenant e grava em `default` — que a policy então recusa, porque a
+     * conexão está no workspace deste arquivo. Rodar dentro do escopo é a forma
+     * multi-inquilino de produção, e é a única em que as duas camadas concordam.
+     */
+    const inWs = <T>(fn: () => Promise<T>): Promise<T> => withWorkspaceScope(WS, fn);
     const SESSION = `s-${randomUUID()}`;
 
     beforeAll(async () => {
       const iso = await createIsolatedDb();
-      pool = iso.pool;
+      pool = iso.poolPinnedTo('tn-A');
       dropDb = iso.dropDb;
       store = new PgvectorStore(pool);
       await store.initialize();
@@ -67,7 +75,8 @@ if (PG_URI === undefined || PG_URI === '') {
       const dupA = await insertSessionRow('durable fact dup a', 1, 1);
       const dupB = await insertSessionRow('durable fact dup b', 1, 1);
 
-      await store.persistConsolidations(
+      await inWs(() =>
+        store.persistConsolidations(
         [
           {
             keptMemoryId: kept,
@@ -78,7 +87,7 @@ if (PG_URI === undefined || PG_URI === '') {
           },
         ],
         { promote: true },
-      );
+      ));
 
       // Kept row is now GLOBAL, same workspace+user, still valid.
       const keptRow = await pool.query(
@@ -110,9 +119,9 @@ if (PG_URI === undefined || PG_URI === '') {
     test('is idempotent — a second promote of the same kept row updates 0 rows, no error', async () => {
       const kept = await insertSessionRow('durable fact', 2, 3);
       const result = promoteResult(kept);
-      await store.persistConsolidations([result], { promote: true });
+      await inWs(() => store.persistConsolidations([result], { promote: true }));
       // Second run must not throw and must leave the row global (returns 0 promoted).
-      await expect(store.persistConsolidations([result], { promote: true })).resolves.toBe(0);
+      await expect(inWs(() => store.persistConsolidations([result], { promote: true }))).resolves.toBe(0);
       const row = await pool.query(`SELECT session_id FROM memories WHERE id = $1`, [kept]);
       expect(row.rows[0].session_id).toBeNull();
     });
@@ -146,8 +155,8 @@ if (PG_URI === undefined || PG_URI === '') {
     test('F-arch-3: a re-run promotes 0 rows and writes NO duplicate audit row (fidelity)', async () => {
       const kept = await insertSessionRow('durable', 8, 3);
       const result = promoteResult(kept);
-      const first = await store.persistConsolidations([result], { promote: true });
-      const second = await store.persistConsolidations([result], { promote: true });
+      const first = await inWs(() => store.persistConsolidations([result], { promote: true }));
+      const second = await inWs(() => store.persistConsolidations([result], { promote: true }));
       expect(first).toBe(1); // one row actually promoted
       expect(second).toBe(0); // re-run: nothing left to promote (idempotent)
       expect(await auditCount(kept)).toBe(1); // exactly ONE audit row, not two (no over-report)
@@ -157,7 +166,7 @@ if (PG_URI === undefined || PG_URI === '') {
       const kept = await insertSessionRow('durable', 9, 3);
       // An invalid-uuid rejected id makes the `ANY($1::uuid[])` soft-delete cast throw mid-txn.
       const bad = promoteResult(kept, ['not-a-uuid']);
-      await expect(store.persistConsolidations([bad], { promote: true })).rejects.toThrow();
+      await expect(inWs(() => store.persistConsolidations([bad], { promote: true }))).rejects.toThrow();
       // The whole txn rolled back: the kept row is STILL session-scoped, no audit row.
       const row = await pool.query(`SELECT session_id FROM memories WHERE id = $1`, [kept]);
       expect(row.rows[0].session_id).toBe(SESSION);
@@ -169,8 +178,8 @@ if (PG_URI === undefined || PG_URI === '') {
       const result = promoteResult(kept);
       // Fire both in parallel; the `session_id IS NOT NULL` guard makes exactly one flip.
       const [a, b] = await Promise.all([
-        store.persistConsolidations([result], { promote: true }),
-        store.persistConsolidations([result], { promote: true }),
+        inWs(() => store.persistConsolidations([result], { promote: true })),
+        inWs(() => store.persistConsolidations([result], { promote: true })),
       ]);
       expect(a + b).toBe(1); // exactly one promotion effected across the two concurrent txns
       const row = await pool.query(`SELECT session_id FROM memories WHERE id = $1`, [kept]);
@@ -179,9 +188,19 @@ if (PG_URI === undefined || PG_URI === '') {
 
     test('without promote, the kept row stays session-scoped (v0.7 distillation behavior preserved)', async () => {
       const kept = await insertSessionRow('fact', 3, 3);
-      await store.persistConsolidations(
-        [{ keptMemoryId: kept, rejectedMemoryIds: [], reason: 'r', policyName: 'noop', originalEpisodeIds: [kept] }],
-        // no promote option
+      await inWs(() =>
+        store.persistConsolidations(
+          [
+            {
+              keptMemoryId: kept,
+              rejectedMemoryIds: [],
+              reason: 'r',
+              policyName: 'noop',
+              originalEpisodeIds: [kept],
+            },
+          ],
+          // no promote option
+        ),
       );
       const row = await pool.query(`SELECT session_id FROM memories WHERE id = $1`, [kept]);
       expect(row.rows[0].session_id).toBe(SESSION); // unchanged

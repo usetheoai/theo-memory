@@ -32,7 +32,7 @@ if (PG_URI === undefined || PG_URI === '') {
 
     beforeAll(async () => {
       const iso = await createIsolatedDb();
-      pool = iso.pool;
+      pool = iso.poolPinnedTo('default');
       dropDb = iso.dropDb;
       store = new PgvectorStore(pool);
       // 5 rows with strictly decreasing created_at so the DESC order is fixed.

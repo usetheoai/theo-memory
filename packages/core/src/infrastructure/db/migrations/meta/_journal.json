@@ -204,6 +204,41 @@
       "when": 1784808170551,
       "tag": "0028_entities_superseded_by_index",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1784808170552,
+      "tag": "0029_rls_fail_closed",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1784808170553,
+      "tag": "0030_worker_role_grants",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1784808170554,
+      "tag": "0031_reflection_counter_per_workspace",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1784808170555,
+      "tag": "0032_app_role_grants",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1784808170556,
+      "tag": "0033_worker_sequence_grants",
+      "breakpoints": true
     }
   ]
 }

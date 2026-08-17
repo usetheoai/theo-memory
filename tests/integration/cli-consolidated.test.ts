@@ -19,6 +19,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 
 import { createIsolatedDb } from './_helpers/isolated-db.js';
@@ -124,14 +125,21 @@ describe.skipIf(!existsSync(CLI_DIST) || !HAS_PG_URI)(
     // Isolated DB: `themory server` boot runs runMigrations({ embeddingDim: 384 })
     // (run-server.ts), which would migrate the SHARED db to 384 and break every
     // 1536-dim test that runs later. Point the spawned server at its own DB.
-    let isoUri = '';
+    // MIGRA pelo papel de setup (DDL), ATENDE pelo papel contido. É a separação
+    // que produção exige, e o guard de boot recusa superusuário — apontar o
+    // servidor para o pool de setup faria o boot ser recusado e o teste falharia
+    // com `listen timeout`, sem dizer por quê.
+    let setupUri = '';
+    let appUri = '';
     let dropIso: (() => Promise<void>) | undefined;
     beforeAll(async () => {
       const iso = await createIsolatedDb();
-      isoUri = iso.uri;
+      setupUri = iso.setupUri;
+      appUri = iso.uri;
       dropIso = iso.dropDb;
-      // Note: do NOT end iso.pool here — dropIso() (dropDb) ends it exactly once
-      // before DROP DATABASE. The spawned server uses isoUri via its own pool.
+      // O papel e seus privilégios vêm do harness: `themory_app` é provisionado
+      // pelo global-setup antes do template ser migrado, então o clone já chega
+      // com os GRANTs da 0032. Nada a criar aqui.
     });
 
     function spawnServer(
@@ -145,7 +153,10 @@ describe.skipIf(!existsSync(CLI_DIST) || !HAS_PG_URI)(
       const childEnv: NodeJS.ProcessEnv = {
         ...process.env,
         OPENAI_API_KEY: process.env['OPENAI_API_KEY'] ?? 'sk-fake-test-key-for-boot',
-        THEOMEM_PG_URI: isoUri,
+        // Atende pelo papel contido; MIGRA pelo dono. É a separação que produção
+        // exige — o papel de aplicação não tem DDL, por desenho.
+        THEOMEM_PG_URI: appUri,
+        THEOMEM_MIGRATE_PG_URI: setupUri,
         ...env,
       };
       const child = spawn(process.execPath, [CLI_DIST, 'server', ...args], {
@@ -194,11 +205,14 @@ describe.skipIf(!existsSync(CLI_DIST) || !HAS_PG_URI)(
       // reflection_counters + __drizzle_migrations on the SHARED db, breaking
       // every later test that assumed the schema) — integration-suite-stabilization.
       const { createIsolatedDb } = await import('./_helpers/isolated-db.js');
-      const { uri, dropDb } = await createIsolatedDb({ fresh: true });
+      // `themory migrate` é DDL: roda pelo papel de setup, como em produção. O
+      // papel de aplicação não tem DDL por desenho, e apontar a migrate para ele
+      // falha com `must be owner of …`.
+      const { setupUri, dropDb } = await createIsolatedDb({ fresh: true });
       try {
         const runOnce = async (): Promise<{ exitCode: number | null; stdout: string }> => {
           const child = spawn(process.execPath, [CLI_DIST, 'migrate'], {
-            env: { ...process.env, THEOMEM_PG_URI: uri },
+            env: { ...process.env, THEOMEM_PG_URI: setupUri },
             stdio: ['ignore', 'pipe', 'pipe'],
           });
           let stdout = '';
