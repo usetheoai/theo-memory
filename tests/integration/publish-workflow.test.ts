@@ -1,19 +1,16 @@
 /**
  * Static-shape validation for `.github/workflows/publish.yml` + `.trivyignore`.
  *
- * After the org-standardization convergence, the image build/scan/sign logic lived in the shared
- * reusable `theo/build-publish.yml`; `publish.yml` was a thin caller. Desde 2026-07-27 (#156) a
- * delegação aponta para uma CÓPIA VENDORIZADA local — este repo migrou para a org `usetheoai` e o
- * GitHub não compartilha reusable PRIVADO cross-owner, então a chamada ao `theo` (que segue em
- * `usetheodev`) falhava no parse do workflow.
- *
- * ESTES TESTES SÃO O ALARME CONTRA A CÓPIA VIRAR PERMANENTE. Quando `usetheodev/theo` migrar para
- * `usetheoai`: volte o `uses:` para o reusable, APAGUE `.github/workflows/build-publish.yml` e
- * atualize os três testes abaixo no MESMO commit. Se um andar sem o outro, isto fica vermelho.
+ * The image build/scan/sign/push logic lives in the org's shared reusable
+ * `usetheoai/theo/.github/workflows/build-publish.yml`, pinned by commit SHA; `publish.yml` is a
+ * thin caller. From 2026-07-27 (#156) to 2026-09-29 it called a VENDORED local copy instead,
+ * because the reusable lived under another owner and GitHub does not share a private reusable
+ * across owners. The engine moved to `usetheoai`, the copy was deleted, and the tests that
+ * guarded the copy's own internals went with it: this repository can no longer read them.
  *
  * @see deps-audit-golden-rule.md § Severity rubric (EC-43 Trivy gate) + EC-44 (permissions)
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -38,24 +35,74 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     expect(readFileSync(WORKFLOW_PATH, 'utf-8')).toMatch(/id-token:\s*write/);
   });
 
-  test('delegates to the VENDORED local build-publish, requesting the Trivy gate (EC-43)', () => {
+  test('delegates to the shared usetheoai reusable pinned by commit SHA, requesting the Trivy gate (EC-43)', () => {
     const yaml = readFileSync(WORKFLOW_PATH, 'utf-8');
-    // Era `usetheodev/theo/.github/workflows/build-publish.yml@`. Passou a ser a cópia LOCAL em
-    // 2026-07-27 (#156): este repo foi para a org `usetheoai` e o GitHub não compartilha reusable
-    // PRIVADO cross-owner, então a chamada ao `theo` falhava no parse do workflow.
-    expect(yaml).toMatch(/uses:\s*\.\/\.github\/workflows\/build-publish\.yml/);
+    // Pinned by a full commit SHA, not by a branch: a moving `@develop` would change how this
+    // image is built without a commit in this repository.
+    expect(yaml).toMatch(
+      /uses:\s*usetheoai\/theo\/\.github\/workflows\/build-publish\.yml@[0-9a-f]{40}\b/,
+    );
+    expect(yaml, 'the vendored copy must not come back as the reference').not.toMatch(
+      /uses:\s*\.\/\.github\/workflows\/build-publish\.yml/,
+    );
     expect(yaml).toMatch(/trivy:\s*true/);
-    // `theo-memory`, o nome do repositorio — padrao dos irmaos (theo-lens ->
-    // theo-lens, theo-rag -> theo-rag, theo-db -> theo-db). Era `themory` ate
-    // 2026-07-28.
-    //
-    // A segunda assercao existe porque o consumidor critico deste nome esta FORA
-    // deste repo: o reconciliador do host (dev/theo-memory/reconcile.sh). Voltar
-    // para `themory` aqui nao quebraria build nem push — so faria o host parar de
-    // receber versao nova, convergindo para sempre na ultima imagem antiga, sem
-    // erro algum.
+    // `theo-memory` is the repository name and the ECR repository name. The critical consumer of
+    // this name lives OUTSIDE this repo (the host reconciler): going back to `themory` would break
+    // no build and no push, the host would just stop receiving new versions, silently.
     expect(yaml).toMatch(/image:\s*theo-memory\b/);
-    expect(yaml, 'o nome antigo nao pode voltar em silencio').not.toMatch(/image:\s*themory\b/);
+    expect(yaml, 'the old name must not come back silently').not.toMatch(/image:\s*themory\b/);
+  });
+
+  test('the vendored copy of build-publish is gone', () => {
+    // Two definitions of one pipeline diverge: the copy had drifted from the shared reusable in
+    // eight places, and the shared one gained ECR while the copy did not. Keeping it "just in
+    // case" would leave a second pipeline nothing calls and everyone reads.
+    expect(existsSync(resolve(REPO_ROOT, '.github/workflows/build-publish.yml'))).toBe(false);
+  });
+
+  test('passes the shared reusable only inputs it declares', () => {
+    // GitHub refuses the WHOLE workflow at startup, with no log at all, when a caller passes an
+    // input the reusable does not declare. Measured in theo-cloud (B-270): `git_sha` and
+    // `version_label` killed five runs in under a second, two release tags among them. This
+    // repository's vendored copy accepted `attest` and `platforms`, which the shared one does
+    // not — carrying them over would have reproduced exactly that.
+    //
+    // The list is the reusable's `workflow_call.inputs` at the pinned SHA. Bumping the pin to a
+    // version that declares more inputs is the moment to extend it.
+    const declared = new Set([
+      'aws_role_arn', 'build_args', 'context', 'dockerfile', 'dockerhub_image', 'ecr_registry',
+      'image', 'registry', 'runner', 'sign', 'trivy', 'verify',
+    ]);
+    const yaml = readFileSync(WORKFLOW_PATH, 'utf-8');
+    const job = yaml.slice(yaml.indexOf('\n  image:'));
+    const withBlock = /\n    with:\n([\s\S]*?)(?=\n    \S|\n  \S|$)/.exec(job)?.[1] ?? '';
+    const passed = [...withBlock.matchAll(/^      ([a-z_]+):/gm)].map((m) => m[1] as string);
+    expect(passed.length, 'the image job must pass inputs to the reusable').toBeGreaterThan(0);
+    for (const input of passed) {
+      expect(declared.has(input), `input not declared by the shared reusable: ${input}`).toBe(true);
+    }
+  });
+
+  test('publishes to Amazon ECR from repository variables', () => {
+    // The platform runs this service from ECR, pinned by commit SHA (usetheoai/theo#446). The
+    // registry and the role are repository VARIABLES so the account id is never fixed in text;
+    // unset, the reusable skips ECR and GHCR still publishes.
+    const yaml = readFileSync(WORKFLOW_PATH, 'utf-8');
+    expect(yaml).toMatch(/ecr_registry:\s*\$\{\{\s*vars\.ECR_REGISTRY\s*\}\}/);
+    expect(yaml).toMatch(/aws_role_arn:\s*\$\{\{\s*vars\.AWS_IMAGE_PUBLISH_ROLE_ARN\s*\}\}/);
+    expect(yaml, 'no AWS account id written in the workflow').not.toMatch(/\b\d{12}\b/);
+  });
+
+  test('grants the image job every scope the shared reusable declares', () => {
+    // GitHub refuses at startup — with no log — a reusable that asks for more than its caller
+    // grants (usetheoai/theo#436). The shared reusable declares `attestations: write`, which the
+    // workflow-level block here does not carry, so the image job grants it explicitly.
+    const yaml = readFileSync(WORKFLOW_PATH, 'utf-8');
+    const job = yaml.slice(yaml.indexOf('\n  image:'));
+    const permissions = /\n    permissions:\n((?:      .*\n)+)/.exec(job)?.[1] ?? '';
+    for (const scope of ['contents: read', 'packages: write', 'id-token: write', 'attestations: write']) {
+      expect(permissions, `image job must grant ${scope}`).toContain(scope);
+    }
   });
 
   test('test_gaps_conhecidos_tem_dono_e_razao', () => {
@@ -141,53 +188,23 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     }
   });
 
-  test('test_build_nao_recebe_credencial_que_nao_usa', () => {
-    // T4.1 — o build recebia `GOMOD_TOKEN` como segredo do BuildKit. Medido:
-    //   - o Dockerfile NUNCA monta `--mount=type=secret,id=gomod_token`
-    //   - nao existe `go.mod` em lugar nenhum deste repositorio
+  test('the build receives no credential it does not use', () => {
+    // T4.1 — the build used to receive `GOMOD_TOKEN` as a BuildKit secret. Measured: the
+    // Dockerfile never mounts it, and there is no `go.mod` anywhere in this repository. A
+    // credential handed to a step that does not use it is surface with no return: it is
+    // available to ANY `RUN` of the build, and to any layer the Dockerfile gains later.
     //
-    // O proprio comentario do input revelava a origem — leitura cross-repo de um
-    // modulo Go privado. Esta copia foi vendorizada de um reusable escrito para
-    // um repo Go; a credencial veio junto e nunca teve consumidor aqui.
-    //
-    // Credencial entregue a um passo que nao a usa e superficie sem contrapartida:
-    // fica disponivel a QUALQUER `RUN` do build e a qualquer camada que o
-    // Dockerfile venha a ganhar depois, sem que ninguem tenha decidido isso.
-    const vendored = readFileSync(resolve(REPO_ROOT, '.github/workflows/build-publish.yml'), 'utf-8');
+    // The shared reusable declares it as an OPTIONAL secret for the Go repositories of the org;
+    // what this guards is that this caller never passes it.
     const caller = readFileSync(WORKFLOW_PATH, 'utf-8');
-    // Casa a CHAVE/atribuicao YAML, nao a palavra. O ledger do cabecalho CITA
-    // `GOMOD_TOKEN` para explicar por que ele foi removido — documentacao util,
-    // e proibir a palavra empurraria a explicacao para fora do arquivo. Quarta
-    // ocorrencia desta licao nesta sessao.
-    expect(vendored, 'segredo Go num repo sem go.mod').not.toMatch(
-      /^\s*GOMOD_TOKEN\s*:|^\s*gomod_token\s*=/m,
+    expect(caller, 'the caller must not pass a Go credential').not.toMatch(
+      /^\s*GOMOD_(TOKEN|SSH_KEY)\s*:/m,
     );
-    expect(caller, 'o chamador tambem nao pode repassa-lo').not.toMatch(/GOMOD_TOKEN/);
-  });
-
-  test('test_release_nao_escreve_no_cache_compartilhado', () => {
-    // T3.3 — os dois canais dividiam UM escopo de cache (`scope=inputs.image`),
-    // com frequencia e tamanho muito diferentes:
-    //   develop  — todo push, amd64, quente
-    //   tag      — raro, multi-arch, export mode=max (grande)
-    //
-    // O cache do GHA tem teto por repositorio e despeja por LRU. O export raro e
-    // grande da release despeja as camadas quentes do develop; os builds de
-    // develop passam a rodar frios — exatamente o custo que o cache existia para
-    // evitar, numa frota cobrada por MINUTO. E a entrada escrita pela release
-    // quase certamente e despejada antes da proxima tag, entao o upload e pago
-    // sem nunca ser lido.
-    //
-    // LER continua sempre (a release aproveita as camadas do develop; de graca).
-    // ESCREVER so fora de tag.
-    const vendored = readFileSync(resolve(REPO_ROOT, '.github/workflows/build-publish.yml'), 'utf-8');
-    const exports = vendored.match(/^\s*cache-to:.*$/gm) ?? [];
-    expect(exports.length, 'deve haver export de cache nos dois builds').toBe(2);
-    for (const line of exports) {
-      expect(line, 'cache-to deve ser condicional ao ref nao ser tag').toMatch(
-        /refs\/tags/,
-      );
-    }
+    // Anchored on the YAML key at line start: the comments explain WHY inherit is refused, and a
+    // bare-word match would forbid the explanation instead of the construct.
+    expect(caller, 'secrets: inherit hands the reusable every secret of the repo').not.toMatch(
+      /^\s*secrets:\s*inherit/m,
+    );
   });
 
   test('test_scanner_de_segredo_alcanca_a_prosa_que_diz_alcancar', () => {
@@ -226,44 +243,6 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     expect(sast, 'scanner de segredo nao pode filtrar por caminho').not.toMatch(
       /^\s*paths-ignore\s*:/m,
     );
-  });
-
-  test('test_ledger_da_copia_vendorizada_lista_toda_divergencia', () => {
-    // F-arch-2 — a copia vendorizada carrega um ledger de divergencias no
-    // cabecalho, encerrado por "Todo o resto e identico ao original". Esta
-    // remediacao adicionou QUATRO divergencias sem atualiza-lo.
-    //
-    // O ledger nao e decoracao: ele e a instrucao que a pessoa seguira quando o
-    // reusable original voltar a ser acessivel. Um ledger que diz "o resto e
-    // identico" faz essa pessoa descartar as quatro correcoes em silencio — e o
-    // canal implantado perde assinatura, teto de tempo e ancora do cosign sem
-    // que nada fique vermelho.
-    const vendored = readFileSync(resolve(REPO_ROOT, '.github/workflows/build-publish.yml'), 'utf-8');
-    const header = vendored.slice(0, vendored.indexOf('name: build-publish'));
-    for (const item of ['timeout-minutes', 'GOMOD_TOKEN', 'cache-to', 'certificate-identity-regexp']) {
-      expect(header, `divergencia nao declarada no ledger: ${item}`).toContain(item);
-    }
-
-    // A CONTAGEM declarada tem de bater com os itens enumerados. Pega o caso real
-    // que o /review encontrou: a lista cresceu de 4 para 8 e duas frases do mesmo
-    // cabecalho continuaram dizendo "quatro". Ledger que se contradiz nao orienta
-    // ninguem.
-    //
-    // Limite honesto: isto NAO detecta divergencia nova — o teste nao tem acesso
-    // ao original para comparar. Ele so garante coerencia interna do ledger.
-    const enumerados = (header.match(/^#\s+\d+\.\s/gm) ?? []).length;
-    const porExtenso: Record<string, number> = {
-      quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10,
-    };
-    const declarados = [...header.matchAll(/divergiu em (\w+) pontos|ORIGINAL — (\w+),/gi)]
-      .map((m) => porExtenso[(m[1] ?? m[2]).toLowerCase()])
-      .filter((n): n is number => typeof n === 'number');
-    expect(declarados.length, 'o ledger precisa declarar quantas divergencias tem').toBeGreaterThan(0);
-    for (const n of declarados) {
-      expect(n, `contagem declarada (${n}) nao bate com ${enumerados} itens enumerados`).toBe(
-        enumerados,
-      );
-    }
   });
 
   test('test_tabela_de_publicacao_do_readme_bate_com_o_workflow', () => {
@@ -340,17 +319,6 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     );
   });
 
-  test('test_job_de_build_tem_timeout', () => {
-    // T3.1 — o job mais caro do repo rodava com o teto padrao de 360 min numa frota
-    // cobrada por MINUTO (Blacksmith): um job pendurado e caixa, nao cota.
-    //
-    // O detalhe que torna isto nao-obvio: o GitHub NAO honra `timeout-minutes` em job
-    // `uses:`. Aplica-lo em publish.yml — o lugar obvio — seria silenciosamente inerte.
-    // O unico lugar onde funciona e dentro do proprio reusable.
-    const vendored = readFileSync(resolve(REPO_ROOT, '.github/workflows/build-publish.yml'), 'utf-8');
-    expect(vendored).toMatch(/timeout-minutes:\s*\d+/);
-  });
-
   test('test_imagem_so_publica_apos_os_gates', () => {
     // T1.2 — publish.yml tinha UM `needs` (a propria guarda) e nao existe
     // `workflow_run` em nenhum workflow, entao a imagem era construida e empurrada
@@ -374,14 +342,6 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     expect(yaml, 'ADR-5: workflow define o build, entao mudanca dele reconstroi').not.toMatch(
       /paths-ignore:[\s\S]{0,200}'\.github\/\*\*'/,
     );
-  });
-
-  test('test_identidade_do_cosign_e_ancorada', () => {
-    // T2.3 — o regexp terminava em `build-publish\\.yml@` SEM ancora terminal, entao
-    // qualquer coisa depois do `@` casava. O guard existe para impedir que assinatura
-    // produzida por outro workflow seja aceita; casamento aberto o enfraquece.
-    const vendored = readFileSync(resolve(REPO_ROOT, '.github/workflows/build-publish.yml'), 'utf-8');
-    expect(vendored, 'sem ancora terminal, qualquer ref casa').toMatch(/build-publish\\\.yml@refs\/\(heads\|tags\)\/\.\+\$/);
   });
 
   test('test_dockerfile_parseia_cada_from', () => {
@@ -440,184 +400,50 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     expect(integration, 'service container tambem e dependencia').toMatch(/image:\s*\S+@sha256:[0-9a-f]{64}/);
   });
 
-  test('a divida da copia vendorizada tem sunset, e ele ainda nao venceu', () => {
-    // O cabecalho da copia sempre disse "DIVIDA CONSCIENTE, COM DATA DE VALIDADE"
-    // — e ate 2026-07-28 nao trazia data nenhuma. Prosa que nao expira nao e
-    // prazo, e intencao; e intencao nao segura duplicacao de pipeline.
+  test('signs every published artifact, and does not verify against an identity it cannot match', () => {
+    // The signed channel has to be the DEPLOYED channel: the host reconciler pulls `:develop`
+    // and the platform pulls ECR by commit SHA, so `sign` must hold for every push, not only for
+    // tags. Moving it back to release-only would break no build and no push — it would just leave
+    // what runs unsigned again, in silence.
     //
-    // Este teste faz a data existir de fato. Ao vencer, ha duas saidas honestas,
-    // e as duas exigem um commit: migrar (apagar a copia, voltar ao reusable) ou
-    // estender a data RECONHECENDO que a divergencia ganhou mais um trimestre.
-    // O que ele impede e a terceira saida, a que acontece sozinha: esquecer.
-    const vendored = readFileSync(resolve(REPO_ROOT, '.github/workflows/build-publish.yml'), 'utf-8');
-
-    const match = /SUNSET (\d{4})-(\d{2})-(\d{2})/.exec(vendored);
-    expect(match, 'o cabecalho precisa declarar SUNSET YYYY-MM-DD').not.toBeNull();
-
-    const [, y, m, d] = match as RegExpExecArray;
-    const sunset = Date.UTC(Number(y), Number(m) - 1, Number(d));
-    const hoje = Date.now();
-
-    expect(
-      hoje,
-      `A copia vendorizada de build-publish.yml venceu em ${y}-${m}-${d}.\n` +
-        'Duas saidas, ambas com commit:\n' +
-        '  (a) usetheodev/theo migrou para usetheoai? Apague o arquivo, devolva\n' +
-        '      publish.yml para `uses: usetheoai/theo/...` e atualize os testes\n' +
-        '      desta suite no MESMO commit.\n' +
-        '  (b) Ainda nao migrou? Estenda o SUNSET no cabecalho, ciente de que as\n' +
-        '      quatro divergencias documentadas continuam crescendo.\n',
-    ).toBeLessThan(sunset);
-  });
-
-  test('the vendored copy exists and publishes to the usetheoai namespace', () => {
-    // Guarda de coerência: enquanto o `publish.yml` apontar para a cópia local, ela TEM de existir.
-    const vendored = readFileSync(resolve(REPO_ROOT, '.github/workflows/build-publish.yml'), 'utf-8');
-    expect(vendored).toMatch(/registry:\s*\{[^}]*default:\s*"ghcr\.io\/usetheoai"/);
-    // O caller sobrescreve explicitamente — o default sozinho não é garantia suficiente.
-    expect(readFileSync(WORKFLOW_PATH, 'utf-8')).toMatch(/registry:\s*ghcr\.io\/usetheoai/);
-  });
-
-  test('the vendored cosign identity is pinned to THIS repo, not to the origin repo', () => {
-    // O guard de confused-deputy (EC-2) deriva a identidade keyless de repo + path do workflow.
-    // Se a cópia mantivesse o regexp do original (`usetheodev/theo`), a verificação de release
-    // falharia — e um regexp apontando para outro repo aceitaria assinatura de terceiro.
-    const vendored = readFileSync(resolve(REPO_ROOT, '.github/workflows/build-publish.yml'), 'utf-8');
-    expect(vendored).toMatch(/certificate-identity-regexp.*usetheoai\\?\/theo-memory/);
-    expect(vendored).not.toMatch(/certificate-identity-regexp.*usetheodev\\?\/theo\\?\//);
-  });
-
-  test('assina TODO artefato publicado, e atesta (SBOM/SLSA) so na release', () => {
-    // O canal assinado tem de ser o canal IMPLANTADO. O reconciliador do host
-    // puxa `:develop` a cada 5 min; com `sign` amarrado a tag de release, era
-    // exatamente o artefato em execucao que nao tinha assinatura — a garantia
-    // vivia num canal que ninguem roda.
-    //
-    // A separacao entre `sign` e `attest` e o que torna isso possivel: cosign
-    // custa segundos, enquanto SBOM + proveniencia mode=max e o export pesado
-    // (o reusable registra que o cache do GHA devolve 500/BlobNotFound nele).
-    // Empacotados, a unica escolha viavel era "tudo na release".
-    //
-    // Este teste trava as duas pontas para que a regressao seja ruidosa: voltar
-    // `sign` para release-only nao quebraria build nem push — so deixaria o que
-    // roda sem assinatura, de novo, e em silencio.
+    // `verify` is the opposite case. The shared reusable pins the verified identity to the
+    // CALLER's repository, while a certificate produced inside a reusable workflow carries the
+    // REUSABLE's path. Measured on the Rekor entry of an image this same reusable signed for
+    // theo-cloud: SAN = `https://github.com/usetheoai/theo/.github/workflows/build-publish.yml@…`.
+    // `verify: true` would fail every run after the push, reporting red for a published image.
     const yaml = readFileSync(WORKFLOW_PATH, 'utf-8');
-    const vendored = readFileSync(resolve(REPO_ROOT, '.github/workflows/build-publish.yml'), 'utf-8');
-
-    expect(yaml, 'sign tem de valer para todo push, nao so para tag').toMatch(/sign:\s*true/);
-    expect(yaml, 'verificar junto — assinar sem verificar nao prova nada').toMatch(
-      /verify:\s*true/,
-    );
-    expect(yaml, 'sign NAO pode voltar a ser condicional a tag').not.toMatch(
+    expect(yaml, 'sign must hold for every push, not only for tags').toMatch(/^\s*sign:\s*true\s*$/m);
+    expect(yaml, 'sign must not become conditional on a tag again').not.toMatch(
       /sign:\s*\$\{\{\s*startsWith\(github\.ref/,
     );
-    expect(yaml, 'attest (export pesado) fica restrito a release').toMatch(
-      /attest:\s*\$\{\{\s*startsWith\(github\.ref,\s*'refs\/tags\/v'\)/,
-    );
-
-    // E o reusable precisa mesmo tratar os dois como inputs distintos.
-    expect(vendored, 'attest tem de ser input proprio').toMatch(
-      /attest:\s*\{\s*required:\s*false/,
-    );
-    expect(vendored, 'sbom/provenance seguem attest, nao sign').toMatch(
-      /sbom:\s*\$\{\{\s*inputs\.attest\s*\}\}[\s\S]{0,120}provenance:\s*\$\{\{\s*inputs\.attest/,
+    expect(yaml, 'verify cannot match the reusable identity from a caller repo').toMatch(
+      /^\s*verify:\s*false\s*$/m,
     );
   });
 
-  test(':latest so sai de codigo promovido a main — tag nao e promocao', () => {
-    // `:latest` e a referencia que a reconciliacao de PRODUCAO consome.
+  test(':latest only ships from code promoted to main — a tag is not a promotion', () => {
+    // `:latest` is the reference PRODUCTION reconciliation consumes. The shared reusable only
+    // emits it on `refs/tags/v*`, but a TAG IS NOT A PROMOTION: nothing stops tagging a commit of
+    // develop, a work branch or a fork merge. This guard is what makes the release contract
+    // (develop -> main by PR, tag on the merge) enforcement rather than discipline.
     //
-    // Ela ja era condicionada a `refs/tags/v*`, mas TAG NAO E PROMOCAO: nada
-    // impedia taggear um commit de develop, de um branch de trabalho ou de um
-    // fork-merge e publicar :latest a partir dele. O contrato do ciclo de
-    // release (develop -> main por PR, tag no merge) era DISCIPLINA, e a
-    // diferenca entre disciplina e enforcement so aparece no dia em que alguem
-    // taggeia no lugar errado — com producao puxando.
-    //
-    // Verificado contra a realidade em 2026-07-28 via a API de compare:
-    //   v0.56.0 (em main)        -> behind    -> aceita
-    //   origin/develop (nao promovido) -> diverged -> rejeita
+    // Verified against reality on 2026-07-28 through the compare API:
+    //   v0.56.0 (on main)               -> behind   -> accepted
+    //   origin/develop (not promoted)   -> diverged -> rejected
     const yaml = readFileSync(WORKFLOW_PATH, 'utf-8');
-    const vendored = readFileSync(resolve(REPO_ROOT, '.github/workflows/build-publish.yml'), 'utf-8');
 
-    expect(vendored, ':latest continua restrito a tag semver').toMatch(
-      /value=latest,enable=\$\{\{\s*startsWith\(github\.ref,\s*'refs\/tags\/v'\)/,
-    );
-    expect(yaml, 'a guarda de promocao precisa existir').toMatch(/guard-release-on-main:/);
-    expect(yaml, 'a guarda so avalia tags').toMatch(
+    expect(yaml, 'the promotion guard must exist').toMatch(/guard-release-on-main:/);
+    expect(yaml, 'the guard only evaluates tags').toMatch(
       /if:\s*\$\{\{\s*startsWith\(github\.ref,\s*'refs\/tags\/v'\)\s*\}\}/,
     );
-    expect(yaml, 'compara a posicao do commit em relacao a main').toMatch(
+    expect(yaml, 'compares the commit position relative to main').toMatch(
       /compare\/main\.\.\.\$\{SHA\}/,
     );
-    expect(yaml, 'so identical e behind significam promovido').toMatch(/identical\|behind\)/);
-    // Sem o `needs`, a guarda existiria mas nao gatearia nada — o modo de falha
-    // mais silencioso possivel: um job verde ao lado de um publish que ignorou.
-    expect(yaml, 'o job da imagem precisa DEPENDER da guarda').toMatch(
-      /needs:[\s\[]*guard-release-on-main/,   // lista desde T1.2: [guard, gate-ci, gate-contract]
-    );
-  });
-
-  test('arm64 e construido na release e NAO em todo push de develop (custo de emulacao)', () => {
-    // Duas assercoes com intencoes opostas, de proposito.
-    //
-    // (1) A capacidade tem de existir: uma imagem so-amd64 nao roda em no
-    //     Graviton, e o erro no cluster e obscuro. O delta medido entre a
-    //     familia AMD e o Graviton foi ~$100/mes numa maquina de 8 vCPU/32 GB.
-    //
-    // (2) Ela NAO pode estar ligada em develop: arm64 aqui sai por emulacao
-    //     (QEMU) sobre um build que ja leva ~14 min a frio pelo double-build do
-    //     gate Trivy. Ligar em todo push cobraria esse preco por iteracao, sem
-    //     consumidor ARM hoje. Este teste e o que impede a mudanca silenciosa —
-    //     ela nao quebraria nada, so tornaria cada push mais lento, e ninguem
-    //     ligaria uma coisa a outra semanas depois.
-    const caller = readFileSync(WORKFLOW_PATH, 'utf-8');
-    const vendored = readFileSync(resolve(REPO_ROOT, '.github/workflows/build-publish.yml'), 'utf-8');
-
-    expect(vendored, 'o reusable precisa aceitar platforms como input').toMatch(
-      /platforms:\s*\{\s*required:\s*false/,
-    );
-    expect(vendored, 'o default tem de ser amd64 — custo zero para quem nao opta').toMatch(
-      /platforms:[\s\S]{0,80}default:\s*"linux\/amd64"/,
-    );
-    expect(vendored, 'o build precisa repassar o input ao build-push-action').toMatch(
-      /platforms:\s*\$\{\{\s*inputs\.platforms\s*\}\}/,
-    );
-    expect(vendored, 'QEMU e necessario para cross-arch e deve ser condicional').toMatch(
-      /setup-qemu-action@[0-9a-f]{40}/,
-    );
-
-    // O chamador liga arm64 SOMENTE em tag de release.
-    expect(caller, 'arm64 so na release').toMatch(
-      /platforms:\s*\$\{\{\s*startsWith\(github\.ref,\s*'refs\/tags\/v'\)\s*&&\s*'linux\/amd64,linux\/arm64'\s*\|\|\s*'linux\/amd64'/,
-    );
-  });
-
-  test('o reusable EXPORTA o digest — sem isso o deploy nao tem como ser idempotente', () => {
-    // O digest e o unico identificador imutavel do que foi publicado. Ele ja era
-    // calculado e usado para assinar, mas morria no fim do job: `workflow_call`
-    // nao declarava `outputs`, entao nenhum consumidor o recebia e o deploy tinha
-    // de resolver a TAG no momento do pull. Tag se move — duas aplicacoes "da
-    // mesma versao" podem trazer imagens diferentes, e a idempotencia morre ai.
-    //
-    // Este teste existe porque a perda e SILENCIOSA: remover o bloco `outputs`
-    // nao quebra build, push, assinatura nem verificacao. So quebra quem consome.
-    const vendored = readFileSync(resolve(REPO_ROOT, '.github/workflows/build-publish.yml'), 'utf-8');
-
-    // Nivel workflow_call — o que o chamador enxerga.
-    expect(vendored, 'workflow_call precisa declarar o output digest').toMatch(
-      /outputs:[\s\S]*?digest:[\s\S]*?value:\s*\$\{\{\s*jobs\.build-publish\.outputs\.digest/,
-    );
-    expect(vendored, 'workflow_call precisa declarar o output image_ref').toMatch(
-      /image_ref:[\s\S]*?value:\s*\$\{\{\s*jobs\.build-publish\.outputs\.image_ref/,
-    );
-
-    // Nivel job — a ponte ate o step que realmente produz o digest.
-    expect(vendored, 'o job precisa mapear digest a partir do step de build').toMatch(
-      /digest:\s*\$\{\{\s*steps\.build\.outputs\.digest\s*\}\}/,
-    );
-    expect(vendored, 'image_ref precisa ser fixado por @digest, nunca por tag').toMatch(
-      /image_ref:\s*\$\{\{\s*inputs\.registry\s*\}\}\/\$\{\{\s*inputs\.image\s*\}\}@\$\{\{\s*steps\.build\.outputs\.digest/,
+    expect(yaml, 'only identical and behind mean promoted').toMatch(/identical\|behind\)/);
+    // Without the `needs`, the guard would exist and gate nothing — a green job next to a
+    // publish that ignored it.
+    expect(yaml, 'the image job must DEPEND on the guard').toMatch(
+      /needs:[\s\[]*guard-release-on-main/,
     );
   });
 
