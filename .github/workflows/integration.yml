@@ -70,8 +70,7 @@ jobs:
     # Sem contagem de testes no nome: o número envelhece sozinho (o #104 falava em 1353; medido
     # 1479 passed / 1 skipped em 2026-07-27) e um nome que mente é pior que um nome genérico.
     name: contract suite (pgvector)
-    # Blacksmith (#156) — ver o job `integration` abaixo para as duas pré-condições da migração.
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     # Sem a suíte de integração nem o download do modelo, sobra build + a suíte de contrato.
     # Medido em 2026-07-27: 53 s de job ponta a ponta na frota de 8 vCPU.
     timeout-minutes: 30
@@ -168,43 +167,11 @@ jobs:
     if: >-
       ${{ !inputs.called_by_workflow
           && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
-    # RUNNER — Blacksmith, 8 vCPU / 32 GB (#156). A migração levou 4 tentativas em 2026-07-27; as
-    # 3 primeiras morreram IGUAL (`queued`, `runner_name` vazio, zero pickup, nenhum step
-    # executado: 40+ / 9+ / 12+ min). O registro fica porque a causa não é adivinhável pelo YAML.
-    #
-    # SÃO DUAS PRÉ-CONDIÇÕES, e cada uma só ficou visível depois de resolver a anterior:
-    #
-    # (1) O REPO PRECISA PERTENCER A UMA ORGANIZAÇÃO. Estava em `usetheodev`, conta PESSOAL
-    #     (`type=User`). A doc é explícita: "Blacksmith is limited to GitHub organizations and
-    #     not available for personal repositories". Resolvido transferindo para a org `usetheoai`
-    #     (secrets e variables sobreviveram). NECESSÁRIO, mas NÃO suficiente — a 3ª tentativa,
-    #     já sob a org, falhou igual.
-    #
-    # (2) O GITHUB APP PRECISA ESTAR INSTALADO NA ORG QUE DONA O REPO. Instalação de App pertence
-    #     à CONTA, não ao repositório: ao transferir, o repo saiu de baixo da instalação que
-    #     existia em `usetheodev` e entrou numa org sem instalação alguma. Resolvido instalando
-    #     em github.com/apps/blacksmith-sh para `usetheoai` (repo_selection=all).
-    #
-    # O QUE DESPISTOU O DIAGNÓSTICO POR TRÊS RODADAS: o Migration Wizard lê os repositórios pela
-    # SESSÃO OAUTH do usuário, não pela instalação do App. Por isso sempre listou estes workflows
-    # e respondeu "No changes to migrate" — mesmo com o repo numa conta pessoal e nenhum runner
-    # sendo servido. Ele atesta o `runs-on`, NÃO a integração.
-    #
-    # ORDEM DE VERIFICAÇÃO SE VOLTAR A FICAR `queued` COM `runner_name` VAZIO (barata → cara):
-    #   a) `gh api repos/<owner>/theo-memory --jq .owner.type` → tem de ser "Organization"
-    #   b) `gh api orgs/<org>/installations` → tem de listar `blacksmith-sh` (exige admin:org)
-    #   c) Billing/plano ativo PARA ESSA ORG em app.blacksmith.sh (o cartão fica na conta e não
-    #      migra junto com o repo)
-    #   d) IP allow list da org (Settings > Security). Se habilitada, liberar 34.107.78.182,
-    #      63.181.86.27, 63.178.35.73 — causa documentada de "jobs not getting picked up".
-    # A label literal depende de `.github/actionlint.yaml`: sem ele o gate actionlint a rejeita
-    # em TODOS os workflows.
-    #
-    # PERGUNTA DO #156, ENFIM RESPONDIDA — SIM, runner efêmero provisiona `services:`. Medido no
-    # run 30306550648: `Initialize containers` OK, o pgvector subiu, `job.services.postgres.ports`
-    # resolveu a porta dinâmica, o schema aplicou e a suíte de contrato passou inteira.
-    # A doc da Blacksmith não cobre service containers em lugar nenhum — isto aqui é a evidência.
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    # RUNNER — GitHub-hosted `ubuntu-latest`. The org has no runner serving the former
+    # Blacksmith label (`blacksmith-8vcpu-ubuntu-2404`) any more, so a job declaring it sits
+    # queued until cancelled. Service containers (`services: postgres`) are provisioned natively
+    # on GitHub-hosted Linux runners.
+    runs-on: ubuntu-latest
     # Medido: max 28,8 min (baixa o modelo Xenova ~22 MB com 6 tentativas, aplica schema, roda a
     # suíte de integração). 60 = ~2x o observado.
     timeout-minutes: 60

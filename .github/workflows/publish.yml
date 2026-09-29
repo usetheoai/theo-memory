@@ -93,7 +93,7 @@ jobs:
   #   ahead     -> the tag has commits main does not have         (NOT promoted)
   #   diverged  -> separate histories                             (NOT promoted)
   guard-release-on-main:
-    runs-on: ${{ fromJSON('["blacksmith-8vcpu-ubuntu-2404"]') }}
+    runs-on: ubuntu-latest
     steps:
       - name: Is the tag on main?
         if: ${{ startsWith(github.ref, 'refs/tags/v') }}
@@ -193,10 +193,8 @@ jobs:
       # GHCR publishes as before. The account id is never fixed in text.
       ecr_registry: ${{ vars.ECR_REGISTRY }}
       aws_role_arn: ${{ vars.AWS_IMAGE_PUBLISH_ROLE_ARN }}
-      # The same runner fleet as every job in this repo. The reusable declares `runner` as a
-      # STRING and does the `fromJSON` on its side, so a literal JSON string goes here — do NOT
-      # wrap it in fromJSON, which would produce an array where the input expects a string.
-      runner: '["blacksmith-8vcpu-ubuntu-2404"]'
+      # No `runner:` input: the reusable defaults to '["ubuntu-latest"]', the same runner as
+      # every job in this repo, and repeating the default would only be a second copy to drift.
     # NO `secrets:` block — on purpose. The reusable's optional secrets are for a Go module this
     # repo does not have and for Docker Hub, which this workflow does not publish to (no
     # `dockerhub_image`). Passing a credential to a destination that cannot use it is surface with

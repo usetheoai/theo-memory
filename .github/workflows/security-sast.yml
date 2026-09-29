@@ -42,8 +42,7 @@ concurrency:
 jobs:
   semgrep:
     name: semgrep (TypeScript / OWASP)
-    # Blacksmith (#156) — ver integration.yml para as duas pré-condições que atrasaram a migração.
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     # Medido: max ~3 min (semgrep + gitleaks em container). 15 cobre pull de imagem em runner frio.
     timeout-minutes: 15
     steps:

@@ -49,7 +49,7 @@ jobs:
   # Usa a API de compare em vez de `git merge-base`: dispensa clonar o histórico só para
   # responder sim/não, e roda em segundos.
   guard-release-on-main:
-    runs-on: ${{ fromJSON('["blacksmith-8vcpu-ubuntu-2404"]') }}
+    runs-on: ubuntu-latest
     steps:
       - name: A tag esta no head de main?
         if: ${{ startsWith(github.ref, 'refs/tags/v') }}
@@ -77,7 +77,7 @@ jobs:
     # arrastaria o publish junto.
     needs: guard-release-on-main
     name: publish @usetheo/memory
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
