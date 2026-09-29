@@ -350,12 +350,19 @@ docker run --rm --entrypoint /nodejs/bin/node \
 
 ## CI/CD
 
-Every release image is **cosign-signed with identity-pinned verification** and ships an **SBOM + SLSA provenance** — so you can verify what you pull. Images publish to GHCR automatically on each version tag.
+Every published image is **cosign-signed (keyless)** and ships an **SBOM + SLSA provenance** — so you can verify what you pull. Images publish to GHCR automatically on each version tag. The signing identity is the org's shared build workflow:
+
+```sh
+cosign verify ghcr.io/usetheoai/theo-memory:<tag> \
+  --certificate-identity-regexp '^https://github\.com/usetheoai/theo/\.github/workflows/build-publish\.yml@' \
+  --certificate-github-workflow-repository usetheoai/theo-memory \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
 
 | Trigger | Channel | Result |
 |---|---|---|
-| push to `develop` | preview | `ghcr.io/usetheoai/theo-memory:develop` (+ `:develop-<short>`) — **cosign-signed** |
-| semver tag `v*` | release | `ghcr.io/usetheoai/theo-memory:<version>` — **cosign-signed + identity-pinned verify** + SBOM/SLSA attestations |
+| push to `develop` | preview | `ghcr.io/usetheoai/theo-memory:develop` (+ `:develop-<short>`) — **cosign-signed** + SBOM/SLSA |
+| semver tag `v*` | release | `ghcr.io/usetheoai/theo-memory:<version>` — **cosign-signed** + SBOM/SLSA attestations |
 | manual dispatch | smoke | same build as `develop`, **cosign-signed** (signing is unconditional) |
 
 > **Image renamed (2026-07-28): `themory` → `theo-memory`.** The image now carries the repository

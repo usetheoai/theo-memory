@@ -355,12 +355,19 @@ docker run --rm --entrypoint /nodejs/bin/node \
 
 ## CI/CD
 
-Toda imagem de release é **assinada com cosign, com verificação fixada por identidade**, e acompanha **SBOM + proveniência SLSA** — então dá para verificar o que você baixa. As imagens são publicadas no GHCR automaticamente a cada tag de versão.
+Toda imagem publicada é **assinada com cosign (keyless)** e acompanha **SBOM + proveniência SLSA** — então dá para verificar o que você baixa. As imagens são publicadas no GHCR automaticamente a cada tag de versão. A identidade da assinatura é o workflow de build compartilhado da organização:
+
+```sh
+cosign verify ghcr.io/usetheoai/theo-memory:<tag> \
+  --certificate-identity-regexp '^https://github\.com/usetheoai/theo/\.github/workflows/build-publish\.yml@' \
+  --certificate-github-workflow-repository usetheoai/theo-memory \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
 
 | Gatilho | Canal | Resultado |
 |---|---|---|
-| push em `develop` | preview | `ghcr.io/usetheoai/theo-memory:develop` (+ `:develop-<short>`) — **assinado com cosign** |
-| tag semver `v*` | release | `ghcr.io/usetheoai/theo-memory:<version>` — **assinada com cosign + verificação fixada por identidade** + SBOM/SLSA |
+| push em `develop` | preview | `ghcr.io/usetheoai/theo-memory:develop` (+ `:develop-<short>`) — **assinado com cosign** + SBOM/SLSA |
+| tag semver `v*` | release | `ghcr.io/usetheoai/theo-memory:<version>` — **assinada com cosign** + SBOM/SLSA |
 | dispatch manual | smoke | mesmo build do `develop`, **assinado com cosign** (a assinatura é incondicional) |
 
 > **Imagem renomeada (2026-07-28): `themory` → `theo-memory`.** A imagem passa a carregar o nome do
