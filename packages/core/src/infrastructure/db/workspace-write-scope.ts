@@ -55,6 +55,15 @@ import { currentScope, requireScopeValue } from './workspace-scope.js';
 /** A marca que `tenantScopedPool` põe no pool que devolve. */
 export const SCOPED_POOL = Symbol.for('themory.tenantScopedPool');
 
+/**
+ * Whether `pool` came from `tenantScopedPool` — i.e. it refuses every connection
+ * requested outside a workspace scope. Boot-time probes use this to tell a pool
+ * they may query freely from one that has no tenant to query for yet.
+ */
+export function isTenantScopedPool(pool: Pool): boolean {
+  return (pool as unknown as Record<symbol, unknown>)[SCOPED_POOL] === true;
+}
+
 type WriteMode =
   | { readonly kind: 'strict' }
   | { readonly kind: 'single-tenant'; readonly workspaceId: string };
@@ -96,8 +105,7 @@ export function workspaceIdForWrite(operation: string): string {
  * sabe se as conexões daquele store carregam contexto ou não.
  */
 export function configureWorkspaceWritesFromPool(pool: Pool, workspaceId = 'default'): void {
-  const scoped = (pool as unknown as Record<symbol, unknown>)[SCOPED_POOL] === true;
-  if (scoped) {
+  if (isTenantScopedPool(pool)) {
     // ESTRITO É MONOTÔNICO. Um processo que em algum momento construiu sobre um
     // pool escopado é um servidor multi-inquilino, e nada construído depois pode
     // relaxar a regra para o processo inteiro. Sem a trava, a ORDEM de

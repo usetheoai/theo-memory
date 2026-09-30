@@ -30,7 +30,11 @@ import type {
   ListSkillsBySubjectArgs,
 } from './skill-store-args.js';
 import { composeTemporalWhere } from './temporal-where.js';
-import { configureWorkspaceWritesFromPool, workspaceIdForWrite } from './workspace-write-scope.js';
+import {
+  configureWorkspaceWritesFromPool,
+  isTenantScopedPool,
+  workspaceIdForWrite,
+} from './workspace-write-scope.js';
 
 type Payload = Record<string, string | number | boolean | null>;
 
@@ -325,7 +329,13 @@ export class PgvectorStore implements VectorStore {
   }
 
   async initialize(): Promise<void> {
-    // Schema is owned by Drizzle migrations (T2.2). Just verify connectivity.
+    // Schema is owned by Drizzle migrations (T2.2). Just verify connectivity —
+    // unless the pool is tenant-scoped. That pool refuses any connection outside
+    // a workspace scope, and initialize() runs at boot, where no request (and so
+    // no workspace) exists: probing it killed the server's boot (#225). The
+    // composition root that built the scoped pool owns liveness on the RAW pool
+    // underneath it (run-server's request-role guard and /v1/health probe).
+    if (isTenantScopedPool(this.pool)) return;
     await this.pool.query('SELECT 1');
   }
 
