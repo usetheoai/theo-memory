@@ -239,6 +239,13 @@
       "when": 1784808170556,
       "tag": "0033_worker_sequence_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1784808170557,
+      "tag": "0034_app_role_bootstrap_grants",
+      "breakpoints": true
     }
   ]
 }
