@@ -55,7 +55,7 @@ psql "$THEOMEM_PG_URI" -f dev/roles.sql
 ```
 
 Os **privilégios** não estão nesse arquivo. Quem concede são as migrations, e só
-se o papel existir: `0032` para `themory_app`, `0030` para `themory_worker`.
+se o papel existir: `0032`/`0034` para `themory_app`, `0030` para `themory_worker`.
 Criar num lugar e conceder no outro mantém uma verdade só sobre o que cada papel
 alcança — e é por isso que a ordem importa: **crie o papel antes de migrar**, ou
 rode as migrations de novo depois de criá-lo.

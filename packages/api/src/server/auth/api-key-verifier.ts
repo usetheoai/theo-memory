@@ -23,6 +23,8 @@ import { createHash } from 'node:crypto';
 
 import type { AuthVerifier, Principal, WorkspaceRole } from '@usetheo/memory/contract';
 
+import { withWorkspaceContext } from './workspace-context.js';
+
 /**
  * Minimal Pool surface — DIP-clean. Production wires `pg.Pool` (which
  * satisfies the shape verbatim). Tests pass an in-memory stub.
@@ -60,22 +62,26 @@ SELECT id FROM theo_api_keys
  * (revoked_at IS NULL AND expires_at NULL-or-future) so a revoked / expired key
  * resolves to no row → null Principal → 401 (EC-2). Only the SELECT list grows.
  */
-// multi-tenant-rbac-and-slice1-completion T1.1: LEFT JOIN workspace_users to
-// resolve the member's role. The WHERE predicate is VERBATIM the active-key
-// predicate (revoked_at IS NULL AND expires_at NULL-or-future) so a revoked /
-// expired key resolves to no row → null Principal → 401 (EC-2). A key whose
-// user has NO membership row yields role = NULL → defaulted to 'member'
-// (default-deny) in the handler. Only the SELECT list + JOIN grow.
+// multi-tenant-rbac-and-slice1-completion T1.1 resolved the member's role with a
+// LEFT JOIN to `workspace_users` in this same statement. That table is under FORCE
+// ROW LEVEL SECURITY and this lookup runs before any workspace is known, so under
+// the application role the JOIN saw no rows and every key resolved to the
+// default-deny role (#227). The key row is read alone (`theo_api_keys` carries no
+// row-level security), and the role is read second, under the key's own workspace.
+// The WHERE predicate is VERBATIM the active-key predicate above so a revoked /
+// expired key resolves to no row → null Principal → 401 (EC-2).
 const SELECT_PRINCIPAL_BY_HASH_SQL = `\
-SELECT k.workspace_id, k.user_id, k.scopes, m.role
+SELECT k.workspace_id, k.user_id, k.scopes
  FROM theo_api_keys k
- LEFT JOIN workspace_users m
-   ON m.workspace_id = k.workspace_id AND m.user_id = k.user_id
  WHERE k.key_hash = $1
    AND k.revoked_at IS NULL
    AND (k.expires_at IS NULL OR k.expires_at > NOW())
    AND k.tenant_id = 'self'
  LIMIT 1`;
+
+/** The member's role, read under the key's workspace context (see above). */
+const SELECT_MEMBER_ROLE_SQL = `\
+SELECT role FROM workspace_users WHERE workspace_id = $1 AND user_id = $2 LIMIT 1`;
 
 /** UPDATE fire-and-forget for last_used_at observability. */
 const UPDATE_LAST_USED_SQL = `UPDATE theo_api_keys SET last_used_at = NOW() WHERE key_hash = $1`;
@@ -130,10 +136,10 @@ export class ApiKeyAuthVerifier implements AuthVerifier {
       workspace_id: string;
       user_id: string | null;
       scopes: unknown;
-      role: string | null;
     }>(SELECT_PRINCIPAL_BY_HASH_SQL, [hash]);
     const row = rows[0];
     if (row === undefined) return null;
+    const memberRole = await this.#readMemberRole(row.workspace_id, row.user_id);
 
     // scopes is a jsonb array; pg may surface it as a parsed array OR a string.
     let scopes: readonly string[] = [];
@@ -144,7 +150,7 @@ export class ApiKeyAuthVerifier implements AuthVerifier {
     // role. Only the three enum values are trusted; anything else collapses to
     // 'member' (defense-in-depth against a malformed row).
     const role: WorkspaceRole =
-      row.role === 'owner' || row.role === 'admin' || row.role === 'member' ? row.role : 'member';
+      memberRole === 'owner' || memberRole === 'admin' || memberRole === 'member' ? memberRole : 'member';
 
     void this.#pool.query(UPDATE_LAST_USED_SQL, [hash]).catch((err: unknown) => {
       const msg = err instanceof Error ? err.message : String(err);
@@ -153,5 +159,14 @@ export class ApiKeyAuthVerifier implements AuthVerifier {
     });
 
     return { workspaceId: row.workspace_id, userId: row.user_id, role, scopes };
+  }
+
+  /** `null` for a key bound to no user — nothing to look up, and no connection spent. */
+  async #readMemberRole(workspaceId: string, userId: string | null): Promise<string | null> {
+    if (userId === null) return null;
+    return withWorkspaceContext(this.#pool, workspaceId, async (q) => {
+      const { rows } = await q.query<{ role: string }>(SELECT_MEMBER_ROLE_SQL, [workspaceId, userId]);
+      return rows[0]?.role ?? null;
+    });
   }
 }
