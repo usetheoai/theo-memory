@@ -19,6 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- **The MCP handshake e2e test now says why the CLI did not answer.** The test read only the child's stdout, where the protocol travels, so a CLI that died during boot surfaced as a bare `waitFor timed out after 5000ms` — the failure that has blocked every `develop` publish since 2026-09-16. It now keeps the child's stderr, fails as soon as the child exits instead of waiting out the timeout, and prints the exit code and stderr in the failure. (#222)
 - **Every CI and publish job starts again.** Every job declared the Blacksmith runner label `blacksmith-8vcpu-ubuntu-2404`, and the organization no longer has a runner serving it, so jobs sat queued until cancelled — the publish run for #220 never started. All jobs now run on GitHub-hosted `ubuntu-latest`, the default of the shared build workflow, and `.github/actionlint.yaml`, which only declared that label, is removed. (#220)
 - **Images publish again.** Every push to `develop` since 2026-08-17 built the image and stopped at the CVE gate, so `:develop` stayed on an older build while the code moved on. The two vulnerable dependencies are upgraded (see Security). (usetheoai/theo#446)
 
