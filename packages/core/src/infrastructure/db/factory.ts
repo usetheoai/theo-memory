@@ -50,7 +50,7 @@ import { PgMemoryGraphStore } from './pg-memory-graph-store.js';
 import { PgUsageCounterStore } from './pg-usage-counter-store.js';
 import { PgvectorStore as PgvectorStoreClass } from './pgvector-store.js';
 import { type CreateMemoryPresetConfig, isPresetConfig, resolvePreset } from './preset.js';
-import { configureWorkspaceWritesFromPool } from './workspace-write-scope.js';
+import { configureWorkspaceWritesFromPool, isTenantScopedPool } from './workspace-write-scope.js';
 
 // Re-export cache helpers so existing importers from factory.ts still work
 export {
@@ -152,6 +152,12 @@ export async function resolveRecallTraceStore(
     );
   }
   const pool = config.vectorStore.poolForEviction;
+  const { PgRecallTraceStore } = await import('./recall-trace/pg-recall-trace-store.js');
+  // A tenant-scoped pool has no workspace at construction time and refuses the
+  // catalog probe below outright (#225). Its composition root — the server —
+  // runs migrations on the raw pool before building the Memory, which is what
+  // puts the table there.
+  if (isTenantScopedPool(pool)) return new PgRecallTraceStore(pool, optIn);
   // EC-3 — the recall_traces table MUST exist (migration 0023) or tracing would
   // fail-soft-silently forever. Fail-fast at construction instead.
   const probe = await pool.query<{ reg: string | null }>(
@@ -164,7 +170,6 @@ export async function resolveRecallTraceStore(
         'table would silently write nothing.',
     );
   }
-  const { PgRecallTraceStore } = await import('./recall-trace/pg-recall-trace-store.js');
   return new PgRecallTraceStore(pool, optIn);
 }
 
