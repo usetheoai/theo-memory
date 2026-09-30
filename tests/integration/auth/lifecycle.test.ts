@@ -22,7 +22,10 @@ import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import type { Memory } from '@usetheo/memory';
 import { runMigrations } from '@usetheo/memory';
-import { withBearerAuth } from '../../../packages/mcp/src/auth/with-bearer-auth.js';
+import {
+  createJwtAccessTokenVerifier,
+  loadResourceServerConfig,
+} from '../../../packages/mcp/src/auth/oauth-resource-server.js';
 import { connectStdio } from '../../../packages/mcp/src/transports/stdio.js';
 import { connectStreamableHttp } from '../../../packages/mcp/src/transports/streamable-http.js';
 import {
@@ -386,13 +389,17 @@ if (PG_URI === undefined || PG_URI === '') {
     // ────────────────────────────────────────────────────────────────────────
     // SCENARIO 10 — mcp_streamable_http requires Bearer; 401 envelope EC-10
     // ────────────────────────────────────────────────────────────────────────
-    test('10. MCP streamable-http without Bearer → 401 + RFC 6750 WWW-Authenticate (EC-10)', async () => {
-      const apiKeyVerifier = new ApiKeyAuthVerifier(pool);
-      const oidcVerifier = new OidcAuthVerifier({ introspect: buildStubIntrospect({}) });
+    test('10. MCP streamable-http without Bearer → 401 + WWW-Authenticate naming the resource metadata (usetheoai/theo#477)', async () => {
+      // The MCP transport is an OAuth resource server now; API keys and introspection were
+      // removed from it. The challenge must point the client at the RFC 9728 document.
+      const config = loadResourceServerConfig({
+        THEO_MCP_RESOURCE: 'https://memory.example.com/mcp/memory',
+        THEO_OAUTH_ISSUER: 'https://auth.example.com/',
+      });
       const handle = await connectStreamableHttp(mockMcpServer(), {
         port: 0,
         host: '127.0.0.1',
-        bearerAuth: { apiKey: apiKeyVerifier, oidc: oidcVerifier },
+        oauth: { config, verifier: createJwtAccessTokenVerifier(config), logWarn: () => undefined },
       });
       try {
         const addr = handle.address();
@@ -401,10 +408,11 @@ if (PG_URI === undefined || PG_URI === '') {
         const res = await fetch(`http://127.0.0.1:${String(port)}/mcp`, { method: 'POST' });
         expect(res.status).toBe(401);
         const wwwAuth = res.headers.get('www-authenticate') ?? '';
-        expect(wwwAuth).toMatch(/^Bearer\s+realm="theo-mcp"/);
-        expect(wwwAuth).toMatch(/error="missing_token"/);
+        expect(wwwAuth).toMatch(/^Bearer\s+error="invalid_token"/);
         expect(wwwAuth).toMatch(/error_description="[^"]+"/);
-        expect(wwwAuth).toMatch(/resource_metadata="\/.well-known\/oauth-protected-resource"/);
+        expect(wwwAuth).toContain(
+          'resource_metadata="https://memory.example.com/.well-known/oauth-protected-resource/mcp/memory"',
+        );
       } finally {
         await handle.close();
       }
