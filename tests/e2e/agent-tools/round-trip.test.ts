@@ -85,6 +85,18 @@ if (PG_URI === undefined || PG_URI === '') {
         stdio: ['pipe', 'pipe', 'pipe'],
       });
 
+      // Keep the child's stderr. The protocol travels on stdout, so every boot
+      // failure — a rejected provider key, an unreachable database, a migration
+      // error — is written to stderr and nowhere else. Without it a CLI that died
+      // before the handshake surfaced as a bare `waitFor timed out`.
+      const child = proc;
+      let stderr = '';
+      child.stderr.on('data', (chunk: Buffer) => {
+        stderr += chunk.toString('utf-8');
+      });
+      const childDiagnostics = (): string =>
+        `CLI exitCode=${String(child.exitCode)} signal=${String(child.signalCode)}; stderr:\n${stderr}`;
+
       // Collect stdout line-by-line (JSON-RPC over stdio is line-delimited per MCP spec)
       const responses: unknown[] = [];
       let buffer = '';
@@ -120,7 +132,7 @@ if (PG_URI === undefined || PG_URI === '') {
       );
 
       // Wait for initialize response
-      await waitFor(() => responses.some((r) => isResponse(r, 1)), 5000);
+      await waitFor(() => responses.some((r) => isResponse(r, 1)), 5000, child, childDiagnostics);
       const initResponse = responses.find((r) => isResponse(r, 1)) as { result: { capabilities: { tools?: unknown } } };
       expect(initResponse.result.capabilities.tools).toBeDefined();
 
@@ -134,7 +146,7 @@ if (PG_URI === undefined || PG_URI === '') {
         }) + '\n',
       );
 
-      await waitFor(() => responses.some((r) => isResponse(r, 2)), 5000);
+      await waitFor(() => responses.some((r) => isResponse(r, 2)), 5000, child, childDiagnostics);
       const listResponse = responses.find((r) => isResponse(r, 2)) as {
         result: { tools: { name: string }[] };
       };
@@ -175,11 +187,25 @@ function isResponse(msg: unknown, expectedId: number): boolean {
   );
 }
 
-async function waitFor(predicate: () => boolean, timeoutMs: number): Promise<void> {
+/**
+ * Poll `predicate` until it holds. When `child` is given, fail as soon as the
+ * child exits (it can no longer answer) and attach `diagnostics()` to both that
+ * error and the timeout, so the cause is in the test output instead of lost.
+ */
+async function waitFor(
+  predicate: () => boolean,
+  timeoutMs: number,
+  child?: ChildProcessWithoutNullStreams,
+  diagnostics?: () => string,
+): Promise<void> {
   const start = Date.now();
+  const detail = (): string => (diagnostics === undefined ? '' : `\n${diagnostics()}`);
   while (!predicate()) {
+    if (child !== undefined && (child.exitCode !== null || child.signalCode !== null)) {
+      throw new Error(`child process exited before the expected response${detail()}`);
+    }
     if (Date.now() - start > timeoutMs) {
-      throw new Error(`waitFor timed out after ${String(timeoutMs)}ms`);
+      throw new Error(`waitFor timed out after ${String(timeoutMs)}ms${detail()}`);
     }
     await new Promise<void>((r) => setTimeout(r, 50));
   }
