@@ -21,7 +21,7 @@
  * @see Plan theo-memory-standalone-p0 § T2.1 (extraction motivation)
  */
 import { trace } from '@opentelemetry/api';
-import { runMigrations, PgMemoryEntityStore } from '@usetheo/memory';
+import { runMigrations, PgMemoryEntityStore, requireStrictWorkspaceWrites } from '@usetheo/memory';
 import { PgRecallTraceStore } from '@usetheo/memory/recall-trace-pg';
 import {
   assertEnvOrExit,
@@ -31,16 +31,13 @@ import {
   OPENAI_API_KEY_ENV_SPEC,
   PG_URI_ENV_SPEC,
   wireMemoryFromPool,
-  resolveOidcConfig,
 } from '@usetheo/memory-agent-core';
-import { ApiKeyAuthVerifier } from '@usetheo/memory-api';
-import { createOauth4webapiIntrospect } from '@usetheo/memory-api';
-import { OidcAuthVerifier } from '@usetheo/memory-api';
-import { parseRequireCredentialEnv } from '@usetheo/memory-api';
 import { Pool } from 'pg';
 
-import type { BearerAuthOptions } from './auth/with-bearer-auth.js';
+import { createJwtAccessTokenVerifier, loadResourceServerConfig } from './auth/oauth-resource-server.js';
+import type { ResourceServerConfig } from './auth/oauth-resource-server.js';
 import { McpServer } from './server.js';
+import { openTenantScopedPools } from './tenant-pool.js';
 import { connectSse } from './transports/sse.js';
 import { connectStdio } from './transports/stdio.js';
 import { connectStreamableHttp } from './transports/streamable-http.js';
@@ -73,25 +70,18 @@ export interface RunMcpServerOptions {
   readonly port?: number;
   readonly host?: string;
   /**
-   * T4.1 + ADR-0015 — auth mode for streamable-http transport.
+   * Auth mode for the streamable-http transport (usetheoai/theo#477).
    *
-   * - `none` (default): no auth — only safe for localhost dev loops.
-   * - `api-keys`: Camada 2 ApiKeyAuthVerifier (theo_live_* SHA-256 lookup).
-   * - `oidc`: Camada 3 OidcAuthVerifier (RFC 7662 introspection). Currently
-   *   plumbing-only — the production-grade `oauth4webapi` IntrospectFn
-   *   adapter ships in a follow-up cycle alongside T5.1. Selecting `oidc` /
-   *   `both` today emits a stderr warning + falls back to `api-keys` until
-   *   the adapter lands. Tracked under the same plan §
-   *   `theo-memory-faang-auth-lifecycle` follow-up.
-   * - `both`: dual-validation (theo_live_* → apiKey, else → oidc).
+   * - `none`: no auth, single-tenant over the raw pool — only for localhost dev loops.
+   * - `oauth`: OAuth 2.1 resource server. Every request carries an RS256 access token from
+   *   `THEO_OAUTH_ISSUER` whose audience is `THEO_MCP_RESOURCE`; its `tenant_id` scopes the
+   *   request, and the stores run over the tenant-scoped pool.
    *
-   * stdio transport ignores this field per ADR-0015 #1.
+   * `api-keys`, `oidc` and `both` were REMOVED from this transport, with no compatibility
+   * path; selecting one is refused rather than silently downgraded to `none`.
+   * stdio ignores this field per ADR-0015 #1.
    */
-  readonly auth?: 'none' | 'api-keys' | 'oidc' | 'both';
-  /** T3.2 — OIDC issuer URL (CLI flag OR env THEMORY_OIDC_ISSUER); required when auth=oidc. */
-  readonly issuer?: string;
-  /** T3.2 — OIDC client_id; required when auth=oidc. Secret env-only per ADR D4. */
-  readonly clientId?: string;
+  readonly auth?: McpAuthMode;
   /**
    * ADR-0015 #3 — TLS material (PEM strings) for the streamable-http listener.
    * Read from disk by the CLI `--tls-cert`/`--tls-key` flags. Required for any
@@ -100,54 +90,78 @@ export interface RunMcpServerOptions {
   readonly tls?: { readonly cert: string; readonly key: string };
 }
 
+/** Auth modes the streamable-http transport accepts. */
+export type McpAuthMode = 'none' | 'oauth';
+
+/** Modes that existed before usetheoai/theo#477 and were removed, not renamed. */
+const REMOVED_AUTH_MODES = new Set(['api-keys', 'oidc', 'both']);
+
+function removedAuthMode(mode: string, source: string): Error {
+  return new Error(
+    `themory mcp: auth mode "${mode}" (${source}) was removed from the MCP transport — API keys and ` +
+      'token introspection are no longer accepted there. Use --auth oauth with THEO_MCP_RESOURCE and ' +
+      'THEO_OAUTH_ISSUER (usetheoai/theo#477).',
+  );
+}
+
+/** True when `THEO_MCP_RESOURCE` is set to something other than whitespace. */
+function hasResourceEnv(): boolean {
+  const value = process.env['THEO_MCP_RESOURCE'];
+  return value !== undefined && value.trim() !== '';
+}
+
 /**
  * Resolve MCP transport via 3-tier precedence + stdio fallback:
  * (1) `opt` flag (most-specific operator intent)
  * (2) `THEOMEM_MCP_TRANSPORT` env (explicit config)
- * (3) `THEMEMORY_API_KEY` env presence heuristic — non-empty after trim →
- *     `streamable-http` (operator has a bearer token; presumes HTTP intent)
+ * (3) `THEO_MCP_RESOURCE` presence — a server that has a resource URI is a network server
  * Fallback: `'stdio'` (embedded subprocess use case, Claude Code etc.)
  *
- * @see ADR-D1 — 3-tier precedence rationale (plan themory-mcp-bearer-by-env-faang)
- * @see EC-1 — whitespace-only trim discipline (`!== ''` alone would auto-flip on `"   "`)
+ * `THEMEMORY_API_KEY` used to be tier 3. API keys are no longer accepted by this transport,
+ * so their presence says nothing about how it should listen.
  */
 function resolveTransport(opt?: RunMcpServerOptions['transport']): 'stdio' | 'streamable-http' {
   if (opt !== undefined) return opt;
   const envValue = process.env['THEOMEM_MCP_TRANSPORT'];
   if (envValue === 'streamable-http' || envValue === 'stdio') return envValue;
-  const apiKey = process.env['THEMEMORY_API_KEY'];
-  if (apiKey !== undefined && apiKey.trim() !== '') return 'streamable-http';
+  if (hasResourceEnv()) return 'streamable-http';
   return 'stdio';
 }
 
 /**
- * Resolve MCP auth mode via 3-tier precedence + safe-default fallback. Mirrors
- * `resolveTransport`'s precedence shape:
- * (1) `opt` flag (Tier-1, most-specific operator intent)
- * (2) `THEOMEM_MCP_AUTH` env (Tier-2, explicit config)
- * (3) `THEMEMORY_API_KEY` env presence heuristic — when `transport === 'streamable-http'`
- *     AND key non-empty after trim → `'api-keys'` (Tier-3). The transport guard
- *     prevents stdio sessions from gaining auth=api-keys silently (stdio ignores
- *     bearer auth per ADR-0015 #1).
- * Fallback: `'none'` (auth-off; default for stdio + explicit no-key HTTP).
+ * Resolve MCP auth mode via 3-tier precedence + safe-default fallback:
+ * (1) `opt` flag
+ * (2) `THEOMEM_MCP_AUTH` env
+ * (3) `THEO_MCP_RESOURCE` presence on the streamable-http transport → `'oauth'`
+ * Fallback: `'none'`.
  *
- * @see ADR-D2 — env-driven HTTP auto-selects api-keys (NOT none — silent security downgrade rejected)
- * @see EC-1 — whitespace-only trim discipline (symmetric with resolveTransport)
+ * A removed mode (`api-keys`, `oidc`, `both`) from either source THROWS. Falling through to
+ * `none` would turn an operator's leftover configuration into an unauthenticated listener.
  */
-function resolveAuthMode(
-  opt: RunMcpServerOptions['auth'],
-  transport: 'stdio' | 'streamable-http',
-): 'none' | 'api-keys' | 'oidc' | 'both' {
-  if (opt !== undefined) return opt;
+function resolveAuthMode(opt: RunMcpServerOptions['auth'], transport: 'stdio' | 'streamable-http'): McpAuthMode {
+  if (opt !== undefined) {
+    if (REMOVED_AUTH_MODES.has(opt)) throw removedAuthMode(opt, '--auth');
+    return opt;
+  }
   const envValue = process.env['THEOMEM_MCP_AUTH'];
-  if (envValue === 'none' || envValue === 'api-keys' || envValue === 'oidc' || envValue === 'both') {
-    return envValue;
+  if (envValue !== undefined && REMOVED_AUTH_MODES.has(envValue)) {
+    throw removedAuthMode(envValue, 'THEOMEM_MCP_AUTH');
   }
-  if (transport === 'streamable-http') {
-    const apiKey = process.env['THEMEMORY_API_KEY'];
-    if (apiKey !== undefined && apiKey.trim() !== '') return 'api-keys';
-  }
+  if (envValue === 'none' || envValue === 'oauth') return envValue;
+  if (transport === 'streamable-http' && hasResourceEnv()) return 'oauth';
   return 'none';
+}
+
+/**
+ * `THEO_MCP_TLS_TERMINATED_UPSTREAM`: `true` declares that the gateway or mesh in front
+ * terminates TLS. Anything but `true`, `false` or unset is refused — a typo must not decide
+ * whether a listener speaks TLS.
+ */
+function resolveTlsTerminatedUpstream(): boolean {
+  const raw = process.env['THEO_MCP_TLS_TERMINATED_UPSTREAM']?.trim();
+  if (raw === undefined || raw === '' || raw === 'false') return false;
+  if (raw === 'true') return true;
+  throw new Error(`themory mcp: THEO_MCP_TLS_TERMINATED_UPSTREAM="${raw}" must be "true" or "false".`);
 }
 
 /**
@@ -164,7 +178,7 @@ function resolveAuthMode(
  */
 export function resolveMcpModes(
   opt: Pick<RunMcpServerOptions, 'transport' | 'auth'>,
-): { transport: 'stdio' | 'streamable-http'; auth: 'none' | 'api-keys' | 'oidc' | 'both' } {
+): { transport: 'stdio' | 'streamable-http'; auth: McpAuthMode } {
   const transport = resolveTransport(opt.transport);
   const auth = resolveAuthMode(opt.auth, transport);
   return { transport, auth };
@@ -255,13 +269,38 @@ export async function runMcpServer(options?: RunMcpServerOptions): Promise<void>
   const port = transport === 'streamable-http' ? resolvePort(options?.port) : 0;
   const host = transport === 'streamable-http' ? resolveHost(options?.host) : '';
 
+  // The OAuth path's configuration is read and validated BEFORE any pool exists: a missing
+  // resource URI or issuer must cost nothing to discover (usetheoai/theo#477).
+  const oauthMode = compat === undefined && transport === 'streamable-http' && authMode === 'oauth';
+  const oauthConfig: ResourceServerConfig | undefined = oauthMode ? loadResourceServerConfig() : undefined;
+  const tlsTerminatedUpstream = oauthMode ? resolveTlsTerminatedUpstream() : false;
+
   // Embedder selection (THEOMEM_EMBEDDER): local (Xenova 384) | openai (1536).
   // The migration dim MUST match the embedder; resolve once and reuse.
   const embedderKind = resolveEmbedderKind();
   const embedderDim = embeddingDimForKind(embedderKind);
 
-  const pool = new Pool({ connectionString: pgUri });
-  await runMigrations(pool, { embeddingDim: embedderDim });
+  // Two database postures. The OAuth path serves many tenants, so it holds the REST bar:
+  // a role subject to row-level security, the tenant-scoped pool, migrations on the owner
+  // connection. Every other path (stdio, OpenMemory compat, unauthenticated localhost HTTP)
+  // is single-tenant by construction and keeps the raw pool — writes land in `default`.
+  let pool: Pool;
+  if (oauthMode) {
+    const migratePgUri = nonEmptyEnv('THEOMEM_MIGRATE_PG_URI');
+    const pools = await openTenantScopedPools({
+      pgUri,
+      ...(migratePgUri !== undefined ? { migratePgUri } : {}),
+      skipMigrations: process.env['THEMEMORY_SKIP_MIGRATIONS'] === 'true',
+      embeddingDim: embedderDim,
+    });
+    process.stderr.write(
+      `themory mcp: request connection contained by row-level security (role "${pools.role}").\n`,
+    );
+    pool = pools.pool;
+  } else {
+    pool = new Pool({ connectionString: pgUri });
+    await runMigrations(pool, { embeddingDim: embedderDim });
+  }
 
   const embedderLabel =
     embedderKind === 'openai'
@@ -291,16 +330,16 @@ export async function runMcpServer(options?: RunMcpServerOptions): Promise<void>
     options?.transport !== undefined ||
     options?.auth !== undefined ||
     envTransport === 'stdio' || envTransport === 'streamable-http' ||
-    envAuth === 'none' || envAuth === 'api-keys' || envAuth === 'oidc' || envAuth === 'both';
+    envAuth === 'none' || envAuth === 'oauth';
   const quiet = process.env['THEOMEM_MCP_QUIET'] === '1';
   if (compat === undefined && !wasExplicit && !quiet) {
-    if (transport === 'streamable-http' && authMode === 'api-keys') {
+    if (transport === 'streamable-http' && authMode === 'oauth') {
       process.stderr.write(
-        'themory mcp: transport=streamable-http + auth=api-keys (THEMEMORY_API_KEY present; pass --transport=stdio to override).\n',
+        'themory mcp: transport=streamable-http + auth=oauth (THEO_MCP_RESOURCE present; pass --transport=stdio to override).\n',
       );
     } else if (transport === 'stdio') {
       process.stderr.write(
-        'themory mcp: transport=stdio (default; set THEMEMORY_API_KEY for HTTP+Bearer mode).\n',
+        'themory mcp: transport=stdio (default; set THEO_MCP_RESOURCE for the OAuth-protected HTTP transport).\n',
       );
     }
   }
@@ -310,6 +349,9 @@ export async function runMcpServer(options?: RunMcpServerOptions): Promise<void>
   // source of truth for `PgvectorStore` + `LocalTransformerEmbedder` +
   // `OpenAILLM` wiring across CLI/MCP/REST.
   const memory = await wireMemoryFromPool(pool);
+  // The confirmation, not the hope: if anything handed the stores a raw pool on the OAuth
+  // path, writes without a workspace scope would fall back to `default`. Refuse to start.
+  if (oauthMode) requireStrictWorkspaceWrites();
 
   // OpenMemory compat (Roadmap Item 26): expose the OpenMemory tool surface over
   // SSE so OpenMemory-wired MCP clients connect unchanged. A fresh McpServer per
@@ -358,16 +400,13 @@ export async function runMcpServer(options?: RunMcpServerOptions): Promise<void>
   // and cuts in-flight requests — on every container recreate.
 
   if (transport === 'streamable-http') {
-    const bearerAuth = await resolveBearerAuth(authMode, pool, {
-      ...(options?.issuer !== undefined ? { issuer: options.issuer } : {}),
-      ...(options?.clientId !== undefined ? { clientId: options.clientId } : {}),
-      host,
-      port,
-    });
     const handle = await connectStreamableHttp(makeServer, {
       port,
       host,
-      ...(bearerAuth !== undefined ? { bearerAuth } : {}),
+      ...(oauthConfig !== undefined
+        ? { oauth: { config: oauthConfig, verifier: createJwtAccessTokenVerifier(oauthConfig) } }
+        : {}),
+      tlsTerminatedUpstream,
       ...(options?.tls !== undefined ? { tls: options.tls } : {}),
     });
     // The handle is the ONLY route to httpServer.close() + every live session's
@@ -384,59 +423,7 @@ export async function runMcpServer(options?: RunMcpServerOptions): Promise<void>
   }
 }
 
-/**
- * T4.1 + T3.2 (fixes-cycle-1) — translate the `--auth` CLI mode into a
- * `BearerAuthOptions` bag consumed by `connectStreamableHttp`. Returns
- * `undefined` when auth is `none` OR unset.
- *
- * fixes-cycle-1: OIDC adapter is now plumbed (was stderr-disclosure-only
- * in parent cycle). When mode = `oidc` OR `both`, constructs the
- * production `OidcAuthVerifier` via `createOauth4webapiIntrospect` using
- * the resolved issuer/clientId/clientSecret. Hard-fails when mode = `oidc`
- * is selected without --issuer (Inquebrável Rule 8 fail-loud).
- */
-/** Exported for M16 (#84) test: proves THEMEMORY_REQUIRE_CREDENTIAL reaches the bearer options. */
-export async function resolveBearerAuth(
-  mode: RunMcpServerOptions['auth'],
-  pool: Pool,
-  oidcInput: { issuer?: string; clientId?: string; host: string; port: number },
-): Promise<BearerAuthOptions | undefined> {
-  if (mode === undefined || mode === 'none') return undefined;
-
-  // F-arch-2 fix — only invoke resolveOidcConfig when OIDC mode is actually
-  // selected. Pre-fix: resolveOidcConfig fired for `--auth=api-keys` too,
-  // crashing on stale `THEMORY_OIDC_ISSUER` env vars from prior debug
-  // sessions even though the operator explicitly chose api-keys-only.
-  const wantsOidc = mode === 'oidc' || mode === 'both';
-  const oidcCfg = wantsOidc ? resolveOidcConfig(oidcInput) : null;
-
-  if (wantsOidc && oidcCfg === null) {
-    throw new Error(
-      `themory mcp: --auth=${mode} requires --issuer (or THEMORY_OIDC_ISSUER env)`,
-    );
-  }
-
-  const apiKey = (mode === 'api-keys' || mode === 'both') ? new ApiKeyAuthVerifier(pool) : undefined;
-  let oidc;
-  if (oidcCfg !== null) {
-    const introspect = await createOauth4webapiIntrospect({
-      issuer: oidcCfg.issuer,
-      clientId: oidcCfg.clientId,
-      clientSecret: oidcCfg.clientSecret,
-    });
-    oidc = new OidcAuthVerifier({ introspect });
-  }
-
-  // M16 (#84): thread the SAME fail-closed signal the REST surface reads
-  // (`run-server.ts` → `parseRequireCredentialEnv`). Without this the OIDC branch's
-  // fail-closed gate is inert in production — an OIDC token that resolves no tenant
-  // would still collapse into the `default` workspace. Reusing the REST env var keeps
-  // one tenancy signal, not two that must agree.
-  const requireCredential = parseRequireCredentialEnv(process.env['THEMEMORY_REQUIRE_CREDENTIAL']);
-
-  return {
-    ...(apiKey !== undefined ? { apiKey } : {}),
-    ...(oidc !== undefined ? { oidc } : {}),
-    ...(requireCredential ? { requireCredential } : {}),
-  };
+function nonEmptyEnv(name: string): string | undefined {
+  const value = process.env[name]?.trim();
+  return value === undefined || value === '' ? undefined : value;
 }

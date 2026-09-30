@@ -25,7 +25,6 @@
  * @see F-arch-7 = F-wire-1 absorption (cycle-1 review report)
  * @see FOLLOW-UP at run-mcp-server.ts:93-94 — conditional gating sequel
  */
-import type { Pool } from 'pg';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockPoolEnd = vi.fn();
@@ -34,6 +33,10 @@ const mockCreateLocalMemory = vi.fn();
 const mockMcpServerStop = vi.fn();
 const mockConnectStdio = vi.fn();
 const mockConnectStreamableHttp = vi.fn();
+const mockAssertRequestPoolIsolated = vi.fn();
+const mockTenantScopedPool = vi.fn();
+const mockRequireStrictWorkspaceWrites = vi.fn();
+let poolsConstructed = 0;
 
 vi.mock('@usetheo/memory', () => ({
   createLocalMemory: mockCreateLocalMemory,
@@ -47,6 +50,12 @@ vi.mock('@usetheo/memory', () => ({
   PgRoutingAuditStore: class MockPgRoutingAuditStore {},
   // M14 T2.2 — run-mcp-server wires PgMemoryEntityStore for the entity tools.
   PgMemoryEntityStore: class MockPgMemoryEntityStore {},
+  // usetheoai/theo#477 — the OAuth path's tenancy bar. Mocked here because this file measures
+  // the WIRING; the refusal against a real superuser is proven against Postgres in
+  // tests/integration/mcp/oauth-tenant-isolation.test.ts.
+  assertRequestPoolIsolated: mockAssertRequestPoolIsolated,
+  tenantScopedPool: mockTenantScopedPool,
+  requireStrictWorkspaceWrites: mockRequireStrictWorkspaceWrites,
 }));
 
 // FLAKY-boot-import — `@usetheo/memory/recall-trace-pg` nao estava mockado, e o
@@ -62,6 +71,9 @@ vi.mock('@usetheo/memory/recall-trace-pg', () => ({
 
 vi.mock('pg', () => ({
   Pool: class MockPool {
+    constructor() {
+      poolsConstructed += 1;
+    }
     end = mockPoolEnd;
     query = vi.fn().mockResolvedValue({ rows: [] });
   },
@@ -101,6 +113,13 @@ beforeEach(() => {
   mockMcpServerStop.mockResolvedValue(undefined);
   mockConnectStdio.mockResolvedValue(undefined);
   mockConnectStreamableHttp.mockResolvedValue(undefined);
+  mockAssertRequestPoolIsolated.mockReset();
+  mockAssertRequestPoolIsolated.mockResolvedValue({ role: 'themory_app', superuser: false, bypassRls: false });
+  mockTenantScopedPool.mockReset();
+  mockTenantScopedPool.mockImplementation((p: unknown) => p);
+  mockRequireStrictWorkspaceWrites.mockReset();
+  mockPoolEnd.mockResolvedValue(undefined);
+  poolsConstructed = 0;
   // EC-2 absorption: stub BOTH env vars to keep transport on the stdio default
   // branch and out of the streamable-http mock-uncovered path even if a system
   // env carries THEOMEM_MCP_TRANSPORT=streamable-http.
@@ -114,6 +133,10 @@ beforeEach(() => {
   vi.stubEnv('THEMEMORY_API_KEY', '');
   vi.stubEnv('THEOMEM_MCP_AUTH', '');
   vi.stubEnv('THEOMEM_MCP_QUIET', '');
+  vi.stubEnv('THEO_MCP_RESOURCE', '');
+  vi.stubEnv('THEO_OAUTH_ISSUER', '');
+  vi.stubEnv('THEO_MCP_TLS_TERMINATED_UPSTREAM', '');
+  vi.stubEnv('THEOMEM_MIGRATE_PG_URI', '');
   // e43d801 alignment — run-mcp-server.ts hard-fails on missing OPENAI_API_KEY.
   vi.stubEnv('OPENAI_API_KEY', 'sk-fake-test-key-for-boot');
   stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
@@ -156,160 +179,172 @@ describe('T1.1 — runMcpServer startup banner (post-e43d801 real-providers regi
   }, 30_000);
 });
 
+/** Env for the OAuth-protected HTTP path (usetheoai/theo#477). */
+function stubOAuthEnv(): void {
+  vi.stubEnv('THEO_MCP_RESOURCE', 'https://app.test.example/mcp/memory');
+  vi.stubEnv('THEO_OAUTH_ISSUER', 'https://auth.test.example/');
+}
+
+function stderrText(): string {
+  return stderrSpy.mock.calls.flat().map((arg: unknown) => String(arg)).join(' ');
+}
+
 describe('T3.1 — runMcpServer transport+auth disclosure (ADR D3)', () => {
-  it('test_stderr_discloses_env_driven_http_path_when_no_explicit_flag', async () => {
-    // Given: THEMEMORY_API_KEY env present, no --transport/--auth flag, no env override
-    vi.stubEnv('THEMEMORY_API_KEY', 'theo_live_dummy_for_disclosure_test');
-    // When: runMcpServer invoked with empty opts (Tier-3 heuristic fires)
+  it('test_stderr_discloses_env_driven_oauth_http_path_when_no_explicit_flag', async () => {
+    stubOAuthEnv();
     const { runMcpServer } = await import('./run-mcp-server.js');
     await runMcpServer();
-    // Then: disclosure line announces auto-selected HTTP + api-keys + override hint
-    const captured = stderrSpy.mock.calls.flat().map((arg: unknown) => String(arg)).join(' ');
-    expect(captured).toMatch(/transport=streamable-http/);
-    expect(captured).toMatch(/auth=api-keys/);
-    expect(captured).toMatch(/THEMEMORY_API_KEY present/);
+    const captured = stderrText();
+    expect(captured).toMatch(/transport=streamable-http \+ auth=oauth/);
+    expect(captured).toMatch(/THEO_MCP_RESOURCE present/);
     expect(captured).toMatch(/--transport=stdio.*override/);
   });
 
   it('test_stderr_discloses_stdio_default_with_hint', async () => {
-    // Given: no env (beforeEach stubbed THEMEMORY_API_KEY='') — stdio default fires
-    // When: runMcpServer invoked
     const { runMcpServer } = await import('./run-mcp-server.js');
     await runMcpServer();
-    // Then: disclosure line hints at HTTP+Bearer mode via env
-    const captured = stderrSpy.mock.calls.flat().map((arg: unknown) => String(arg)).join(' ');
-    expect(captured).toMatch(/transport=stdio/);
-    expect(captured).toMatch(/default/);
-    expect(captured).toMatch(/set THEMEMORY_API_KEY for HTTP\+Bearer mode/);
+    const captured = stderrText();
+    expect(captured).toMatch(/transport=stdio \(default;/);
+    expect(captured).toMatch(/set THEO_MCP_RESOURCE/);
   });
 
   it('test_stderr_explicit_flag_suppresses_disclosure', async () => {
-    // ADR D3 invariant: explicit operator intent (CLI flag OR scoped env)
-    // suppresses the disclosure — no need to announce what was explicit.
-    vi.stubEnv('THEMEMORY_API_KEY', 'theo_live_dummy_should_be_silent_under_explicit_flag');
+    stubOAuthEnv();
     const { runMcpServer } = await import('./run-mcp-server.js');
     await runMcpServer({ transport: 'stdio' });
-    const captured = stderrSpy.mock.calls.flat().map((arg: unknown) => String(arg)).join(' ');
-    // FC2-T1.1 "real providers wired" line stays unconditional (NOT suppressed)
+    const captured = stderrText();
     expect(captured).toMatch(/real providers wired/);
-    // But the NEW T3.1 transport+auth disclosure block is suppressed
     expect(captured).not.toMatch(/transport=stdio \(default;/);
-    expect(captured).not.toMatch(/transport=streamable-http \+ auth=api-keys/);
+    expect(captured).not.toMatch(/transport=streamable-http \+ auth=oauth/);
   });
 
   it('test_stderr_quiet_env_suppresses_disclosure_under_env_driven_http', async () => {
-    // EC-6 escape: THEOMEM_MCP_QUIET=1 suppresses the new disclosure block
-    // (embedded use case where stderr is captured by the consumer). MUST NOT
-    // suppress the pre-existing "real providers wired" line (FC2-T1.1 contract).
-    vi.stubEnv('THEMEMORY_API_KEY', 'theo_live_dummy_under_quiet_env');
+    stubOAuthEnv();
     vi.stubEnv('THEOMEM_MCP_QUIET', '1');
     const { runMcpServer } = await import('./run-mcp-server.js');
     await runMcpServer();
-    const captured = stderrSpy.mock.calls.flat().map((arg: unknown) => String(arg)).join(' ');
-    // FC2-T1.1 line still fires (scope discipline)
+    const captured = stderrText();
     expect(captured).toMatch(/real providers wired/);
-    // EC-6 disclosure block suppressed even though env-driven HTTP path activated
-    expect(captured).not.toMatch(/transport=streamable-http \+ auth=api-keys/);
-    expect(captured).not.toMatch(/THEMEMORY_API_KEY present/);
+    expect(captured).not.toMatch(/transport=streamable-http \+ auth=oauth/);
   });
 });
 
-describe('T4.1 — resolveMcpModes 14-cell precedence matrix (ADR D1 + ADR D2 + EC-1 + EC-3)', () => {
+describe('T4.1 — resolveMcpModes precedence matrix (usetheoai/theo#477)', () => {
   type Transport = 'stdio' | 'streamable-http';
-  type Auth = 'none' | 'api-keys' | 'oidc' | 'both';
-
-  interface MatrixCell {
+  type Auth = 'none' | 'oauth';
+  interface Cell {
     readonly name: string;
     readonly opt: { transport?: Transport; auth?: Auth };
     readonly envTransport?: string;
     readonly envAuth?: string;
+    readonly resource?: string;
     readonly apiKey?: string;
     readonly expected: { transport: Transport; auth: Auth };
   }
-
-  const MATRIX: readonly MatrixCell[] = [
-    // Cell 01 — empty input → defaults
+  const R = 'https://app.test.example/mcp/memory';
+  const cells: readonly Cell[] = [
     { name: '01_empty_input_defaults_to_stdio_none', opt: {}, expected: { transport: 'stdio', auth: 'none' } },
-
-    // Cell 02 — Tier-3 heuristic fires (key present, no flags, no env)
-    { name: '02_only_api_key_env_triggers_http_api_keys', opt: {}, apiKey: 'theo_live_x', expected: { transport: 'streamable-http', auth: 'api-keys' } },
-
-    // Cell 03 — Tier-1 flag beats Tier-3 heuristic (ADR D1)
-    { name: '03_flag_stdio_beats_api_key_env_presence', opt: { transport: 'stdio' }, apiKey: 'theo_live_x', expected: { transport: 'stdio', auth: 'none' } },
-
-    // Cell 04 — Tier-2 env beats Tier-3 heuristic (ADR D1)
-    { name: '04_env_transport_stdio_beats_api_key_env_presence', opt: {}, envTransport: 'stdio', apiKey: 'theo_live_x', expected: { transport: 'stdio', auth: 'none' } },
-
-    // Cell 05 — flag http without key → auth defaults none
-    { name: '05_flag_http_without_api_key_defaults_auth_none', opt: { transport: 'streamable-http' }, expected: { transport: 'streamable-http', auth: 'none' } },
-
-    // Cell 06 — flag http + key → Tier-3 auth-mode heuristic fires
-    { name: '06_flag_http_with_api_key_triggers_auth_api_keys', opt: { transport: 'streamable-http' }, apiKey: 'theo_live_x', expected: { transport: 'streamable-http', auth: 'api-keys' } },
-
-    // Cell 07 — ADR D2 explicit opt-out: flag auth=none MUST win over Tier-3 heuristic
-    { name: '07_flag_auth_none_overrides_env_driven_api_keys_heuristic', opt: { transport: 'streamable-http', auth: 'none' }, apiKey: 'theo_live_x', expected: { transport: 'streamable-http', auth: 'none' } },
-
-    // Cell 08 — EC-1 empty-string key treated as absent
-    { name: '08_empty_string_api_key_treated_as_absent', opt: {}, apiKey: '', expected: { transport: 'stdio', auth: 'none' } },
-
-    // Cell 09 — EC-1 whitespace-only key treated as absent
-    { name: '09_whitespace_only_api_key_treated_as_absent_ec1', opt: {}, apiKey: '   ', expected: { transport: 'stdio', auth: 'none' } },
-
-    // Cell 10 — env-transport http without key → auth defaults none
-    { name: '10_env_transport_http_without_key_defaults_auth_none', opt: {}, envTransport: 'streamable-http', expected: { transport: 'streamable-http', auth: 'none' } },
-
-    // Cell 11 — env-transport http + key → both Tier-2 + Tier-3 fire
-    { name: '11_env_transport_http_with_api_key_triggers_auth_api_keys', opt: {}, envTransport: 'streamable-http', apiKey: 'theo_live_x', expected: { transport: 'streamable-http', auth: 'api-keys' } },
-
-    // Cell 12 — ADR D2: env-auth wins over Tier-3 heuristic (Tier-2 strictly above Tier-3)
-    { name: '12_env_auth_oidc_overrides_tier3_api_keys_heuristic', opt: {}, envTransport: 'streamable-http', envAuth: 'oidc', apiKey: 'theo_live_x', expected: { transport: 'streamable-http', auth: 'oidc' } },
-
-    // Cell 13 — Tier-1 flag beats Tier-2 env (precedence ladder)
+    { name: '02_resource_env_selects_http_oauth', opt: {}, resource: R, expected: { transport: 'streamable-http', auth: 'oauth' } },
+    { name: '03_flag_stdio_beats_resource_env', opt: { transport: 'stdio' }, resource: R, expected: { transport: 'stdio', auth: 'none' } },
+    { name: '04_env_transport_stdio_beats_resource_env', opt: {}, envTransport: 'stdio', resource: R, expected: { transport: 'stdio', auth: 'none' } },
+    { name: '05_flag_http_without_resource_defaults_auth_none', opt: { transport: 'streamable-http' }, expected: { transport: 'streamable-http', auth: 'none' } },
+    { name: '06_flag_http_with_resource_selects_oauth', opt: { transport: 'streamable-http' }, resource: R, expected: { transport: 'streamable-http', auth: 'oauth' } },
+    { name: '07_flag_auth_none_is_an_explicit_opt_out', opt: { transport: 'streamable-http', auth: 'none' }, resource: R, expected: { transport: 'streamable-http', auth: 'none' } },
+    { name: '08_empty_resource_treated_as_absent', opt: {}, resource: '', expected: { transport: 'stdio', auth: 'none' } },
+    { name: '09_whitespace_resource_treated_as_absent', opt: {}, resource: '   ', expected: { transport: 'stdio', auth: 'none' } },
+    { name: '10_env_transport_http_without_resource_defaults_auth_none', opt: {}, envTransport: 'streamable-http', expected: { transport: 'streamable-http', auth: 'none' } },
+    { name: '11_api_key_env_no_longer_selects_anything', opt: {}, apiKey: 'theo_live_x', expected: { transport: 'stdio', auth: 'none' } },
+    { name: '12_env_auth_oauth_is_honoured', opt: { transport: 'streamable-http' }, envAuth: 'oauth', expected: { transport: 'streamable-http', auth: 'oauth' } },
     { name: '13_flag_stdio_overrides_env_transport_http', opt: { transport: 'stdio' }, envTransport: 'streamable-http', expected: { transport: 'stdio', auth: 'none' } },
-
-    // Cell 14 — EC-3: garbage env transport falls through to Tier-3 (with key set)
-    { name: '14_garbage_env_transport_falls_through_to_tier3', opt: {}, envTransport: 'streamablehttp', apiKey: 'theo_live_x', expected: { transport: 'streamable-http', auth: 'api-keys' } },
   ];
 
-  it.each(MATRIX)('cell $name', async ({ opt, envTransport, envAuth, apiKey, expected }) => {
-    // Per-cell env stubs (beforeEach defaulted them to '' for isolation)
-    if (envTransport !== undefined) vi.stubEnv('THEOMEM_MCP_TRANSPORT', envTransport);
-    if (envAuth !== undefined) vi.stubEnv('THEOMEM_MCP_AUTH', envAuth);
-    if (apiKey !== undefined) vi.stubEnv('THEMEMORY_API_KEY', apiKey);
+  it.each(cells)('$name', async ({ opt, envTransport, envAuth, resource, apiKey, expected }) => {
+    vi.stubEnv('THEOMEM_MCP_TRANSPORT', envTransport ?? '');
+    vi.stubEnv('THEOMEM_MCP_AUTH', envAuth ?? '');
+    vi.stubEnv('THEO_MCP_RESOURCE', resource ?? '');
+    vi.stubEnv('THEMEMORY_API_KEY', apiKey ?? '');
     const { resolveMcpModes } = await import('./run-mcp-server.js');
-    const result = resolveMcpModes(opt);
-    expect(result.transport).toBe(expected.transport);
-    expect(result.auth).toBe(expected.auth);
+    expect(resolveMcpModes(opt)).toEqual(expected);
+  });
+
+  it.each(['api-keys', 'oidc', 'both'])('test_removed_auth_mode_%s_in_env_is_refused_not_downgraded', async (mode) => {
+    vi.stubEnv('THEOMEM_MCP_AUTH', mode);
+    const { resolveMcpModes } = await import('./run-mcp-server.js');
+    expect(() => resolveMcpModes({ transport: 'streamable-http' })).toThrow(/removed/);
+  });
+
+  it('test_removed_auth_mode_as_flag_is_refused', async () => {
+    const { resolveMcpModes } = await import('./run-mcp-server.js');
+    expect(() =>
+      resolveMcpModes({ transport: 'streamable-http', auth: 'api-keys' as unknown as 'none' }),
+    ).toThrow(/removed/);
   });
 });
 
-describe('resolveBearerAuth — requireCredential wiring (M16 #84)', () => {
-  it('test_env_require_credential_reaches_bearer_options', async () => {
-    const { resolveBearerAuth } = await import('./run-mcp-server.js');
-    const fakePool = {} as unknown as Pool;
-    const prev = process.env['THEMEMORY_REQUIRE_CREDENTIAL'];
-    process.env['THEMEMORY_REQUIRE_CREDENTIAL'] = 'true';
-    try {
-      const opts = await resolveBearerAuth('api-keys', fakePool, { host: '127.0.0.1', port: 0 });
-      // Without this, the #84 fail-closed gate in withBearerAuth is inert in production —
-      // the operator sets the env and nothing changes.
-      expect(opts?.requireCredential).toBe(true);
-    } finally {
-      if (prev === undefined) delete process.env['THEMEMORY_REQUIRE_CREDENTIAL'];
-      else process.env['THEMEMORY_REQUIRE_CREDENTIAL'] = prev;
-    }
+describe('runMcpServer — OAuth resource-server composition (usetheoai/theo#477)', () => {
+  it('test_oauth_mode_refuses_to_start_without_the_resource_before_touching_the_database', async () => {
+    vi.stubEnv('THEO_OAUTH_ISSUER', 'https://auth.test.example/');
+    const { runMcpServer } = await import('./run-mcp-server.js');
+    await expect(runMcpServer({ transport: 'streamable-http', auth: 'oauth' })).rejects.toThrow(
+      /THEO_MCP_RESOURCE/,
+    );
+    expect(poolsConstructed).toBe(0);
+    expect(mockConnectStreamableHttp).not.toHaveBeenCalled();
   });
 
-  it('test_require_credential_absent_by_default', async () => {
-    const { resolveBearerAuth } = await import('./run-mcp-server.js');
-    const fakePool = {} as unknown as Pool;
-    const prev = process.env['THEMEMORY_REQUIRE_CREDENTIAL'];
-    delete process.env['THEMEMORY_REQUIRE_CREDENTIAL'];
-    try {
-      const opts = await resolveBearerAuth('api-keys', fakePool, { host: '127.0.0.1', port: 0 });
-      expect(opts?.requireCredential).toBeUndefined();
-    } finally {
-      if (prev !== undefined) process.env['THEMEMORY_REQUIRE_CREDENTIAL'] = prev;
-    }
+  it('test_oauth_mode_wires_the_gate_into_the_transport', async () => {
+    stubOAuthEnv();
+    const { runMcpServer } = await import('./run-mcp-server.js');
+    await runMcpServer({ transport: 'streamable-http', auth: 'oauth' });
+    const opts = mockConnectStreamableHttp.mock.calls[0]?.[1] as {
+      oauth?: { config: { resource: string } };
+      tlsTerminatedUpstream?: boolean;
+    };
+    expect(opts.oauth?.config.resource).toBe('https://app.test.example/mcp/memory');
+    expect(opts.tlsTerminatedUpstream).toBe(false);
+  });
+
+  it('test_oauth_mode_serves_over_the_tenant_scoped_pool_with_strict_writes', async () => {
+    stubOAuthEnv();
+    const { runMcpServer } = await import('./run-mcp-server.js');
+    await runMcpServer({ transport: 'streamable-http', auth: 'oauth' });
+    expect(mockAssertRequestPoolIsolated).toHaveBeenCalledTimes(1);
+    expect(mockTenantScopedPool).toHaveBeenCalledTimes(1);
+    expect(mockRequireStrictWorkspaceWrites).toHaveBeenCalledTimes(1);
+  });
+
+  it('test_oauth_mode_refuses_to_start_when_the_role_bypasses_row_level_security', async () => {
+    stubOAuthEnv();
+    mockAssertRequestPoolIsolated.mockRejectedValueOnce(new Error('role "postgres" is SUPERUSER'));
+    const { runMcpServer } = await import('./run-mcp-server.js');
+    await expect(runMcpServer({ transport: 'streamable-http', auth: 'oauth' })).rejects.toThrow(
+      /row-level security/,
+    );
+    expect(mockConnectStreamableHttp).not.toHaveBeenCalled();
+  });
+
+  it('test_tls_terminated_upstream_env_reaches_the_transport', async () => {
+    stubOAuthEnv();
+    vi.stubEnv('THEO_MCP_TLS_TERMINATED_UPSTREAM', 'true');
+    const { runMcpServer } = await import('./run-mcp-server.js');
+    await runMcpServer({ transport: 'streamable-http', auth: 'oauth' });
+    const opts = mockConnectStreamableHttp.mock.calls[0]?.[1] as { tlsTerminatedUpstream?: boolean };
+    expect(opts.tlsTerminatedUpstream).toBe(true);
+  });
+
+  it('test_tls_terminated_upstream_env_with_an_unrecognised_value_is_refused', async () => {
+    stubOAuthEnv();
+    vi.stubEnv('THEO_MCP_TLS_TERMINATED_UPSTREAM', 'yes');
+    const { runMcpServer } = await import('./run-mcp-server.js');
+    await expect(runMcpServer({ transport: 'streamable-http', auth: 'oauth' })).rejects.toThrow(
+      /THEO_MCP_TLS_TERMINATED_UPSTREAM/,
+    );
+  });
+
+  it('test_stdio_stays_single_tenant_over_the_raw_pool', async () => {
+    const { runMcpServer } = await import('./run-mcp-server.js');
+    await runMcpServer({ transport: 'stdio' });
+    expect(mockTenantScopedPool).not.toHaveBeenCalled();
+    expect(mockAssertRequestPoolIsolated).not.toHaveBeenCalled();
   });
 });

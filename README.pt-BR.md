@@ -305,20 +305,43 @@ partir da imagem Docker, use o transporte streamable-HTTP abaixo em vez do stdio
 `OPENAI_BASE_URL` é respeitada para gateways compatíveis com OpenAI — por exemplo, aponte para o OpenRouter com `OPENAI_BASE_URL=https://openrouter.ai/api/v1` para usar o embedder local gratuito + um modelo de chat do OpenRouter.
 
 **Ferramentas:** `remember` · `recall` · `forget` · `reflect`
-**Transportes:** stdio (padrão) · streamable-HTTP (selecionado automaticamente quando `THEMEMORY_API_KEY` está definida)
+**Transportes:** stdio (padrão) · streamable-HTTP (selecionado automaticamente quando `THEO_MCP_RESOURCE` está definida)
 
-#### streamable-HTTP sobre TLS (binds fora de localhost)
+#### streamable-HTTP como resource server OAuth 2.1
 
-Quando o servidor MCP precisa escutar num host **fora de localhost** (por exemplo, para um container
-alcançá-lo via `host.docker.internal`), HTTPS é obrigatório. Passe um par cert/key:
+Em streamable-HTTP o servidor é um resource server OAuth 2.1, conforme a especificação de
+autorização do MCP. Toda requisição precisa de `Authorization: Bearer <access token>` — um JWT
+RS256 do seu authorization server cuja audiência inclui o URI de recurso deste servidor. API keys
+**não** são aceitas no transporte MCP.
+
+| Variável | Obrigatória | Significado |
+|---|---|---|
+| `THEO_MCP_RESOURCE` | sim | URI canônico do servidor, sem barra final — ex.: `https://app.example.com/mcp/memory`. O token precisa trazê-lo em `aud`. |
+| `THEO_OAUTH_ISSUER` | sim | `iss` esperado, comparado exatamente — ex.: `https://auth.example.com/`. |
+| `THEO_OAUTH_JWKS_URI` | não | Chaves de assinatura. Padrão: `<issuer>.well-known/jwks.json`. |
+| `THEO_MCP_SCOPES_SUPPORTED` | não | Separados por vírgula, anunciados no documento de metadados. |
+| `THEO_MCP_REQUIRED_SCOPES` | não | Scopes exigidos de todo token; sem eles, `403 insufficient_scope`. |
+| `THEO_MCP_TLS_TERMINATED_UPSTREAM` | não | `true` permite HTTP puro num bind fora de localhost porque um gateway ou mesh à frente termina o TLS. |
+
+O claim `tenant_id` (no topo do token) define o workspace de toda operação e `sub` é o usuário;
+token sem `tenant_id` é recusado. O documento de metadados é servido sem autenticação em
+`/.well-known/oauth-protected-resource` e na forma com sufixo de caminho
+(`/.well-known/oauth-protected-resource/mcp/memory`), e todo `401` aponta para ele.
+
+Nesse caminho a conexão com o banco precisa ser o papel de aplicação contido (`themory_app`): o
+servidor recusa subir como superusuário ou papel com `BYPASSRLS`. Aponte `THEOMEM_MIGRATE_PG_URI`
+para o dono do schema para as migrations.
 
 ```bash
-themory mcp --transport streamable-http --host 0.0.0.0 --port 18091 \
-  --auth api-keys --tls-cert path/to/cert.pem --tls-key path/to/key.pem
+THEO_MCP_RESOURCE=https://app.example.com/mcp/memory \
+THEO_OAUTH_ISSUER=https://auth.example.com/ \
+THEO_MCP_TLS_TERMINATED_UPSTREAM=true \
+themory mcp --transport streamable-http --auth oauth --host 0.0.0.0 --port 18091
 ```
 
-As duas flags são obrigatórias juntas (uma sozinha falha imediatamente); fazer bind num host fora de
-localhost sem elas é recusado. Bind em localhost segue em HTTP puro.
+Sem gateway terminando TLS, um bind fora de localhost exige par cert/key
+(`--tls-cert path/to/cert.pem --tls-key path/to/key.pem`, os dois juntos); sem nenhum dos dois o bind é
+recusado. Bind em localhost segue em HTTP puro, e `--auth none` é só para desenvolvimento local.
 
 ### Modo compatível com OpenMemory
 

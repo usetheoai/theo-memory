@@ -1,26 +1,13 @@
 /**
- * Integration tests for env-driven MCP transport selection — T1.1 + T1.2.
+ * Integration tests for env-driven MCP transport selection.
  *
- * Locks the env-presence precedence contract per plan
- * themory-mcp-bearer-by-env-faang ADR D1 (3-tier precedence: flag > scoped
- * env > THEMEMORY_API_KEY presence > stdio default) + ADR D2 (when env-driven
- * HTTP path activates, auth auto-selects 'api-keys').
+ * Precedence (flag > scoped env > THEO_MCP_RESOURCE presence > stdio default). A server
+ * configured with its canonical resource URI is a network server, so THEO_MCP_RESOURCE
+ * selects streamable-http and the OAuth resource-server gate (usetheoai/theo#477).
  *
- * Pre-impl state (T1.1 RED contract): the 4 RED tests below MUST FAIL against
- * `develop` HEAD because `resolveTransport`/`resolveAuthMode` does not yet
- * consult `THEMEMORY_API_KEY` (Tier-3 unimplemented). They turn GREEN when
- * T2.1 + T2.2 land. The 5th test (T1.2) is a regression-guard locking the
- * existing Tier-1 behavior — passes today, MUST keep passing after T2.x.
- *
- * SEPA-pre-RED MAJOR findings absorbed:
- * - vi.mock module-mock pattern (NOT plain vi.spyOn) — ESM `.js` binding
- *   interception requires module-mock; spyOn on imported bindings does NOT
- *   intercept the run-mcp-server.ts call sites.
- * - vi.stubEnv discipline in beforeEach + vi.unstubAllEnvs in afterEach —
- *   real env carrying THEMEMORY_API_KEY would silently flip stdio-default
- *   test to false-positive PASS otherwise.
- * - EC-1 whitespace-only treated as absent — added as RED #3b (the spec is
- *   `.trim() !== ''`, so empty-string + whitespace-only are both "absent").
+ * `THEMEMORY_API_KEY` used to drive both selections. API keys are no longer accepted by the
+ * MCP transport, so its presence selects nothing — pinned below so the heuristic cannot
+ * quietly come back.
  */
 import { Pool } from 'pg';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -57,7 +44,11 @@ vi.mock('../../../packages/agent-core/src/agent-tools-memory.js', async () => {
 vi.mock('pg', () => ({
   Pool: class MockPool {
     end = mockPoolEnd;
-    query = vi.fn().mockResolvedValue({ rows: [] });
+    // The OAuth path measures the request role's posture before binding; answer as the
+    // contained application role so the composition proceeds to the transport.
+    query = vi.fn().mockResolvedValue({
+      rows: [{ role: 'themory_app', superuser: false, bypass_rls: false }],
+    });
   },
 }));
 
@@ -83,7 +74,14 @@ beforeEach(() => {
   vi.stubEnv('THEMEMORY_API_KEY', '');
   vi.stubEnv('THEOMEM_MCP_TRANSPORT', '');
   vi.stubEnv('THEOMEM_MCP_AUTH', '');
+  vi.stubEnv('THEO_MCP_RESOURCE', '');
+  vi.stubEnv('THEO_OAUTH_ISSUER', 'https://auth.test.example/');
+  vi.stubEnv('THEO_MCP_TLS_TERMINATED_UPSTREAM', '');
+  vi.stubEnv('THEOMEM_MIGRATE_PG_URI', '');
 });
+
+const RESOURCE = 'https://app.test.example/mcp/memory';
+type HttpOpts = { oauth?: { config?: { resource?: string } } };
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -91,96 +89,57 @@ afterEach(() => {
   process.removeAllListeners('SIGINT');
 });
 
-describe('themory mcp — env-driven transport selection (T1.1)', () => {
-  it('test_themory_api_key_set_no_flags_selects_streamable_http_plus_api_keys', async () => {
-    // Given: THEMEMORY_API_KEY env present + no --transport/--auth flags
-    vi.stubEnv('THEMEMORY_API_KEY', 'theo_live_dummytoken_for_red_assertion');
-    // When: runMcpServer invoked with empty options bag
+describe('themory mcp — env-driven transport selection', () => {
+  it('test_resource_env_with_no_flags_selects_streamable_http_behind_the_oauth_gate', async () => {
+    vi.stubEnv('THEO_MCP_RESOURCE', RESOURCE);
     const { runMcpServer } = await import('../../../packages/mcp/src/run-mcp-server.js');
     await runMcpServer();
-    // Then: streamable-http transport selected; stdio NOT called
     expect(mockConnectStreamableHttp).toHaveBeenCalledOnce();
     expect(mockConnectStdio).not.toHaveBeenCalled();
-    // And: bearerAuth.apiKey was wired (ApiKeyAuthVerifier instance) — proves
-    // ADR D2 auto-selection. Test expects 2 args: (server, options).
-    const callArgs = mockConnectStreamableHttp.mock.calls[0] as [unknown, { bearerAuth?: { apiKey?: unknown } }];
-    expect(callArgs[1]?.bearerAuth?.apiKey).toBeDefined();
+    const callArgs = mockConnectStreamableHttp.mock.calls[0] as [unknown, HttpOpts];
+    expect(callArgs[1]?.oauth?.config?.resource).toBe(RESOURCE);
   });
 
-  it('test_themory_api_key_absent_preserves_stdio_default', async () => {
-    // Given: no env (beforeEach stubbed THEMEMORY_API_KEY='')
-    // When: runMcpServer invoked
-    const { runMcpServer } = await import('../../../packages/mcp/src/run-mcp-server.js');
-    await runMcpServer();
-    // Then: stdio default preserved; streamable-http NOT called
-    expect(mockConnectStdio).toHaveBeenCalledOnce();
-    expect(mockConnectStreamableHttp).not.toHaveBeenCalled();
-  });
-
-  it('test_themory_api_key_empty_string_treated_as_absent', async () => {
-    // Given: env present but empty string (operator typo / partial paste)
-    vi.stubEnv('THEMEMORY_API_KEY', '');
-    // When: runMcpServer invoked
-    const { runMcpServer } = await import('../../../packages/mcp/src/run-mcp-server.js');
-    await runMcpServer();
-    // Then: treated as absent → stdio default
-    expect(mockConnectStdio).toHaveBeenCalledOnce();
-    expect(mockConnectStreamableHttp).not.toHaveBeenCalled();
-  });
-
-  it('test_themory_api_key_whitespace_only_treated_as_absent_per_ec1', async () => {
-    // EC-1 absorption (plan v1.1): whitespace-only MUST be treated as absent.
-    // Without `.trim() !== ''`, `!== ''` would let "   " auto-flip transport
-    // → operator confusion + token-less Bearer requests + 401 storm.
-    vi.stubEnv('THEMEMORY_API_KEY', '   ');
+  it('test_resource_absent_preserves_stdio_default', async () => {
     const { runMcpServer } = await import('../../../packages/mcp/src/run-mcp-server.js');
     await runMcpServer();
     expect(mockConnectStdio).toHaveBeenCalledOnce();
     expect(mockConnectStreamableHttp).not.toHaveBeenCalled();
   });
 
-  it('test_themory_api_key_set_no_flags_auth_mode_is_api_keys', async () => {
-    // ADR D2 lock: auth mode MUST be 'api-keys' (NOT 'none') when env-driven
-    // HTTP activates. Falling back to 'none' would be a silent security
-    // downgrade: token present in env but ignored by server.
-    vi.stubEnv('THEMEMORY_API_KEY', 'theo_live_dummy_for_auth_assertion');
+  it('test_resource_whitespace_only_treated_as_absent', async () => {
+    vi.stubEnv('THEO_MCP_RESOURCE', '   ');
     const { runMcpServer } = await import('../../../packages/mcp/src/run-mcp-server.js');
     await runMcpServer();
-    expect(mockConnectStreamableHttp).toHaveBeenCalledOnce();
-    const callArgs = mockConnectStreamableHttp.mock.calls[0] as [unknown, { bearerAuth?: { apiKey?: unknown; oidc?: unknown } }];
-    // bearerAuth.apiKey defined AND oidc undefined proves auth='api-keys' (not 'both' / 'none' / 'oidc')
-    expect(callArgs[1]?.bearerAuth?.apiKey).toBeDefined();
-    expect(callArgs[1]?.bearerAuth?.oidc).toBeUndefined();
+    expect(mockConnectStdio).toHaveBeenCalledOnce();
+    expect(mockConnectStreamableHttp).not.toHaveBeenCalled();
+  });
+
+  it('test_api_key_env_no_longer_selects_the_http_transport', async () => {
+    vi.stubEnv('THEMEMORY_API_KEY', 'theo_live_dummy_that_must_select_nothing');
+    const { runMcpServer } = await import('../../../packages/mcp/src/run-mcp-server.js');
+    await runMcpServer();
+    expect(mockConnectStdio).toHaveBeenCalledOnce();
+    expect(mockConnectStreamableHttp).not.toHaveBeenCalled();
   });
 });
 
-describe('themory mcp — precedence regression guards (T1.2)', () => {
-  it('test_explicit_transport_stdio_flag_wins_over_themory_api_key_env_presence', async () => {
-    // ADR D1 Tier-1 lock: explicit --transport=stdio flag MUST win over
-    // env-presence heuristic. This test PASSES against develop today (regression
-    // guard) and MUST keep passing after T2.1+T2.2 GREEN.
-    // Reference: src/agent-tools/run-mcp-server.ts:84-89 current resolveTransport.
-    vi.stubEnv('THEMEMORY_API_KEY', 'theo_live_dummy_should_be_ignored_by_flag');
+describe('themory mcp — precedence regression guards', () => {
+  it('test_explicit_transport_stdio_flag_wins_over_resource_env', async () => {
+    vi.stubEnv('THEO_MCP_RESOURCE', RESOURCE);
     const { runMcpServer } = await import('../../../packages/mcp/src/run-mcp-server.js');
     await runMcpServer({ transport: 'stdio' });
     expect(mockConnectStdio).toHaveBeenCalledOnce();
     expect(mockConnectStreamableHttp).not.toHaveBeenCalled();
   });
 
-  it('test_explicit_auth_none_overrides_env_driven_api_keys_heuristic', async () => {
-    // ADR D2 explicit-opt-out lock: even with `THEMEMORY_API_KEY` env set (which
-    // would normally auto-flip transport to streamable-http + auth=api-keys),
-    // explicit `auth: 'none'` flag MUST short-circuit the Tier-3 heuristic and
-    // boot HTTP with NO auth. This regression-guard MUST keep passing after T2.2.
-    // Note: passes today because resolveBearerAuth short-circuits on mode='none'.
-    vi.stubEnv('THEMEMORY_API_KEY', 'theo_live_dummy_should_be_overridden_by_auth_none');
+  it('test_explicit_auth_none_boots_http_without_the_gate', async () => {
+    vi.stubEnv('THEO_MCP_RESOURCE', RESOURCE);
     const { runMcpServer } = await import('../../../packages/mcp/src/run-mcp-server.js');
     await runMcpServer({ auth: 'none' });
-    // Transport auto-flipped per Tier-3 (env present, no --transport flag), but
-    // auth explicitly opted out.
     expect(mockConnectStreamableHttp).toHaveBeenCalledOnce();
-    const callArgs = mockConnectStreamableHttp.mock.calls[0] as [unknown, { bearerAuth?: unknown }];
-    expect(callArgs[1]?.bearerAuth).toBeUndefined();
+    const callArgs = mockConnectStreamableHttp.mock.calls[0] as [unknown, HttpOpts];
+    expect(callArgs[1]?.oauth).toBeUndefined();
   });
 });
 

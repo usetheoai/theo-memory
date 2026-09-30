@@ -17,9 +17,9 @@
  *
  * Single-tenant / no-auth dev: when the scope has no workspaceId, the memory is
  * returned unchanged → the store collapses to the `default` workspace (no cross-tenant
- * IDOR with a single workspace). On the api-keys (multi-tenant) path a blank workspace
- * can never reach here — the bearer gate rejects a Principal with an empty workspaceId
- * (plan EC-1) — so the passthrough branch is genuinely single-tenant only.
+ * IDOR with a single workspace). On the OAuth (multi-tenant) path a blank workspace
+ * can never reach here — the auth gate rejects a token whose `tenant_id` is missing or
+ * blank (usetheoai/theo#477) — so the passthrough branch is genuinely single-tenant only.
  *
  * Precondition: must run inside an active `withScope(...)` block (every tool handler
  * already calls `getScope()`); outside one, `getScope()` throws `MissingScopeError`.
