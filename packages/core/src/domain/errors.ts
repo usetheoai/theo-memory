@@ -603,3 +603,9 @@ export class BackgroundPoolReachError extends Error {
     Object.setPrototypeOf(this, BackgroundPoolReachError.prototype);
   }
 }
+
+/** Reusing an idempotency key for another request is a caller conflict, not a retry. */
+export class IdempotencyConflict extends Error {
+  override readonly name = 'IdempotencyConflict';
+  constructor() { super('Idempotency key was already used for different content.'); }
+}

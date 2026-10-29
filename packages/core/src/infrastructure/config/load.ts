@@ -34,6 +34,8 @@ const PROJECT_FILE = '.themory.json';
 export const KNOWN_CONFIG_KEYS: readonly string[] = [
   // non-secret
   'THEOMEM_PG_URI',
+  'THEOMEM_WORKER_PG_URI',
+  'THEOMEM_MEMORY_JOBS',
   'OPENAI_CHAT_MODEL',
   'OPENAI_BASE_URL',
   'THEMORY_BASE_URL',

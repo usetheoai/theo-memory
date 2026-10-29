@@ -40,9 +40,16 @@ export async function rememberHandler(
   // agent-supplied user).
   const scoped = routeScopedMemory(deps.memoryFactory(), parsed.sessionId);
 
-  const finalOptions = buildRememberOptions(parsed.metadata, parsed.infer);
+  const baseOptions = buildRememberOptions(parsed.metadata, parsed.infer);
+  const evidenceOptions = parsed.evidence === undefined ? baseOptions : { ...baseOptions, evidence: parsed.evidence };
 
-  const items = await scoped.remember(parsed.content, finalOptions);
+  const finalOptions = parsed.strictExtraction === undefined ? evidenceOptions : { ...evidenceOptions, strictExtraction: parsed.strictExtraction };
+  const contextOptions = parsed.idempotencyKey === undefined && parsed.expiresAt === undefined ? finalOptions : {
+    ...finalOptions,
+    ...(parsed.idempotencyKey !== undefined ? { idempotencyKey: parsed.idempotencyKey } : {}),
+    ...(parsed.expiresAt !== undefined ? { expiresAt: new Date(parsed.expiresAt) } : {}),
+  };
+  const items = await scoped.remember(parsed.content, contextOptions);
 
   // Honest disclosure (Inquebrável Rule 3): propagate actual result instead of returning
   // silent "Memory persisted." regardless of outcome. items=[] happens when the LLM

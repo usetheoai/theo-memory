@@ -25,6 +25,8 @@ import {
   EmbedderError,
   EmptyScopeError,
   InvalidScope,
+  IdempotencyConflict,
+  MemoryJobUnavailable,
   InvalidSkillError,
   MemoryNotFound,
   MemoryStoreError,
@@ -60,6 +62,8 @@ function logSanitized(err: unknown): void {
 }
 
 export function mapDomainErrorToResponse(err: unknown): MappedErrorResponse {
+  if (err instanceof MemoryJobUnavailable) return { status: 409, body: { code: 'JOB_UNAVAILABLE', message: err.message } };
+  if (err instanceof IdempotencyConflict) return { status: 409, body: { code: 'IDEMPOTENCY_CONFLICT', message: err.message } };
   // Log first so even mapped errors leave an audit trail; redaction is applied.
   logSanitized(err);
 

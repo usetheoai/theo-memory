@@ -20,23 +20,26 @@ import { randomUUID } from 'node:crypto';
 
 import { hashFact } from '../dedup.js';
 import type { HistoryBatchRecord } from '../dip/history-manager.js';
-import { InvalidScope } from '../errors.js';
+import { InvalidScope, MemoryStoreError } from '../errors.js';
 import { lemmatizeForBm25 } from '../lemmatization.js';
 import { emitEvent } from '../memory-event.js';
+import { attachEvidence, validateMemoryEvidence, restoreDuplicateEvidence } from '../memory-evidence.js';
 import type { MemoryItem } from '../memory-item.js';
 import type { Message } from '../message.js';
 import { DEFAULT_ENTITY_TAXONOMY } from '../ontology.js';
 import type { RememberOptions } from '../options.js';
 import type { Filters } from '../scope.js';
+import { attachWriteContext, validateWriteContext, writeRequestHash } from '../write-context.js';
 
 import { linkEntities, type RelationTriple } from './entity-linking.js';
+import { prepareExtractedEvidence, extractedMemoryEvidence } from './evidence.js';
 import { applyFactGate } from './fact-gate.js';
 import { correctEntityRelationLanguage } from './label-language.js';
 import { detectInputLanguage } from './language.js';
 import { coerceExtractionResponse } from './normalize.js';
 import { applyOntologyToEntities, boundedAutoCategory, buildPayload, embedBatchWithFallback, extractResponseText, patchItemsWithOutcomes, persistWithFallback, runInferFalsePath, scopeFromFilters, toMemoryItem } from './pipeline-helpers.js';
 import type { ExtractionDeps, Payload } from './pipeline-helpers.js';
-import { AdditiveExtractionSchema, generateAdditiveExtractionPrompt } from './prompt.js';
+import { AdditiveExtractionSchema, generateAdditiveExtractionPrompt, type AdditiveExtractionResponse } from './prompt.js';
 import { DEFAULT_CATEGORY_TAXONOMY, classifyCategorySource } from './taxonomy.js';
 
 
@@ -55,6 +58,22 @@ export async function runExtractionPipeline(
   deps: ExtractionDeps,
   options?: RememberOptions,
 ): Promise<readonly MemoryItem[]> {
+  const sourceEvidence = options?.evidence === undefined ? undefined : validateMemoryEvidence(options.evidence);
+  if (sourceEvidence !== undefined) options = { ...options, evidence: sourceEvidence };
+  validateWriteContext(options, true);
+  messages=messages.map(message=>({...message}));
+  if(options!==undefined)options={...options,
+    ...(options.expiresAt!==undefined?{expiresAt:new Date(options.expiresAt)}:{}),
+    ...(options.metadata!==undefined?{metadata:{...options.metadata}}:{})};
+  if (options?.idempotencyKey !== undefined && deps.vectorStore.findWriteReplay === undefined) {
+    throw new InvalidScope('Idempotent writes require a store with durable write receipts, such as PgvectorStore.');
+  }
+  if (options?.idempotencyKey !== undefined && deps.vectorStore.findWriteReplay !== undefined) {
+    const replay = await deps.vectorStore.findWriteReplay(options.idempotencyKey, writeRequestHash(messages, options), filters);
+    if (replay !== null) return replay.map((row) => ({ ...toMemoryItem(row.id, String(row.payload['text'] ?? ''),
+      String(row.payload['hash'] ?? row.id), scopeFromFilters(filters), { ...row.payload }, row.createdAt ?? new Date()), rejectedAsDuplicate: true, idempotentReplay: true }));
+  }
+  validateWriteContext(options);
   const tracer = deps.tracer;
 
   // themory-category-filter-server-side T3.3 / EC-2 — SDK-layer boundary check
@@ -73,7 +92,7 @@ export async function runExtractionPipeline(
 
   // infer:false fast-path
   if (options?.infer === false) {
-    return runInferFalsePath(messages, filters, deps, options);
+    return runInferFalsePath(messages, filters, deps, sourceEvidence === undefined ? options : { ...options, evidence: sourceEvidence });
   }
 
   // ============================================================
@@ -115,7 +134,7 @@ export async function runExtractionPipeline(
     autoCategorizeEnabled ? autoCategorizeTaxonomy : undefined,
     options?.attributedTo, // M29 (#160): speaker token derived from attribution inside the prompt composer
   );
-  let extracted: readonly { id: string; text: string; attributed_to?: string | undefined; category?: string | undefined; linked_memory_ids?: string[] | undefined }[];
+  let extracted: Readonly<AdditiveExtractionResponse['memory']>;
   // slice2 T2.2 — relation triples from the SAME extraction call (response-level).
   let relations: readonly RelationTriple[] | undefined;
   // multilingual nodes: the LLM is the PRIMARY node source (compromise is an
@@ -157,7 +176,7 @@ export async function runExtractionPipeline(
         const lang = detectedLanguage;
         const factsLanguage = detectInputLanguage(extracted.map((f) => f.text).join(' '));
         if (factsLanguage !== null && factsLanguage.iso6391 !== lang.iso6391) {
-          const result: { id: string; text: string; attributed_to?: string | undefined; category?: string | undefined; linked_memory_ids?: string[] | undefined }[] = [];
+          const result: AdditiveExtractionResponse['memory'] = [];
           let correctedCount = 0;
           for (const fact of extracted) {
             let text = fact.text;
@@ -208,7 +227,7 @@ export async function runExtractionPipeline(
     const isParse = err instanceof SyntaxError                    // JSON.parse failure
       || (err !== null && typeof err === 'object' && 'issues' in err);  // ZodError shape
     process.stderr.write(
-      `[themory] extraction_failed (${isParse ? 'parse' : 'network'}): ${err instanceof Error ? err.message : String(err)}\n`,
+      `[themory] extraction_failed (${isParse ? 'parse' : 'network'}): ${deps.redactErrorDetails === true ? (err instanceof Error ? err.name : 'UnknownError') : (err instanceof Error ? err.message : String(err))}\n`,
     );
     if (!isParse) {
       // Network / LLM provider errors propagate — caller decides retry policy.
@@ -216,6 +235,7 @@ export async function runExtractionPipeline(
       throw err;
     }
     emitEvent(tracer, 'extraction_parse_failure');
+    if (options?.strictExtraction === true) throw new MemoryStoreError('Memory extraction response was invalid.', { cause: err });
     return [];
   }
 
@@ -235,7 +255,16 @@ export async function runExtractionPipeline(
   }
 
   // M27 T2.1 — deterministic durable-fact backstop gate (infer:true only; audit per drop).
-  extracted = applyFactGate(extracted, tracer);
+  const extractedCount = extracted.length;
+  extracted = prepareExtractedEvidence(applyFactGate(extracted, tracer), messages, tracer);
+  if (extracted.length < extractedCount && (llmEntities !== undefined || relations !== undefined)) {
+    // Batch-level graph annotations have no per-fact provenance. They could retain
+    // a rejected preference by attaching it to a surviving fact. Fall back to
+    // extracting nodes from the kept texts and omit these unassignable edges.
+    llmEntities = undefined;
+    relations = undefined;
+    emitEvent(tracer, 'extraction_evidence_dropped', { reason: 'filtered_batch_graph_annotations', target: 'graph' });
+  }
 
   if (extracted.length === 0) {
     // principles-alignment-hardening T3.1 — Princípio 3 IGNORE auditability per ADR D2.
@@ -259,6 +288,11 @@ export async function runExtractionPipeline(
   // ============================================================
   const texts = extracted.map((e) => e.text);
   const vectors = await embedBatchWithFallback(texts, deps.embedder, tracer);
+
+  if (options?.strictExtraction === true &&
+      (vectors.length !== extracted.length || vectors.some((v) => v.length === 0))) {
+    throw new MemoryStoreError('Memory extraction did not produce embeddings for every fact.');
+  }
 
   // ============================================================
   // Phase 4-5: dedup + payload composition
@@ -297,6 +331,8 @@ export async function runExtractionPipeline(
     const id = randomUUID();
     const now = new Date();
     const payload = buildPayload(text, hash, filters, metadata);
+    attachWriteContext(payload, messages, options);
+    attachEvidence(payload, extractedMemoryEvidence(extracted[i]?.evidence, sourceEvidence));
     payload['text_lemmatized'] = lemmatizeForBm25(text).join(' ');
     // Attribution authority (claude-code-kit fix): the REQUEST-level
     // `options.attributedTo` is the ORIGIN of the turn — the Stop hook sets it to
@@ -364,9 +400,17 @@ export async function runExtractionPipeline(
     survivingPayloads,
     tracer,
   );
+  if (options?.idempotencyKey !== undefined && persistOutcomes.some(outcome=>outcome.idempotentReplay===true) && deps.vectorStore.findWriteReplay!==undefined) {
+    const replay=await deps.vectorStore.findWriteReplay(options.idempotencyKey,writeRequestHash(messages,options),filters);
+    if(replay!==null)return replay.map(row=>({...toMemoryItem(row.id,String(row.payload['text']??''),String(row.payload['hash']??row.id),
+      scopeFromFilters(filters),{...row.payload},row.createdAt??new Date()),rejectedAsDuplicate:true,idempotentReplay:true}));
+  }
+  if (options?.strictExtraction === true && persistOutcomes.length !== survivingIds.length) {
+    throw new MemoryStoreError('Memory persistence was incomplete; some facts may have been saved.');
+  }
   // principles-alignment-hardening T2.1 — patch surviving items with UPSERT
   // outcomes (confirmationCount + rejectedAsDuplicate) per ADR D1 + D4.
-  const patchedItems = patchItemsWithOutcomes(survivingItems, persistOutcomes);
+  const patchedItems = await restoreDuplicateEvidence(patchItemsWithOutcomes(survivingItems, persistOutcomes), deps.vectorStore);
   // Replace the surviving items array in place so downstream history persist /
   // entity link / return path see the patched DTOs.
   survivingItems.length = 0;

@@ -43,6 +43,20 @@ describe('T1.4 — GET /v1/openapi.json', () => {
      
   });
 
+  test('durable job operations and evidence pagination are discoverable with their wire fields', async () => {
+    const app = createServer({memory: stubMemory()});
+    const response = await app.fetch(new Request('http://localhost/v1/openapi.json'));
+    const spec = await response.json() as {paths: Record<string, {post?: {operationId: string}; get?: {operationId: string}}>};
+    expect(spec.paths['/v1/memory-jobs']?.post?.operationId).toBe('submitMemoryJob');
+    expect(spec.paths['/v1/memory-jobs/{jobId}']?.get?.operationId).toBe('getMemoryJob');
+    expect(spec.paths['/v1/memory-jobs/{jobId}/retry']?.post?.operationId).toBe('retryMemoryJob');
+    expect(spec.paths['/v1/scopes/{type}/{id}/memories/{memoryId}/evidence']?.get?.operationId).toBe('listMemoryEvidence');
+    const json = JSON.stringify(spec);
+    for (const property of ['Idempotency-Key','originSourceId','distinctSourceCount','expiresAt','nextOffset','idempotentReplay']) {
+      expect(json).toContain(property);
+    }
+  });
+
   test('2. accessible WITHOUT bearer token even when THEMEMORY_API_KEY set (EC-19)', async () => {
     process.env['THEMEMORY_API_KEY'] = 'sk-secret';
     const app = createServer({ memory: stubMemory() });

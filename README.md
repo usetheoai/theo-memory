@@ -75,6 +75,11 @@ const facts = await memory.user('alice').recall('UI preferences');
 
 ## Features
 
+For exact application records, contextual evidence, and asynchronous session extraction, see
+[Memory semantics and session lifecycle](docs/memory-semantics.md),
+[durable worker operations](docs/memory-jobs.md), and the
+[runnable wishlist example](examples/wishlist/README.md).
+
 - **Three-tier scope** — `user` (cross-session) · `session` (conversation) · `agent` (procedural) + `skills` (code-as-skill library)
 - **4-verb API** — `remember` · `recall` · `forget` · `reflect` — consistent across all tiers
 - **Hybrid retrieval** — semantic (cosine) + BM25 (lexical) + entity boost with threshold gating

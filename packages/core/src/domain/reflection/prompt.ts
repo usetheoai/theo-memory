@@ -48,13 +48,17 @@ export function buildReflectionPrompt(
   lines.push('');
   lines.push('RULES (NON-NEGOTIABLE):');
   lines.push('  - Cite source memory IDs verbatim. Invent NO ids.');
+  lines.push('  - Every output is an inference, never an independently verified operational record.');
+  lines.push('  - Preserve uncertainty. A passing choice or tentative statement is not a lasting preference.');
+  lines.push('  - Repeated summaries of the same source are not independent supporting evidence.');
   lines.push('  - Every derived insight MUST reference at least one source ID via "derived_from".');
   lines.push('  - Return STRICT JSON: an array of objects { "text": string, "derived_from": string[] }.');
   lines.push('  - If no consolidation is possible (memories are unrelated), return an empty array [].');
   lines.push('');
   lines.push(`SOURCE MEMORIES (${String(sourceMemories.length)} total):`);
   for (const m of sourceMemories) {
-    lines.push(`  - id="${m.id}": ${m.text}`);
+    const evidence = m.evidence === undefined ? 'unknown' : JSON.stringify(m.evidence);
+    lines.push(`  - id="${m.id}" evidence=${evidence}: ${m.text}`);
   }
   lines.push('');
   lines.push('Respond with the JSON array. No prose, no preamble.');

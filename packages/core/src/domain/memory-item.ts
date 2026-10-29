@@ -4,9 +4,22 @@
  * @see ADR-0001 — upstream-shape architecture (hash dedup + bi-temporal data model).
  * @see ADR-0006 — bi-temporal columns: schema-yes-in-local, query-API-no-until-v0.5.
  */
+import type { MemoryEvidence } from './memory-evidence.js';
 import type { Scope } from './scope.js';
 
 export interface MemoryItem {
+  /** This request had already committed; no assertion or post-write hook ran again. */
+  readonly idempotentReplay?: boolean;
+  /** Distinct identified origins; null means legacy provenance is unknown. */
+  readonly distinctSourceCount?: number | null;
+  /** Explicit deadline, independent of forgetting. */
+  readonly expiresAt?: Date | null;
+
+  /** How this context was obtained. Undefined on legacy/unclassified memories.
+   * @see docs/memory-semantics.md
+   */
+  readonly evidence?: MemoryEvidence;
+
   /** UUID v4 generated at write time. Globally unique across scopes. */
   readonly id: string;
 

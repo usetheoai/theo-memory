@@ -1,3 +1,4 @@
+import { evidenceFromPayload } from '../../domain/memory-evidence.js';
 /**
  * Shared row→MemoryItem mapping extracted from `scoped-memory.ts` (M8 T0 refactor).
  * `getAll` and `episodes` had the IDENTICAL mapping block (the DUPLICATE BLOCK the
@@ -49,8 +50,9 @@ export function rowsToMemoryItems(
       createdAt,
       updatedAt: createdAt,
       metadata: { ...r.payload },
-      tValid: createdAt,
+        tValid: createdAt,
       tInvalid: null,
+      ...evidenceFromPayload(r.payload),
     };
   });
   return { items, fallbackCount };

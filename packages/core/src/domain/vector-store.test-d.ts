@@ -6,6 +6,7 @@ import type { Filters } from './scope.js';
 test('VectorStore has exactly 13 required methods (D8 lock + deleteInScope + first-class-episodes listEpisodes)', () => {
   type Keys = keyof VectorStore;
   expectTypeOf<Keys>().toEqualTypeOf<
+    | 'findWriteReplay'
     | 'initialize'
     | 'insert'
     | 'search'

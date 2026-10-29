@@ -3,6 +3,20 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
+### Added
+
+- Durable Postgres extraction jobs with committed acceptance, SDK/REST job access, a separate `themory worker`, prepared-draft recovery, leased/fenced claims, bounded retries, and atomic memory/evidence/history/graph completion. Migrations 0035–0036 are required. See `docs/memory-jobs.md`.
+- Independent-source evidence ledger, paginated SDK/REST audit reads, and idempotent Postgres remember requests. `distinctSourceCount` is separate from assertion counts; summaries and reflection inherit original sources.
+- Explicit `expiresAt`, temporal filtering across current reads and caches, inherited derived-memory deadlines, and optional physical expiry purge. Session scope alone does not expire data.
+- A runnable wishlist example and a live 60-case bilingual extraction evaluation with three repetitions, quality gates, provider usage and bounded transport-only recovery.
+
+### Changed
+
+- Session-to-global promotion now requires at least two identified distinct sources by default. Repeated assertions and legacy unknown provenance cannot satisfy that threshold.
+
+- Contextual memories expose typed evidence (`stated`, `inferred`, or caller-declared `observed`) with source references, exact quotes, modality, and optional confidence. SDK, REST single/batch remember, and MCP share validation. Extraction discards tentative/temporary drafts and removes ungrounded citations; reflection outputs remain inferred. Existing unclassified rows retain unknown evidence, and dedup keeps the first persisted citation. See `docs/memory-semantics.md` and ADR-0025.
+- `MemorySession` separates exact application fact lookups/writes from semantic context and queues extraction outside the live turn. Its bounded in-process queue exposes completion, errors, and shutdown draining; it is not crash-durable. `strictExtraction` reports malformed responses, missing embeddings, and incomplete writes; the coordinator enables it automatically.
+
 ### Security
 
 - **MCP requests over HTTP are confined to the tenant in their access token by the database.** The MCP server used to give its stores an unscoped connection, so writes without a workspace landed in the shared `default` workspace. On the OAuth path it now holds the REST server's bar: the token's `tenant_id` is the request's workspace, every connection carries it, the server refuses to start when its database role is a superuser or `BYPASSRLS`, and a session opened by one tenant or user answers `404` to anyone else. A client-sent `X-Theo-User-Id` header is ignored; the user is the token's `sub`. (usetheoai/theo#477)

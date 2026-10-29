@@ -17,11 +17,13 @@ import {
   escapeLikePattern,
   resolveEpisodeLimit,
 } from '../../domain/episode.js';
-import { EmbeddingMismatch } from '../../domain/errors.js';
+import { EmbeddingMismatch, IdempotencyConflict } from '../../domain/errors.js';
 import { normalizeEntityKey } from '../../domain/extraction/entity-linking.js';
 import { emitEvent } from '../../domain/memory-event.js';
 import type { Filters } from '../../domain/scope.js';
 
+import { writeWithEvidence } from './evidence-write.js';
+import { runInTx } from './pg-tx.js';
 import { PgvectorSkillStore } from './pgvector-skill-store.js';
 import { parseVectorLiteral, vectorLiteral } from './pgvector-vector-literal.js';
 import type {
@@ -61,6 +63,10 @@ export interface MemoriesRow extends QueryResultRow {
   readonly superseded_by?: string | null;
   /** principles-alignment-hardening T2.1 / ADR D1 — Princípio 1 confirmação factor. */
   readonly confirmation_count?: number;
+  readonly expires_at?: Date | null;
+  readonly t_valid?: Date | null;
+  readonly t_invalid?: Date | null;
+  readonly distinct_source_count?: number | null;
   /**
    * dashboard-memories-tab-standardization T2.1: project DB wall-clock so
    * `VectorStoreResult.createdAt` flows through to consumers. Nullable to
@@ -140,6 +146,10 @@ export function rowToResult(row: MemoriesRow): VectorStoreResult {
   if (row.created_at != null) {
     payload['created_at'] = row.created_at.toISOString();
   }
+  if (row.t_valid !== undefined) payload['t_valid'] = row.t_valid?.toISOString() ?? null;
+  if (row.t_invalid !== undefined) payload['t_invalid'] = row.t_invalid?.toISOString() ?? null;
+  if (row.expires_at !== undefined) payload['expires_at'] = row.expires_at?.toISOString() ?? null;
+  if (row.distinct_source_count !== undefined) payload['distinct_source_count'] = row.distinct_source_count;
   const score = row.distance !== undefined ? 1 - row.distance : row.rank;
   // dashboard-memories-tab-standardization T2.1 — null-safe createdAt projection.
   // EC-1: NULL → undefined (NOT new Date(0) which would silently lie 1970-01-01).
@@ -358,6 +368,18 @@ export class PgvectorStore implements VectorStore {
     }
   }
 
+  async findWriteReplay(requestKey: string, requestHash: string, filters: Filters): Promise<readonly VectorStoreResult[] | null> {
+    const scopeKey = JSON.stringify([filters.workspace_id ?? 'default', filters.user_id ?? null,
+      filters.session_id ?? null, filters.agent_id ?? null]);
+    const result = await this.pool.query<MemoriesRow & { request_hash: string }>(
+      `SELECT m.*,r.request_hash FROM memory_write_receipts r JOIN memories m ON m.id=r.memory_id
+       WHERE r.workspace_id=$1 AND r.scope_key=$2 AND r.request_key=$3 ORDER BY m.created_at,m.id`,
+      [filters.workspace_id ?? 'default', scopeKey, requestKey]);
+    if (result.rows.length === 0) return null;
+    if (result.rows.some((row) => row.request_hash !== requestHash)) throw new IdempotencyConflict();
+    return result.rows.map(rowToResult);
+  }
+
   async insert(
     vectors: readonly (readonly number[])[],
     ids: readonly string[],
@@ -374,7 +396,8 @@ export class PgvectorStore implements VectorStore {
     }
     try {
       return await this.insertBatch(vectors, ids, payloads);
-    } catch {
+    } catch (error) {
+      if (error instanceof IdempotencyConflict) throw error;
       // F-arch-3: persist_fallback fires per batch invocation; per-row failures
       // are skipped (do not poison the rest of the batch) and tallied below.
       emitEvent(this.tracer, 'persist_fallback', { count: vectors.length });
@@ -388,7 +411,8 @@ export class PgvectorStore implements VectorStore {
             payloads[i] as Payload,
           );
           outcomes.push(...singleOutcomes);
-        } catch {
+        } catch (error) {
+          if (error instanceof IdempotencyConflict) throw error;
           failed += 1;
         }
       }
@@ -400,9 +424,17 @@ export class PgvectorStore implements VectorStore {
   }
 
   private async insertBatch(
+    vectors: readonly (readonly number[])[], ids: readonly string[], payloads: readonly Payload[],
+  ): Promise<readonly InsertOutcome[]> {
+    return writeWithEvidence(this.pool, vectors, ids, payloads,
+      (client, vector, memoryId, payload) => this.insertBatchRaw([vector], [memoryId], [payload], client));
+  }
+
+  private async insertBatchRaw(
     vectors: readonly (readonly number[])[],
     ids: readonly string[],
     payloads: readonly Payload[],
+    executor: Pick<Pool, 'query'>,
   ): Promise<readonly InsertOutcome[]> {
     const values: string[] = [];
     const params: unknown[] = [];
@@ -442,7 +474,7 @@ export class PgvectorStore implements VectorStore {
       delete cleanedPayload['attributed_to'];
       delete cleanedPayload['category'];
       values.push(
-        `($${p++}, $${p++}, $${p++}, $${p++}::vector, $${p++}::jsonb, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++})`,
+        `($${p++}, $${p++}, $${p++}, $${p++}::vector, $${p++}::jsonb, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++})`,
       );
       params.push(
         id,
@@ -456,6 +488,7 @@ export class PgvectorStore implements VectorStore {
         agentId,
         attributedTo,
         category,
+        payload['expires_at'] ?? null,
       );
     }
     // principles-alignment-hardening T1.1 — composite ON CONFLICT per ADR D5.
@@ -473,13 +506,14 @@ export class PgvectorStore implements VectorStore {
     // Including category in the SET list would silently mutate operator-supplied
     // content on every re-remember (surprise + ADD-only violation).
     const sql = `
-      INSERT INTO memories (id, text, hash, embedding, payload, workspace_id, user_id, session_id, agent_id, attributed_to, category)
+      INSERT INTO memories (id, text, hash, embedding, payload, workspace_id, user_id, session_id, agent_id, attributed_to, category, expires_at)
       VALUES ${values.join(', ')}
       ON CONFLICT (workspace_id, hash, COALESCE(user_id, ''), COALESCE(session_id, ''), COALESCE(agent_id, ''))
+      WHERE t_invalid IS NULL
       DO UPDATE SET confirmation_count = memories.confirmation_count + 1
       RETURNING id, confirmation_count, user_id, session_id, agent_id, (xmax = 0) AS inserted
     `;
-    const result = await this.pool.query<{
+    const result = await executor.query<{
       id: string;
       confirmation_count: number;
       user_id: string | null;
@@ -545,7 +579,7 @@ export class PgvectorStore implements VectorStore {
       // M10 T1.1: project created_at so the recalled row carries its REAL age (rowToResult maps
       // it) — the recency signal the scope-aware reweight reads. Without it the pipeline
       // hardcoded createdAt=now and a recency boost was a no-op.
-      'kind, code, description, code_language, derived_from, superseded_by, confirmation_count, created_at';
+      'kind, code, description, code_language, derived_from, superseded_by, t_valid, t_invalid, expires_at, distinct_source_count, confirmation_count, created_at';
     // EG-6 (recall-scoped-exact-search): a SELECTIVE (scope-filtered) recall must
     // NOT be starved by the HNSW global-top-`ef_search`-then-filter behavior of
     // pgvector 0.5.1 (a sparse scope whose rows are not among the global nearest
@@ -636,7 +670,7 @@ export class PgvectorStore implements VectorStore {
     const filter = composeFilters(filters, temporal.nextParamIndex);
     const sql = `
       SELECT id, text, hash, payload, user_id, session_id, agent_id, attributed_to, category,
-             kind, code, description, code_language, derived_from, superseded_by, confirmation_count,
+             kind, code, description, code_language, derived_from, superseded_by, t_valid, t_invalid, expires_at, distinct_source_count, confirmation_count,
              ts_rank(to_tsvector('english', text), plainto_tsquery('english', $1)) AS rank
       FROM memories
       WHERE to_tsvector('english', text) @@ plainto_tsquery('english', $1)
@@ -660,7 +694,7 @@ export class PgvectorStore implements VectorStore {
     // public read (`LocalMemory.get`) is what hides forgotten rows.
     const result = await this.pool.query<MemoriesRow & { t_invalid: Date | null }>(
       `SELECT id, text, hash, payload, workspace_id, user_id, session_id, agent_id, attributed_to, category,
-              kind, code, description, code_language, derived_from, superseded_by, confirmation_count, t_invalid
+              kind, code, description, code_language, derived_from, superseded_by, t_valid, t_invalid, expires_at, distinct_source_count, confirmation_count, t_invalid
          FROM memories WHERE id = $1`,
       [vectorId],
     );
@@ -670,7 +704,7 @@ export class PgvectorStore implements VectorStore {
     const row = result.rows[0] as MemoriesRow & { t_invalid: Date | null };
     const mapped = rowToResult(row);
     if (row.t_invalid !== null && row.t_invalid !== undefined) {
-      (mapped.payload as Record<string, unknown>)['t_invalid'] = row.t_invalid;
+      (mapped.payload as Record<string, unknown>)['t_invalid'] = row.t_invalid.toISOString();
     }
     return mapped;
   }
@@ -831,9 +865,12 @@ export class PgvectorStore implements VectorStore {
     // The getAll projection hardcodes tInvalid:null, confirming list is live-only.
     // includeSoftDeleted=true is reserved for Memory.reset (full-scope purge),
     // which must enumerate tombstones to physically delete them.
-    const liveClause = includeSoftDeleted ? '1=1' : 't_invalid IS NULL';
+    const temporal = composeTemporalWhere(filters?.asOf, filter.nextParamIndex);
+    const liveClause = includeSoftDeleted ? '1=1' : temporal.sql;
+    const baseParams = [...filter.params, ...(includeSoftDeleted ? [] : temporal.params)];
+    const pageIndex = includeSoftDeleted ? filter.nextParamIndex : temporal.nextParamIndex;
     const countSql = `SELECT COUNT(*)::int AS total FROM memories WHERE ${liveClause}${filter.sql}`;
-    const countResult = await this.pool.query<{ total: number }>(countSql, [...filter.params]);
+    const countResult = await this.pool.query<{ total: number }>(countSql, baseParams);
     const total = countResult.rows[0]?.total ?? 0;
 
     // dashboard-memories-tab-standardization T2.1:
@@ -843,14 +880,14 @@ export class PgvectorStore implements VectorStore {
     //     Dashboard pagination consumes this contract (same query → same order across refreshes).
     const pageSql = `
       SELECT id, text, hash, payload, user_id, session_id, agent_id, attributed_to, category,
-             kind, code, description, code_language, derived_from, superseded_by, confirmation_count,
+             kind, code, description, code_language, derived_from, superseded_by, t_valid, t_invalid, expires_at, distinct_source_count, confirmation_count,
              created_at
       FROM memories
       WHERE ${liveClause}${filter.sql}
       ORDER BY created_at DESC, id ASC
-      LIMIT $${filter.nextParamIndex} OFFSET $${filter.nextParamIndex + 1}
+      LIMIT $${pageIndex} OFFSET $${pageIndex + 1}
     `;
-    const pageResult = await this.pool.query<MemoriesRow>(pageSql, [...filter.params, topK, offset]);
+    const pageResult = await this.pool.query<MemoriesRow>(pageSql, [...baseParams, topK, offset]);
     return [pageResult.rows.map(rowToResult), total];
   }
 
@@ -873,14 +910,15 @@ export class PgvectorStore implements VectorStore {
     const filter = composeFilters(filters, 3);
     const normalizedKey = normalizeEntityKey(entityName);
     const workspaceId = filters?.workspace_id ?? 'default';
-    const entityClause = `t_invalid IS NULL${filter.sql}
+    const temporal = composeTemporalWhere(filters?.asOf, filter.nextParamIndex);
+    const entityClause = `${temporal.sql}${filter.sql}
        AND EXISTS (
          SELECT 1 FROM memory_entities me
          JOIN entities e ON e.id = me.entity_id
          WHERE me.memory_id = memories.id
            AND e.workspace_id = $1 AND e.normalized_key = $2
        )`;
-    const baseParams = [workspaceId, normalizedKey, ...filter.params];
+    const baseParams = [workspaceId, normalizedKey, ...filter.params, ...temporal.params];
     const countResult = await this.pool.query<{ total: number }>(
       `SELECT COUNT(*)::int AS total FROM memories WHERE ${entityClause}`,
       baseParams,
@@ -888,12 +926,12 @@ export class PgvectorStore implements VectorStore {
     const total = countResult.rows[0]?.total ?? 0;
     const pageResult = await this.pool.query<MemoriesRow>(
       `SELECT id, text, hash, payload, user_id, session_id, agent_id, attributed_to, category,
-              kind, code, description, code_language, derived_from, superseded_by, confirmation_count,
+              kind, code, description, code_language, derived_from, superseded_by, t_valid, t_invalid, expires_at, distinct_source_count, confirmation_count,
               created_at
        FROM memories
        WHERE ${entityClause}
        ORDER BY created_at DESC, id ASC
-       LIMIT $${filter.nextParamIndex} OFFSET $${filter.nextParamIndex + 1}`,
+       LIMIT $${temporal.nextParamIndex} OFFSET $${temporal.nextParamIndex + 1}`,
       [...baseParams, topK, offset],
     );
     return [pageResult.rows.map(rowToResult), total];
@@ -919,7 +957,7 @@ export class PgvectorStore implements VectorStore {
     const res = await this.pool.query<{ session_id: string; memory_count: number; last_activity_at: Date }>(
       `SELECT session_id, COUNT(*)::int AS memory_count, MAX(created_at) AS last_activity_at
        FROM memories
-       WHERE t_invalid IS NULL AND session_id IS NOT NULL AND workspace_id = $1${userClause}
+       WHERE t_invalid IS NULL AND (expires_at IS NULL OR expires_at > NOW()) AND session_id IS NOT NULL AND workspace_id = $1${userClause}
        GROUP BY session_id
        ORDER BY MAX(created_at) DESC
        LIMIT 500`,
@@ -967,7 +1005,7 @@ export class PgvectorStore implements VectorStore {
     const offsetIdx = p + 1;
     const pageSql = `
       SELECT id, text, hash, payload, user_id, session_id, agent_id, attributed_to, category,
-             kind, code, description, code_language, derived_from, superseded_by, confirmation_count,
+             kind, code, description, code_language, derived_from, superseded_by, t_valid, t_invalid, expires_at, distinct_source_count, confirmation_count,
              created_at
       FROM memories
       WHERE ${where}
@@ -1045,7 +1083,7 @@ export class PgvectorStore implements VectorStore {
     const extraSql = extra.length > 0 ? ` AND ${extra.join(' AND ')}` : '';
     const pageSql = `
       SELECT id, text, hash, payload, workspace_id, user_id, session_id, agent_id, attributed_to, category,
-             kind, code, description, code_language, derived_from, superseded_by, confirmation_count,
+             kind, code, description, code_language, derived_from, superseded_by, t_valid, t_invalid, expires_at, distinct_source_count, confirmation_count,
              created_at
       FROM memories
       WHERE ${temporal.sql}${filter.sql}${extraSql}
@@ -1090,19 +1128,29 @@ export class PgvectorStore implements VectorStore {
     this.assertEmbeddingDim(args.embedding, 'insertDerivedMemory');
     // multi-tenant-workspace-isolation T1.1: a reflection-derived memory stays
     // in its source workspace; default to 'default' (ADR D7) when unbound.
+    return runInTx(this.pool, async (client) => {
+    const sources = await client.query<{ expires_at: Date | null }>(
+      `SELECT expires_at FROM memories WHERE id=ANY($1::uuid[]) AND workspace_id=$2
+       AND t_invalid IS NULL AND (expires_at IS NULL OR expires_at>NOW()) FOR SHARE`,
+      [[...args.derivedFrom], args.scope.workspaceId ?? 'default']);
+    if (sources.rows.length !== new Set(args.derivedFrom).size || sources.rows.length === 0) {
+      throw new Error('Derived memory requires active, accessible source memories.');
+    }
+    const deadlines = sources.rows.flatMap((row) => row.expires_at === null ? [] : [row.expires_at.getTime()]);
+    const expiresAt = deadlines.length === 0 ? null : new Date(Math.min(...deadlines));
     const sql = `
       INSERT INTO memories (
         text, hash, embedding, payload,
         workspace_id, user_id, session_id, agent_id,
-        kind, derived_from
+        kind, derived_from, expires_at
       ) VALUES (
         $1, $2, $3::vector, '{}'::jsonb,
         $4, $5, $6, $7,
-        'derived', $8::jsonb
+        'derived', $8::jsonb, $9
       )
       RETURNING id
     `;
-    const result = await this.pool.query<{ id: string }>(sql, [
+    const result = await client.query<{ id: string }>(sql, [
       args.text,
       args.hash,
       vectorLiteral(args.embedding),
@@ -1111,12 +1159,20 @@ export class PgvectorStore implements VectorStore {
       args.scope.sessionId ?? null,
       args.scope.agentId ?? null,
       JSON.stringify([...args.derivedFrom]),
+      expiresAt,
     ]);
     const row = result.rows[0];
     if (row === undefined) {
       throw new Error('insertDerivedMemory: INSERT returned no rows');
     }
+    await client.query(`INSERT INTO memory_evidence(workspace_id,memory_id,origin_source_id,evidence)
+      SELECT DISTINCT ON (origin_source_id) workspace_id,$1,origin_source_id,evidence FROM memory_evidence
+      WHERE memory_id=ANY($2::uuid[]) AND workspace_id=$3 ON CONFLICT DO NOTHING`,
+      [row.id,[...args.derivedFrom],args.scope.workspaceId ?? 'default']);
+    await client.query(`UPDATE memories SET distinct_source_count=(SELECT COUNT(*) FROM memory_evidence
+      WHERE memory_id=$1) WHERE id=$1`, [row.id]);
     return row.id;
+    });
   }
 
   /** T3.1 / F3: skill CRUD delegated to {@link PgvectorSkillStore} (composition seam). */
@@ -1182,6 +1238,8 @@ export class PgvectorStore implements VectorStore {
       text: string;
       createdAt: Date;
       confirmationCount?: number;
+      distinctSourceCount?: number | null;
+      expiresAt?: Date | null;
       embedding?: readonly number[];
     }[]
   > {
@@ -1200,7 +1258,7 @@ export class PgvectorStore implements VectorStore {
     // of historical/future projections at recall time.
     const where: string[] = [
       "kind = 'extracted'",
-      't_invalid IS NULL',
+      composeTemporalWhere(undefined, 1).sql,
       '(t_valid IS NULL OR t_valid <= NOW())',
     ];
     const params: unknown[] = [];
@@ -1231,12 +1289,14 @@ export class PgvectorStore implements VectorStore {
       text: string;
       created_at: Date;
       confirmation_count: number;
+      distinct_source_count: number | null;
+      expires_at: Date | null;
       embedding: string;
     }>(
       // M9: confirmation_count is the durability signal the SessionToGlobalConsolidationPolicy reads.
       // M24 T1.1: project embedding so the bounded `clusterByProximity` domain fn can group
       // candidates by cosine (pgvector returns the vector type as a `[a,b,c]` text literal).
-      `SELECT id, text, created_at, confirmation_count, embedding FROM memories WHERE ${where.join(' AND ')}`,
+      `SELECT id, text, created_at, expires_at, distinct_source_count, confirmation_count, embedding FROM memories WHERE ${where.join(' AND ')}`,
       params,
     );
     return rows.map((r) => ({
@@ -1244,6 +1304,8 @@ export class PgvectorStore implements VectorStore {
       text: r.text,
       createdAt: r.created_at,
       confirmationCount: r.confirmation_count,
+      distinctSourceCount: r.distinct_source_count,
+      expiresAt: r.expires_at,
       embedding: parseVectorLiteral(r.embedding),
     }));
   }

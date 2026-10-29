@@ -13,7 +13,9 @@ import type { LLM } from '../dip/llm.js';
 import type { MemoryEntityStore } from '../dip/memory-entity-store.js';
 import type { MemoryGraphStore } from '../dip/memory-graph-store.js';
 import type { InsertOutcome, VectorStore } from '../dip/vector-store.js';
+import { IdempotencyConflict } from '../errors.js';
 import { emitEvent } from '../memory-event.js';
+import { evidenceFromPayload } from '../memory-evidence.js';
 import type { MemoryItem } from '../memory-item.js';
 import { ONTOLOGY_FALLBACK_TYPE, type Ontology } from '../ontology.js';
 import type { Filters, Scope } from '../scope.js';
@@ -67,6 +69,8 @@ export function applyOntologyToEntities(
 }
 
 export interface ExtractionDeps {
+  /** Background services must not log model output or provider error details. */
+  readonly redactErrorDetails?: boolean;
   readonly vectorStore: VectorStore;
   readonly embedder: Embedder;
   readonly llm: LLM;
@@ -111,14 +115,15 @@ export function extractResponseText(raw: unknown): string {
 }
 
 export function scopeFromFilters(filters: Filters): Scope {
-  if (filters.user_id !== undefined) {
-    return { kind: 'user', userId: filters.user_id };
-  }
+  const user = filters.user_id === undefined ? {} : { userId: filters.user_id };
   if (filters.session_id !== undefined) {
-    return { kind: 'session', sessionId: filters.session_id };
+    return { kind: 'session', sessionId: filters.session_id, ...user };
   }
   if (filters.agent_id !== undefined) {
-    return { kind: 'agent', agentId: filters.agent_id };
+    return { kind: 'agent', agentId: filters.agent_id, ...user };
+  }
+  if (filters.user_id !== undefined) {
+    return { kind: 'user', userId: filters.user_id };
   }
   // Plan v1.3 enforces non-empty scope at the factory boundary (EC-13); here we trust the caller.
   return { kind: 'user', userId: '' };
@@ -143,7 +148,7 @@ export function buildPayload(text: string, hash: string, filters: Filters, metad
   }
   if (metadata !== undefined) {
     for (const [k, v] of Object.entries(metadata)) {
-      out[k] = v;
+      if (!['workspace_id','user_id','session_id','agent_id','text','hash','confirmation_count','distinct_source_count','created_at','t_valid','t_invalid','origin_source_ids'].includes(k)) out[k] = v;
     }
   }
   return out;
@@ -171,6 +176,7 @@ export function toMemoryItem(id: string, text: string, hash: string, scope: Scop
     metadata,
     tValid: now,
     tInvalid: null,
+      ...evidenceFromPayload(metadata),
     ...(attributedTo !== undefined ? { attributedTo } : {}),
     ...(confirmationCount !== undefined ? { confirmationCount } : {}),
   };
@@ -210,6 +216,9 @@ export function patchItemsWithOutcomes(
       id: outcome.id,
       confirmationCount: outcome.confirmationCount,
       rejectedAsDuplicate: outcome.rejectedAsDuplicate,
+      ...(outcome.idempotentReplay!==undefined?{idempotentReplay:outcome.idempotentReplay}:{}),
+      ...(outcome.distinctSourceCount!==undefined?{distinctSourceCount:outcome.distinctSourceCount}:{}),
+      ...(outcome.expiresAt!==undefined?{expiresAt:outcome.expiresAt}:{}),
     };
   });
 }
@@ -260,7 +269,8 @@ export async function persistWithFallback(
     const outcomes = await vectorStore.insert(vectors, ids, payloads);
     emitEvent(tracer, 'persist_completed', { count: ids.length });
     return outcomes;
-  } catch {
+  } catch (error) {
+    if (error instanceof IdempotencyConflict) throw error;
     emitEvent(tracer, 'persist_fallback', { count: ids.length });
     const outcomes: InsertOutcome[] = [];
     for (let i = 0; i < ids.length; i += 1) {
@@ -271,7 +281,8 @@ export async function persistWithFallback(
           [payloads[i] as Payload],
         );
         outcomes.push(...single);
-      } catch {
+      } catch (error) {
+        if (error instanceof IdempotencyConflict) throw error;
         // Log + skip; do not poison the batch
       }
     }

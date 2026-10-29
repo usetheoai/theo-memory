@@ -58,6 +58,7 @@ import {
   text,
   timestamp,
   uniqueIndex,
+  unique,
   uuid,
   varchar,
   vector,
@@ -191,6 +192,8 @@ export const memories = pgTable(
     agentId: text('agent_id'),
     tValid: timestamp('t_valid', { withTimezone: true }).defaultNow(),
     tInvalid: timestamp('t_invalid', { withTimezone: true }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    distinctSourceCount: integer('distinct_source_count'),
     /** v1.1 T1.1: first-class promoted column for multi-peer attribution per blueprint Q3 + R1.
      *  Nullable text; LLM extraction populates it (extracted[i].attributed_to) OR verbatim callers
      *  pass RememberOptions.attributedTo (EC-2 absorption). N-valent semantic per blueprint Q5
@@ -257,7 +260,7 @@ export const memories = pgTable(
       sql`COALESCE(${table.userId}, '')`,
       sql`COALESCE(${table.sessionId}, '')`,
       sql`COALESCE(${table.agentId}, '')`,
-    ),
+    ).where(sql`${table.tInvalid} IS NULL`),
     index('memories_user_id_idx').on(table.userId),
     index('memories_session_id_idx').on(table.sessionId),
     index('memories_agent_id_idx').on(table.agentId),
@@ -768,3 +771,45 @@ export const recallTraces = pgTable(
     index('recall_traces_ws_created_idx').on(table.workspaceId, table.createdAt),
   ],
 );
+
+/** Source ledger. A new assertion is not necessarily a new origin. */
+export const memoryEvidence = pgTable('memory_evidence', {
+  evidenceId: uuid('evidence_id').primaryKey().defaultRandom(),
+  workspaceId: text('workspace_id').notNull().references(() => workspaces.id),
+  memoryId: uuid('memory_id').notNull().references(() => memories.id, { onDelete: 'cascade' }),
+  originSourceId: text('origin_source_id').notNull(),
+  evidence: jsonb('evidence').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  unique('memory_evidence_workspace_id_memory_id_origin_source_id_key').on(table.workspaceId, table.memoryId, table.originSourceId),
+  index('memory_evidence_page_idx').on(table.workspaceId, table.memoryId, table.createdAt, table.evidenceId),
+]);
+
+/** Minimal per-request receipts; erased with the memory they refer to. */
+export const memoryWriteReceipts = pgTable('memory_write_receipts', {
+  workspaceId: text('workspace_id').notNull().references(() => workspaces.id),
+  scopeKey: text('scope_key').notNull(), requestKey: text('request_key').notNull(),
+  requestHash: text('request_hash').notNull(),
+  memoryId: uuid('memory_id').notNull().references(() => memories.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [primaryKey({ name: 'memory_write_receipts_pkey', columns: [table.workspaceId, table.scopeKey, table.requestKey, table.memoryId] })]);
+
+/** Durable extraction queue. Input and drafts are purged before minimal receipts. */
+export const memoryJobs = pgTable('memory_jobs', {
+  jobId: uuid('job_id').primaryKey().defaultRandom(),
+  workspaceId: text('workspace_id').notNull().references(() => workspaces.id),
+  requesterId: text('requester_id').notNull(), idempotencyKey: text('idempotency_key').notNull(),
+  requestHash: text('request_hash').notNull(), input: jsonb('input'), drafts: jsonb('drafts'),
+  status: text('status').notNull().default('queued'), attempts: integer('attempts').notNull().default(0),
+  availableAt: timestamp('available_at', { withTimezone:true }).notNull().defaultNow(),
+  leaseToken: uuid('lease_token'), leaseUntil: timestamp('lease_until', { withTimezone:true }),
+  resultMemoryIds: jsonb('result_memory_ids').notNull().default(sql`'[]'::jsonb`), errorCode: text('error_code'),
+  createdAt: timestamp('created_at', { withTimezone:true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone:true }).notNull().defaultNow(),
+  finishedAt: timestamp('finished_at', { withTimezone:true }),
+}, (table) => [
+  unique('memory_jobs_workspace_id_requester_id_idempotency_key_key').on(table.workspaceId,table.requesterId,table.idempotencyKey),
+  index('memory_jobs_claim_idx').on(table.status,table.availableAt,table.createdAt),
+  check('memory_jobs_status_check',sql`${table.status} IN ('queued','running','succeeded','failed')`),
+  check('memory_jobs_attempts_check',sql`${table.attempts} >= 0`),
+]);

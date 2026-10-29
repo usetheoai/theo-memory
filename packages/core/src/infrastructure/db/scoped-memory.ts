@@ -109,6 +109,8 @@ export class LocalScopedMemory implements ScopedMemory {
       ...(this.config.autoCategorize !== undefined ? { autoCategorize: this.config.autoCategorize } : {}),
     }, options);
 
+    if (result.length > 0 && result.every(item => item.idempotentReplay === true)) return result;
+
     // v0.4b-fixes T4.1: post-remember hook for the capacity-trigger pipeline.
     // Awaited inline so consumers' next remember() sees the post-evict state.
     // Errors do NOT block remember() result (observability-only).

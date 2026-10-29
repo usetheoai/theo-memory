@@ -6,6 +6,8 @@ import type { Pool, PoolClient } from 'pg';
 
 import type { Filters } from '../../domain/scope.js';
 
+import { transactionClient } from './transaction-pool.js';
+
 /** Null-coerced (user, session, agent) scope ids — the tier columns shared by every write. */
 export function scopeIds(filters: Filters): {
   userId: string | null;
@@ -24,6 +26,8 @@ export function scopeIds(filters: Filters): {
  * and rethrow; always release the client.
  */
 export async function runInTx<T>(pool: Pool, work: (client: PoolClient) => Promise<T>): Promise<T> {
+  const current = transactionClient(pool);
+  if (current !== undefined) return work(current);
   const client = await pool.connect();
   try {
     await client.query('BEGIN');

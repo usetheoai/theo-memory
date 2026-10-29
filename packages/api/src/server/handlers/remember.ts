@@ -62,14 +62,20 @@ export async function rememberHandler(c: Context, memory: Memory, routingAuditSt
   if (!parsed.success) {
     return scopeOrValidationError(parsed.error, c);
   }
-  const { text, infer, attributedTo, metadata, category } = parsed.data;
+  const { text, infer, attributedTo, metadata, category, evidence, strictExtraction, idempotencyKey, expiresAt } = parsed.data;
   // multi-tenant-workspace-isolation T3.1: bind to the Principal's workspace
   // (ADR D3) BEFORE resolving the body's tier — the workspace comes from the
   // credential, the tier from the body.
   const scoped = resolveScope(workspaceBoundMemory(c, memory), parsed.data, actingUserId(c));
   // themory-category-filter-server-side T4.2 — pass category through the SDK
   // boundary. EC-2 length check fires inside runExtractionPipeline at T3.3.
-  const items = await scoped.remember(text, { infer, attributedTo, metadata, category });
+  const items = await scoped.remember(text, {
+    infer, attributedTo, metadata, category,
+    ...(idempotencyKey !== undefined ? { idempotencyKey } : {}),
+    ...(expiresAt !== undefined ? { expiresAt: new Date(expiresAt) } : {}),
+    ...(evidence !== undefined ? { evidence } : {}),
+    ...(strictExtraction !== undefined ? { strictExtraction } : {}),
+  });
   // M11 — audit the routing decision (best-effort, fail-soft, opt-in).
   if (routingAuditStore !== undefined) {
     await auditRememberRouting(c, routingAuditStore, parsed.data, attributedTo);
@@ -125,6 +131,10 @@ export async function batchRememberHandler(c: Context, memory: Memory, routingAu
       // runtime shape is the MemoryItem array (with `rejectedAsDuplicate`).
       const written = (await scoped.remember(item.text, {
         infer: item.infer,
+        ...(item.idempotencyKey !== undefined ? { idempotencyKey: item.idempotencyKey } : {}),
+        ...(item.expiresAt !== undefined ? { expiresAt: new Date(item.expiresAt) } : {}),
+        ...(item.strictExtraction !== undefined ? { strictExtraction: item.strictExtraction } : {}),
+        ...(item.evidence !== undefined ? { evidence: item.evidence } : {}),
         attributedTo: item.attributedTo,
         metadata: item.metadata,
         category: item.category,

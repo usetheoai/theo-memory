@@ -60,12 +60,19 @@ export interface VectorStoreResult {
  *
  */
 export interface InsertOutcome {
+  /** The request had already committed; no assertion was added. */
+  readonly idempotentReplay?: boolean;
+  readonly distinctSourceCount?: number | null;
+  readonly expiresAt?: Date | null;
   readonly id: string;
   readonly confirmationCount: number;
   readonly rejectedAsDuplicate: boolean;
 }
 
 export interface VectorStore {
+  /** Replay committed facts before invoking extraction. Null means no receipt exists. */
+  findWriteReplay?(requestKey: string, requestHash: string, filters: Filters): Promise<readonly VectorStoreResult[] | null>;
+
   /** Idempotent setup: create collection/table, indices, dimension probe, etc. Adapters MAY no-op when already initialized. */
   initialize(): Promise<void>;
 

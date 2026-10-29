@@ -5,9 +5,29 @@
  * @see ADR-0006 — bi-temporal columns (asOf is uniform at the type level; runtime divergence per local v0.1).
  */
 import type { ConflictResolutionPolicy } from './dip/conflict-resolution-policy.js';
+import type { MemoryEvidence } from './memory-evidence.js';
 import type { Filters } from './scope.js';
 
 export interface RememberOptions {
+  /** Stable caller request key. Replays do not add assertions or extend validity.
+   * Requires a write-receipt-capable store (PgvectorStore); unsupported stores fail before I/O. */
+  readonly idempotencyKey?: string;
+  /** Explicit deadline. Omission preserves indefinite validity. */
+  readonly expiresAt?: Date;
+
+  /** Source context. With infer:false this is caller-declared evidence; with extraction,
+   * kind/quote/confidence come from each extracted fact. Never an authority marker.
+   * @see docs/memory-semantics.md
+   */
+  readonly evidence?: MemoryEvidence;
+
+  /** Report malformed extraction, missing embeddings, or incomplete persistence as errors.
+   * Default false preserves the existing best-effort behavior. Partial writes may exist
+   * when persistence fails; this option does not make a batch transactional.
+   * @see docs/memory-semantics.md
+   */
+  readonly strictExtraction?: boolean;
+
   /** Flat key-value payload attached to the resulting memory items. @see MemoryItem.metadata for the same shape constraints. */
   readonly metadata?: Readonly<Record<string, string | number | boolean | null>>;
 

@@ -72,6 +72,48 @@ const SYSTEM_PROMPT = [
   '(NOT "data cientista"), "gerente de projeto" (NOT "project gerente").',
   'The literal token "user" (the speaker) is the one allowed exception to the input-language rule.',
   '',
+  'EVIDENCE DISCIPLINE:',
+  '- Distinguish directly stated information from inferred patterns; never mark either as verified.',
+  '- Add evidence to each fact: kind (stated or inferred), durability (durable, temporary,',
+  '  or tentative), sourceQuote (an exact excerpt of a NEW message), and optional confidence [0,1].',
+  '- Do not turn a passing mood, hypothetical, suggestion, or one-off choice into a durable preference.',
+  '- "Maybe I will wear yellow today" yields NO durable preference. "I usually prefer dark',
+  '  colors" is a stated durable preference. "I bought a blue jacket" is a stated event,',
+  '  not independent verification of a purchase and not evidence of a permanent color preference.',
+  '- When NEW input explicitly describes the SAME choice across multiple INDEPENDENT sessions,',
+  '  preserve the reported observation as stated AND extract one bounded pattern as inferred.',
+  '  For example: five independent choices of plain outfits support an inferred preference for',
+  '  simple clothing. Cite the exact repeated-observation sentence, use cautious wording such as',
+  '  "appears to prefer", and retain the event/context boundary. A lack of an explicitly stated',
+  '  preference does not negate evidence of a pattern. Do not persist that absence as a preference.',
+  '  This rule NEVER applies to repetitions or summaries of ONE source, a one-off choice, or a hypothetical.',
+  '- DURABILITY means useful truth beyond this turn; it does NOT mean a fact can never change.',
+  '  Explicit purchases, returns, moves and current profile updates are durable facts/events.',
+  '  Preserve their past/current tense and dates. "Yesterday" and "last month" do NOT make an event temporary.',
+  '  An assistant recommendation can be recorded as the durable event "assistant recommended X";',
+  '  it is NEVER a user preference or a user decision unless the user actually confirmed it.',
+  '  Temporary means disposable working context such as a passing mood or an undecided one-off trial.',
+  '- A repeated summary of one purchase is still ONE stated purchase, never a newly inferred purchase.',
+  '  Do not emit "never explicitly stated a preference" as a fact or as the inferred pattern.',
+  'Event example (do not echo):',
+  'Input: "I bought a blue jacket yesterday."',
+  'Output: { "memory": [{ "id": "1", "text": "user bought a blue jacket yesterday",',
+  '  "evidence": { "kind": "stated", "durability": "durable", "sourceQuote": "I bought a blue jacket yesterday." } }] }',
+  '- Durability and epistemic certainty are separate: a well-supported recurring pattern is',
+  '  durable even when cautiously phrased as "appears to prefer". Mark it kind=inferred,',
+  '  durability=durable. Use tentative for a source that is undecided, hypothetical or speculative.',
+  'Pattern example (do not echo):',
+  'Input: "In five independent sessions Alex selected plain clothing rather than ornate outfits."',
+  'Output: { "memory": [',
+  '  { "id": "1", "text": "Alex selected plain clothing rather than ornate outfits in five independent sessions",',
+  '    "evidence": { "kind": "stated", "durability": "durable", "sourceQuote": "In five independent sessions Alex selected plain clothing rather than ornate outfits." } },',
+  '  { "id": "2", "text": "Alex appears to prefer plain clothing in similar situations",',
+  '    "evidence": { "kind": "inferred", "durability": "durable", "confidence": 0.7, "sourceQuote": "In five independent sessions Alex selected plain clothing rather than ornate outfits." } }',
+  '] }',
+  '- Infer patterns only from supporting evidence; preserve uncertainty and do not treat',
+  '  repetitions of your own summaries as independent confirmations.',
+  '- Descriptions extracted from audio/video are contextual observations, not retained raw media.',
+  '',
   'DURABLE-FACT DISCIPLINE (what a `memory[].text` fact MUST be):',
   '- ATOMIC: one idea per fact. SPLIT a multi-fact turn into several facts — NEVER emit one',
   '  paragraph-length "fact". A 400-word narration becomes several short facts, or none.',
@@ -95,7 +137,7 @@ const SYSTEM_PROMPT = [
   'Output: { "memory": [] }',
   '',
   'Output format (strict JSON, no prose):',
-  '{ "memory": [{ "id": "<seq>", "text": "<fact>", "attributed_to": "<peer-id>", "category"?: "<label>", "linked_memory_ids"?: ["1", "2"] }],',
+  '{ "memory": [{ "id": "<seq>", "text": "<fact>", "attributed_to": "<peer-id>", "category"?: "<label>", "linked_memory_ids"?: ["1", "2"], "evidence"?: { "kind": "stated|inferred", "durability": "durable|temporary|tentative", "sourceQuote"?: "<exact excerpt>", "confidence"?: 0.8 } }],',
   '  "entities"?: [{ "name": "<entity>", "type": "<PERSON|ORG|PLACE|PRODUCT|CONCEPT|OTHER>" }],',
   '  "relations"?: [{ "source": "<entity>", "relationship": "<verb phrase>", "destination": "<entity>" }] }',
 ].join('\n');
@@ -104,7 +146,10 @@ function renderExistingMemories(existing: readonly MemoryItem[]): string {
   if (existing.length === 0) {
     return '';
   }
-  const lines = existing.map((m, i) => `${i + 1}. ${escapeMarkdownHeaders(m.text)}`);
+  const lines = existing.map((m, i) => {
+    const evidence = m.evidence === undefined ? '' : ` [evidence=${escapeMarkdownHeaders(JSON.stringify(m.evidence))}]`;
+    return `${i + 1}. ${escapeMarkdownHeaders(m.text)}${evidence}`;
+  });
   return `## Existing Memories\n${lines.join('\n')}\n`;
 }
 
@@ -242,6 +287,12 @@ export const AdditiveExtractionSchema = z.object({
       attributed_to: z.string().optional(),
       category: z.string().optional(),
       linked_memory_ids: z.array(z.string()).optional(),
+      evidence: z.object({
+        kind: z.enum(['stated', 'inferred']),
+        durability: z.enum(['durable', 'temporary', 'tentative']),
+        sourceQuote: z.string().trim().min(1).max(4000).optional(),
+        confidence: z.number().finite().min(0).max(1).optional(),
+      }).strict().optional(),
     }),
   ),
   entities: z

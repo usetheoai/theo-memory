@@ -101,14 +101,17 @@ describe('T0.4 + T3.2 — reflection prompt sentinel', () => {
 
       RULES (NON-NEGOTIABLE):
         - Cite source memory IDs verbatim. Invent NO ids.
+        - Every output is an inference, never an independently verified operational record.
+        - Preserve uncertainty. A passing choice or tentative statement is not a lasting preference.
+        - Repeated summaries of the same source are not independent supporting evidence.
         - Every derived insight MUST reference at least one source ID via "derived_from".
         - Return STRICT JSON: an array of objects { "text": string, "derived_from": string[] }.
         - If no consolidation is possible (memories are unrelated), return an empty array [].
 
       SOURCE MEMORIES (3 total):
-        - id="11111111-1111-1111-1111-111111111111": User prefers dark mode
-        - id="22222222-2222-2222-2222-222222222222": User lives in Berlin
-        - id="33333333-3333-3333-3333-333333333333": User speaks Portuguese
+        - id="11111111-1111-1111-1111-111111111111" evidence=unknown: User prefers dark mode
+        - id="22222222-2222-2222-2222-222222222222" evidence=unknown: User lives in Berlin
+        - id="33333333-3333-3333-3333-333333333333" evidence=unknown: User speaks Portuguese
 
       Respond with the JSON array. No prose, no preamble."
     `);

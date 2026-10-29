@@ -8,8 +8,8 @@ import { MEMORY_EVENTS, emitEvent } from './memory-event.js';
 import type { MemoryEvent } from './memory-event.js';
 
 describe('MEMORY_EVENTS', () => {
-  test('has 56 values (53 prior + M27 fact-gate drop + write-quality cleanup forgot/skipped)', () => {
-    expect(MEMORY_EVENTS).toHaveLength(56);
+  test('has 58 values including evidence drop and downgrade decisions', () => {
+    expect(MEMORY_EVENTS).toHaveLength(58);
   });
 
   test('includes reflection_draft_quarantined (M24 #145 — draft quarantine IGNORE decision is observable)', () => {

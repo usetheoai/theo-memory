@@ -22,6 +22,7 @@ import {
   resolveEpisodeLimit,
 } from '../../domain/episode.js';
 import { InvalidSkillError } from '../../domain/errors.js';
+import { evidenceFromPayload } from '../../domain/memory-evidence.js';
 import type { Filters } from '../../domain/scope.js';
 import type { SkillLanguage } from '../../domain/skill.js';
 
@@ -76,6 +77,9 @@ function compareCreatedAtId(aDate: Date, aId: string, bDate: Date, bId: string):
 }
 
 function matchesFilters(payload: Payload, filters: Filters | undefined): boolean {
+  const expiry = payload['expires_at'];
+  const instant = filters?.asOf?.getTime() ?? Date.now();
+  if (typeof expiry === 'string' && Date.parse(expiry) <= instant) return false;
   if (filters === undefined) {
     return true;
   }
@@ -121,7 +125,7 @@ function matchesFilters(payload: Payload, filters: Filters | undefined): boolean
     if (value === undefined) {
       continue;
     }
-    if (key === 'kind' || key === 'excludeSuperseded' || key === 'category' || key === 'scopeHierarchy') {
+    if (key === 'asOf' || key === 'kind' || key === 'excludeSuperseded' || key === 'category' || key === 'scopeHierarchy') {
       continue;
     }
     // M8: when scopeHierarchy owns session_id/agent_id, skip their plain equality (kept in
@@ -222,7 +226,7 @@ export class InMemoryVectorStore implements VectorStore {
     if (row === undefined) {
       return null;
     }
-    return { id: vectorId, payload: row.payload };
+    return { id: vectorId, payload: row.payload, createdAt: row.createdAt };
   }
 
   async update(vectorId: string, vector: readonly number[], payload: Payload): Promise<void> {
@@ -468,13 +472,30 @@ export class InMemoryVectorStore implements VectorStore {
     hash: string;
     embedding: readonly number[];
     derivedFrom: readonly string[];
-    scope: { userId?: string | null; sessionId?: string | null; agentId?: string | null };
+    scope: { workspaceId?: string | null; userId?: string | null; sessionId?: string | null; agentId?: string | null };
   }): Promise<string> {
     const id = `derived-${String(this.rows.size)}-${Date.now()}-${String(Math.random()).slice(2, 8)}`;
+    const sources=args.derivedFrom.flatMap(sourceId=>{const row=this.rows.get(sourceId);return row===undefined?[]:[row];});
+    const deadlines=sources.flatMap(row=>typeof row.payload['expires_at']==='string'?[Date.parse(row.payload['expires_at'])]:[]);
+    const origins=new Set<string>();
+    for(const source of sources){
+      const evidence=evidenceFromPayload(source.payload).evidence;
+      const origin=evidence?.originSourceId??evidence?.sourceId;
+      if(origin!==undefined)origins.add(origin);
+      const inherited=source.payload['origin_source_ids'];
+      if(typeof inherited==='string'){
+        const decoded:unknown=JSON.parse(inherited);
+        if(Array.isArray(decoded))for(const value of decoded)if(typeof value==='string')origins.add(value);
+      }
+    }
     const payload: Payload = {
       text: args.text,
       hash: args.hash,
       kind: 'derived',
+      workspace_id: args.scope.workspaceId ?? 'default',
+      distinct_source_count: origins.size,
+      origin_source_ids: JSON.stringify([...origins]),
+      ...(deadlines.length>0?{expires_at:new Date(Math.min(...deadlines)).toISOString()}:{}),
       derived_from: JSON.stringify([...args.derivedFrom]),
     };
     if (args.scope.userId !== undefined && args.scope.userId !== null) {

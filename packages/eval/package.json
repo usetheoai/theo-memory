@@ -11,7 +11,8 @@
     "eval:consolidation": "tsx --tsconfig tsconfig.json src/stages/consolidation/run.ts",
     "eval:forgetting": "tsx --tsconfig tsconfig.json src/stages/forgetting/run.ts",
     "eval:e2e-qa": "tsx --tsconfig tsconfig.json src/stages/e2e-qa/run.ts",
-    "typecheck": "pnpm -w run build:core && tsc -p tsconfig.typecheck.json --noEmit"
+    "typecheck": "pnpm -w run build:core && tsc -p tsconfig.typecheck.json --noEmit",
+    "eval:memory-semantics": "pnpm -w run build:core && tsx --tsconfig tsconfig.json src/stages/memory-semantics/run.ts"
   },
   "dependencies": {
     "@usetheo/memory": "workspace:*",

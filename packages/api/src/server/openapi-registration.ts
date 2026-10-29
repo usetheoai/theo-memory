@@ -12,8 +12,10 @@
  * @see Plan theo-memory-standalone-p0 § T1.4 + ADR D1 + EC-19
  */
 import type { OpenAPIRegistry } from '@asteasolutions/zod-to-openapi';
+import { MemoryEvidenceSchema } from '@usetheo/memory/contract';
 import { z } from 'zod';
 
+import { registerMemoryJobPaths } from './openapi-memory-jobs.js';
 import {
   AddMemberBody,
   ForgetBody,
@@ -38,6 +40,10 @@ const ScopeTypeEnum = z
   );
 
 const MemoryItemSchema = z.object({
+  evidence: MemoryEvidenceSchema.optional(),
+  expiresAt: z.string().datetime().nullable().optional(),
+  distinctSourceCount: z.number().int().nonnegative().nullable().optional(),
+  idempotentReplay: z.boolean().optional(),
   id: z.string().uuid(),
   text: z.string(),
   hash: z.string(),
@@ -58,6 +64,7 @@ const ErrorEnvelopeSchema = z.object({
 });
 
 export function registerAllPaths(registry: OpenAPIRegistry): void {
+  registerMemoryJobPaths(registry);
   registry.registerPath({
     method: 'post',
     path: '/v1/remember',

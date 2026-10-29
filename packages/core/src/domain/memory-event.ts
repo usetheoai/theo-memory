@@ -255,6 +255,8 @@ export const MEMORY_EVENTS = [
   // (Rule 8 recoverable). Attributes `{scope_tier, draft_index}`. Princípio 3 —
   // the IGNORE decision is observable, never a silent swallow.
   'reflection_draft_quarantined',
+  'extraction_evidence_dropped',
+  'extraction_evidence_downgraded',
 ] as const;
 
 export type MemoryEvent = (typeof MEMORY_EVENTS)[number];

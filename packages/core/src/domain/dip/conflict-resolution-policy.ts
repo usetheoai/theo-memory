@@ -38,6 +38,8 @@ export interface ConsolidationCandidate {
    * `confirmationCount` when building the M9 candidate cluster.
    */
   readonly confirmationCount?: number;
+  readonly distinctSourceCount?: number | null;
+  readonly expiresAt?: Date | null;
 }
 
 /**

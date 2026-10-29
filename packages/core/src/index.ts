@@ -226,3 +226,24 @@ export {
   type WorkspaceScope,
   type CrossWorkspaceScope,
 } from './infrastructure/db/index.js';
+
+/** Evidence classification for contextual memory. @see docs/memory-semantics.md */
+export { MemoryEvidenceSchema } from './domain/memory-evidence.js';
+export type { MemoryEvidence } from './domain/memory-evidence.js';
+
+/** Session lifecycle and exact fact-store integration. @see docs/memory-semantics.md */
+export { MemorySession, MemorySessionUnavailable } from './application/memory-session.js';
+export type { SessionFactStore, SessionObservation, MemorySessionConfig, MemoryExtractionJob, MemoryExtractionResult } from './application/memory-session.js';
+
+export type { MemoryEvidencePage, MemoryEvidenceReader } from './domain/memory-evidence.js';
+
+export { PgMemoryEvidenceStore } from './infrastructure/db/pg-memory-evidence-store.js';
+
+export { MemoryJobInputSchema, MemoryJobLeaseLost, MemoryJobUnavailable } from './domain/memory-job.js';
+export type { MemoryJobInput, MemoryJobActor, MemoryJobSummary, MemoryJobService } from './domain/memory-job.js';
+
+export { PgMemoryJobStore } from './infrastructure/db/pg-memory-job-store.js';
+
+export { MemoryJobWorker } from './application/memory-job-worker.js';
+export type { MemoryJobProcessor, MemoryJobWorkResult } from './application/memory-job-worker.js';
+export { PgMemoryJobProcessor } from './infrastructure/db/pg-memory-job-processor.js';

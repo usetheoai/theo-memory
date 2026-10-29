@@ -649,3 +649,14 @@ export { runRetrievalPipeline } from './retrieval/pipeline.js';
  *
  */
 export type { RetrievalDeps } from './retrieval/pipeline.js';
+
+/** Evidence classification for contextual memory. @see docs/memory-semantics.md */
+export { MemoryEvidenceSchema } from './memory-evidence.js';
+export type { MemoryEvidence } from './memory-evidence.js';
+
+export { IdempotencyConflict } from './errors.js';
+
+export type { MemoryEvidencePage, MemoryEvidenceReader } from './memory-evidence.js';
+
+export { MemoryJobInputSchema, MemoryJobLeaseLost, MemoryJobUnavailable } from './memory-job.js';
+export type { MemoryJobInput, MemoryJobActor, MemoryJobSummary, MemoryJobService } from './memory-job.js';

@@ -157,7 +157,7 @@ async function auditM9Promotion(
       chosenScope: 'global',
       attribution: 'agent',
       decidedBy: 'm9-promotion',
-      why: 'promotion-confirmation-threshold',
+      why: 'promotion-distinct-source-threshold',
       at: new Date(),
     },
     tracer,

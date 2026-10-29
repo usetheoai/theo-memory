@@ -1,3 +1,4 @@
+import { evidenceFromPayload } from '../../memory-evidence.js';
 /**
  * Row → DTO mapping + scope helpers for the recall pipeline (M19 / #124; extracted from
  * pipeline.ts).
@@ -61,8 +62,9 @@ export function makeRowToItem(
       createdAt: parsedCreatedAt,
       updatedAt: parsedCreatedAt,
       metadata: { ...row.payload },
-      tValid: now,
+        tValid: now,
       tInvalid: null,
+      ...evidenceFromPayload(row.payload),
       ...(attributedTo !== undefined ? { attributedTo } : {}),
       ...(confirmationCount !== undefined ? { confirmationCount } : {}),
       score: row.score === 0 ? payloadToScore(row.payload, row.score) : row.score,

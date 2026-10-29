@@ -10,6 +10,7 @@ import type { RecallTraceStore } from '../../domain/dip/recall-trace-store.js';
 import type { ReflectionPolicy } from '../../domain/dip/reflection-policy.js';
 import { MemoryNotFound, WorkspaceMismatch } from '../../domain/errors.js';
 import type { HistoryEntry } from '../../domain/history-entry.js';
+import { evidenceFromPayload } from '../../domain/memory-evidence.js';
 import type { MemoryItem } from '../../domain/memory-item.js';
 import type { Memory, ScopedMemory } from '../../domain/memory-store.js';
 import type { ForgetOptions } from '../../domain/options.js';
@@ -201,6 +202,8 @@ export class LocalMemory implements Memory {
     if (result.payload['t_invalid'] !== undefined && result.payload['t_invalid'] !== null) {
       return null;
     }
+    const expiry = result.payload['expires_at'];
+    if (typeof expiry === 'string' && Date.parse(expiry) <= Date.now()) return null;
     // Workspace isolation (mirrors `forget` EC-5, theo-memory#82): a workspace-bound Memory
     // NEVER reads another tenant's row. The raw `vectorStore.get(id)` is unscoped (WHERE id=$1);
     // without this guard, `get(id)` was a cross-tenant IDOR (caught by the M14 Phase 5 isolation
@@ -211,16 +214,18 @@ export class LocalMemory implements Memory {
         return null;
       }
     }
+    const createdAt = result.createdAt ?? (typeof result.payload['created_at'] === 'string' ? new Date(result.payload['created_at']) : new Date());
     return {
       id: result.id,
       text: String(result.payload['text'] ?? ''),
       hash: String(result.payload['hash'] ?? result.id),
       scope: { kind: 'user', userId: String(result.payload['user_id'] ?? '') },
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt,
+      updatedAt: createdAt,
       metadata: { ...result.payload },
-      tValid: new Date(),
+        tValid: createdAt,
       tInvalid: null,
+      ...evidenceFromPayload(result.payload),
     };
   }
 

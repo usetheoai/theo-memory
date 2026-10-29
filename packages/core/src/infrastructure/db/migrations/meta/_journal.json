@@ -246,6 +246,20 @@
       "when": 1784808170557,
       "tag": "0034_app_role_bootstrap_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1784808170558,
+      "tag": "0035_memory_evidence_lifecycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1784808170559,
+      "tag": "0036_durable_memory_jobs",
+      "breakpoints": true
     }
   ]
 }

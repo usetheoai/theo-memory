@@ -12,7 +12,9 @@
 import { metrics, type Counter, type Tracer } from '@opentelemetry/api';
 
 import type { Embedder } from '../../domain/dip/embedder.js';
+import type { VectorStoreResult } from '../../domain/dip/vector-store.js';
 import { emitEvent } from '../../domain/memory-event.js';
+import { evidenceFromPayload } from '../../domain/memory-evidence.js';
 import type { MemoryItem } from '../../domain/memory-item.js';
 import { isDraftProvenanceValid } from '../../domain/reflection/provenance.js';
 import type { DerivedMemoryDraft } from '../../domain/reflection/types.js';
@@ -20,6 +22,7 @@ import type { Scope } from '../../domain/scope.js';
 
 /** The store surface reflect draft-persistence consumes. */
 export interface VectorStoreWithDerivedInsert {
+  get?(memoryId: string): Promise<VectorStoreResult | null>;
   insertDerivedMemory(args: {
     text: string;
     hash: string;
@@ -91,16 +94,20 @@ export async function persistDraftsWithQuarantine(args: {
       // The reflection-derived row stays in the SAME workspace as its sources.
       scope: { ...counterTuple, workspaceId },
     });
+    const row = await store.get?.(id);
+    const metadata = row?.payload ?? { kind: 'derived' };
     persisted.push({
       id,
       text: draft.text,
       hash,
       scope,
-      metadata: { kind: 'derived' },
+      metadata,
+      evidence: { kind: 'inferred' },
       createdAt: new Date(),
       updatedAt: new Date(),
       tValid: new Date(),
       tInvalid: null,
+      ...evidenceFromPayload(metadata),
     });
   }
 

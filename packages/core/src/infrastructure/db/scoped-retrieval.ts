@@ -177,7 +177,7 @@ export async function retrieveResults(
   // Cache-aware path: embed once, consult cache, populate on miss.
   const queryEmbedding = await ctx.config.embedder.embed(query);
   const cached = await cache.get(queryEmbedding, ctx.scope, ctx.filters.workspace_id ?? undefined);
-  if (cached !== undefined) {
+  if (cached !== undefined && cached.results.every((item) => item.expiresAt == null || new Date(item.expiresAt).getTime() > Date.now())) {
     return [...cached.results];
   }
   // T3.1 — wall-clock latency for the MISS path. Dynamic import keeps the metrics
