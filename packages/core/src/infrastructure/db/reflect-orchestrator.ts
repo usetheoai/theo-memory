@@ -113,7 +113,7 @@ export async function runReflection(
 
   // Fetch source memories
   const [results] = await config.vectorStore.list(filters, 100);
-  const sourceMemories: MemoryItem[] = rowsToMemoryItems(results, scope).items;
+  let sourceMemories: MemoryItem[] = rowsToMemoryItems(results, scope).items;
 
   // EC-5: empty-source short-circuit
   if (sourceMemories.length === 0) {
@@ -160,6 +160,17 @@ export async function runReflection(
           ? { routingAuditStore: deps.routingAuditStore }
           : {}),
       });
+    }
+
+    // Consolidation can soft-delete source rows. Reflection and provenance
+    // validation must use the post-consolidation active set, or a derived row
+    // can cite a source that insertDerivedMemory correctly rejects.
+    if (conflictPolicy !== undefined) {
+      const [activeResults] = await config.vectorStore.list(filters, 100);
+      sourceMemories = rowsToMemoryItems(activeResults, scope).items;
+      if (sourceMemories.length === 0) {
+        return finishEmptyReflection(reflectionPolicy, scope, [], 'no-source-memories');
+      }
     }
 
     // Execute reflection LLM call
