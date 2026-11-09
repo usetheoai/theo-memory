@@ -146,13 +146,18 @@ describe('T3.1 / EC-3 — wireMemoryFromPool lifecycle invariant', () => {
 describe('embedder selection via THEOMEM_EMBEDDER', () => {
   const ENV = 'THEOMEM_EMBEDDER';
   let saved: string | undefined;
+  let savedDimension: string | undefined;
   beforeEach(() => {
     saved = process.env[ENV];
+    savedDimension = process.env['THEOMEM_EMBEDDING_DIM'];
     delete process.env[ENV];
+    delete process.env['THEOMEM_EMBEDDING_DIM'];
   });
   afterEach(() => {
     if (saved === undefined) delete process.env[ENV];
     else process.env[ENV] = saved;
+    if (savedDimension === undefined) delete process.env['THEOMEM_EMBEDDING_DIM'];
+    else process.env['THEOMEM_EMBEDDING_DIM'] = savedDimension;
   });
 
   test('defaults to local when unset (back-compat)', () => {
@@ -169,16 +174,23 @@ describe('embedder selection via THEOMEM_EMBEDDER', () => {
     expect(resolveEmbedderKind()).toBe('openai');
   });
 
+  test('resolves OpenAI-compatible providers for Model Studio embeddings', () => {
+    process.env[ENV] = 'compatible';
+    expect(resolveEmbedderKind()).toBe('compatible');
+    expect(embeddingDimForKind('compatible')).toBe(1024);
+  });
+
   test('fails loud on an unknown value (no silent fallback)', () => {
     process.env[ENV] = 'cohere';
     expect(() => resolveEmbedderKind()).toThrow(/THEOMEM_EMBEDDER/);
   });
 
-  test('dimension follows the embedder kind (local 384, openai 1536)', () => {
+  test('dimension follows the embedder kind (local 384, openai 1536, compatible 1024)', () => {
     expect(embeddingDimForKind('local')).toBe(LOCAL_EMBEDDER_DIM);
     expect(embeddingDimForKind('local')).toBe(384);
     expect(embeddingDimForKind('openai')).toBe(OPENAI_EMBEDDER_DIM);
     expect(embeddingDimForKind('openai')).toBe(1536);
+    expect(embeddingDimForKind('compatible')).toBe(1024);
   });
 
   test('wireMemoryFromPool with openai builds the OpenAI embedder at dim 1536', async () => {

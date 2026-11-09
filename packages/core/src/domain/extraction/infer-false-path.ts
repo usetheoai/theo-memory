@@ -9,7 +9,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { hashFact } from '../dedup.js';
-import { MemoryStoreError } from '../errors.js';
+import { IdempotencyConflict, MemoryStoreError } from '../errors.js';
 import { attachEvidence, restoreDuplicateEvidence } from '../memory-evidence.js';
 import type { MemoryItem } from '../memory-item.js';
 import type { Message } from '../message.js';
@@ -74,7 +74,14 @@ export async function runInferFalsePath(
     payloads.push(payload);
   }
   if (vectors.length > 0) {
-    const outcomes = await deps.vectorStore.insert(vectors, ids, payloads);
+    let outcomes: Awaited<ReturnType<typeof deps.vectorStore.insert>>;
+    try {
+      outcomes = await deps.vectorStore.insert(vectors, ids, payloads);
+    } catch (error) {
+      if (error instanceof IdempotencyConflict) throw error;
+      // The store saved nothing; say why instead of leaking a driver error type (#231).
+      throw new MemoryStoreError('Memory persistence failed; nothing was saved.', { cause: error });
+    }
     if (options?.idempotencyKey!==undefined && outcomes.some(outcome=>outcome.idempotentReplay===true) && deps.vectorStore.findWriteReplay!==undefined) {
       const replay=await deps.vectorStore.findWriteReplay(options.idempotencyKey,writeRequestHash(messages,options),filters);
       if(replay!==null)return replay.map(row=>({...toMemoryItem(row.id,String(row.payload['text']??''),String(row.payload['hash']??row.id),

@@ -1,32 +1,16 @@
 /**
- * T3.1 RED integration tests for v0.4b LRU/LFU write-back hook on PgvectorStore.search().
+ * Access bookkeeping (v0.4b LRU/LFU signal) on PgvectorStore.
  *
- * After SELECT returns N rows, search() issues ONE batched UPDATE
- *   `UPDATE memories SET access_count = access_count + 1, last_accessed_at = NOW()
- *    WHERE id IN (SELECT DISTINCT unnest($1::uuid[]))`
- * for the N hit ids per blueprint D15 (single UPDATE per scope; fire-and-forget).
- *
- * Plan T3.1 declared 5 RED tests; this file ships 4. Skipped:
- *   - test_recall_update_failure_does_not_crash_caller — requires synthetic pool
- *     failure injection (mock pool.query for the UPDATE statement only). The
- *     try/catch wrapper around the recordAccess call enforces the contract
- *     structurally; the post-merge `/review` cycle is the right place to add
- *     a fault-injection harness. Documented in commit body.
- *   - test_recall_update_dedupes_ids_no_double_increment (EC-8) — search()
- *     naturally returns distinct ids; the dedup is defensive at the SQL layer
- *     (DISTINCT unnest). Verifying it would require direct method access
- *     (recordAccess private). Documented in commit body.
- *
- * Test #4 (consecutive recalls increment by one each) covers the
- * "increment correctness" invariant that both skipped tests would also cover
- * if duplicates arose.
- *
+ * An access is a memory the caller received from recall(). The store exposes
+ * recordAccess(ids); search() itself no longer counts, because every internal
+ * search (the recall over-fetch, the write path's dedup lookup) would otherwise
+ * mark rows as used that nobody saw. recordAccess locks rows in id order, so
+ * concurrent recalls over overlapping rows cannot deadlock and lose increments.
  */
-import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import pg from 'pg';
 
-import { MAX_EMBEDDING_DIM } from '@usetheo/memory';
-import { PgvectorStore } from '@usetheo/memory';
+import { createLocalMemory, MAX_EMBEDDING_DIM, PgvectorStore } from '@usetheo/memory';
 
 const PG_URI = process.env['THEOMEM_PG_URI'];
 
@@ -37,7 +21,7 @@ if (PG_URI === undefined || PG_URI === '') {
     });
   });
 } else {
-  describe('T3.1 recall() write-back hook (D15 LRU/LFU bookkeeping)', () => {
+  describe('access bookkeeping (LRU/LFU signal)', () => {
     let pool: pg.Pool;
     let store: PgvectorStore;
 
@@ -93,7 +77,7 @@ if (PG_URI === undefined || PG_URI === '') {
       const idB = await seedMemory('b');
       const idC = await seedMemory('c');
 
-      await store.search(TEST_EMBEDDING, 3, { agent_id: TEST_AGENT_ID });
+      await store.recordAccess((await store.search(TEST_EMBEDDING, 3, { agent_id: TEST_AGENT_ID })).map((r) => r.id));
 
       const rowA = await getRow(idA);
       const rowB = await getRow(idB);
@@ -109,7 +93,7 @@ if (PG_URI === undefined || PG_URI === '') {
       expect(before?.last_accessed_at).toBeNull();
 
       const tStart = Date.now();
-      await store.search(TEST_EMBEDDING, 1, { agent_id: TEST_AGENT_ID });
+      await store.recordAccess((await store.search(TEST_EMBEDDING, 1, { agent_id: TEST_AGENT_ID })).map((r) => r.id));
       const tEnd = Date.now();
 
       const after = await getRow(id);
@@ -126,25 +110,65 @@ if (PG_URI === undefined || PG_URI === '') {
       expect(before?.access_count).toBe(0);
 
       // Different agent scope → search returns 0 rows. The UPDATE MUST be skipped.
-      await store.search(TEST_EMBEDDING, 5, { agent_id: 'different-agent-no-hits' });
+      await store.recordAccess((await store.search(TEST_EMBEDDING, 5, { agent_id: 'different-agent-no-hits' })).map((r) => r.id));
 
       const after = await getRow(id);
       expect(after?.access_count).toBe(0);
       expect(after?.last_accessed_at).toBeNull();
     });
 
+    test('a search on its own does not count as an access', async () => {
+      const id = await seedMemory('searched-only');
+      await store.search(TEST_EMBEDDING, 5, { agent_id: TEST_AGENT_ID });
+      expect((await getRow(id))?.access_count).toBe(0);
+    });
+
+    test('recall counts only the memories it returns, not the candidates it over-fetched', async () => {
+      const ids = await Promise.all(['r1', 'r2', 'r3', 'r4'].map((s) => seedMemory(s)));
+      const memory = await createLocalMemory({
+        vectorStore: store,
+        embedder: { embed: async () => TEST_EMBEDDING, embedBatch: async (t) => t.map(() => TEST_EMBEDDING) },
+        embeddingDim: MAX_EMBEDDING_DIM,
+      });
+      const returned = await memory.agent(TEST_AGENT_ID).recall('test fact', { topK: 1, threshold: 0 });
+      expect(returned).toHaveLength(1);
+      const counts = await Promise.all(ids.map(async (id) => (await getRow(id))?.access_count));
+      expect(counts.filter((c) => c === 1)).toHaveLength(1);
+      expect(counts.filter((c) => c === 0)).toHaveLength(3);
+      expect((await getRow(returned[0]!.id))?.access_count).toBe(1);
+    });
+
+    test('concurrent access records over overlapping rows neither deadlock nor lose increments', async () => {
+      // 120 rows per call: the recall over-fetch size at topK 30, where the deadlock was observed.
+      const ids = await Promise.all(Array.from({ length: 120 }, (_, i) => seedMemory(`c${String(i)}`)));
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const rounds = 32;
+      // Each call names the same rows in a different order, the shape that deadlocked.
+      await Promise.all(Array.from({ length: rounds }, (_, i) => {
+        const order = [...ids];
+        for (let k = order.length - 1; k > 0; k -= 1) {
+          const j = (i * 7 + k * 3) % (k + 1);
+          [order[k], order[j]] = [order[j]!, order[k]!];
+        }
+        return store.recordAccess(order);
+      }));
+      expect(warn).not.toHaveBeenCalled();
+      warn.mockRestore();
+      for (const id of ids) expect((await getRow(id))?.access_count).toBe(rounds);
+    });
+
     test('consecutive recalls each increment access_count by exactly one', async () => {
       const id = await seedMemory('iterated');
 
-      await store.search(TEST_EMBEDDING, 1, { agent_id: TEST_AGENT_ID });
+      await store.recordAccess((await store.search(TEST_EMBEDDING, 1, { agent_id: TEST_AGENT_ID })).map((r) => r.id));
       const after1 = await getRow(id);
       expect(after1?.access_count).toBe(1);
 
-      await store.search(TEST_EMBEDDING, 1, { agent_id: TEST_AGENT_ID });
+      await store.recordAccess((await store.search(TEST_EMBEDDING, 1, { agent_id: TEST_AGENT_ID })).map((r) => r.id));
       const after2 = await getRow(id);
       expect(after2?.access_count).toBe(2);
 
-      await store.search(TEST_EMBEDDING, 1, { agent_id: TEST_AGENT_ID });
+      await store.recordAccess((await store.search(TEST_EMBEDDING, 1, { agent_id: TEST_AGENT_ID })).map((r) => r.id));
       const after3 = await getRow(id);
       expect(after3?.access_count).toBe(3);
     });

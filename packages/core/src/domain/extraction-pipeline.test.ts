@@ -9,6 +9,8 @@
  *
  * Pattern per blueprint Recommendation 11.
  */
+import { randomUUID } from 'node:crypto';
+
 import { trace } from '@opentelemetry/api';
 import {
   BasicTracerProvider,
@@ -19,9 +21,12 @@ import { describe, expect, test, vi } from 'vitest';
 
 import { MAX_EMBEDDING_DIM } from './constants.js';
 import type { Embedder } from './dip/embedder.js';
+import type { HistoryBatchRecord } from './dip/history-manager.js';
 import type { LLM } from './dip/llm.js';
 import type { InsertOutcome, VectorStore, VectorStoreResult } from './dip/vector-store.js';
 import { runExtractionPipeline } from './extraction/pipeline.js';
+import { InMemoryMessageLog } from '../infrastructure/db/in-memory-message-log.js';
+import { InMemoryVectorStore } from '../infrastructure/db/in-memory-store.js';
 import { BUILTIN_ONTOLOGIES } from './ontology.js';
 import type { Filters } from './scope.js';
 
@@ -106,6 +111,28 @@ const setupTracer = () => {
 };
 
 describe('runExtractionPipeline (8-phase write)', () => {
+  test('retries one malformed JSON extraction response before failing a strict write', async () => {
+    const store = new StubVectorStore();
+    let calls = 0;
+    const llm: LLM = {
+      generateResponse: async () => {
+        calls += 1;
+        return calls === 1
+          ? 'not json at all'
+          : { memory: [{ id: '0', text: 'The user adopted a golden retriever named Max.' }] };
+      },
+      generateChat: async () => ({ role: 'assistant', content: '' }),
+    };
+    const result = await runExtractionPipeline(
+      [{ role: 'user', content: 'I adopted a golden retriever named Max.' }],
+      { user_id: 'alice' },
+      { vectorStore: store, embedder: makeEmbedder(), llm },
+      { attributedTo: 'user', strictExtraction: true },
+    );
+    expect(calls).toBe(2);
+    expect(result.map((item) => item.text)).toContain('The user adopted a golden retriever named Max.');
+  });
+
   test('persists one fact extracted from a 1-message conversation', async () => {
     const store = new StubVectorStore();
     const llm = makeLlm({ memory: [{ id: '0', text: 'Paulo likes coffee' }] });
@@ -562,4 +589,245 @@ describe('runExtractionPipeline (8-phase write)', () => {
     });
   });
 
+});
+
+describe('runExtractionPipeline observedAt', () => {
+  const OBSERVED = new Date('2023-07-23T18:46:00Z');
+
+  test('gives the extractor the observation date so it can resolve relative time expressions', async () => {
+    const llm = makeLlm({ memory: [{ id: '0', text: 'Gina went to a dance class on 2023-07-21' }] });
+    await runExtractionPipeline(
+      [{ role: 'user', content: 'Last Friday I went to a dance class' }],
+      { user_id: 'gina' },
+      { vectorStore: new StubVectorStore(), embedder: makeEmbedder(), llm },
+      { observedAt: OBSERVED },
+    );
+    const firstCall = vi.mocked(llm.generateResponse).mock.calls[0]?.[0] ?? [];
+    expect(firstCall[0]?.content).toContain('2023-07-23 (Sunday)');
+  });
+
+  test('reports the observation time as the memory valid-from instant', async () => {
+    const llm = makeLlm({ memory: [{ id: '0', text: 'Gina went to a dance class on 2023-07-21' }] });
+    const [item] = await runExtractionPipeline(
+      [{ role: 'user', content: 'Last Friday I went to a dance class' }],
+      { user_id: 'gina' },
+      { vectorStore: new StubVectorStore(), embedder: makeEmbedder(), llm },
+      { observedAt: OBSERVED },
+    );
+    expect(item?.tValid).toEqual(OBSERVED);
+  });
+
+  test('the verbatim path (infer:false) also records the observation time', async () => {
+    const [item] = await runExtractionPipeline(
+      [{ role: 'user', content: 'Gina opened her online store' }],
+      { user_id: 'gina' },
+      { vectorStore: new StubVectorStore(), embedder: makeEmbedder(), llm: makeLlm({ memory: [] }) },
+      { observedAt: OBSERVED, infer: false },
+    );
+    expect(item?.tValid).toEqual(OBSERVED);
+  });
+
+  test('a future observation time is rejected before any provider call', async () => {
+    const llm = makeLlm({ memory: [] });
+    await expect(runExtractionPipeline(
+      [{ role: 'user', content: 'x' }],
+      { user_id: 'gina' },
+      { vectorStore: new StubVectorStore(), embedder: makeEmbedder(), llm },
+      { observedAt: new Date(Date.now() + 24 * 3600 * 1000) },
+    )).rejects.toThrow(/observedAt/);
+    expect(llm.generateResponse).not.toHaveBeenCalled();
+  });
+});
+
+describe('runExtractionPipeline message log', () => {
+  const SCOPE = { user_id: 'anna' };
+
+  test('logs the new messages and links them to the facts they produced', async () => {
+    const messageLog = new InMemoryMessageLog();
+    const items = await runExtractionPipeline(
+      [{ role: 'user', content: 'I took my sister Anna to the pottery class' }],
+      SCOPE,
+      { vectorStore: new StubVectorStore(), embedder: makeEmbedder(), llm: makeLlm({ memory: [{ id: '0', text: 'user took their sister Anna to a pottery class' }] }), messageLog },
+    );
+    expect(items).toHaveLength(1);
+    expect((await messageLog.recent(SCOPE, 10)).map((m) => m.content)).toEqual(['I took my sister Anna to the pottery class']);
+    expect((await messageLog.sourcesOf(SCOPE, items[0]!.id)).map((m) => m.content)).toEqual(['I took my sister Anna to the pottery class']);
+  });
+
+  test('gives the extractor the preceding turns of the scope as context', async () => {
+    const messageLog = new InMemoryMessageLog();
+    await messageLog.append(SCOPE, [{ role: 'user', content: 'I took my sister Anna to the pottery class' }]);
+    const llm = makeLlm({ memory: [] });
+    await runExtractionPipeline([{ role: 'user', content: 'She loved it' }], SCOPE,
+      { vectorStore: new StubVectorStore(), embedder: makeEmbedder(), llm, messageLog });
+    const system = vi.mocked(llm.generateResponse).mock.calls[0]?.[0]?.[0]?.content ?? '';
+    expect(system).toContain('## Previous Messages');
+    expect(system).toContain('user: I took my sister Anna to the pottery class');
+    // The current turn is a New Message, never its own context.
+    expect(system.slice(system.indexOf('## Previous Messages'), system.indexOf('## New Messages'))).not.toContain('She loved it');
+  });
+
+  test('reads at most the configured number of preceding turns', async () => {
+    const messageLog = new InMemoryMessageLog();
+    for (const content of ['t1', 't2', 't3']) await messageLog.append(SCOPE, [{ role: 'user', content }]);
+    const llm = makeLlm({ memory: [] });
+    await runExtractionPipeline([{ role: 'user', content: 'now' }], SCOPE,
+      { vectorStore: new StubVectorStore(), embedder: makeEmbedder(), llm, messageLog, contextMessageCount: 2 });
+    const system = vi.mocked(llm.generateResponse).mock.calls[0]?.[0]?.[0]?.content ?? '';
+    expect(system).not.toContain('user: t1');
+    expect(system).toContain('user: t2');
+    expect(system).toContain('user: t3');
+  });
+
+  test('logs the messages even when nothing was extracted from them', async () => {
+    const messageLog = new InMemoryMessageLog();
+    await runExtractionPipeline([{ role: 'user', content: 'hmm ok' }], SCOPE,
+      { vectorStore: new StubVectorStore(), embedder: makeEmbedder(), llm: makeLlm({ memory: [] }), messageLog });
+    expect((await messageLog.recent(SCOPE, 10)).map((m) => m.content)).toEqual(['hmm ok']);
+  });
+
+  test('the verbatim path (infer:false) logs and links too', async () => {
+    const messageLog = new InMemoryMessageLog();
+    const [item] = await runExtractionPipeline([{ role: 'user', content: 'Anna opened a store' }], SCOPE,
+      { vectorStore: new StubVectorStore(), embedder: makeEmbedder(), llm: makeLlm({ memory: [] }), messageLog }, { infer: false });
+    expect((await messageLog.sourcesOf(SCOPE, item!.id)).map((m) => m.content)).toEqual(['Anna opened a store']);
+  });
+
+  test('records the observation time on the logged messages', async () => {
+    const messageLog = new InMemoryMessageLog();
+    const observedAt = new Date('2023-07-23T18:46:00Z');
+    await runExtractionPipeline([{ role: 'user', content: 'x' }], SCOPE,
+      { vectorStore: new StubVectorStore(), embedder: makeEmbedder(), llm: makeLlm({ memory: [] }), messageLog }, { observedAt });
+    expect((await messageLog.recent(SCOPE, 1))[0]?.observedAt).toEqual(observedAt);
+  });
+
+  test('a failing log does not fail the write, and the failure is an observable event', async () => {
+    const { tracer, exporter } = setupTracer();
+    const failing = new InMemoryMessageLog();
+    vi.spyOn(failing, 'append').mockRejectedValue(new Error('log unavailable'));
+    const items = await runExtractionPipeline([{ role: 'user', content: 'I live in Lisbon' }], SCOPE,
+      { vectorStore: new StubVectorStore(), embedder: makeEmbedder(), llm: makeLlm({ memory: [{ id: '0', text: 'user lives in Lisbon' }] }), messageLog: failing, tracer });
+    expect(items).toHaveLength(1);
+    expect(exporter.getFinishedSpans().map((span) => span.name)).toContain('message_log_failed');
+  });
+
+  test('a rejected write logs nothing', async () => {
+    const messageLog = new InMemoryMessageLog();
+    await expect(runExtractionPipeline([{ role: 'user', content: 'x' }], SCOPE,
+      { vectorStore: new StubVectorStore(), embedder: makeEmbedder(), llm: makeLlm({ memory: [] }), messageLog },
+      { observedAt: new Date(Date.now() + 86_400_000) })).rejects.toThrow();
+    expect(await messageLog.recent(SCOPE, 10)).toEqual([]);
+  });
+});
+
+describe('runExtractionPipeline supersession on write', () => {
+  const SCOPE = { user_id: 'anna' };
+  /** Vectors by topic: residence facts share one direction, everything else another. */
+  const topicVector = (text: string): readonly number[] => {
+    const v = new Array<number>(MAX_EMBEDDING_DIM).fill(0);
+    v[/Porto|Lisbon|live|moved/i.test(text) ? 0 : 1] = 1;
+    return v;
+  };
+  const topicEmbedder = (): Embedder => ({
+    embed: vi.fn(async (text: string) => topicVector(text)),
+    embedBatch: vi.fn(async (texts: readonly string[]) => texts.map(topicVector)),
+  });
+  /** The id the prompt gave to the existing memory whose text contains `needle`. */
+  const promptIdOf = (system: string, needle: string): string =>
+    system.split('\n').find((line) => /^\d+\. /.test(line) && line.includes(needle))?.split('.')[0] ?? 'none';
+  /** An extractor that states `text` and supersedes the existing memory containing `needle`. */
+  const supersedingLlm = (text: string, needle: string): LLM => ({
+    generateResponse: vi.fn(async (messages: readonly { readonly content: string }[]) => {
+      const system = messages[0]?.content ?? '';
+      return { memory: [{ id: '0', text, supersedes_memory_ids: [promptIdOf(system, needle)] }] };
+    }),
+    generateChat: vi.fn(),
+  });
+
+  async function seed(store: InMemoryVectorStore, text: string, tValid = '2023-01-01T00:00:00.000Z'): Promise<string> {
+    const id = randomUUID();
+    await store.insert([topicVector(text)], [id], [{ text, hash: id, user_id: 'anna', t_valid: tValid }]);
+    return id;
+  }
+
+  test('a fact that replaces an existing memory invalidates it from the observation time', async () => {
+    const store = new InMemoryVectorStore();
+    const porto = await seed(store, 'user lives in Porto');
+    const observedAt = new Date('2024-03-01T00:00:00Z');
+    const [item] = await runExtractionPipeline([{ role: 'user', content: 'I moved to Lisbon' }], SCOPE,
+      { vectorStore: store, embedder: topicEmbedder(), llm: supersedingLlm('user lives in Lisbon', 'Porto') }, { observedAt });
+    expect(item?.supersedes).toEqual([porto]);
+    expect((await store.list(SCOPE, 10))[0].map((r) => r.payload['text'])).toEqual(['user lives in Lisbon']);
+    expect((await store.list({ ...SCOPE, asOf: new Date('2024-02-01T00:00:00Z') }, 10))[0].map((r) => r.id)).toContain(porto);
+  });
+
+  test('records each supersession in the history with both texts', async () => {
+    const store = new InMemoryVectorStore();
+    const porto = await seed(store, 'user lives in Porto');
+    const batchAddHistory = vi.fn(async (_records: readonly HistoryBatchRecord[]) => undefined);
+    const historyManager = { addHistory: vi.fn(), getHistory: vi.fn(), reset: vi.fn(), close: vi.fn(), batchAddHistory };
+    await runExtractionPipeline([{ role: 'user', content: 'I moved to Lisbon' }], SCOPE,
+      { vectorStore: store, embedder: topicEmbedder(), llm: supersedingLlm('user lives in Lisbon', 'Porto'), historyManager });
+    const records = batchAddHistory.mock.calls.flatMap((call) => [...call[0]]);
+    expect(records).toContainEqual(expect.objectContaining({
+      memoryId: porto, action: 'supersede', previousValue: 'user lives in Porto', newValue: 'user lives in Lisbon',
+    }));
+  });
+
+  test('the extractor sees the existing memories most similar to the new messages, not only the latest', async () => {
+    const store = new InMemoryVectorStore();
+    // The residence fact is the oldest of seven, so a most-recent-five context would miss it.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date('2024-01-01T00:00:00Z'));
+      await seed(store, 'user lives in Porto');
+      for (let i = 0; i < 6; i += 1) {
+        vi.setSystemTime(new Date(Date.UTC(2024, 0, 2 + i)));
+        await seed(store, `user owns book number ${String(i)}`);
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+    expect((await store.list(SCOPE, 5))[0].map((r) => r.payload['text'])).not.toContain('user lives in Porto');
+    const llm = makeLlm({ memory: [] });
+    await runExtractionPipeline([{ role: 'user', content: 'I moved to Lisbon' }], SCOPE, { vectorStore: store, embedder: topicEmbedder(), llm });
+    const system = vi.mocked(llm.generateResponse).mock.calls[0]?.[0]?.[0]?.content ?? '';
+    expect(system).toContain('user lives in Porto');
+  });
+
+  test('an id the prompt never showed is rejected as an observable event and nothing is invalidated', async () => {
+    const { tracer, exporter } = setupTracer();
+    const store = new InMemoryVectorStore();
+    await seed(store, 'user lives in Porto');
+    const llm = makeLlm({ memory: [{ id: '0', text: 'user lives in Lisbon', supersedes_memory_ids: ['99'] }] });
+    const [item] = await runExtractionPipeline([{ role: 'user', content: 'I moved to Lisbon' }], SCOPE,
+      { vectorStore: store, embedder: topicEmbedder(), llm, tracer });
+    expect(item?.supersedes ?? []).toEqual([]);
+    expect((await store.list(SCOPE, 10))[1]).toBe(2);
+    expect(exporter.getFinishedSpans().map((span) => span.name)).toContain('supersession_rejected');
+  });
+
+  test('an observation older than the memory it would replace leaves that memory current', async () => {
+    const { tracer, exporter } = setupTracer();
+    const store = new InMemoryVectorStore();
+    const lisbon = await seed(store, 'user lives in Lisbon', '2024-06-01T00:00:00.000Z');
+    const [item] = await runExtractionPipeline([{ role: 'user', content: 'I live in Porto' }], SCOPE,
+      { vectorStore: store, embedder: topicEmbedder(), llm: supersedingLlm('user lives in Porto', 'Lisbon'), tracer },
+      { observedAt: new Date('2023-01-01T00:00:00Z') });
+    expect(item?.supersedes ?? []).toEqual([]);
+    expect((await store.list(SCOPE, 10))[0].map((r) => r.id)).toContain(lisbon);
+    expect(exporter.getFinishedSpans().map((span) => span.name)).toContain('supersession_skipped');
+  });
+
+  test('supersedeOnWrite false keeps every existing memory current and does not ask the extractor', async () => {
+    const store = new InMemoryVectorStore();
+    const porto = await seed(store, 'user lives in Porto');
+    const llm = supersedingLlm('user lives in Lisbon', 'Porto');
+    const [item] = await runExtractionPipeline([{ role: 'user', content: 'I moved to Lisbon' }], SCOPE,
+      { vectorStore: store, embedder: topicEmbedder(), llm, supersedeOnWrite: false });
+    expect(item?.supersedes ?? []).toEqual([]);
+    expect((await store.list(SCOPE, 10))[0].map((r) => r.id)).toContain(porto);
+    const system = vi.mocked(llm.generateResponse).mock.calls[0]?.[0]?.[0]?.content ?? '';
+    expect(system).not.toContain('supersedes_memory_ids');
+  });
 });

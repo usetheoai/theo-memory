@@ -32,6 +32,7 @@ export default defineConfig({
       '@usetheo/memory/recall-trace-pg': new URL('./packages/core/src/infrastructure/db/recall-trace/index.ts', import.meta.url).pathname,
       '@usetheo/memory/theokit': new URL('./packages/core/src/infrastructure/theokit/index.ts', import.meta.url).pathname,
       '@usetheo/memory/embedders/stub': new URL('./packages/core/src/infrastructure/embedders/stub.ts', import.meta.url).pathname,
+      '@usetheo/memory/embedders/openai-compatible': new URL('./packages/core/src/infrastructure/embedders/openai-compatible.ts', import.meta.url).pathname,
       '@usetheo/memory/embedders/openai': new URL('./packages/core/src/infrastructure/embedders/openai.ts', import.meta.url).pathname,
       '@usetheo/memory/embedders/local': new URL('./packages/core/src/infrastructure/embedders/local.ts', import.meta.url).pathname,
       '@usetheo/memory/embedders': new URL('./packages/core/src/infrastructure/embedders/index.ts', import.meta.url).pathname,

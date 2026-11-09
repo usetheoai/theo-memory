@@ -121,7 +121,7 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
   const port = resolvePort(options?.port);
   const host = resolveHost(options?.host);
 
-  // Embedder selection (THEOMEM_EMBEDDER): local (Xenova 384) | openai (1536).
+  // Embedder selection (THEOMEM_EMBEDDER): local (384) | openai (1536) | compatible (configured; default 1024).
   // Migration dim MUST match the embedder; resolve once and reuse.
   const embedderKind = resolveEmbedderKind();
   const embedderDim = embeddingDimForKind(embedderKind);

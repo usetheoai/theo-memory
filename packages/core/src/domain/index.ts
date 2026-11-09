@@ -84,7 +84,7 @@ export type {
  * Audit-trail row shape (`memory.history(memoryId)` consumer).
  *
  */
-export type { HistoryEntry } from './history-entry.js';
+export type { HistoryAction, HistoryEntry } from './history-entry.js';
 
 /**
  * Result shape returned by `memory.reflect()` — counts of derived facts +
@@ -125,6 +125,7 @@ export {
   InvalidScope,
   InvalidSkillError,
   ContentTooLargeError,
+  DerivedMemorySourcesUnavailableError,
   EmbedderError,
   EmbedderUnavailableError,
   EmptyScopeError,

@@ -134,6 +134,63 @@ describe('Memory.reflect() (T4.3)', () => {
     expect(result.sourceIds).toContain('src-1');
   });
 
+  test('derived insights inherit attribution only when every cited source has one speaker', async () => {
+    const store = new InMemoryVectorStore();
+    await store.insert(
+      [
+        Array.from({ length: MAX_EMBEDDING_DIM }, () => 0.1),
+        Array.from({ length: MAX_EMBEDDING_DIM }, () => 0.1),
+      ],
+      ['user-source', 'assistant-source'],
+      [
+        { text: 'user says their record is 27:12', hash: 'h-user', user_id: 'alice', attributed_to: 'user' },
+        { text: 'assistant claims the target is 25:50', hash: 'h-assistant', user_id: 'alice', attributed_to: 'assistant' },
+      ],
+    );
+    const memory = await createLocalMemory({
+      vectorStore: store,
+      embedder: stubEmbedder(),
+      llm: stubLLM(JSON.stringify([
+        { text: 'The user record is 27:12 and the assistant suggested 25:50.', derived_from: ['user-source', 'assistant-source'] },
+      ])),
+      reflectionPolicy: { kind: 'manual', async shouldReflect() { return true; } },
+    });
+
+    const result = await memory.user('alice').reflect();
+
+    expect(result.derivedMemoriesCreated).toBe(1);
+    expect(result.higherOrderMemories[0]?.attributedTo).toBeUndefined();
+    expect(result.higherOrderMemories[0]?.metadata['attributed_to']).toBeUndefined();
+  });
+
+  test('derived insight from user-only sources preserves user attribution', async () => {
+    const store = new InMemoryVectorStore();
+    await store.insert(
+      [
+        Array.from({ length: MAX_EMBEDDING_DIM }, () => 0.1),
+        Array.from({ length: MAX_EMBEDDING_DIM }, () => 0.1),
+      ],
+      ['user-source-1', 'user-source-2'],
+      [
+        { text: 'user likes simple clothing', hash: 'h1', user_id: 'alice', attributed_to: 'user' },
+        { text: 'user prefers dark colors', hash: 'h2', user_id: 'alice', attributed_to: 'user' },
+      ],
+    );
+    const memory = await createLocalMemory({
+      vectorStore: store,
+      embedder: stubEmbedder(),
+      llm: stubLLM(JSON.stringify([
+        { text: 'User prefers simple, dark clothing.', derived_from: ['user-source-1', 'user-source-2'] },
+      ])),
+      reflectionPolicy: { kind: 'manual', async shouldReflect() { return true; } },
+    });
+
+    const result = await memory.user('alice').reflect();
+
+    expect(result.higherOrderMemories[0]?.attributedTo).toBe('user');
+    expect(result.higherOrderMemories[0]?.metadata['attributed_to']).toBe('user');
+  });
+
   test('provenance failure: LLM cites unknown id → draft is quarantined, reflect does NOT throw (M24 #145)', async () => {
     const store = new InMemoryVectorStore();
     await store.insert(

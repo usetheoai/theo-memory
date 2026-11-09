@@ -85,6 +85,39 @@ await memory.session('dinner-42', 'alice').remember('The invitation says formal 
 });
 ```
 
+## Observation time and raw messages
+
+`observedAt` says when the remembered messages were sent; JSON APIs accept an ISO timestamp
+with timezone. It becomes the memory's valid-from instant (`MemoryItem.tValid`), while
+`createdAt` stays the time the system stored it. Importing last year's conversation therefore
+answers `recall({ asOf })` for last year. When a duplicate is confirmed, the earlier of the two
+observations wins. A time more than five minutes in the future is rejected. The extractor
+resolves relative dates ("last Friday") against `observedAt`; without it, they stay as written.
+
+Every write also lands in the scope's raw message log, linked to the memories it produced, and
+the next write's extractor sees the last 10 turns of the same scope as context. A hard forget
+erases the memory's source messages, including their citations of other memories; a soft
+forget keeps them. `recall(query, { includeSources: true })` returns each memory with those
+messages, so the caller can check the fact against what was said.
+`createLocalMemory({ messageLog: false })` turns the log off. See ADR-0027
+and ADR-0028.
+
+```ts
+await memory.user('anna').remember('Last Friday I took my sister to a pottery class', {
+  observedAt: new Date('2023-07-23T18:46:00Z'),
+});
+```
+
+## Replaced facts
+
+When a new fact gives the same attribute of the same subject a different value ("I moved to
+Lisbon" after "I live in Porto"), the write marks the old memory as no longer true from the
+new observation time. It leaves current recall; `recall({ asOf })` before that instant still
+returns it, and `history` keeps a `supersede` row with both texts. The returned item lists the
+replaced ids in `supersedes`. The extractor decides, so a wrong call can hide a true memory
+from current recall; it is never deleted. `createLocalMemory({ supersedeOnWrite: false })`
+turns this off. See ADR-0029.
+
 ## Loading both contexts and saving off the live path
 
 `MemorySession` coordinates an authenticated `ScopedMemory` with an application

@@ -60,6 +60,8 @@ export { InMemoryVectorStore, PgvectorStore, DrizzleHistoryManager, PgRoutingPol
  *
  */
 export { PgMemoryEntityStore } from './infrastructure/db/index.js';
+export { InMemoryMessageLog, PgMessageLog } from './infrastructure/db/index.js';
+export type { LoggedMessage, MessageLog } from './domain/dip/message-log.js';
 /**
  * entity-relation-extraction-slice2 — default relation-EDGE-linking adapter,
  * wired under the same `entityBoost`/PgvectorStore gate as the node adapter.

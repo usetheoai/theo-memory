@@ -58,6 +58,8 @@ export const INPUT_SCHEMA = z.object({
     })
     .strict()
     .optional(),
+  /** ADR-0027 — return each result's raw source messages (what was actually said). Default off. */
+  includeSources: z.boolean().optional(),
 });
 
 export type RecallInput = z.infer<typeof INPUT_SCHEMA>;
@@ -96,6 +98,10 @@ export const OUTPUT_SCHEMA = z.object({
       createdAt: z.string(),
       /** Flat key/value payload set at write time. */
       metadata: z.record(z.union([z.string(), z.number(), z.boolean(), z.null()])),
+      /** Raw messages that produced the memory, oldest first; present only with `includeSources`. */
+      sources: z
+        .array(z.object({ role: z.string(), content: z.string(), observedAt: z.string().nullable() }))
+        .optional(),
     }),
   ),
 });

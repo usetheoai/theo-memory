@@ -11,6 +11,7 @@ import { evidenceFromPayload } from '../../domain/memory-evidence.js';
  */
 import type { MemoryItem } from '../../domain/memory-item.js';
 import type { Scope } from '../../domain/scope.js';
+import { validFromOf } from '../../domain/valid-from.js';
 
 /**
  * Structural shape of a store row consumed by the list/episodes read paths —
@@ -46,11 +47,14 @@ export function rowsToMemoryItems(
       id: r.id,
       text: String(r.payload['text'] ?? ''),
       hash: String(r.payload['hash'] ?? r.id),
+      ...(typeof r.payload['attributed_to'] === 'string'
+        ? { attributedTo: r.payload['attributed_to'] }
+        : {}),
       scope,
       createdAt,
       updatedAt: createdAt,
       metadata: { ...r.payload },
-        tValid: createdAt,
+      tValid: validFromOf(r.payload, createdAt),
       tInvalid: null,
       ...evidenceFromPayload(r.payload),
     };

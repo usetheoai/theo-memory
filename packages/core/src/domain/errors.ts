@@ -171,6 +171,29 @@ export class ReflectionNotConfigured extends Error {
 }
 
 /**
+ * A reflection draft cited source memories that became unavailable before the
+ * derived row could be committed (for example, another writer superseded or
+ * expired a source during reflection). This is a per-draft conflict, not a
+ * storage outage: callers may quarantine that draft while continuing the batch.
+ */
+export class DerivedMemorySourcesUnavailableError extends Error {
+  override readonly name = 'DerivedMemorySourcesUnavailableError' as const;
+
+  readonly expectedSources: number;
+  readonly availableSources: number;
+
+  constructor(expectedSources: number, availableSources: number, options?: ErrorOptions) {
+    super(
+      `Derived memory source set changed before persistence (${String(availableSources)}/${String(expectedSources)} sources available).`,
+      options,
+    );
+    this.expectedSources = expectedSources;
+    this.availableSources = availableSources;
+    Object.setPrototypeOf(this, DerivedMemorySourcesUnavailableError.prototype);
+  }
+}
+
+/**
  * @see plan v0-4a-reflection-pipeline § T1.2 EC-1
  *
  * Thrown by AdditiveWeightedScoring's constructor when ALL three weights are 0.

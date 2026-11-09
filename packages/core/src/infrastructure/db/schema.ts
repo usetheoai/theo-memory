@@ -813,3 +813,30 @@ export const memoryJobs = pgTable('memory_jobs', {
   check('memory_jobs_status_check',sql`${table.status} IN ('queued','running','succeeded','failed')`),
   check('memory_jobs_attempts_check',sql`${table.attempts} >= 0`),
 ]);
+
+/**
+ * Immutable log of the raw messages each write received (ADR-0027). Rows are appended and
+ * erased, never updated. `seq` orders messages within a scope independent of clock ties.
+ */
+export const memoryMessages = pgTable('memory_messages', {
+  messageId: uuid('message_id').primaryKey().defaultRandom(),
+  seq: bigserial('seq', { mode: 'bigint' }).notNull(),
+  workspaceId: text('workspace_id').notNull().references(() => workspaces.id),
+  userId: text('user_id'), sessionId: text('session_id'), agentId: text('agent_id'),
+  role: text('role').notNull(), content: text('content').notNull(),
+  observedAt: timestamp('observed_at', { withTimezone: true }),
+  loggedAt: timestamp('logged_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('memory_messages_scope_seq_idx').on(table.workspaceId, table.userId, table.sessionId, table.agentId, table.seq),
+  check('memory_messages_role_check', sql`${table.role} IN ('user','assistant','system')`),
+]);
+
+/** Which messages produced which memory. Cascades from both sides. */
+export const memoryMessageSources = pgTable('memory_message_sources', {
+  workspaceId: text('workspace_id').notNull().references(() => workspaces.id),
+  memoryId: uuid('memory_id').notNull().references(() => memories.id, { onDelete: 'cascade' }),
+  messageId: uuid('message_id').notNull().references(() => memoryMessages.messageId, { onDelete: 'cascade' }),
+}, (table) => [
+  primaryKey({ name: 'memory_message_sources_pkey', columns: [table.workspaceId, table.memoryId, table.messageId] }),
+  index('memory_message_sources_message_idx').on(table.workspaceId, table.messageId),
+]);

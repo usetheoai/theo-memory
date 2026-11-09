@@ -8,8 +8,14 @@ import { MEMORY_EVENTS, emitEvent } from './memory-event.js';
 import type { MemoryEvent } from './memory-event.js';
 
 describe('MEMORY_EVENTS', () => {
-  test('has 58 values including evidence drop and downgrade decisions', () => {
-    expect(MEMORY_EVENTS).toHaveLength(58);
+  test('has 64 values including evidence drop, downgrade, retry, message log, and supersession decisions', () => {
+    expect(MEMORY_EVENTS).toHaveLength(64);
+    for (const event of ['memory_superseded', 'supersession_rejected', 'supersession_skipped', 'supersession_failed']) {
+      expect(MEMORY_EVENTS).toContain(event);
+    }
+    expect(MEMORY_EVENTS).toContain('message_log_failed');
+    expect(MEMORY_EVENTS).toContain('extraction_parse_retry');
+    expect(MEMORY_EVENTS).not.toContain('structured_artifact_facts_retired');
   });
 
   test('includes reflection_draft_quarantined (M24 #145 — draft quarantine IGNORE decision is observable)', () => {

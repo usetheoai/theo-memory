@@ -8,7 +8,7 @@ import { createWishlistStore } from '../../examples/wishlist/facts.mjs';
 import { WORKER_ROLE, WORKER_PASSWORD } from './global-setup.js';
 import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 
-import { createLocalMemory, MemorySession, MemoryJobWorker, PgMemoryJobStore, PgMemoryJobProcessor, PgMemoryGraphStore, PgMemoryEntityStore, PgvectorStore, tenantScopedPool } from '@usetheo/memory';
+import { createLocalMemory, MemorySession, MemoryJobWorker, PgMemoryJobStore, PgMemoryJobProcessor, PgMemoryGraphStore, PgMemoryEntityStore, PgMessageLog, PgvectorStore, tenantScopedPool } from '@usetheo/memory';
 import type { Embedder, LLM } from '@usetheo/memory';
 import { MemoryJobLeaseLost } from '@usetheo/memory/contract';
 import { createServer } from '@usetheo/memory-api';
@@ -38,7 +38,7 @@ describe.skipIf(!process.env['THEOMEM_PG_URI'])('durable extraction jobs on enfo
     worker=new MemoryJobWorker(jobs,processor);
   });
   afterAll(async()=>{if(db!==undefined)await db.dropDb();});
-  beforeEach(async()=>{await db.setupPool.query('TRUNCATE wishlist_items,memory_jobs,memories CASCADE');vi.mocked(llm.generateResponse).mockClear();});
+  beforeEach(async()=>{await db.setupPool.query('TRUNCATE wishlist_items,memory_jobs,memory_messages,memories CASCADE');vi.mocked(llm.generateResponse).mockClear();});
   const memory=()=>createLocalMemory({vectorStore:new PgvectorStore(tenantScopedPool(db.pool),{embeddingDim:3}),embedder,llm,embeddingDim:3,entityBoost:false});
 
   test('acknowledges committed enqueue, processes and exposes persisted memory IDs',async()=>{
@@ -345,5 +345,67 @@ describe.skipIf(!process.env['THEOMEM_PG_URI'])('durable extraction jobs on enfo
     await expect(jobs.retry(submitted.jobId,actor)).rejects.toThrow('cannot be retried');
     await db.setupPool.query("UPDATE memory_jobs SET finished_at=NOW()-INTERVAL '31 days' WHERE job_id=$1",[submitted.jobId]);
     await jobs.prune();await expect(jobs.get(submitted.jobId,actor)).rejects.toThrow('Memory not found');
+  });
+  test('a committed job logs its input and links it to the memory it produced',async()=>{
+    const job=await jobs.submit(input,actor,'log-link');
+    expect(await worker.runOnce()).toBe('succeeded');
+    const [memoryId]=(await jobs.get(job.jobId,actor)).memoryIds;
+    const sources=await withWorkspaceScope('default',()=>
+      new PgMessageLog(tenantScopedPool(db.pool)).sourcesOf({workspace_id:'default',user_id:'alice'},memoryId!));
+    expect(sources.map(m=>[m.role,m.content])).toEqual([['user','I prefer dark colors']]);
+  });
+
+  test('a job extractor sees the preceding turns of the same scope',async()=>{
+    await jobs.submit(input,actor,'context-1');
+    expect(await worker.runOnce()).toBe('succeeded');
+    await jobs.submit({...input,text:'Mostly navy, actually',sourceId:'session-a:turn-2'},actor,'context-2');
+    expect(await worker.runOnce()).toBe('succeeded');
+    const prompt=vi.mocked(llm.generateResponse).mock.calls[1]?.[0]?.[0]?.content??'';
+    expect(prompt).toContain('## Previous Messages');
+    expect(prompt).toContain('user: I prefer dark colors');
+  });
+
+  test('a job whose application fails after its facts leaves nothing in the log',async()=>{
+    await jobs.submit(input,actor,'log-rollback');
+    const job=(await jobs.claim())!;
+    const drafts=PreparedMemoryBatchSchema.parse(await withWorkspaceScope(job.workspaceId,()=>processor.prepare(job)));
+    const orphanNode={memoryId:'00000000-0000-4000-8000-000000000001',entities:[]};
+    await expect(processor.apply(job,{...drafts,nodes:[...drafts.nodes,orphanNode]})).rejects.toThrow('Graph node has no staged source memory.');
+    const logged=await db.setupPool.query('SELECT COUNT(*)::int AS count FROM memory_messages');
+    expect(logged.rows[0]?.count).toBe(0);
+  });
+
+  test('a processor configured with messageLog false logs nothing',async()=>{
+    const pool=tenantScopedPool(db.pool);
+    const silent=new MemoryJobWorker(jobs,new PgMemoryJobProcessor(jobs,pool,{llm,embedder,embeddingDim:3,entityBoost:false,messageLog:false}));
+    await jobs.submit(input,actor,'log-off');
+    expect(await silent.runOnce()).toBe('succeeded');
+    const logged=await db.setupPool.query('SELECT COUNT(*)::int AS count FROM memory_messages');
+    expect(logged.rows[0]?.count).toBe(0);
+  });
+  test('a job whose fact replaces an existing memory invalidates it in the same transaction',async()=>{
+    const pool=tenantScopedPool(db.pool);
+    const residence:LLM={generateResponse:vi.fn(async(messages:readonly {readonly content:string}[])=>{
+      const system=messages[0]?.content??'';
+      const porto=system.split('\n').find(line=>/^\d+\. /.test(line)&&line.includes('Porto'))?.split('.')[0];
+      const lisbon=system.slice(system.lastIndexOf('## New Messages')).includes('Lisbon');
+      return {memory:[{id:'1',text:lisbon?'user lives in Lisbon':'user lives in Porto',
+        ...(lisbon&&porto!==undefined?{supersedes_memory_ids:[porto]}:{})}]};
+    }),generateChat:vi.fn()};
+    const residenceWorker=new MemoryJobWorker(jobs,new PgMemoryJobProcessor(jobs,pool,{llm:residence,embedder,embeddingDim:3,entityBoost:false}));
+    await jobs.submit({...input,text:'I live in Porto'},actor,'supersede-1');
+    expect(await residenceWorker.runOnce()).toBe('succeeded');
+    const job=await jobs.submit({...input,text:'I moved to Lisbon',sourceId:'session-a:turn-2'},actor,'supersede-2');
+    expect(await residenceWorker.runOnce()).toBe('succeeded');
+    const [lisbonId]=(await jobs.get(job.jobId,actor)).memoryIds;
+    const rows=await db.setupPool.query<{text:string;t_valid:Date;t_invalid:Date|null;superseded_by:string|null}>(
+      "SELECT text,t_valid,t_invalid,payload->>'superseded_by_memory' AS superseded_by FROM memories ORDER BY created_at");
+    const [porto,lisbon]=rows.rows;
+    expect(porto?.text).toBe('user lives in Porto');
+    expect(porto?.t_invalid?.toISOString()).toBe(lisbon?.t_valid.toISOString());
+    expect(porto?.superseded_by).toBe(lisbonId);
+    expect(lisbon?.t_invalid).toBeNull();
+    const history=await db.setupPool.query("SELECT prev_text,new_text FROM history WHERE event='supersede'");
+    expect(history.rows).toEqual([{prev_text:'user lives in Porto',new_text:'user lives in Lisbon'}]);
   });
 });

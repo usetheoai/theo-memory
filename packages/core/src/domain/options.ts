@@ -15,6 +15,21 @@ export interface RememberOptions {
   /** Explicit deadline. Omission preserves indefinite validity. */
   readonly expiresAt?: Date;
 
+  /**
+   * When the messages were said or written, if not now. Importing a past conversation,
+   * replaying a chat log or syncing an offline client are the usual cases.
+   *
+   * Two things follow from it. The extractor resolves relative time expressions
+   * ("yesterday", "last Friday", "next month") against this instant instead of leaving them
+   * unanchored. And the stored memory is valid from this instant (`t_valid`), so
+   * `recall({ asOf })` sees imported history at the time it happened; `createdAt` stays the
+   * ingestion time. When omitted, both default to the write time, as before.
+   *
+   * Must be a valid `Date` no later than now (a few minutes of clock skew are tolerated).
+   * @see docs/memory-semantics.md
+   */
+  readonly observedAt?: Date;
+
   /** Source context. With infer:false this is caller-declared evidence; with extraction,
    * kind/quote/confidence come from each extracted fact. Never an authority marker.
    * @see docs/memory-semantics.md

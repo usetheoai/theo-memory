@@ -6,6 +6,7 @@
  * `scoped-retrieval.ts` — so this file stays under the 300-LoC budget. The helper
  * functions are re-exported below for backward compatibility with existing importers.
  */
+import type { LoggedMessage } from '../../domain/dip/message-log.js';
 import type { RecallCacheStore } from '../../domain/dip/recall-cache-store.js';
 import type { RecallTraceStore } from '../../domain/dip/recall-trace-store.js';
 import type { ReflectionPolicy } from '../../domain/dip/reflection-policy.js';
@@ -89,7 +90,11 @@ export class LocalScopedMemory implements ScopedMemory {
   }
 
   async remember(text: string, options?: RememberOptions): Promise<readonly MemoryItem[]> {
-    const messages: readonly Message[] = [{ role: 'user', content: text }];
+    return this.rememberMessages([{ role: 'user', content: text }], options);
+  }
+
+  async rememberMessages(messages: readonly Message[], options?: RememberOptions): Promise<readonly MemoryItem[]> {
+    if (messages.length === 0) return [];
     const result = await runExtractionPipeline(messages, this.filters, {
       vectorStore: this.config.vectorStore,
       embedder: this.config.embedder,
@@ -107,6 +112,10 @@ export class LocalScopedMemory implements ScopedMemory {
       ...(this.config.ontology !== undefined ? { ontology: resolveOntology(this.config.ontology) } : {}),
       // auto-categorization-write-pipeline F-H1 — thread the config (default-on when absent).
       ...(this.config.autoCategorize !== undefined ? { autoCategorize: this.config.autoCategorize } : {}),
+      // ADR-0027 — raw message log (default on; `messageLog: false` disables it).
+      ...(this.config.messageLog !== undefined && this.config.messageLog !== false ? { messageLog: this.config.messageLog } : {}),
+      ...(this.config.contextMessageCount !== undefined ? { contextMessageCount: this.config.contextMessageCount } : {}),
+      ...(this.config.supersedeOnWrite !== undefined ? { supersedeOnWrite: this.config.supersedeOnWrite } : {}),
     }, options);
 
     if (result.length > 0 && result.every(item => item.idempotentReplay === true)) return result;
@@ -160,6 +169,9 @@ export class LocalScopedMemory implements ScopedMemory {
     }
 
     const results = await retrieveResults(this.retrievalContext(), query, options);
+    // Forgetting signal: count an access only for what the caller actually receives.
+    await this.config.vectorStore.recordAccess?.(results.map((r) => r.id));
+    const withSources = options?.includeSources === true ? await this.attachSources(results) : results;
 
     // T2.3 — per-scope recall usage counter (once per recall across all paths).
     // FAIL-SOFT (Princípio 3): a counter write MUST NEVER fail a recall. EC-6: skill
@@ -176,7 +188,16 @@ export class LocalScopedMemory implements ScopedMemory {
       }
     }
 
-    return results;
+    return withSources;
+  }
+
+  /** ADR-0027 — attach each memory's source messages (one log query for the whole result). */
+  private async attachSources(results: readonly MemoryItemWithScore[]): Promise<readonly MemoryItemWithScore[]> {
+    const log = this.config.messageLog;
+    const byMemory = log === undefined || log === false || results.length === 0
+      ? new Map<string, readonly LoggedMessage[]>()
+      : await log.sourcesFor(this.filters, results.map((r) => r.id));
+    return results.map((r) => ({ ...r, sources: byMemory.get(r.id) ?? [] }));
   }
 
   async reflect(options?: ReflectOptions): Promise<ReflectionResult> {
@@ -206,13 +227,21 @@ export class LocalScopedMemory implements ScopedMemory {
     if (!matched) {
       throw new MemoryNotFound(`memoryId ${memoryId} not found in this scope`);
     }
+    // ADR-0027 — a hard forget erases the messages that produced the memory. Postgres already
+    // did it in the delete's transaction (trigger); this covers adapters without one. Not
+    // best-effort: an erasure that did not happen must not be reported as done.
+    if (options?.hard === true && this.config.messageLog !== undefined && this.config.messageLog !== false) {
+      await this.config.messageLog.eraseSourcesOf(this.filters, memoryId);
+    }
     // Stale cache after a delete is a real bug — invalidate this scope (best-effort).
     await this.invalidateCacheScope('scoped forget');
-    if (this.config.historyManager !== undefined) {
+    // A hard forget erases the memory's history by cascade, so it records none (#236).
+    if (this.config.historyManager !== undefined && options?.hard !== true) {
       try {
         await this.config.historyManager.addHistory(memoryId, '', null, 'forget', new Date());
-      } catch {
-        // history persistence failure must not block forget
+      } catch (err) {
+        // The forget already happened; a missing audit row must be visible, not silent.
+        emitEvent(this.config.tracer, 'history_persist_failed', { error: err instanceof Error ? err.message : String(err) });
       }
     }
   }

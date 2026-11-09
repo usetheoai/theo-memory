@@ -21,12 +21,12 @@ import type { Pool } from 'pg';
 
 import type { HistoryBatchRecord, HistoryManager } from '../../domain/dip/history-manager.js';
 import type { HistoryEntry } from '../../domain/history-entry.js';
+import type { HistoryAction } from '../../domain/history-entry.js';
 
 import { history } from './schema.js';
 import type { entities, memories } from './schema.js';
 import { configureWorkspaceWritesFromPool, workspaceIdForWrite } from './workspace-write-scope.js';
 
-type HistoryAction = 'remember' | 'forget' | 'reflect';
 
 /**
  * O workspace de uma linha nova, decidido em código e não no SQL.

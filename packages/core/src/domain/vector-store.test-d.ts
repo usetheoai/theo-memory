@@ -3,9 +3,11 @@ import { expectTypeOf, test } from 'vitest';
 import type { InsertOutcome, VectorStore, VectorStoreResult } from './dip/vector-store.js';
 import type { Filters } from './scope.js';
 
-test('VectorStore has exactly 13 required methods (D8 lock + deleteInScope + first-class-episodes listEpisodes)', () => {
+test('VectorStore has required persistence, scoped-retirement, and retrieval methods', () => {
   type Keys = keyof VectorStore;
   expectTypeOf<Keys>().toEqualTypeOf<
+    | 'recordAccess'
+    | 'supersede'
     | 'findWriteReplay'
     | 'initialize'
     | 'insert'
@@ -23,7 +25,7 @@ test('VectorStore has exactly 13 required methods (D8 lock + deleteInScope + fir
   >();
 });
 
-test('VectorStoreResult shape: id + payload + optional score + optional createdAt (T1.1) + optional category (themory-category-filter T3.1)', () => {
+test('VectorStoreResult shape: id + payload + optional score + optional similarity + optional createdAt (T1.1) + optional category (themory-category-filter T3.1)', () => {
   // T1.1 of dashboard-memories added optional createdAt?: Date.
   // T3.1 of themory-category-filter-server-side added optional category?: string
   // (additive per ADR D2 + EC-12 dual-pathway).
@@ -31,6 +33,7 @@ test('VectorStoreResult shape: id + payload + optional score + optional createdA
     readonly id: string;
     readonly payload: Readonly<Record<string, string | number | boolean | null>>;
     readonly score?: number;
+    readonly similarity?: number;
     readonly createdAt?: Date;
     readonly category?: string;
   }>();
@@ -61,13 +64,19 @@ test('search(query, topK?, filters?) returns Promise<readonly VectorStoreResult[
 
 test('keywordSearch is REQUIRED (no optional ?) with nullable return for opt-out', () => {
   // The method MUST be present in the type. An adapter that can't do BM25
-  // returns null at runtime — but the method itself is required.
+  // returns null at runtime — but the method itself is required. The optional
+  // query vector lets the adapter report each row's cosine similarity.
   expectTypeOf<VectorStore['keywordSearch']>().parameters.toEqualTypeOf<
-    [string, number?, Filters?]
+    [string, number?, Filters?, (readonly number[])?]
   >();
   expectTypeOf<VectorStore['keywordSearch']>().returns.resolves.toEqualTypeOf<
     readonly VectorStoreResult[] | null
   >();
+});
+
+test('recordAccess is optional and takes the ids recall returned', () => {
+  expectTypeOf<NonNullable<VectorStore['recordAccess']>>().parameters.toEqualTypeOf<[readonly string[]]>();
+  expectTypeOf<NonNullable<VectorStore['recordAccess']>>().returns.resolves.toEqualTypeOf<void>();
 });
 
 test('get(vectorId) returns Promise<VectorStoreResult | null>', () => {
@@ -107,7 +116,7 @@ test('getUserId() / setUserId() are session-metadata NOT tenant-isolation (EC-6 
   expectTypeOf<VectorStore['setUserId']>().returns.resolves.toEqualTypeOf<void>();
 });
 
-test('synthetic stub class implementing all 13 methods compiles', () => {
+test('synthetic stub class implementing all required methods compiles', () => {
   class StubVectorStore implements VectorStore {
     async initialize(): Promise<void> {}
 
@@ -150,7 +159,6 @@ test('synthetic stub class implementing all 13 methods compiles', () => {
     async deleteInScope(): Promise<boolean> {
       return false;
     }
-
     async deleteCol(): Promise<void> {}
 
     async list(

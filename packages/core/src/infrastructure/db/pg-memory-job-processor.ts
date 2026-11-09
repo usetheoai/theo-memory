@@ -9,7 +9,7 @@ import type { MemoryEntityStore, UpsertAndLinkParams } from '../../domain/dip/me
 import type { MemoryGraphStore, UpsertEdgesParams } from '../../domain/dip/memory-graph-store.js';
 import type { InsertOutcome, VectorStore, VectorStoreResult } from '../../domain/dip/vector-store.js';
 import { InvalidScope } from '../../domain/errors.js';
-import { runExtractionPipeline } from '../../domain/extraction/pipeline.js';
+import { DEFAULT_CONTEXT_MESSAGE_COUNT, runExtractionWithContext } from '../../domain/extraction/pipeline.js';
 import { memoryJobScope } from '../../domain/memory-job.js';
 import type { Filters } from '../../domain/scope.js';
 
@@ -17,6 +17,7 @@ import { InMemoryVectorStore } from './in-memory-store.js';
 import { PgMemoryEntityStore } from './pg-memory-entity-store.js';
 import { PgMemoryGraphStore } from './pg-memory-graph-store.js';
 import type { ClaimedMemoryJob, PgMemoryJobStore } from './pg-memory-job-store.js';
+import { PgMessageLog } from './pg-message-log.js';
 import { PgvectorStore } from './pgvector-store.js';
 import { deriveScopeKey } from './recall-cache/scope-key.js';
 import { filtersFromScope } from './scope-filters.js';
@@ -32,12 +33,24 @@ export const PreparedMemoryBatchSchema=z.object({
   facts:z.array(z.object({memoryId:z.string().uuid(),vector:vectorSchema,payload:payloadSchema})).max(256),
   nodes:z.array(z.object({memoryId:z.string().uuid(),entities:z.array(entitySchema).max(50)})).max(256),
   edges:z.array(z.object({memoryId:z.string().uuid(),edges:z.array(edgeSchema).max(50)})).max(256),
+  /** ADR-0029: existing memories a staged fact replaces; applied in the commit transaction. Absent in older drafts. */
+  supersessions:z.array(z.object({memoryId:z.string().uuid(),supersededIds:z.array(z.string().uuid()).min(1).max(10)})).max(256).default([]),
 }).strict();
 type PreparedBatch=z.infer<typeof PreparedMemoryBatchSchema>;
 
 class StagingStore extends InMemoryVectorStore {
   readonly facts:PreparedBatch['facts']=[];
+  readonly supersessions:PreparedBatch['supersessions']=[];
   constructor(private readonly existing:VectorStore){super();}
+  /** The extractor's context comes from the committed memories, never from what this job staged. */
+  override search(query:readonly number[],topK?:number,filters?:Filters):Promise<readonly VectorStoreResult[]>{
+    return this.existing.search(query,topK,filters);
+  }
+  /** Record the replacement for apply's transaction; the store decides there what really changes. */
+  override supersede(_filters:Filters,memoryIds:readonly string[],by:{readonly memoryId:string;readonly at:Date}):Promise<readonly string[]>{
+    this.supersessions.push({memoryId:by.memoryId,supersededIds:[...memoryIds]});
+    return Promise.resolve(memoryIds);
+  }
   override list(filters?:Filters,topK?:number,includeSoftDeleted?:boolean,offset?:number):Promise<readonly [readonly VectorStoreResult[],number]>{
     return this.existing.list(filters,topK,includeSoftDeleted,offset);
   }
@@ -55,7 +68,9 @@ function timed<T>(work:Promise<T>):Promise<T> {
 /** Stage provider work durably; apply facts, evidence, graph, history and receipt in one transaction. */
 export class PgMemoryJobProcessor implements MemoryJobProcessor {
   constructor(private readonly jobs:PgMemoryJobStore,private readonly pool:Pool,
-    private readonly config:{readonly llm:LLM;readonly embedder:Embedder;readonly embeddingDim:number;readonly entityBoost?:boolean}){}
+    private readonly config:{readonly llm:LLM;readonly embedder:Embedder;readonly embeddingDim:number;readonly entityBoost?:boolean;
+      /** ADR-0027 raw message log, on by default; `false` neither logs nor gives preceding turns. */
+      readonly messageLog?:false;readonly contextMessageCount?:number}){}
 
   async prepare(job:ClaimedMemoryJob):Promise<PreparedBatch> {
     return withWorkspaceScope(job.workspaceId,async()=>{
@@ -76,7 +91,11 @@ export class PgMemoryJobProcessor implements MemoryJobProcessor {
       const graphStore:MemoryGraphStore={upsertEdges:call=>{edgeCalls.push(call);return Promise.resolve();},invalidateEdgesByMemory:unsupported,listEdges:unsupported};
       const embedder:Embedder={embed:text=>timed(this.config.embedder.embed(text)),embedBatch:texts=>timed(this.config.embedder.embedBatch(texts))};
       const llm:LLM={generateResponse:(...args)=>timed(this.config.llm.generateResponse(...args)),generateChat:messages=>timed(this.config.llm.generateChat(messages))};
-      await runExtractionPipeline([{role:'user',content:job.input.text}],filtersFromScope(memoryJobScope(job.input),job.workspaceId),{
+      const filters=filtersFromScope(memoryJobScope(job.input),job.workspaceId);
+      // ADR-0027: read-only here, because prepare can repeat; logging happens in apply's transaction.
+      const previous=this.config.messageLog===false?[]:(await new PgMessageLog(this.pool)
+        .recent(filters,this.config.contextMessageCount??DEFAULT_CONTEXT_MESSAGE_COUNT)).map(m=>({role:m.role,content:m.content}));
+      await runExtractionWithContext([{role:'user',content:job.input.text}],filters,{
         vectorStore:staging,embedder,llm,tracer,redactErrorDetails:true,
         ...(this.config.entityBoost===false?{}:{memoryEntityStore:entityStore,memoryGraphStore:graphStore,entityExtractor:{extract:()=>[]}}),
       },{strictExtraction:true,
@@ -84,9 +103,9 @@ export class PgMemoryJobProcessor implements MemoryJobProcessor {
         ...(job.input.expiresAt!==undefined?{expiresAt:new Date(job.input.expiresAt)}:{}),
         evidence:{kind:'inferred',sourceId:job.input.sourceId,modality:job.input.modality,
           ...(job.input.originSourceId!==undefined?{originSourceId:job.input.originSourceId}:{})},
-      });
+      },previous);
       if(graphFailures.length>0)throw new Error('Graph preparation was incomplete.');
-      return PreparedMemoryBatchSchema.parse({facts:staging.facts,nodes:nodeCalls,edges:edgeCalls});
+      return PreparedMemoryBatchSchema.parse({facts:staging.facts,nodes:nodeCalls,edges:edgeCalls,supersessions:staging.supersessions});
     });
   }
 
@@ -107,6 +126,26 @@ export class PgMemoryJobProcessor implements MemoryJobProcessor {
           VALUES($1,$2,'remember',NULL,$3)`,[outcome.id,job.workspaceId,fact.payload['text']]);
       }
       const filters=filtersFromScope(memoryJobScope(job.input),job.workspaceId);
+      // ADR-0029: replaced memories become invalid at the transaction's own instant, which is also
+      // the new facts' valid-from time, so the two versions neither overlap nor leave a gap.
+      if(draft.supersessions.length>0){
+        const {rows:[clock]}=await client.query<{now:Date}>('SELECT now() AS now');
+        for(const supersession of draft.supersessions){
+          const memoryId=persisted.get(supersession.memoryId);
+          if(memoryId===undefined)throw new Error('Supersession has no staged source memory.');
+          const invalidated=await store.supersede(filters,supersession.supersededIds,{memoryId,at:clock!.now});
+          const newText=draft.facts.find(fact=>fact.memoryId===supersession.memoryId)?.payload['text']??null;
+          for(const id of invalidated){
+            await client.query(`INSERT INTO history(memory_id,workspace_id,event,prev_text,new_text)
+              SELECT id,workspace_id,'supersede',text,$2 FROM memories WHERE id=$1`,[id,newText]);
+          }
+        }
+      }
+      // ADR-0027: the input joins the log in the same transaction as its facts, so a rollback drops both.
+      if(this.config.messageLog!==false&&persisted.size>0){
+        const log=new PgMessageLog(pool);
+        await log.linkSources(filters,[...new Set(persisted.values())],await log.append(filters,[{role:'user',content:job.input.text}]));
+      }
       const entities=new PgMemoryEntityStore(pool),graph=new PgMemoryGraphStore(pool);
       for(const node of draft.nodes){
         const memoryId=persisted.get(node.memoryId);if(memoryId===undefined)throw new Error('Graph node has no staged source memory.');

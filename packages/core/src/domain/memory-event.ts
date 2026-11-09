@@ -75,6 +75,9 @@ export const MEMORY_EVENTS = [
   // code-review-fixes-v0-2-1 T2.1 — LLM parse/validation error (SyntaxError or ZodError)
   // distinct from network error (which propagates). Princípio 3 observability.
   'extraction_parse_failure',
+  // A malformed provider response received one schema-repair retry before the pipeline
+  // either completed successfully or emitted extraction_parse_failure.
+  'extraction_parse_retry',
   // code-review-fixes-v0-2-1 T2.2 — embedder returned zero-dim vector in per-row fallback.
   'embed_zero_dim_skipped',
   // code-review-fixes-v0-2-1 T2.3 — history persist failed (non-fatal; surfaces silently swallowed error).
@@ -133,6 +136,13 @@ export const MEMORY_EVENTS = [
   // MUST NEVER fail because `retrieval_api_usage` could not be bumped). Mirrors
   // history_persist_failed. @see CLAUDE.md § IMPORTANTE Princípio 3
   'retrieval_counted_failed',
+  // ADR-0027 — reading or appending the raw message log failed. Non-fatal: the write already
+  // committed (or extraction proceeds without context). Attribute `operation` is recent|append.
+  'message_log_failed',
+  'memory_superseded',
+  'supersession_rejected',
+  'supersession_skipped',
+  'supersession_failed',
   // agentic-skill-execution-sandbox T1.2 — a sandbox guard denied a skill
   // execution. Attribute `reason` carries the ToolInvocationDeniedReason literal.
   // Every denial is observable (Princípio 3 — no silent IGNORE on an RCE surface).
@@ -249,11 +259,10 @@ export const MEMORY_EVENTS = [
   // Rule 8). Attributes `{workspace_tier, error}`. Princípio 3 — even the audit's own failure is
   // observable, never a silent swallow.
   'routing_audit_write_failed',
-  // M24 T3.2 (#145) — a reflect draft failed per-draft provenance validation
-  // (empty or hallucinated `derivedFrom`) and was QUARANTINED (skipped) rather
-  // than thrown, so one bad row of many never aborts an otherwise-good reflect
-  // (Rule 8 recoverable). Attributes `{scope_tier, draft_index}`. Princípio 3 —
-  // the IGNORE decision is observable, never a silent swallow.
+  // M24 T3.2 (#145) — a reflect draft failed provenance validation or its
+  // source set became unavailable before commit and was QUARANTINED rather than
+  // aborting otherwise-good drafts. Attributes include scope_tier, draft_index
+  // and reason. Princípio 3 — the IGNORE decision is observable.
   'reflection_draft_quarantined',
   'extraction_evidence_dropped',
   'extraction_evidence_downgraded',

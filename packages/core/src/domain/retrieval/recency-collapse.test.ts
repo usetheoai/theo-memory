@@ -135,6 +135,39 @@ describe('collapseByRecency — T1.2 pure stage', () => {
     ).toEqual([]);
   });
 
+  test('keeps a time-specific fact when a near-paraphrase drops its date', () => {
+    expect(
+      collapseByRecency([
+        { id: 'dated', score: 0.9, embedding: NEAR_A, createdAtMs: 1000, text: 'user fixed the fence three weeks ago' },
+        { id: 'summary', score: 0.8, embedding: NEAR_B, createdAtMs: 5000, text: 'the fence repair made the goats safe' },
+      ], 0.9).droppedIds,
+    ).toEqual([]);
+  });
+
+  test('keeps conflicting counts and explicit dates instead of treating them as updates', () => {
+    expect(
+      collapseByRecency([
+        { id: 'three', score: 0.9, embedding: NEAR_A, createdAtMs: 1000, text: 'user tried three Korean restaurants' },
+        { id: 'four', score: 0.8, embedding: NEAR_B, createdAtMs: 5000, text: 'user tried four Korean restaurants' },
+      ], 0.9).droppedIds,
+    ).toEqual([]);
+    expect(
+      collapseByRecency([
+        { id: 'date-a', score: 0.9, embedding: NEAR_A, createdAtMs: 1000, text: 'user attended the workshop on June 3rd' },
+        { id: 'date-b', score: 0.8, embedding: NEAR_B, createdAtMs: 5000, text: 'user attended the workshop on June 10th' },
+      ], 0.9).droppedIds,
+    ).toEqual([]);
+  });
+
+  test('still collapses near-duplicates when their material values match', () => {
+    expect(
+      collapseByRecency([
+        { id: 'old', score: 0.9, embedding: NEAR_A, createdAtMs: 1000, text: 'user fixed the fence three weeks ago' },
+        { id: 'new', score: 0.8, embedding: NEAR_B, createdAtMs: 5000, text: 'user repaired the fence three weeks ago' },
+      ], 0.9).droppedIds,
+    ).toEqual(['old']);
+  });
+
   test('equal createdAt → deterministic tiebreak (higher score kept)', () => {
     // Same timestamp → keep the higher-scored 'b', drop 'a'.
     expect(

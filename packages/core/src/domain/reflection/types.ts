@@ -30,4 +30,4 @@ export interface ReflectionExecuteContext {
 }
 
 /** Current reflection prompt version. Bump on prompt-shape changes for cache invalidation. */
-export const PROMPT_VERSION = '1.0';
+export const PROMPT_VERSION = '1.1';

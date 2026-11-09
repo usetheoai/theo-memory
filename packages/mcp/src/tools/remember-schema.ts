@@ -46,6 +46,8 @@ export const INPUT_SCHEMA = z.object({
   evidence: MemoryEvidenceSchema.optional(),
   idempotencyKey: z.string().trim().min(1).max(256).optional(),
   expiresAt: z.string().datetime({offset:true}).optional(),
+  /** When the content was said or written (ISO-8601), if not now; relative dates resolve against it. */
+  observedAt: z.string().datetime({offset:true}).optional(),
     strictExtraction: z.boolean().optional(),
 });
 

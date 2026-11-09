@@ -24,8 +24,12 @@ export interface MemoryConfig {
   readonly llm: LLM;
   readonly vectorStore: VectorStore;
 
-  /** Optional. v0.1 ships DummyHistoryManager (no-op) by default; consumers wire SQLite / Supabase later. */
-  readonly historyManager?: HistoryManager;
+  /**
+   * Where remember, forget, reflect and supersede record their audit rows. Under
+   * `createLocalMemory` over a `PgvectorStore`, omitting the key records into the store's own
+   * `history` table (#236); passing `historyManager: undefined` explicitly records nothing.
+   */
+  readonly historyManager?: HistoryManager | undefined;
 
   /**
    * Optional. v0.0 shipped ManualReflectionPolicy as the only built-in; v0.4a

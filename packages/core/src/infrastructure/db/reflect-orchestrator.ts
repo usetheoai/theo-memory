@@ -201,6 +201,7 @@ export async function runReflection(
     const { persisted } = await persistDraftsWithQuarantine({
       drafts,
       sourceIds,
+      sourceMemories,
       embedder: config.embedder,
       store: storeWithDerived,
       scope,

@@ -40,7 +40,13 @@ import { coerceExtractionResponse } from './normalize.js';
 import { applyOntologyToEntities, boundedAutoCategory, buildPayload, embedBatchWithFallback, extractResponseText, patchItemsWithOutcomes, persistWithFallback, runInferFalsePath, scopeFromFilters, toMemoryItem } from './pipeline-helpers.js';
 import type { ExtractionDeps, Payload } from './pipeline-helpers.js';
 import { AdditiveExtractionSchema, generateAdditiveExtractionPrompt, type AdditiveExtractionResponse } from './prompt.js';
+import { applySupersessions } from './supersession.js';
 import { DEFAULT_CATEGORY_TAXONOMY, classifyCategorySource } from './taxonomy.js';
+
+function isExtractionParseError(error: unknown): boolean {
+  return error instanceof SyntaxError
+    || (error !== null && typeof error === 'object' && 'issues' in error);
+}
 
 
 // Re-export the public surface that used to live here (backward-compatible for
@@ -52,11 +58,65 @@ export type { ExtractionDeps, Payload } from './pipeline-helpers.js';
 /**
  * Main entry point. Runs the 8-phase write pipeline + returns the persisted MemoryItems.
  */
+/** Preceding turns of the scope given to the extractor as context when the deps do not say (ADR-0027). */
+export const DEFAULT_CONTEXT_MESSAGE_COUNT = 10;
+
+/** Existing memories of the scope shown to the extractor: the most similar to the new messages (ADR-0029). */
+export const SIMILAR_MEMORY_COUNT = 10;
+
+/**
+ * The write pipeline. With a `MessageLog`, the preceding turns of the scope are read before
+ * extraction (context only), and once the write completes the new messages are logged and
+ * linked to every memory the write returned. A replayed idempotent write logs nothing; a write
+ * that throws logs nothing. A log failure never fails a committed write: it is emitted as
+ * `message_log_failed`.
+ */
 export async function runExtractionPipeline(
   messages: readonly Message[],
   filters: Filters,
   deps: ExtractionDeps,
   options?: RememberOptions,
+): Promise<readonly MemoryItem[]> {
+  const log = deps.messageLog;
+  if (log === undefined) return extractAndPersist(messages, filters, deps, options, []);
+  let previous: readonly Message[] = [];
+  try {
+    previous = (await log.recent(filters, deps.contextMessageCount ?? DEFAULT_CONTEXT_MESSAGE_COUNT))
+      .map((m) => ({ role: m.role, content: m.content }));
+  } catch (err) {
+    emitEvent(deps.tracer, 'message_log_failed', { operation: 'recent', error: err instanceof Error ? err.name : 'UnknownError' });
+  }
+  const items = await extractAndPersist(messages, filters, deps, options, previous);
+  if (items.some((item) => item.idempotentReplay === true)) return items;
+  try {
+    const messageIds = await log.append(filters, messages, options?.observedAt);
+    await log.linkSources(filters, items.map((item) => item.id), messageIds);
+  } catch (err) {
+    emitEvent(deps.tracer, 'message_log_failed', { operation: 'append', error: err instanceof Error ? err.name : 'UnknownError' });
+  }
+  return items;
+}
+
+/**
+ * The write pipeline with caller-supplied preceding turns and no logging of its own. For
+ * callers that log inside their own transaction, such as the durable job processor (ADR-0027).
+ */
+export function runExtractionWithContext(
+  messages: readonly Message[],
+  filters: Filters,
+  deps: Omit<ExtractionDeps, 'messageLog' | 'contextMessageCount'>,
+  options: RememberOptions | undefined,
+  previousMessages: readonly Message[],
+): Promise<readonly MemoryItem[]> {
+  return extractAndPersist(messages, filters, deps, options, previousMessages);
+}
+
+async function extractAndPersist(
+  messages: readonly Message[],
+  filters: Filters,
+  deps: ExtractionDeps,
+  options: RememberOptions | undefined,
+  previousMessages: readonly Message[],
 ): Promise<readonly MemoryItem[]> {
   const sourceEvidence = options?.evidence === undefined ? undefined : validateMemoryEvidence(options.evidence);
   if (sourceEvidence !== undefined) options = { ...options, evidence: sourceEvidence };
@@ -64,6 +124,7 @@ export async function runExtractionPipeline(
   messages=messages.map(message=>({...message}));
   if(options!==undefined)options={...options,
     ...(options.expiresAt!==undefined?{expiresAt:new Date(options.expiresAt)}:{}),
+    ...(options.observedAt instanceof Date?{observedAt:new Date(options.observedAt)}:{}),
     ...(options.metadata!==undefined?{metadata:{...options.metadata}}:{})};
   if (options?.idempotencyKey !== undefined && deps.vectorStore.findWriteReplay === undefined) {
     throw new InvalidScope('Idempotent writes require a store with durable write receipts, such as PgvectorStore.');
@@ -103,10 +164,13 @@ export async function runExtractionPipeline(
   // ============================================================
   // Phase 1: existing retrieval + UUID→int mapping
   // ============================================================
-  // For v0.1 we keep this minimal: query the store for recent in-scope memories
-  // to provide LLM context. The integer→UUID mapping is owned by the prompt composer.
-  const existingResults = await deps.vectorStore.list(filters, 5);
-  const existingItems: MemoryItem[] = existingResults[0].map((r) => {
+  // The in-scope memories most similar to the new messages, so the extractor can see what the
+  // new facts repeat or replace even when it is old (ADR-0029). The integer→UUID mapping is
+  // owned by the prompt composer.
+  const supersedeOnWrite = deps.supersedeOnWrite !== false;
+  const queryVector = await deps.embedder.embed(messages.map((m) => m.content).join('\n'));
+  const existingResults = await deps.vectorStore.search(queryVector, SIMILAR_MEMORY_COUNT, filters);
+  const existingItems: MemoryItem[] = existingResults.map((r) => {
     const text = String(r.payload['text'] ?? '');
     const hash = String(r.payload['hash'] ?? r.id);
     const now = new Date();
@@ -125,7 +189,7 @@ export async function runExtractionPipeline(
   // taxonomy is injected into the prompt so the LLM emits a per-fact category.
   const autoCategorizeEnabled = deps.autoCategorize?.enabled !== false;
   const autoCategorizeTaxonomy = deps.autoCategorize?.taxonomy ?? DEFAULT_CATEGORY_TAXONOMY;
-  const { prompt } = generateAdditiveExtractionPrompt(
+  const { prompt, uuidByInt } = generateAdditiveExtractionPrompt(
     existingItems,
     messages,
     deps.customInstructions,
@@ -133,7 +197,14 @@ export async function runExtractionPipeline(
     detectedLanguage ?? undefined,
     autoCategorizeEnabled ? autoCategorizeTaxonomy : undefined,
     options?.attributedTo, // M29 (#160): speaker token derived from attribution inside the prompt composer
+    options?.observedAt, // anchors relative time expressions to when the messages were said
+    previousMessages, // preceding turns of the scope, context only
+    supersedeOnWrite,
   );
+  const shownMemories = new Map<number, { id: string; text: string }>();
+  for (const [promptId, id] of uuidByInt) {
+    shownMemories.set(promptId, { id, text: existingItems[promptId - 1]?.text ?? '' });
+  }
   let extracted: Readonly<AdditiveExtractionResponse['memory']>;
   // slice2 T2.2 — relation triples from the SAME extraction call (response-level).
   let relations: readonly RelationTriple[] | undefined;
@@ -141,17 +212,31 @@ export async function runExtractionPipeline(
   // English-only fallback). Surface names preserved in the input language/script.
   let llmEntities: readonly { name: string; type?: string | undefined }[] | undefined;
   try {
-    const raw = await deps.llm.generateResponse(
-      [
-        { role: 'system', content: prompt },
-        { role: 'user', content: messages.map((m) => `${m.role}: ${m.content}`).join('\n') },
-      ],
-      { type: 'json' },
-    );
-    // Normalize the raw response (numeric ids, fact-under-`fact`, missing id) before the
-    // strict parse — see `extraction/normalize.ts` (extracted for single responsibility).
-    const obj = coerceExtractionResponse(raw);
-    const parsed = AdditiveExtractionSchema.parse(obj);
+    const extractionMessages = [
+      { role: 'system' as const, content: prompt },
+      { role: 'user' as const, content: messages.map((m) => `${m.role}: ${m.content}`).join('\n') },
+    ];
+    let parsed: AdditiveExtractionResponse;
+    const raw = await deps.llm.generateResponse(extractionMessages, { type: 'json' });
+    try {
+      // Normalize the raw response (numeric ids, fact-under-`fact`, missing id) before the
+      // strict parse — see `extraction/normalize.ts` (extracted for single responsibility).
+      parsed = AdditiveExtractionSchema.parse(coerceExtractionResponse(raw));
+    } catch (error) {
+      if (!isExtractionParseError(error)) throw error;
+      // Provider JSON mode can still return malformed content. Make one bounded repair
+      // attempt before failing the write; network failures are never retried here.
+      emitEvent(tracer, 'extraction_parse_retry', { attempt: 1 });
+      const retryMessages = [
+        {
+          role: 'system' as const,
+          content: `${prompt}\n\nRETRY REQUIREMENT: your prior output did not match the required schema. Return one valid JSON object only, with memory as an array of fact objects and relations/entities using the exact schema above. Do not return prose or bare strings.`,
+        },
+        extractionMessages[1] as { role: 'user'; content: string },
+      ];
+      const retriedRaw = await deps.llm.generateResponse(retryMessages, { type: 'json' });
+      parsed = AdditiveExtractionSchema.parse(coerceExtractionResponse(retriedRaw));
+    }
     extracted = parsed.memory;
     relations = parsed.relations;
     llmEntities = parsed.entities;
@@ -224,8 +309,7 @@ export async function runExtractionPipeline(
     // T2.1 — differentiate LLM network errors (propagate) from parse/validation
     // errors (return [] with OTel event). Per ADR D3 + EC-6: classify by error
     // TYPE (instanceof), NOT by message content.
-    const isParse = err instanceof SyntaxError                    // JSON.parse failure
-      || (err !== null && typeof err === 'object' && 'issues' in err);  // ZodError shape
+    const isParse = isExtractionParseError(err);
     process.stderr.write(
       `[themory] extraction_failed (${isParse ? 'parse' : 'network'}): ${deps.redactErrorDetails === true ? (err instanceof Error ? err.name : 'UnknownError') : (err instanceof Error ? err.message : String(err))}\n`,
     );
@@ -314,6 +398,7 @@ export async function runExtractionPipeline(
   const survivingVectors: (readonly number[])[] = [];
   const survivingPayloads: Payload[] = [];
   const survivingItems: MemoryItem[] = [];
+  const survivingSupersedes: (readonly string[])[] = [];
 
   for (let i = 0; i < extracted.length; i += 1) {
     const text = extracted[i]?.text ?? '';
@@ -384,6 +469,7 @@ export async function runExtractionPipeline(
     survivingVectors.push(vector);
     survivingPayloads.push(payload);
     survivingItems.push(toMemoryItem(id, text, hash, scope, payload, now));
+    survivingSupersedes.push(supersedeOnWrite ? extracted[i]?.supersedes_memory_ids ?? [] : []);
   }
 
   if (survivingIds.length === 0) {
@@ -393,7 +479,7 @@ export async function runExtractionPipeline(
   // ============================================================
   // Phase 6: batch persist (per-row fallback)
   // ============================================================
-  const persistOutcomes = await persistWithFallback(
+  const { outcomes: persistOutcomes, failure: persistFailure } = await persistWithFallback(
     deps.vectorStore,
     survivingVectors,
     survivingIds,
@@ -406,7 +492,8 @@ export async function runExtractionPipeline(
       scopeFromFilters(filters),{...row.payload},row.createdAt??new Date()),rejectedAsDuplicate:true,idempotentReplay:true}));
   }
   if (options?.strictExtraction === true && persistOutcomes.length !== survivingIds.length) {
-    throw new MemoryStoreError('Memory persistence was incomplete; some facts may have been saved.');
+    throw new MemoryStoreError('Memory persistence was incomplete; some facts may have been saved.',
+      persistFailure === undefined ? undefined : { cause: persistFailure });
   }
   // principles-alignment-hardening T2.1 — patch surviving items with UPSERT
   // outcomes (confirmationCount + rejectedAsDuplicate) per ADR D1 + D4.
@@ -417,17 +504,42 @@ export async function runExtractionPipeline(
   survivingItems.push(...(patchedItems as MemoryItem[]));
 
   // ============================================================
+  // Phase 6.2: supersession (ADR-0029)
+  // ============================================================
+  // Only facts the store confirmed persisting may invalidate anything.
+  let supersessionHistory: readonly HistoryBatchRecord[] = [];
+  if (survivingSupersedes.some((ids) => ids.length > 0)) {
+    if (persistOutcomes.length !== survivingIds.length) {
+      emitEvent(tracer, 'supersession_skipped', { reason: 'incomplete_persist', count: survivingIds.length });
+    } else {
+      try {
+        const applied = await applySupersessions(
+          survivingItems.map((memory, i) => ({ memory, promptIds: survivingSupersedes[i] ?? [] })),
+          shownMemories, filters, options?.observedAt ?? new Date(), deps.vectorStore, tracer);
+        supersessionHistory = applied.history;
+        for (let i = 0; i < survivingItems.length; i += 1) {
+          const replaced = applied.supersededBy.get(survivingItems[i]!.id);
+          if (replaced !== undefined) survivingItems[i] = { ...survivingItems[i]!, supersedes: replaced };
+        }
+      } catch (err) {
+        // The facts are committed; the replaced memories simply stay current. Observable, not silent.
+        emitEvent(tracer, 'supersession_failed', { error: err instanceof Error ? err.name : 'UnknownError' });
+      }
+    }
+  }
+
+  // ============================================================
   // Phase 6.5: batch history persist
   // ============================================================
   if (deps.historyManager !== undefined) {
-    const records: HistoryBatchRecord[] = survivingItems.map((item) => ({
+    const records: HistoryBatchRecord[] = [...survivingItems.map((item): HistoryBatchRecord => ({
       memoryId: item.id,
       previousValue: null,
       newValue: item.text,
       action: 'remember',
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
-    }));
+    })), ...supersessionHistory];
     try {
       if (deps.historyManager.batchAddHistory !== undefined) {
         await deps.historyManager.batchAddHistory(records);

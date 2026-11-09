@@ -37,7 +37,7 @@ describe('createEmbedder', () => {
     await expect(
       // @ts-expect-error — deliberately invalid key
       createEmbedder({ provider: 'bogus' }),
-    ).rejects.toThrow(/stub.*openai.*local.*ollama.*voyage.*google/);
+    ).rejects.toThrow(/stub.*openai.*openai-compatible.*local.*ollama.*voyage.*google/);
   });
 
   test('SDK-backed provider whose dep is missing → EmbedderUnavailableError', async () => {

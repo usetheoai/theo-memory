@@ -23,6 +23,7 @@
 import type { EpisodeListOptions, EpisodePage } from './episode.js';
 import type { HistoryEntry } from './history-entry.js';
 import type { MemoryItem, MemoryItemWithScore } from './memory-item.js';
+import type { Message } from './message.js';
 import type {
   ForgetOptions,
   GetAllOptions,
@@ -93,6 +94,12 @@ export interface ScopedMemory {
    *   MUST escape on render; no input sanitization applied).
    */
   remember(text: string, options?: RememberOptions): Promise<readonly MemoryItem[]>;
+  /**
+   * Extract and persist a batch of already-attributed conversation turns in one
+   * pipeline invocation. Role labels are preserved as source evidence. This is
+   * useful for ingesting a session atomically without flattening its speakers.
+   */
+  rememberMessages(messages: readonly Message[], options?: RememberOptions): Promise<readonly MemoryItem[]>;
   recall(query: string, options?: RecallOptions): Promise<readonly MemoryItemWithScore[]>;
   reflect(options?: ReflectOptions): Promise<ReflectionResult>;
   getAll(options?: GetAllOptions): Promise<readonly MemoryItem[]>;

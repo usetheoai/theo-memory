@@ -18,6 +18,8 @@ export { InMemoryVectorStore } from './in-memory-store.js';
 export { PgvectorStore } from './pgvector-store.js';
 export { DrizzleHistoryManager } from './history-manager.js';
 export { PgMemoryEntityStore } from './pg-memory-entity-store.js';
+export { PgMessageLog } from './pg-message-log.js';
+export { InMemoryMessageLog } from './in-memory-message-log.js';
 export { PgMemoryGraphStore } from './pg-memory-graph-store.js';
 export { PgGraphExpansionStore } from './pg-graph-expansion-store.js';
 export { PgUsageCounterStore } from './pg-usage-counter-store.js';

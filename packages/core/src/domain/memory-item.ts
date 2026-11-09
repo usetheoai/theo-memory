@@ -4,6 +4,7 @@
  * @see ADR-0001 — upstream-shape architecture (hash dedup + bi-temporal data model).
  * @see ADR-0006 — bi-temporal columns: schema-yes-in-local, query-API-no-until-v0.5.
  */
+import type { LoggedMessage } from './dip/message-log.js';
 import type { MemoryEvidence } from './memory-evidence.js';
 import type { Scope } from './scope.js';
 
@@ -127,6 +128,13 @@ export interface MemoryItem {
   readonly rejectedAsDuplicate?: boolean;
 
   /**
+   * ADR-0029 — ids of the existing memories this write marked as no longer true. Present only
+   * when the write superseded something; each one keeps its row and an `asOf` before the
+   * change still returns it.
+   */
+  readonly supersedes?: readonly string[];
+
+  /**
    * themory-category-filter-server-side T1.1: operator-supplied category tag
    * projected from the top-level `category` column. NULL on pre-2026-06-09 rows
    * AND on rows written without `RememberOptions.category` (per ADR D1 no
@@ -151,4 +159,6 @@ export interface MemoryItem {
 export interface MemoryItemWithScore extends MemoryItem {
   /** Additive composite score in [0, 1]. Higher = better match. */
   readonly score: number;
+  /** The raw messages that produced this memory, when `RecallOptions.includeSources` is set (ADR-0027). */
+  readonly sources?: readonly LoggedMessage[];
 }

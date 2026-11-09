@@ -41,4 +41,14 @@ describe('detectInputLanguage', () => {
     const joined = 'Sarah trabalha como cientista de dados. Sarah adora escalada.';
     expect(detectInputLanguage(joined)?.iso6391).toBe('pt');
   });
+
+  it('recovers English from agreeing sentence samples when a long domain-specific turn is globally uncertain', () => {
+    const turn = "I've been working on a solo project for my Data Mining class, and I'm really interested in applying some of these techniques to my customer purchase data. I'm trying to identify patterns and trends, and I think feature engineering will really help me with that. Do you have any specific tips on how to handle high cardinality categorical variables in my dataset?";
+    expect(detectInputLanguage(turn)?.iso6391).toBe('en');
+  });
+
+  it('does not force a language for a turn split evenly between English and Portuguese', () => {
+    const mixed = 'I am working on a research project for school this semester. Estou trabalhando em um projeto de pesquisa para a escola neste semestre.';
+    expect(detectInputLanguage(mixed)).toBeNull();
+  });
 });

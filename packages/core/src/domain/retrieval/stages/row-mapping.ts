@@ -10,6 +10,7 @@ import { evidenceFromPayload } from '../../memory-evidence.js';
  */
 import type { MemoryItemWithScore } from '../../memory-item.js';
 import type { Filters, Scope } from '../../scope.js';
+import { validFromOf } from '../../valid-from.js';
 
 import type { Payload, ScoredRow } from './threshold-filter.js';
 
@@ -62,7 +63,7 @@ export function makeRowToItem(
       createdAt: parsedCreatedAt,
       updatedAt: parsedCreatedAt,
       metadata: { ...row.payload },
-        tValid: now,
+      tValid: validFromOf(row.payload, now),
       tInvalid: null,
       ...evidenceFromPayload(row.payload),
       ...(attributedTo !== undefined ? { attributedTo } : {}),

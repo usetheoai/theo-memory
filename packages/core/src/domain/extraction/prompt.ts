@@ -33,7 +33,7 @@ const SYSTEM_PROMPT = [
   'Given existing memories (numbered for reference) and new conversation messages,',
   'output JSON with new facts to persist. Use the integer ids — FORMATTED AS JSON STRINGS,',
   'e.g. "1", "2" (with quotes) — in `linked_memory_ids` when a new fact references or',
-  'relates to an existing memory. NEVER emit `linked_memory_ids` as bare numbers; the',
+  'relates to an existing memory that stays true. NEVER emit `linked_memory_ids` as bare numbers; the',
   'array MUST contain quoted string elements.',
   '',
   '`attributed_to` is the perspective owner of the fact — the peer ID it belongs to.',
@@ -119,7 +119,6 @@ const SYSTEM_PROMPT = [
   '  paragraph-length "fact". A 400-word narration becomes several short facts, or none.',
   '- DECLARATIVE: a statement, never a question. A turn that only asks something',
   '  ("Shall I proceed?", "Quer que eu prossiga?") yields NO fact.',
-  '- STANDALONE: understandable months later without the surrounding turn.',
   '- THIRD PERSON: name the subject; NEVER first-person conversational voice. Rewrite',
   '  "My recommendation: use an allowlist" as the fact "An allowlist is recommended".',
   '- DROP conversational filler: greetings, acknowledgements, meta-chatter ("let me", "I will",',
@@ -142,6 +141,30 @@ const SYSTEM_PROMPT = [
   '  "relations"?: [{ "source": "<entity>", "relationship": "<verb phrase>", "destination": "<entity>" }] }',
 ].join('\n');
 
+/**
+ * The output format names `supersedes_memory_ids` next to `linked_memory_ids` when supersession
+ * is on. Mentioned only in a directive, the field was never filled by a real model, which put
+ * the replaced id in `linked_memory_ids` instead (ADR-0029).
+ */
+const SYSTEM_PROMPT_WITH_SUPERSESSION = SYSTEM_PROMPT.replace(
+  '"linked_memory_ids"?: ["1", "2"], ',
+  '"linked_memory_ids"?: ["1", "2"], "supersedes_memory_ids"?: ["1"], ',
+);
+
+/**
+ * ADR-0029 — how the extractor marks existing memories a new fact replaces. Rendered only when
+ * supersession is on and existing memories are shown.
+ */
+const SUPERSESSION_DIRECTIVE = [
+  'SUPERSESSION: when a new fact makes an existing memory no longer true, because the same',
+  'attribute of the same subject now has a different value (a move, a new job, an ended',
+  'relationship, a corrected detail), add that existing memory\'s id to the new fact\'s',
+  '`supersedes_memory_ids`, as quoted strings ("1"). Never list a memory that stays true next',
+  'to the new fact: a past event, an extra preference, or a different attribute. When in',
+  'doubt, list nothing.',
+  '',
+].join('\n');
+
 function renderExistingMemories(existing: readonly MemoryItem[]): string {
   if (existing.length === 0) {
     return '';
@@ -153,9 +176,49 @@ function renderExistingMemories(existing: readonly MemoryItem[]): string {
   return `## Existing Memories\n${lines.join('\n')}\n`;
 }
 
+/**
+ * The turns of the same scope that preceded the New Messages (MessageLog.recent). They let the
+ * extractor resolve references a new turn depends on ("she", "that class", "the same place"),
+ * and they are never a source of facts: those turns were extracted when they were new.
+ */
+function renderPreviousMessages(messages: readonly Message[]): string {
+  if (messages.length === 0) {
+    return '';
+  }
+  const lines = messages.map((m) => `${m.role}: ${escapeMarkdownHeaders(m.content)}`);
+  return [
+    '## Previous Messages',
+    'Context only: the turns that came before the New Messages in this conversation. Use them to',
+    'resolve who or what the New Messages refer to. Do not extract facts from Previous Messages.',
+    ...lines,
+    '',
+  ].join('\n');
+}
+
 function renderNewMessages(messages: readonly Message[]): string {
   const lines = messages.map((m) => `${m.role}: ${escapeMarkdownHeaders(m.content)}`);
   return `## New Messages\n${lines.join('\n')}\n`;
+}
+
+const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
+
+/**
+ * Anchors relative time expressions (RememberOptions.observedAt). Without it the extractor
+ * has no date to resolve "last Friday" against and stores the phrase unanchored, which
+ * loses the event's time for good. The date is the UTC calendar date of the instant.
+ */
+export function renderReferenceTimeDirective(referenceTime: Date): string {
+  const iso = referenceTime.toISOString();
+  const day = iso.slice(0, 10);
+  const weekday = WEEKDAY_NAMES[referenceTime.getUTCDay()] ?? '';
+  return [
+    `REFERENCE TIME: the New Messages were sent on ${day} (${weekday}), ${iso.slice(11, 16)} UTC.`,
+    'Resolve every relative time expression in them (today, yesterday, last Friday, this weekend,',
+    'two weeks ago, next month) against that date and write the absolute date into the fact:',
+    'a day as YYYY-MM-DD, a week or weekend as its date range, a month as YYYY-MM, a year as YYYY.',
+    'Keep the original wording next to the date only when it adds meaning. Never state a date',
+    'the messages do not imply; an expression that cannot be resolved stays as written.',
+  ].join('\n');
 }
 
 export interface PromptResult {
@@ -216,6 +279,9 @@ export function generateAdditiveExtractionPrompt(
   detectedLanguage?: { readonly name: string },
   categoryTaxonomy?: readonly string[],
   attributedTo?: string,
+  referenceTime?: Date,
+  previousMessages?: readonly Message[],
+  supersedeOnWrite = false,
 ): PromptResult {
   const uuidByInt = new Map<number, string>();
   existing.forEach((m, i) => uuidByInt.set(i + 1, m.id));
@@ -228,8 +294,17 @@ export function generateAdditiveExtractionPrompt(
   // the ontology/language prefixes use — see the renderOntologyDirective note). Grounded in
   // Agent-context discipline: "For agent actions, use
   // direct statements: 'Agent recommended [X]'" + attribute correctly.
+  const speakerRoles = new Set(newMessages.map((message) => message.role));
+  const hasMixedSpeakers = speakerRoles.size > 1;
   const speakerToken = attributedTo === 'assistant' ? 'assistant' : 'user';
-  const speakerPrefix = speakerToken === 'assistant'
+  const speakerPrefix = hasMixedSpeakers
+    ? 'SOURCE SPEAKER ATTRIBUTION (HIGHEST PRIORITY — overrides the default "user" speaker rule): '
+      + 'each line in New Messages is prefixed by its authoritative source role. Assign every '
+      + 'extracted fact to the role that authored the supporting statement and set '
+      + '`attributed_to` to that exact role. A single batch may contain both user and assistant '
+      + 'facts; never transfer a claim between speakers or assign all facts to one default role. '
+      + 'Keep assistant statements attributed to assistant, even when they describe the user.\n\n'
+    : speakerToken === 'assistant'
     ? 'SPEAKER IDENTITY (HIGHEST PRIORITY — overrides the default "user" speaker rule in the '
       + 'system prompt below): the author of the NEW messages is the ASSISTANT/agent, NOT the '
       + 'user. Represent the first-person speaker as ONE consistent entity named exactly '
@@ -264,10 +339,15 @@ export function generateAdditiveExtractionPrompt(
       + 'exception.\n\n'
     : '';
 
+  const referencePrefix = referenceTime !== undefined ? `${renderReferenceTimeDirective(referenceTime)}\n\n` : '';
+
   const prompt = [
-    speakerPrefix + languagePrefix + ontologyPrefix + categoryPrefix + customPrefix + SYSTEM_PROMPT,
+    speakerPrefix + languagePrefix + referencePrefix + ontologyPrefix + categoryPrefix + customPrefix
+      + (supersedeOnWrite && existing.length > 0 ? SYSTEM_PROMPT_WITH_SUPERSESSION : SYSTEM_PROMPT),
     '',
+    supersedeOnWrite && existing.length > 0 ? SUPERSESSION_DIRECTIVE : '',
     renderExistingMemories(existing),
+    renderPreviousMessages(previousMessages ?? []),
     renderNewMessages(newMessages),
   ]
     .filter((part) => part.length > 0)
@@ -287,6 +367,7 @@ export const AdditiveExtractionSchema = z.object({
       attributed_to: z.string().optional(),
       category: z.string().optional(),
       linked_memory_ids: z.array(z.string()).optional(),
+      supersedes_memory_ids: z.array(z.string()).optional(),
       evidence: z.object({
         kind: z.enum(['stated', 'inferred']),
         durability: z.enum(['durable', 'temporary', 'tentative']),

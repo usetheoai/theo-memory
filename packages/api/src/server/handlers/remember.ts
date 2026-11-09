@@ -62,7 +62,7 @@ export async function rememberHandler(c: Context, memory: Memory, routingAuditSt
   if (!parsed.success) {
     return scopeOrValidationError(parsed.error, c);
   }
-  const { text, infer, attributedTo, metadata, category, evidence, strictExtraction, idempotencyKey, expiresAt } = parsed.data;
+  const { text, infer, attributedTo, metadata, category, evidence, strictExtraction, idempotencyKey, expiresAt, observedAt } = parsed.data;
   // multi-tenant-workspace-isolation T3.1: bind to the Principal's workspace
   // (ADR D3) BEFORE resolving the body's tier — the workspace comes from the
   // credential, the tier from the body.
@@ -73,6 +73,7 @@ export async function rememberHandler(c: Context, memory: Memory, routingAuditSt
     infer, attributedTo, metadata, category,
     ...(idempotencyKey !== undefined ? { idempotencyKey } : {}),
     ...(expiresAt !== undefined ? { expiresAt: new Date(expiresAt) } : {}),
+    ...(observedAt !== undefined ? { observedAt: new Date(observedAt) } : {}),
     ...(evidence !== undefined ? { evidence } : {}),
     ...(strictExtraction !== undefined ? { strictExtraction } : {}),
   });
@@ -133,6 +134,7 @@ export async function batchRememberHandler(c: Context, memory: Memory, routingAu
         infer: item.infer,
         ...(item.idempotencyKey !== undefined ? { idempotencyKey: item.idempotencyKey } : {}),
         ...(item.expiresAt !== undefined ? { expiresAt: new Date(item.expiresAt) } : {}),
+        ...(item.observedAt !== undefined ? { observedAt: new Date(item.observedAt) } : {}),
         ...(item.strictExtraction !== undefined ? { strictExtraction: item.strictExtraction } : {}),
         ...(item.evidence !== undefined ? { evidence: item.evidence } : {}),
         attributedTo: item.attributedTo,

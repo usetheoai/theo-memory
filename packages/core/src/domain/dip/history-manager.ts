@@ -4,14 +4,14 @@
  * @see ADR-0008 — DIP method counts (HistoryManager: 4 required + 3 optional).
  * @see ADR-0003 — ADD-only public API; history is the audit primitive.
  */
-import type { HistoryEntry } from '../history-entry.js';
+import type { HistoryAction, HistoryEntry } from '../history-entry.js';
 import type { Message } from '../message.js';
 
 export interface HistoryBatchRecord {
   readonly memoryId: string;
   readonly previousValue: string | null;
   readonly newValue: string | null;
-  readonly action: 'remember' | 'forget' | 'reflect';
+  readonly action: HistoryAction;
   readonly createdAt?: Date;
   readonly updatedAt?: Date;
   readonly isDeleted?: boolean;
@@ -30,7 +30,7 @@ export interface HistoryManager {
     memoryId: string,
     previousValue: string | null,
     newValue: string | null,
-    action: 'remember' | 'forget' | 'reflect',
+    action: HistoryAction,
     createdAt?: Date,
     updatedAt?: Date,
     isDeleted?: boolean,

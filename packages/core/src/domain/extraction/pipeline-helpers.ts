@@ -12,6 +12,7 @@ import type { HistoryManager } from '../dip/history-manager.js';
 import type { LLM } from '../dip/llm.js';
 import type { MemoryEntityStore } from '../dip/memory-entity-store.js';
 import type { MemoryGraphStore } from '../dip/memory-graph-store.js';
+import type { MessageLog } from '../dip/message-log.js';
 import type { InsertOutcome, VectorStore } from '../dip/vector-store.js';
 import { IdempotencyConflict } from '../errors.js';
 import { emitEvent } from '../memory-event.js';
@@ -19,7 +20,9 @@ import { evidenceFromPayload } from '../memory-evidence.js';
 import type { MemoryItem } from '../memory-item.js';
 import { ONTOLOGY_FALLBACK_TYPE, type Ontology } from '../ontology.js';
 import type { Filters, Scope } from '../scope.js';
+import { validFromOf } from '../valid-from.js';
 
+import { persistErrorAttributes } from './persist-error.js';
 import type { AutoCategorizeConfig } from './taxonomy.js';
 
 /**
@@ -93,6 +96,13 @@ export interface ExtractionDeps {
    *  LLM-emitted per-fact `category` is written to `payload['category']` (trimmed +
    *  1-64 bounded, fail-soft). A caller category always overrides. */
   readonly autoCategorize?: AutoCategorizeConfig;
+  /** Raw message log (ADR-0027). When present, writes are logged and linked to their facts, and
+   *  the preceding turns of the scope reach the extractor as context. */
+  readonly messageLog?: MessageLog;
+  /** ADR-0029: let the extractor mark existing memories a new fact replaces (default true). */
+  readonly supersedeOnWrite?: boolean;
+  /** How many preceding turns the extractor sees. Defaults to DEFAULT_CONTEXT_MESSAGE_COUNT. */
+  readonly contextMessageCount?: number;
 }
 
 export type Payload = Record<string, string | number | boolean | null>;
@@ -160,6 +170,8 @@ export function toMemoryItem(id: string, text: string, hash: string, scope: Scop
   // through the payload key BEFORE this conversion.
   const attributedToRaw = metadata['attributed_to'];
   const attributedTo = typeof attributedToRaw === 'string' ? attributedToRaw : undefined;
+  const categoryRaw = metadata['category'];
+  const category = typeof categoryRaw === 'string' ? categoryRaw : undefined;
   // principles-alignment-hardening T2.1 / EC-6 — hoist confirmation_count from
   // the projected payload (pgvector-store search/get/list now SELECT it) to
   // MemoryItem.confirmationCount. Recall-returned items now surface the
@@ -174,10 +186,11 @@ export function toMemoryItem(id: string, text: string, hash: string, scope: Scop
     createdAt: now,
     updatedAt: now,
     metadata,
-    tValid: now,
+    tValid: validFromOf(metadata, now),
     tInvalid: null,
       ...evidenceFromPayload(metadata),
     ...(attributedTo !== undefined ? { attributedTo } : {}),
+    ...(category !== undefined ? { category } : {}),
     ...(confirmationCount !== undefined ? { confirmationCount } : {}),
   };
 }
@@ -257,22 +270,29 @@ export async function embedBatchWithFallback(
 
 /** Phase 6: batch persist with per-row fallback. Returns per-id outcomes
  * surfacing UPSERT semantics for principles-alignment-hardening T2.1 wrap. */
+/** What a persist attempt saved, and the first error that kept a row out (#231). */
+export interface PersistResult {
+  readonly outcomes: readonly InsertOutcome[];
+  readonly failure?: unknown;
+}
+
 export async function persistWithFallback(
   vectorStore: VectorStore,
   vectors: readonly (readonly number[])[],
   ids: readonly string[],
   payloads: readonly Payload[],
   tracer: Tracer | undefined,
-): Promise<readonly InsertOutcome[]> {
+): Promise<PersistResult> {
   emitEvent(tracer, 'persist_started', { count: ids.length });
   try {
     const outcomes = await vectorStore.insert(vectors, ids, payloads);
     emitEvent(tracer, 'persist_completed', { count: ids.length });
-    return outcomes;
+    return { outcomes };
   } catch (error) {
     if (error instanceof IdempotencyConflict) throw error;
-    emitEvent(tracer, 'persist_fallback', { count: ids.length });
+    emitEvent(tracer, 'persist_fallback', { count: ids.length, ...persistErrorAttributes(error) });
     const outcomes: InsertOutcome[] = [];
+    let failure: unknown;
     for (let i = 0; i < ids.length; i += 1) {
       try {
         const single = await vectorStore.insert(
@@ -281,12 +301,13 @@ export async function persistWithFallback(
           [payloads[i] as Payload],
         );
         outcomes.push(...single);
-      } catch (error) {
-        if (error instanceof IdempotencyConflict) throw error;
-        // Log + skip; do not poison the batch
+      } catch (rowError) {
+        if (rowError instanceof IdempotencyConflict) throw rowError;
+        // Skip the row so it does not poison the batch, but keep why it failed.
+        failure ??= rowError;
       }
     }
-    return outcomes;
+    return failure === undefined ? { outcomes } : { outcomes, failure };
   }
 }
 

@@ -35,7 +35,7 @@ export async function runMigrate(): Promise<void> {
   const pool = new Pool({ connectionString: pgUri });
   try {
     // Embedder-aware (F-wire-1): the migration embedding dimension MUST match the
-    // selected embedder (THEOMEM_EMBEDDER: local 384 / openai 1536), so a
+    // selected embedder (THEOMEM_EMBEDDER: local 384 / openai 1536 / compatible configurable), so a
     // standalone `themory migrate` provisions the same schema the server/mcp boot
     // would. Without this, `themory migrate` left the schema at the shipped
     // vector(1536) default and a subsequent local-embedder (384) consumer failed

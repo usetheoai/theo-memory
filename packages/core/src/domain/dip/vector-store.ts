@@ -19,6 +19,13 @@ export interface VectorStoreResult {
   readonly payload: Readonly<Record<string, string | number | boolean | null>>;
   readonly score?: number;
   /**
+   * Cosine similarity between this row's stored vector and the query vector, in [-1, 1].
+   * Set by `keywordSearch` when the caller passes `queryVector`, so a row found only by the
+   * lexical channel is gated and scored on its real semantic similarity instead of 0.
+   * Absent on `search` results (there `score` already is the similarity).
+   */
+  readonly similarity?: number;
+  /**
    * Wall-clock when the row was first persisted, projected from the adapter's
    * underlying store (e.g., PgvectorStore SELECTs `created_at` column;
    * InMemoryVectorStore stamps `new Date()` at insert).
@@ -70,6 +77,14 @@ export interface InsertOutcome {
 }
 
 export interface VectorStore {
+  /**
+   * Count an access to each memory: the caller of recall() received it. Feeds the
+   * forgetting signals (access_count, last_accessed_at). Called with the ids recall
+   * returns, never with internal search candidates. Best-effort: a failure must not fail
+   * the recall. Adapters without access bookkeeping omit it.
+   */
+  recordAccess?(ids: readonly string[]): Promise<void>;
+
   /** Replay committed facts before invoking extraction. Null means no receipt exists. */
   findWriteReplay?(requestKey: string, requestHash: string, filters: Filters): Promise<readonly VectorStoreResult[] | null>;
 
@@ -105,11 +120,21 @@ export interface VectorStore {
    * BM25 keyword search. REQUIRED method per ADR-0001 (nine-step search relies on it).
    * Adapters that genuinely cannot implement BM25 return `null` to opt out of the BM25 component;
    * the method itself MUST exist on the type.
+   *
+   * Scores are Okapi BM25 over the rows the search is scoped to (`domain/retrieval/bm25.ts`):
+   * a row containing ANY query term is a candidate, and rarer terms weigh more (IDF). The recall
+   * pipeline's sigmoid normalization is centered on raw BM25 values, so a score on another scale
+   * (cosine, ts_rank, raw term overlap) would make the lexical signal meaningless. A conjunctive
+   * match would drop almost every natural-language question, whose words are rarely all present
+   * in one stored fact.
+   *
+   * When `queryVector` is given, each result carries `similarity` (cosine to the query vector).
    */
   keywordSearch(
     query: string,
     topK?: number,
     filters?: Filters,
+    queryVector?: readonly number[],
   ): Promise<readonly VectorStoreResult[] | null>;
 
   /** Fetch a single result by id, or null if not present. */
@@ -139,6 +164,15 @@ export interface VectorStore {
    * already soft-deleted (EC-4).
    */
   deleteInScope(vectorId: string, filters: Filters, hard: boolean): Promise<boolean>;
+
+  /**
+   * ADR-0029 — mark memories as no longer true from `by.at`, because memory `by.memoryId`
+   * replaced them. Only rows of the workspace and bound scope tiers in `filters` that are live,
+   * valid no later than `by.at` and are not `by.memoryId` itself change; each gets
+   * `t_invalid = by.at` and keeps its row for `asOf` reads. Returns the ids it invalidated.
+   * Optional: a store without it never supersedes on write.
+   */
+  supersede?(filters: Filters, memoryIds: readonly string[], by: { readonly memoryId: string; readonly at: Date }): Promise<readonly string[]>;
 
   /** Drop the entire collection/table. Administrative; pairs with Memory.reset(scope) at the domain layer. */
   deleteCol(): Promise<void>;

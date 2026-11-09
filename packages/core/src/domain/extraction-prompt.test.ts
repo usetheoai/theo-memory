@@ -88,6 +88,27 @@ describe('generateAdditiveExtractionPrompt', () => {
     expect(prompt).toMatch(/literal token "user"/);
   });
 
+  test('with supersession on, the output format carries supersedes_memory_ids and linked ids exclude replaced memories', () => {
+    const { prompt } = generateAdditiveExtractionPrompt(
+      [fixtureMemory('uuid-a', 'user lives in Porto')],
+      [{ role: 'user', content: 'I moved to Lisbon.' }],
+      undefined, undefined, undefined, undefined, undefined, undefined, undefined, true,
+    );
+    const format = prompt.slice(prompt.indexOf('Output format'));
+    expect(format).toMatch(/"supersedes_memory_ids"\?: \["1"\]/);
+    expect(prompt).toMatch(/SUPERSESSION:/);
+    // A replaced memory belongs in supersedes_memory_ids, never only in linked_memory_ids.
+    expect(prompt).toMatch(/`linked_memory_ids`[^.]*stays true/);
+  });
+
+  test('with supersession off, the prompt does not ask for supersedes_memory_ids', () => {
+    const { prompt } = generateAdditiveExtractionPrompt(
+      [fixtureMemory('uuid-a', 'user lives in Porto')],
+      [{ role: 'user', content: 'I moved to Lisbon.' }],
+    );
+    expect(prompt).not.toMatch(/supersedes_memory_ids/);
+  });
+
   test('builds uuidByInt mapping (1-indexed) for the LLM response resolution', () => {
     const { uuidByInt } = generateAdditiveExtractionPrompt(
       [fixtureMemory('uuid-a', 'A'), fixtureMemory('uuid-b', 'B')],
@@ -104,6 +125,16 @@ describe('generateAdditiveExtractionPrompt', () => {
     const { prompt } = generateAdditiveExtractionPrompt([], messages);
     expect(prompt).toMatch(/## New Messages/);
     expect(prompt).toMatch(/I drink espresso every morning/);
+  });
+
+  test('preserves authoritative roles when a batch contains both speakers', () => {
+    const { prompt } = generateAdditiveExtractionPrompt([], [
+      { role: 'user', content: 'I prefer quiet restaurants.' },
+      { role: 'assistant', content: 'You mentioned a dinner on Thursday.' },
+    ]);
+    expect(prompt).toMatch(/SOURCE SPEAKER ATTRIBUTION/);
+    expect(prompt).toMatch(/each line in New Messages is prefixed by its authoritative source role/);
+    expect(prompt).toMatch(/never transfer a claim between speakers/);
   });
 
   test('includes customInstructions when provided (prefix to system prompt)', () => {

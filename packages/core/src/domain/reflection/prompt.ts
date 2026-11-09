@@ -51,6 +51,8 @@ export function buildReflectionPrompt(
   lines.push('  - Every output is an inference, never an independently verified operational record.');
   lines.push('  - Preserve uncertainty. A passing choice or tentative statement is not a lasting preference.');
   lines.push('  - Repeated summaries of the same source are not independent supporting evidence.');
+  lines.push('  - Respect each source attribution. Assistant-authored claims about the user are not user-confirmed facts.');
+  lines.push('  - Do not combine sources from different speakers into a claim attributed to one speaker.');
   lines.push('  - Every derived insight MUST reference at least one source ID via "derived_from".');
   lines.push('  - Return STRICT JSON: an array of objects { "text": string, "derived_from": string[] }.');
   lines.push('  - If no consolidation is possible (memories are unrelated), return an empty array [].');
@@ -58,7 +60,9 @@ export function buildReflectionPrompt(
   lines.push(`SOURCE MEMORIES (${String(sourceMemories.length)} total):`);
   for (const m of sourceMemories) {
     const evidence = m.evidence === undefined ? 'unknown' : JSON.stringify(m.evidence);
-    lines.push(`  - id="${m.id}" evidence=${evidence}: ${m.text}`);
+    lines.push(
+      `  - id="${m.id}" attributed_to="${m.attributedTo ?? 'unknown'}" evidence=${evidence}: ${m.text}`,
+    );
   }
   lines.push('');
   lines.push('Respond with the JSON array. No prose, no preamble.');

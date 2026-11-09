@@ -10,10 +10,12 @@ import type { RecallTraceStore } from '../../domain/dip/recall-trace-store.js';
 import type { ReflectionPolicy } from '../../domain/dip/reflection-policy.js';
 import { MemoryNotFound, WorkspaceMismatch } from '../../domain/errors.js';
 import type { HistoryEntry } from '../../domain/history-entry.js';
+import { emitEvent } from '../../domain/memory-event.js';
 import { evidenceFromPayload } from '../../domain/memory-evidence.js';
 import type { MemoryItem } from '../../domain/memory-item.js';
 import type { Memory, ScopedMemory } from '../../domain/memory-store.js';
 import type { ForgetOptions } from '../../domain/options.js';
+import type { Filters } from '../../domain/scope.js';
 import type { Scope } from '../../domain/scope.js';
 import type {
   ScopedSkillMemory,
@@ -145,6 +147,19 @@ export class LocalMemory implements Memory {
     if (hardDelete || !isPgStore) {
       // GDPR-style physical delete OR non-Pg adapter fallback (no t_invalid concept).
       await this.config.vectorStore.delete(memoryId);
+      // ADR-0027 — a physical delete erases the memory's source messages. Postgres does it in
+      // the delete's transaction (trigger); this covers adapters without one.
+      const log = this.config.messageLog;
+      if (log !== undefined && log !== false) {
+        const p = existing.payload;
+        const text = (key: string): string | undefined => (typeof p[key] === 'string' ? (p[key]) : undefined);
+        const filters = Object.fromEntries(
+          (['workspace_id', 'user_id', 'session_id', 'agent_id'] as const)
+            .map((key) => [key, text(key)])
+            .filter(([, value]) => value !== undefined),
+        ) as Filters;
+        await log.eraseSourcesOf(filters, memoryId);
+      }
     } else {
       // Default soft-delete via PgEvictor — idempotent on an already-invalid row.
       const evictor = new PgEvictor(this.config.vectorStore.poolForEviction);
@@ -163,7 +178,8 @@ export class LocalMemory implements Memory {
         console.error('[themory] edge invalidateEdgesByMemory (forget) failed:', err);
       }
     }
-    if (this.config.historyManager !== undefined) {
+    // A hard forget erases the memory's history by cascade, so it records none (#236).
+    if (this.config.historyManager !== undefined && !hardDelete) {
       try {
         await this.config.historyManager.addHistory(
           memoryId,
@@ -172,8 +188,9 @@ export class LocalMemory implements Memory {
           'forget',
           new Date(),
         );
-      } catch {
-        // Silent swallow — history persistence failure must not block forget
+      } catch (err) {
+        // The forget already happened; a missing audit row must be visible, not silent.
+        emitEvent(this.config.tracer, 'history_persist_failed', { error: err instanceof Error ? err.message : String(err) });
       }
     }
     // Item 19 AC#3 cache invalidation post-success. EC-11: sequentially awaited.

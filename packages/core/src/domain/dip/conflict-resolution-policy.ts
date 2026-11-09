@@ -29,6 +29,8 @@ export interface ConsolidationCandidate {
   readonly memoryId: string;
   readonly text: string;
   readonly createdAt: Date;
+  /** Facts with different authors must never be judged/superseded as one claim. */
+  readonly attributedTo?: string;
   /**
    * M9 (session→global consolidation): the memory's `confirmation_count` — the
    * durability signal (Princípio 1) the `SessionToGlobalConsolidationPolicy` reads to

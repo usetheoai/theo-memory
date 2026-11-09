@@ -13,6 +13,7 @@ import { metrics, type Counter, type Tracer } from '@opentelemetry/api';
 
 import type { Embedder } from '../../domain/dip/embedder.js';
 import type { VectorStoreResult } from '../../domain/dip/vector-store.js';
+import { DerivedMemorySourcesUnavailableError } from '../../domain/errors.js';
 import { emitEvent } from '../../domain/memory-event.js';
 import { evidenceFromPayload } from '../../domain/memory-evidence.js';
 import type { MemoryItem } from '../../domain/memory-item.js';
@@ -28,6 +29,7 @@ export interface VectorStoreWithDerivedInsert {
     hash: string;
     embedding: readonly number[];
     derivedFrom: readonly string[];
+    attributedTo?: string;
     scope: {
       workspaceId?: string | null;
       userId?: string | null;
@@ -59,6 +61,7 @@ function getQuarantineCounter(): Counter {
 export async function persistDraftsWithQuarantine(args: {
   readonly drafts: readonly DerivedMemoryDraft[];
   readonly sourceIds: readonly string[];
+  readonly sourceMemories: readonly MemoryItem[];
   readonly embedder: Embedder;
   readonly store: VectorStoreWithDerivedInsert;
   readonly scope: Scope;
@@ -66,7 +69,8 @@ export async function persistDraftsWithQuarantine(args: {
   readonly workspaceId: string | null;
   readonly tracer: Tracer | undefined;
 }): Promise<{ readonly persisted: MemoryItem[]; readonly quarantined: number }> {
-  const { drafts, sourceIds, embedder, store, scope, counterTuple, workspaceId, tracer } = args;
+  const { drafts, sourceIds, sourceMemories, embedder, store, scope, counterTuple, workspaceId, tracer } = args;
+  const sourceById = new Map(sourceMemories.map((memory) => [memory.id, memory]));
   const persisted: MemoryItem[] = [];
   let quarantined = 0;
 
@@ -86,22 +90,52 @@ export async function persistDraftsWithQuarantine(args: {
     }
     const embedding = await embedder.embed(draft.text);
     const hash = `derived-${String(Date.now())}-${String(Math.random()).slice(2, 8)}`;
-    const id = await store.insertDerivedMemory({
-      text: draft.text,
-      hash,
-      embedding,
-      derivedFrom: draft.derivedFrom,
-      // The reflection-derived row stays in the SAME workspace as its sources.
-      scope: { ...counterTuple, workspaceId },
-    });
+    const citedSources = draft.derivedFrom.map((sourceId) => sourceById.get(sourceId));
+    const sourceAttributions = citedSources.map((source) => source?.attributedTo);
+    const attributedTo = sourceAttributions[0];
+    const hasUniformAttribution =
+      attributedTo !== undefined &&
+      sourceAttributions.every((sourceAttribution) => sourceAttribution === attributedTo);
+    let id: string;
+    try {
+      id = await store.insertDerivedMemory({
+        text: draft.text,
+        hash,
+        embedding,
+        derivedFrom: draft.derivedFrom,
+        ...(hasUniformAttribution ? { attributedTo } : {}),
+        // The reflection-derived row stays in the SAME workspace as its sources.
+        scope: { ...counterTuple, workspaceId },
+      });
+    } catch (err) {
+      // The source set is revalidated transactionally by the store. A concurrent
+      // supersession/expiry after the LLM read is a per-draft race: quarantine
+      // this derived statement, keep processing independent drafts, and surface
+      // the decision. Database, embedding and unknown errors still fail loudly.
+      if (!(err instanceof DerivedMemorySourcesUnavailableError)) {
+        throw err;
+      }
+      quarantined += 1;
+      getQuarantineCounter().add(1);
+      emitEvent(tracer, 'reflection_draft_quarantined', {
+        scope_tier: scope.kind,
+        draft_index: i,
+        reason: 'source_unavailable',
+      });
+      continue;
+    }
     const row = await store.get?.(id);
     const metadata = row?.payload ?? { kind: 'derived' };
+    const persistedAttribution = metadata['attributed_to'];
     persisted.push({
       id,
       text: draft.text,
       hash,
       scope,
       metadata,
+      ...(typeof persistedAttribution === 'string'
+        ? { attributedTo: persistedAttribution }
+        : {}),
       evidence: { kind: 'inferred' },
       createdAt: new Date(),
       updatedAt: new Date(),

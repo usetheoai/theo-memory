@@ -3,6 +3,7 @@
  *
  * Extracted from index.ts (T1.3 of architecture-review-fixes plan).
  */
+import { drizzle as drizzleNodePostgres } from 'drizzle-orm/node-postgres';
 import type { Pool } from 'pg';
 
 import { MAX_EMBEDDING_DIM } from '../../domain/constants.js';
@@ -43,10 +44,13 @@ import {
   TimeBasedTrigger,
   TriadicScoringPolicy,
 } from './eviction/index.js';
+import { DrizzleHistoryManager } from './history-manager.js';
+import { InMemoryMessageLog } from './in-memory-message-log.js';
 import { type DisposableMemory, LocalMemory } from './local-memory.js';
 import { PgGraphExpansionStore } from './pg-graph-expansion-store.js';
 import { PgMemoryEntityStore } from './pg-memory-entity-store.js';
 import { PgMemoryGraphStore } from './pg-memory-graph-store.js';
+import { PgMessageLog } from './pg-message-log.js';
 import { PgUsageCounterStore } from './pg-usage-counter-store.js';
 import { PgvectorStore as PgvectorStoreClass } from './pgvector-store.js';
 import { type CreateMemoryPresetConfig, isPresetConfig, resolvePreset } from './preset.js';
@@ -285,6 +289,20 @@ export async function createLocalMemory(config: LocalMemoryConfig): Promise<Disp
             config.usageCounterStore ?? new PgUsageCounterStore(config.vectorStore.poolForEviction),
         }
       : config;
+  // #236 — the audit trail is on by default over Postgres; an explicit key, even `undefined`, wins.
+  const withHistory: LocalMemoryConfig =
+    !('historyManager' in config) && config.vectorStore instanceof PgvectorStoreClass
+      ? { ...baseConfig, historyManager: new DrizzleHistoryManager(drizzleNodePostgres(config.vectorStore.poolForEviction)) }
+      : baseConfig;
+  // ADR-0027 — raw message log, on by default; an explicit port or `false` wins.
+  const withMessageLog: LocalMemoryConfig = config.messageLog !== undefined
+    ? withHistory
+    : {
+        ...withHistory,
+        messageLog: config.vectorStore instanceof PgvectorStoreClass
+          ? new PgMessageLog(config.vectorStore.poolForEviction)
+          : new InMemoryMessageLog(),
+      };
 
   // semantic-recall-cache-v1-5 T2.1 — opt-in cache wiring.
   // Resolved BEFORE the eviction branch so both eviction-on and eviction-off
@@ -308,7 +326,7 @@ export async function createLocalMemory(config: LocalMemoryConfig): Promise<Disp
 
   if (config.eviction === undefined) {
     const memory = new LocalMemory(
-      baseConfig,
+      withMessageLog,
       resolvedReflectionPolicy,
       recallCacheStore,
       undefined,
@@ -359,8 +377,8 @@ export async function createLocalMemory(config: LocalMemoryConfig): Promise<Disp
 
   const augmentedConfig: LocalMemoryConfig =
     postRememberHook !== undefined
-      ? { ...baseConfig, postRememberHook }
-      : baseConfig;
+      ? { ...withMessageLog, postRememberHook }
+      : withMessageLog;
 
   const memory = new LocalMemory(
     augmentedConfig,

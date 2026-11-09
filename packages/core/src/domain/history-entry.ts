@@ -6,8 +6,11 @@
  * @see ADR-0008 — DIP method counts (HistoryManager required methods 4).
  */
 
+/** What a history row records. `supersede` marks a memory a newer one replaced (ADR-0029). */
+export type HistoryAction = 'remember' | 'forget' | 'reflect' | 'supersede';
+
 export interface HistoryEntry {
-  readonly action: 'remember' | 'forget' | 'reflect';
+  readonly action: HistoryAction;
   readonly at: Date;
   readonly previousValue: string | null;
   readonly newValue: string | null;

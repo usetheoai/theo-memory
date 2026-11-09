@@ -162,6 +162,91 @@ export function runVectorStoreConformance(name: string, factory: ConformanceFact
       expect(result === null || Array.isArray(result)).toBe(true);
     });
 
+    test('keywordSearch matches a row that contains only some of the query terms', async () => {
+      // A natural-language question rarely has every one of its words in the stored fact.
+      // BM25 is disjunctive: a row matching any term is a candidate, ranked by how well it matches.
+      const id = uuid();
+      await ctx.store.insert([VEC_A], [id], [payload('Melanie painted a sunrise over the lake')]);
+      // "beach" is not in the row: a conjunctive (all-terms) match would return nothing.
+      const result = await ctx.store.keywordSearch('When did Melanie paint the sunrise at the beach?', 5);
+      if (result === null) return; // adapter opted out of BM25 (allowed by the DIP)
+      expect(result.map((r) => r.id)).toContain(id);
+    });
+
+    test('keywordSearch ranks a row matching more query terms above one matching fewer', async () => {
+      const both = uuid();
+      const one = uuid();
+      await ctx.store.insert(
+        [VEC_A, VEC_B],
+        [both, one],
+        [payload('Melanie painted a sunrise'), payload('Melanie went running')],
+      );
+      const result = await ctx.store.keywordSearch('Melanie sunrise', 5);
+      if (result === null) return;
+      expect(result.map((r) => r.id)).toEqual([both, one]);
+    });
+
+    test('keywordSearch weighs a rare query term above a term most rows contain (IDF)', async () => {
+      const rare = uuid();
+      await ctx.store.insert(
+        [VEC_A, VEC_A, VEC_A, VEC_A],
+        [uuid(), uuid(), uuid(), rare],
+        [
+          payload('Melanie went running'),
+          payload('Melanie likes tea'),
+          payload('Melanie read a book'),
+          payload('a sunrise over the lake'),
+        ],
+      );
+      const result = await ctx.store.keywordSearch('Melanie sunrise', 5);
+      if (result === null) return;
+      expect(result[0]?.id).toBe(rare);
+    });
+
+    test('keywordSearch scores on the BM25 scale the recall normalization expects', async () => {
+      // A row matching every term of a two-term query scores well above 1 with standard
+      // BM25 (k1 = 1.2, b = 0.75); a cosine-like or ts_rank-like score stays below 1.
+      await ctx.store.insert(
+        [VEC_A, VEC_A, VEC_A],
+        [uuid(), uuid(), uuid()],
+        [payload('Melanie painted a sunrise'), payload('Caroline went hiking'), payload('Caroline likes tea')],
+      );
+      const result = await ctx.store.keywordSearch('Melanie sunrise', 5);
+      if (result === null) return;
+      expect(result[0]?.score ?? 0).toBeGreaterThan(1);
+    });
+
+    test('keywordSearch reports the cosine similarity to the query vector when one is given', async () => {
+      const id = uuid();
+      await ctx.store.insert([VEC_C], [id], [payload('Paulo likes coffee')]);
+      const result = await ctx.store.keywordSearch('coffee', 5, undefined, VEC_A);
+      if (result === null) return;
+      expect(result[0]?.similarity).toBeCloseTo(0.7, 2);
+    });
+
+    test('keywordSearch leaves similarity undefined when no query vector is given', async () => {
+      await ctx.store.insert([VEC_C], [uuid()], [payload('Paulo likes coffee')]);
+      const result = await ctx.store.keywordSearch('coffee', 5);
+      if (result === null) return;
+      expect(result[0]?.similarity).toBeUndefined();
+    });
+
+    test('a row written with a past valid-from instant reports that instant', async () => {
+      const id = uuid();
+      await ctx.store.insert([VEC_A], [id], [{ ...payload('Ana moved to Lisbon'), t_valid: '2023-05-08T13:56:00.000Z' }]);
+      const row = await ctx.store.get(id);
+      expect(row?.payload['t_valid']).toBe('2023-05-08T13:56:00.000Z');
+    });
+
+    test('asOf before a row valid-from instant does not see the row; asOf after it does', async () => {
+      const id = uuid();
+      await ctx.store.insert([VEC_A], [id], [{ ...payload('Ana moved to Lisbon'), t_valid: '2023-05-08T13:56:00.000Z' }]);
+      const before = await ctx.store.search(VEC_A, 5, { asOf: new Date('2023-05-01T00:00:00Z') });
+      const after = await ctx.store.search(VEC_A, 5, { asOf: new Date('2023-06-01T00:00:00Z') });
+      expect(before.map((r) => r.id)).not.toContain(id);
+      expect(after.map((r) => r.id)).toContain(id);
+    });
+
     test('update refreshes vector + payload in place', async () => {
       const id = uuid();
       await ctx.store.insert([VEC_A], [id], [payload('original')]);
@@ -205,6 +290,55 @@ export function runVectorStoreConformance(name: string, factory: ConformanceFact
       // search with no filter MUST return all tenants (setUserId is observability metadata)
       const [all] = await ctx.store.list({}, 100);
       expect(all.length).toBe(2);
+    });
+
+    describe('supersede (ADR-0029)', () => {
+      const at = new Date('2024-03-01T00:00:00Z');
+      const alice: Filters = { workspace_id: 'default', user_id: 'alice' };
+      const ids = async (filters: Filters): Promise<string[]> => (await ctx.store.list(filters, 100))[0].map((r) => r.id).sort();
+
+      test('invalidates a live memory of the scope from the given instant, keeping it for earlier reads', async () => {
+        const oldId = uuid();
+        const newId = uuid();
+        await ctx.store.insert([VEC_A, VEC_B], [oldId, newId], [
+          payload('user lives in Porto', { ...alice, t_valid: '2023-01-01T00:00:00.000Z' } as Filters),
+          payload('user lives in Lisbon', alice),
+        ]);
+        const superseded = await ctx.store.supersede!(alice, [oldId], { memoryId: newId, at });
+        expect(superseded).toEqual([oldId]);
+        expect(await ids(alice)).toEqual([newId]);
+        expect((await ctx.store.search(VEC_A, 10, alice)).map((r) => r.id)).not.toContain(oldId);
+        expect(await ids({ ...alice, asOf: new Date('2024-02-01T00:00:00Z') })).toContain(oldId);
+      });
+
+      test('returns only what it invalidated: other scopes, the superseding memory and already invalid rows are left alone', async () => {
+        const bobRow = uuid();
+        const self = uuid();
+        const oldId = uuid();
+        await ctx.store.insert([VEC_A, VEC_B, VEC_C], [bobRow, self, oldId], [
+          payload('bob fact', { workspace_id: 'default', user_id: 'bob' }),
+          payload('new fact', alice),
+          payload('old fact', alice),
+        ]);
+        const now = new Date();
+        expect(await ctx.store.supersede!(alice, [bobRow, self], { memoryId: self, at: now })).toEqual([]);
+        expect(await ctx.store.supersede!(alice, [oldId], { memoryId: self, at: now })).toEqual([oldId]);
+        expect(await ctx.store.supersede!(alice, [oldId], { memoryId: self, at: now })).toEqual([]);
+        expect(await ids({ workspace_id: 'default', user_id: 'bob' })).toEqual([bobRow]);
+      });
+
+      test('a memory stored without a valid time is valid from when it was stored', async () => {
+        const stored = uuid();
+        await ctx.store.insert([VEC_A], [stored], [payload('user lives in Faro', alice)]);
+        expect(await ctx.store.supersede!(alice, [stored], { memoryId: uuid(), at: new Date('2000-01-01T00:00:00Z') })).toEqual([]);
+      });
+
+      test('does not invalidate a memory that became valid after the superseding instant', async () => {
+        const newer = uuid();
+        await ctx.store.insert([VEC_A], [newer], [payload('user lives in Faro', { ...alice, t_valid: '2024-06-01T00:00:00.000Z' } as Filters)]);
+        expect(await ctx.store.supersede!(alice, [newer], { memoryId: uuid(), at })).toEqual([]);
+        expect(await ids(alice)).toEqual([newer]);
+      });
     });
 
     test('truncate isolates state between tests (EC-3)', async () => {

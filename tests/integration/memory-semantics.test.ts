@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { createLocalMemory, MemorySession, PgvectorStore, MAX_EMBEDDING_DIM, PgMemoryEvidenceStore } from '@usetheo/memory';
 import type { Embedder, LLM, Memory, MemoryEvidence } from '@usetheo/memory';
@@ -16,6 +16,10 @@ vector[0] = 1;
 const embedder: Embedder = { embed: async () => vector, embedBatch: async (texts) => texts.map(() => vector) };
 
 describe.skipIf(!process.env['THEOMEM_PG_URI'])('memory evidence and session lifecycle on Postgres', () => {
+  // The REST cases run the server with no credential configured (single-tenant default
+  // workspace). A developer .env that defines THEMEMORY_API_KEY must not turn them into 401s.
+  beforeEach(() => { vi.stubEnv('THEMEMORY_API_KEY', undefined); });
+  afterEach(() => { vi.unstubAllEnvs(); });
   let db: IsolatedDb;
   let memory: Memory;
   const llm: LLM = {
@@ -184,6 +188,27 @@ describe.skipIf(!process.env['THEOMEM_PG_URI'])('memory evidence and session lif
     expect(await response.json()).toMatchObject({items: [expect.objectContaining({originSourceId: expect.any(String)})], nextOffset: 1});
     await scope.forget(first.id, {hard: true});
     expect((await db.setupPool.query('SELECT * FROM memory_evidence WHERE memory_id=$1', [first.id])).rows).toEqual([]);
+  });
+
+  test('imported history is valid from when it was said, not from when it was imported', async () => {
+    const scope = memory.user('observed-history');
+    const observedAt = new Date('2023-05-08T13:56:00.000Z');
+    const [item] = await scope.remember('Ana moved to Lisbon.', { infer: false, observedAt });
+    expect(item?.tValid).toEqual(observedAt);
+    expect(await scope.recall('Lisbon', { threshold: 0, asOf: new Date('2023-05-01T00:00:00Z') })).toEqual([]);
+    const then = await scope.recall('Lisbon', { threshold: 0, asOf: new Date('2023-06-01T00:00:00Z') });
+    expect(then.map((m) => m.id)).toEqual([item!.id]);
+    expect((await memory.get(item!.id))?.tValid).toEqual(observedAt);
+    const row = await db.setupPool.query('SELECT created_at > $2 AS ingested_now FROM memories WHERE id=$1', [item!.id, observedAt]);
+    expect(row.rows[0]?.ingested_now).toBe(true);
+  });
+
+  test('a confirmation observed earlier than the stored fact moves its valid-from instant back', async () => {
+    const scope = memory.user('observed-confirmation');
+    const [first] = await scope.remember('Ana plays the cello.', { infer: false, observedAt: new Date('2023-06-01T00:00:00Z') });
+    await scope.remember('Ana plays the cello.', { infer: false, observedAt: new Date('2023-02-01T00:00:00Z') });
+    await scope.remember('Ana plays the cello.', { infer: false, observedAt: new Date('2023-09-01T00:00:00Z') });
+    expect((await memory.get(first!.id))?.tValid).toEqual(new Date('2023-02-01T00:00:00Z'));
   });
 
   test('historical reads respect expiry and derived memories inherit deadline and original sources', async () => {
