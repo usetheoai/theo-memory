@@ -42,7 +42,6 @@ import {
   loadLongMemEvalDataset,
   selectRunSubset,
   isAbstention,
-  attributionForQuestionType,
   chronologicalSessions,
   parseHaystackDate,
   type LongMemEvalExample,
@@ -186,7 +185,6 @@ async function runExample(
   const recalled = await scoped.recall(ex.question, {
     topK: RECALL_TOP_K,
     recencyCollapse: {},
-    attributedTo: attributionForQuestionType(ex.question_type),
   });
   const memoriesBlock =
     recalled.length === 0

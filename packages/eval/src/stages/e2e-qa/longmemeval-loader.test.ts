@@ -6,7 +6,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  attributionForQuestionType,
   chronologicalSessions,
   chronologicalTurns,
   selectRunSubset,
@@ -71,14 +70,6 @@ describe('selectRunSubset', () => {
   it("garbage '<n>' falls back to at least 1 (never empty / never NaN slice)", () => {
     expect(selectRunSubset(dataset, 'not-a-number')).toHaveLength(1);
     expect(selectRunSubset(dataset, '0')).toHaveLength(1);
-  });
-});
-
-describe('attributionForQuestionType', () => {
-  it('uses assistant-authored memories only for the assistant-history category', () => {
-    expect(attributionForQuestionType('single-session-assistant')).toBe('assistant');
-    expect(attributionForQuestionType('multi-session')).toBe('user');
-    expect(attributionForQuestionType('knowledge-update')).toBe('user');
   });
 });
 

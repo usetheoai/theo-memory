@@ -107,13 +107,6 @@ export function chronologicalSessions(
   return sessions;
 }
 
-/** LongMemEval has a dedicated assistant-history category; other categories
- * ask about the user's facts/profile and must not treat assistant claims as
- * user assertions. */
-export function attributionForQuestionType(questionType: string): 'assistant' | 'user' {
-  return questionType === 'single-session-assistant' ? 'assistant' : 'user';
-}
-
 /**
  * Deterministic N=12 subset: 3 abstention (`_abs`) examples first (in dataset
  * order), then fill non-abstention type buckets so the subset spans the main
