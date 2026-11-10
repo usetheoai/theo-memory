@@ -37,6 +37,7 @@ const CTR = {
   REJECTED: 'distillation.consolidation.rejected',
   ABSTAIN: 'distillation.consolidation.abstain',
   CLUSTER_TOO_LARGE: 'distillation.consolidation.cluster_too_large',
+  NEWER_REJECTION_REFUSED: 'distillation.consolidation.newer_rejection_refused',
 } as const;
 
 const lazyCounters = new Map<string, Counter>();
@@ -110,12 +111,24 @@ export class LlmJudgedMergeConflictPolicy implements ConflictResolutionPolicy {
       getCounter(CTR.ABSTAIN).add(1);
       return [];
     }
+    // #237: the judge invalidates a memory as an older version of the kept one. A memory that
+    // became true after the kept one is not an older version, so its rejection is refused and it
+    // stays current, as the write path refuses it (ADR-0029). Each refusal is counted.
+    const validFrom = new Map(candidates.map((c) => [c.memoryId, (c.validFrom ?? c.createdAt).getTime()]));
+    const keptFrom = validFrom.get(parsed.kept_id)!;
+    const rejected = parsed.rejected_ids.filter((id) => validFrom.get(id)! <= keptFrom);
+    const refused = parsed.rejected_ids.length - rejected.length;
+    if (refused > 0) getCounter(CTR.NEWER_REJECTION_REFUSED).add(refused);
+    if (rejected.length === 0) {
+      getCounter(CTR.ABSTAIN).add(1);
+      return [];
+    }
     getCounter(CTR.KEPT).add(1);
-    getCounter(CTR.REJECTED).add(parsed.rejected_ids.length);
+    getCounter(CTR.REJECTED).add(rejected.length);
     return [
       {
         keptMemoryId: parsed.kept_id,
-        rejectedMemoryIds: parsed.rejected_ids,
+        rejectedMemoryIds: rejected,
         reason: parsed.reason,
         policyName: this.kind,
         originalEpisodeIds: candidates.map((c) => c.memoryId),

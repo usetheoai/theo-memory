@@ -29,6 +29,12 @@ export interface ConsolidationCandidate {
   readonly memoryId: string;
   readonly text: string;
   readonly createdAt: Date;
+  /**
+   * When the fact became true (`memories.t_valid`). Differs from `createdAt` when the memory was
+   * written with `observedAt`. Policies that judge which fact is older compare this, falling back
+   * to `createdAt` when absent.
+   */
+  readonly validFrom?: Date;
   /** Facts with different authors must never be judged/superseded as one claim. */
   readonly attributedTo?: string;
   /**

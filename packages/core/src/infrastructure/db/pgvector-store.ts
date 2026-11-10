@@ -1353,6 +1353,7 @@ export class PgvectorStore implements VectorStore {
       memoryId: string;
       text: string;
       createdAt: Date;
+      validFrom?: Date;
       confirmationCount?: number;
       distinctSourceCount?: number | null;
       expiresAt?: Date | null;
@@ -1405,6 +1406,7 @@ export class PgvectorStore implements VectorStore {
       id: string;
       text: string;
       created_at: Date;
+      t_valid: Date | null;
       confirmation_count: number;
       distinct_source_count: number | null;
       expires_at: Date | null;
@@ -1414,13 +1416,14 @@ export class PgvectorStore implements VectorStore {
       // M9: confirmation_count is the durability signal the SessionToGlobalConsolidationPolicy reads.
       // M24 T1.1: project embedding so the bounded `clusterByProximity` domain fn can group
       // candidates by cosine (pgvector returns the vector type as a `[a,b,c]` text literal).
-      `SELECT id, text, created_at, expires_at, distinct_source_count, confirmation_count, embedding, attributed_to FROM memories WHERE ${where.join(' AND ')}`,
+      `SELECT id, text, created_at, t_valid, expires_at, distinct_source_count, confirmation_count, embedding, attributed_to FROM memories WHERE ${where.join(' AND ')}`,
       params,
     );
     return rows.map((r) => ({
       memoryId: r.id,
       text: r.text,
       createdAt: r.created_at,
+      ...(r.t_valid !== null ? { validFrom: r.t_valid } : {}),
       confirmationCount: r.confirmation_count,
       distinctSourceCount: r.distinct_source_count,
       expiresAt: r.expires_at,
