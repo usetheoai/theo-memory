@@ -34,6 +34,7 @@ import { attachWriteContext, validateWriteContext, writeRequestHash } from '../w
 import { linkEntities, type RelationTriple } from './entity-linking.js';
 import { prepareExtractedEvidence, extractedMemoryEvidence } from './evidence.js';
 import { applyFactGate } from './fact-gate.js';
+import { scoreNewFacts } from './importance-scoring.js';
 import { correctEntityRelationLanguage } from './label-language.js';
 import { detectInputLanguage } from './language.js';
 import { coerceExtractionResponse } from './normalize.js';
@@ -526,6 +527,15 @@ async function extractAndPersist(
         emitEvent(tracer, 'supersession_failed', { error: err instanceof Error ? err.name : 'UnknownError' });
       }
     }
+  }
+
+  // ============================================================
+  // Phase 6.3: importance scoring (#238, opt-in)
+  // ============================================================
+  if (deps.importanceScoring === true) {
+    const scored = await scoreNewFacts(survivingItems, persistOutcomes, filters, deps.vectorStore, deps.llm, tracer);
+    survivingItems.length = 0;
+    survivingItems.push(...(scored as MemoryItem[]));
   }
 
   // ============================================================

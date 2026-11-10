@@ -872,6 +872,24 @@ export class PgvectorStore implements VectorStore {
     return rows.map((r) => r.id);
   }
 
+  async setImportance(filters: Filters, memoryId: string, importance: number): Promise<boolean> {
+    const params: unknown[] = [importance, memoryId, filters.workspace_id ?? 'default'];
+    let where = 'id = $2::uuid AND workspace_id = $3';
+    for (const col of ['user_id', 'session_id', 'agent_id'] as const) {
+      const val = filters[col];
+      if (val !== undefined && val !== null) {
+        params.push(val);
+        where += ` AND ${col} = $${String(params.length)}`;
+      }
+    }
+    // The half-life trigger (migration 0004) clears half_life_seconds when the score changes.
+    const result = await this.pool.query(
+      `UPDATE memories SET llm_importance_score = $1, updated_at = NOW() WHERE ${where} AND t_invalid IS NULL`,
+      params,
+    );
+    return (result.rowCount ?? 0) > 0;
+  }
+
   async deleteInScope(vectorId: string, filters: Filters, hard: boolean): Promise<boolean> {
     // workspace param matches what rows carry: unbound rows store 'default'.
     const params: unknown[] = [vectorId, filters.workspace_id ?? 'default'];

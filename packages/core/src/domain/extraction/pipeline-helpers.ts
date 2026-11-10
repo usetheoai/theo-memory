@@ -101,6 +101,8 @@ export interface ExtractionDeps {
   readonly messageLog?: MessageLog;
   /** ADR-0029: let the extractor mark existing memories a new fact replaces (default true). */
   readonly supersedeOnWrite?: boolean;
+  /** #238: rate each newly stored fact's importance with one LLM call (default false). */
+  readonly importanceScoring?: boolean;
   /** How many preceding turns the extractor sees. Defaults to DEFAULT_CONTEXT_MESSAGE_COUNT. */
   readonly contextMessageCount?: number;
 }

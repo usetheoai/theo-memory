@@ -76,6 +76,14 @@ export interface LocalMemoryConfig extends MemoryConfig {
    */
   readonly supersedeOnWrite?: boolean;
   /**
+   * #238 — importance scoring on write. Off by default: when `true`, each fact the store newly
+   * persists gets one short LLM rating of its future relevance, stored in [0, 1] as
+   * `llmImportanceScore` and read by the eviction policy. A failed rating leaves the fact stored
+   * and unscored and emits `importance_scoring_failed`. Costs one LLM call per new fact. Durable
+   * jobs (`themory worker`) do not score.
+   */
+  readonly importanceScoring?: boolean;
+  /**
    * ADR-0027 — raw message log. On by default: `createLocalMemory` builds a PgMessageLog over a
    * PgvectorStore's pool, or an InMemoryMessageLog otherwise. Every write is logged and linked to
    * the memories it produced, and the extractor sees the scope's preceding turns as context. A hard

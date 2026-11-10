@@ -271,6 +271,18 @@ export class InMemoryVectorStore implements VectorStore {
     return superseded;
   }
 
+  async setImportance(filters: Filters, memoryId: string, importance: number): Promise<boolean> {
+    await Promise.resolve();
+    const row = this.rows.get(memoryId);
+    if (row === undefined || typeof row.payload['t_invalid'] === 'string') return false;
+    if (((row.payload['workspace_id'] as string | undefined) ?? 'default') !== (filters.workspace_id ?? 'default')) return false;
+    const outOfScope = (['user_id', 'session_id', 'agent_id'] as const)
+      .some((col) => filters[col] !== undefined && filters[col] !== null && row.payload[col] !== filters[col]);
+    if (outOfScope) return false;
+    this.rows.set(memoryId, { ...row, payload: { ...row.payload, llm_importance_score: importance } });
+    return true;
+  }
+
   /** Scope-checked delete (themory-scoped-forget T1.1). In-memory has no
    *  `t_invalid`, so soft and hard both physically remove once the row's
    *  workspace + every bound scope-tier column match `filters`. Returns whether

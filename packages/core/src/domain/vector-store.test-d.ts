@@ -8,6 +8,7 @@ test('VectorStore has required persistence, scoped-retirement, and retrieval met
   expectTypeOf<Keys>().toEqualTypeOf<
     | 'recordAccess'
     | 'supersede'
+    | 'setImportance'
     | 'findWriteReplay'
     | 'initialize'
     | 'insert'

@@ -174,6 +174,13 @@ export interface VectorStore {
    */
   supersede?(filters: Filters, memoryIds: readonly string[], by: { readonly memoryId: string; readonly at: Date }): Promise<readonly string[]>;
 
+  /**
+   * #238 — store a memory's importance in [0, 1] (`MemoryItem.llmImportanceScore`, read by the
+   * eviction policy). Only a live row of the workspace and bound scope tiers in `filters`
+   * changes. Returns whether a row matched. Optional: a store without it cannot score on write.
+   */
+  setImportance?(filters: Filters, memoryId: string, importance: number): Promise<boolean>;
+
   /** Drop the entire collection/table. Administrative; pairs with Memory.reset(scope) at the domain layer. */
   deleteCol(): Promise<void>;
 

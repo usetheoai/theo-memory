@@ -143,6 +143,10 @@ export const MEMORY_EVENTS = [
   'supersession_rejected',
   'supersession_skipped',
   'supersession_failed',
+  // #238 — importance scoring on write (opt-in). `importance_scored` carries `count`;
+  // `importance_scoring_failed` carries `reason` and `count`. The fact stays stored either way.
+  'importance_scored',
+  'importance_scoring_failed',
   // agentic-skill-execution-sandbox T1.2 — a sandbox guard denied a skill
   // execution. Attribute `reason` carries the ToolInvocationDeniedReason literal.
   // Every denial is observable (Princípio 3 — no silent IGNORE on an RCE surface).

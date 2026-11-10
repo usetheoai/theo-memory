@@ -116,6 +116,7 @@ export class LocalScopedMemory implements ScopedMemory {
       ...(this.config.messageLog !== undefined && this.config.messageLog !== false ? { messageLog: this.config.messageLog } : {}),
       ...(this.config.contextMessageCount !== undefined ? { contextMessageCount: this.config.contextMessageCount } : {}),
       ...(this.config.supersedeOnWrite !== undefined ? { supersedeOnWrite: this.config.supersedeOnWrite } : {}),
+      ...(this.config.importanceScoring === true ? { importanceScoring: true } : {}),
     }, options);
 
     if (result.length > 0 && result.every(item => item.idempotentReplay === true)) return result;
