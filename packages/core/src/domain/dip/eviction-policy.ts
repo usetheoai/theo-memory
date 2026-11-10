@@ -193,4 +193,19 @@ export interface NearestNeighborProvider {
    * predicate (user_id / session_id / agent_id).
    */
   distance(memoryId: string, scope: Scope, workspaceId?: string): Promise<number>;
+
+  /**
+   * The nearest non-self non-invalidated neighbour in the same scope, with its cosine distance,
+   * or null when the scope holds no other live memory. Optional: when a provider implements it,
+   * `TriadicScoringPolicy.selectVictims` never evicts a memory together with its nearest
+   * neighbour in one pass, so a repeated fact loses copies instead of every copy (#240). A
+   * provider without it keeps the plain bottom-fraction selection.
+   */
+  nearest?(memoryId: string, scope: Scope, workspaceId?: string): Promise<NearestNeighbor | null>;
+}
+
+/** A memory's nearest neighbour in scope, as returned by `NearestNeighborProvider.nearest`. */
+export interface NearestNeighbor {
+  readonly id: string;
+  readonly distance: number;
 }

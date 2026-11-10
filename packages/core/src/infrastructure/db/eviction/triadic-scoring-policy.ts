@@ -400,7 +400,7 @@ export class TriadicScoringPolicy implements EvictionPolicy {
     context: ScoreContext,
   ): Promise<readonly string[]> {
     assertValidFraction(fraction);
-    const enrichedContext = await this.maybeCacheNeighborDistances(candidates, context);
+    const { context: enrichedContext, nearestIds } = await this.maybeCacheNeighborDistances(candidates, context);
     const scored = await Promise.all(
       candidates.map(async (memory) => ({
         id: memory.id,
@@ -409,7 +409,34 @@ export class TriadicScoringPolicy implements EvictionPolicy {
     );
     scored.sort((a, b) => a.score - b.score);
     const victimCount = Math.floor(candidates.length * fraction);
-    return scored.slice(0, victimCount).map((s) => s.id);
+    if (nearestIds === null) {
+      return scored.slice(0, victimCount).map((s) => s.id);
+    }
+    // #240: the multiplier gives every paraphrase of a repeated fact the same low score, so the
+    // bottom fraction took all of them and the fact was gone. The pass now never evicts a memory
+    // together with its nearest neighbour, in either direction: redundancy costs copies. Among
+    // equal scores, memories fewer others are nearest to go first, so a group of copies keeps
+    // the one they all point at. Capacity stays a hard bound: if the rule cannot fill the quota,
+    // the rest is taken in score order.
+    const pointedAt = new Map<string, number>();
+    for (const neighbour of nearestIds.values()) pointedAt.set(neighbour, (pointedAt.get(neighbour) ?? 0) + 1);
+    const order = [...scored].sort((x, y) => x.score - y.score
+      || (pointedAt.get(x.id) ?? 0) - (pointedAt.get(y.id) ?? 0)
+      || x.id.localeCompare(y.id));
+    const victims = new Set<string>();
+    const protectedIds = new Set<string>();
+    for (const { id } of order) {
+      if (victims.size >= victimCount) break;
+      const neighbour = nearestIds.get(id);
+      if (protectedIds.has(id) || (neighbour !== undefined && victims.has(neighbour))) continue;
+      victims.add(id);
+      if (neighbour !== undefined) protectedIds.add(neighbour);
+    }
+    for (const { id } of order) {
+      if (victims.size >= victimCount) break;
+      victims.add(id);
+    }
+    return [...victims];
   }
 
   /**
@@ -420,32 +447,42 @@ export class TriadicScoringPolicy implements EvictionPolicy {
    *
    * Returns the original context unchanged when (a) caller already provided
    * a meanIsolationDistance (> 0), OR (b) no neighborProvider is wired.
+   *
+   * When the provider implements `nearest`, the same single query per memory also yields the
+   * neighbour's id (`nearestIds`, #240); otherwise `nearestIds` is null.
    */
   private async maybeCacheNeighborDistances(
     candidates: readonly MemoryItem[],
     context: ScoreContext,
-  ): Promise<ScoreContext> {
-    if (context.meanIsolationDistance > 0 || this.neighborProvider === null
+  ): Promise<{ readonly context: ScoreContext; readonly nearestIds: ReadonlyMap<string, string> | null }> {
+    const provider = this.neighborProvider;
+    if (context.meanIsolationDistance > 0 || provider === null
         || candidates.length === 0) {
-      return context;
+      return { context, nearestIds: null };
     }
     const cache = new Map<string, number>();
+    const nearestIds = provider.nearest === undefined ? null : new Map<string, string>();
     for (const memory of candidates) {
       const scopeId = getNeighborScopeId(memory.scope);
-      const isolation = scopeId !== null
-        ? await this.neighborProvider.distance(memory.id, memory.scope, context.workspaceId)
-        : MAX_ISOLATION_DISTANCE;
-      cache.set(memory.id, isolation);
+      if (scopeId === null) {
+        cache.set(memory.id, MAX_ISOLATION_DISTANCE);
+      } else if (provider.nearest !== undefined) {
+        const neighbour = await provider.nearest(memory.id, memory.scope, context.workspaceId);
+        cache.set(memory.id, neighbour?.distance ?? MAX_ISOLATION_DISTANCE);
+        if (neighbour !== null) nearestIds?.set(memory.id, neighbour.id);
+      } else {
+        cache.set(memory.id, await provider.distance(memory.id, memory.scope, context.workspaceId));
+      }
     }
     const distances = [...cache.values()];
     const mean = distances.reduce((sum, d) => sum + d, 0) / distances.length;
-    return {
+    return { nearestIds, context: {
       meanIsolationDistance: mean,
       now: context.now,
       neighborDistances: cache,
       // T3.1: preserve the pass-level workspace so score()'s cache-miss
       // fallback distance query stays workspace-scoped.
       ...(context.workspaceId !== undefined ? { workspaceId: context.workspaceId } : {}),
-    };
+    } };
   }
 }
