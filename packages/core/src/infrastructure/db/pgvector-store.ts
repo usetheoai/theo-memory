@@ -1285,7 +1285,7 @@ export class PgvectorStore implements VectorStore {
   /**
    * EC-17: MD5 collision risk ~10^-29 per pair (~10^-19 for 1M memories) —
    * collision-SAFE by the UNIQUE constraint, so LIMIT 1 is exact.
-   * Returns score in [1, 10] OR null when no row OR row has NULL score.
+   * Returns the importance in [0, 1] OR null when no row OR row has NULL score.
    */
   async getImportanceByHash(hash: string): Promise<number | null> {
     const result = await this.pool.query<{ llm_importance_score: string | null }>(
