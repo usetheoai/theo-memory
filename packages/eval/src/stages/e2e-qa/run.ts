@@ -60,6 +60,9 @@ const ADMIN_PG_URI =
   process.env['THEOMEM_PG_URI'] ??
   'postgresql://themem:themem@localhost:5442/themem';
 const ISOLATED_DB = process.env['E2E_QA_DB'] ?? 'themem_e2e_qa'; // overridable → distinct DB per run
+// Answer again over a database an earlier run already ingested: no re-creation, no ingestion.
+// Recall and answering can then be compared without the extraction noise of a second ingest.
+const REUSE_DB = process.env['E2E_QA_REUSE_DB'] === '1';
 // Scope-isolated examples → safe to parallelise (default 1 = serial); >1 makes the full run feasible.
 const CONCURRENCY = Math.max(1, Number.parseInt(process.env['E2E_QA_CONCURRENCY'] ?? '1', 10) || 1);
 const EMBEDDING_DIM = 384; // Xenova/all-MiniLM-L6-v2
@@ -138,7 +141,7 @@ async function runExample(
   const batches = INGEST_MODE === 'turn'
     ? turns.map((turn) => ({ turns: [turn], sourceDate: turn.sourceDate }))
     : sessions;
-  for (const batch of batches) {
+  for (const batch of REUSE_DB ? [] : batches) {
     try {
       // Preserve the source speaker as authoritative attribution. Without this,
       // assistant hallucinations in the benchmark transcript are ingested as
@@ -272,7 +275,11 @@ async function main(): Promise<void> {
     `[e2e-qa] dataset=${basename(DATASET_PATH)} loaded ${String(dataset.length)} examples; selected ${String(subset.length)} (${String(absN)} abstention) [mode=${mode}] prompt_mode=official-longmemeval ingest_mode=${INGEST_MODE} model=${CHAT_MODEL} dim=${String(EMBEDDING_DIM)} turn_cap=${TURN_CAP === 0 ? 'unlimited' : String(TURN_CAP)} top_k=${String(RECALL_TOP_K)} conc=${String(CONCURRENCY)}`,
   );
 
-  await provisionIsolatedDb();
+  if (REUSE_DB) {
+    console.error(`[e2e-qa] E2E_QA_REUSE_DB=1: reusing ${ISOLATED_DB}; ingestion skipped`);
+  } else {
+    await provisionIsolatedDb();
+  }
   const pool = new pg.Pool({ connectionString: isolatedUri(), max: CONCURRENCY + 4 });
   await runMigrations(pool, { embeddingDim: EMBEDDING_DIM });
 
