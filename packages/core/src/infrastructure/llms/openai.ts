@@ -86,7 +86,27 @@ function toOpenAIMessages(
   }));
 }
 
+/** Constructor options for {@link OpenAILLM}. */
+export interface OpenAILLMOptions {
+  /**
+   * Sampling temperature sent on every call, in [0, 2]. Defaults to 0 so the same input yields
+   * the same extraction and a recorded write can be replayed (#241). Without it the provider
+   * default applies, which is 1 on the OpenAI API.
+   */
+  readonly temperature?: number;
+}
+
 export class OpenAILLM implements LLM {
+  readonly #temperature: number;
+
+  constructor(options: OpenAILLMOptions = {}) {
+    const temperature = options.temperature ?? 0;
+    if (!Number.isFinite(temperature) || temperature < 0 || temperature > 2) {
+      throw new RangeError(`OpenAILLM temperature must be a number in [0, 2], got ${String(options.temperature)}`);
+    }
+    this.#temperature = temperature;
+  }
+
   async generateResponse(
     messages: readonly Message[],
     responseFormat?: { readonly type: 'json' | 'text' },
@@ -96,6 +116,7 @@ export class OpenAILLM implements LLM {
     const resp = await client().chat.completions.create({
       model: resolveChatModel(),
       messages: toOpenAIMessages(messages),
+      temperature: this.#temperature,
       response_format:
         responseFormat?.type === 'json'
           ? { type: 'json_object' }
@@ -116,6 +137,7 @@ export class OpenAILLM implements LLM {
     const resp = await client().chat.completions.create({
       model: resolveChatModel(),
       messages: toOpenAIMessages(messages),
+      temperature: this.#temperature,
     });
     return {
       content: resp.choices[0]?.message.content ?? '',
