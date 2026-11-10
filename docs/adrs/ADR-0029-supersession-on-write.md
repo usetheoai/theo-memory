@@ -61,6 +61,14 @@ turns it off.
   (exact McNemar p = 0.011). In a sample of 40 invalidations, 13 removed a fact that was still
   true ("met David" replaced by "met Michael"), 13 replaced a paraphrase and 12 were right. The
   extractor alone recorded 2 supersessions on the same run, so its reach stays a known limit.
+- An `attribute_key` per fact (`user.home_city`), stored in the payload and shown next to
+  existing memories, so that a new fact with the key of a shown memory replaces it without a
+  comparison. Tried and removed. With the key optional, a real model set it on 4 of 2,720
+  memories over the 76 knowledge-update questions and no supersession came from one; made
+  required (a key or null), it set 36 of 2,697 and caused 3 supersessions, against a threshold
+  of 10 fixed before the run. Correct answers were 52 against 55 without it (p = 0.63). Replaying
+  the write path's similarity search had shown that the stale memory was among the 10 the
+  extractor saw in 5 of 6 cases, so the limit is the model's judgment, not its reach.
 - Finding candidates by shared entity instead of embedding. Rejected: the subject of most
   personal facts is the user, who is not an extracted entity, so "lives in Porto" and "moved to
   Lisbon" share none.
