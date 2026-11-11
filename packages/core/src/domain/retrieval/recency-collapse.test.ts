@@ -144,17 +144,44 @@ describe('collapseByRecency — T1.2 pure stage', () => {
     ).toEqual([]);
   });
 
-  test('keeps conflicting counts and explicit dates instead of treating them as updates', () => {
+  test('a new value of the same statement is an update: the newer fact survives (#249)', () => {
     expect(
       collapseByRecency([
         { id: 'three', score: 0.9, embedding: NEAR_A, createdAtMs: 1000, text: 'user tried three Korean restaurants' },
         { id: 'four', score: 0.8, embedding: NEAR_B, createdAtMs: 5000, text: 'user tried four Korean restaurants' },
       ], 0.9).droppedIds,
-    ).toEqual([]);
+    ).toEqual(['three']);
+    expect(
+      collapseByRecency([
+        { id: 'stale', score: 0.9, embedding: NEAR_A, createdAtMs: 1000, text: 'My charity 5K personal best is 27:12.' },
+        { id: 'fresh', score: 0.8, embedding: NEAR_B, createdAtMs: 5000, text: 'My charity 5K personal best is now 25:50.' },
+      ], 0.9).droppedIds,
+    ).toEqual(['stale']);
+  });
+
+  test('keeps facts whose explicit dates differ: they can be distinct events', () => {
     expect(
       collapseByRecency([
         { id: 'date-a', score: 0.9, embedding: NEAR_A, createdAtMs: 1000, text: 'user attended the workshop on June 3rd' },
         { id: 'date-b', score: 0.8, embedding: NEAR_B, createdAtMs: 5000, text: 'user attended the workshop on June 10th' },
+      ], 0.9).droppedIds,
+    ).toEqual([]);
+  });
+
+  test('keeps facts whose years differ: they can be distinct events', () => {
+    expect(
+      collapseByRecency([
+        { id: 'y2019', score: 0.9, embedding: NEAR_A, createdAtMs: 1000, text: 'User visited Lisbon in 2019.' },
+        { id: 'y2022', score: 0.8, embedding: NEAR_B, createdAtMs: 5000, text: 'User visited Lisbon in 2022.' },
+      ], 0.9).droppedIds,
+    ).toEqual([]);
+  });
+
+  test('keeps facts whose polarity differs', () => {
+    expect(
+      collapseByRecency([
+        { id: 'likes', score: 0.9, embedding: NEAR_A, createdAtMs: 1000, text: 'user likes coffee' },
+        { id: 'not', score: 0.8, embedding: NEAR_B, createdAtMs: 5000, text: 'user does not like coffee' },
       ], 0.9).droppedIds,
     ).toEqual([]);
   });

@@ -19,6 +19,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- `recall({ recencyCollapse: {} })` no longer merges two near-identical facts whose dates, years or negation differ ("visited Lisbon in 2019" and "...in 2022"), since they can be distinct events. A changed value of the same statement still merges, and the newer fact wins. (#249)
+
 - **`OpenAILLM` now sends `temperature: 0` on every call.** It passed no sampling parameter, so extraction ran at the provider default (1 on the OpenAI API) and the same conversation ingested twice gave different memories: in two LoCoMo ingestions of one conversation at the same commit, 85 of about 600 retrieved memory texts were identical. The new `OpenAILLMOptions.temperature` (in [0, 2], `RangeError` otherwise) restores another value. The effect on extraction quality has not been measured. Everything built on `OpenAILLM` is affected, including the reflection, importance and conflict-judge calls and the answerer of the eval runners. (#241)
 - `createLocalMemory` over a `PgvectorStore` now records the audit trail by default: `remember`, `forget`, `reflect` and supersession write `history` rows, and `memory.history(id)` returns them, without configuring a `historyManager`. This also covers `themory server`, `themory mcp` and the CLI, which never passed one. Pass `historyManager: undefined` explicitly to record nothing. (#236)
 - The extractor now sees the 10 existing memories of the scope most similar to the new messages (`SIMILAR_MEMORY_COUNT`), not the 5 most recent, so it can recognise an old fact the new one repeats or replaces. Each extracting write makes one more embedding call. See ADR-0029.

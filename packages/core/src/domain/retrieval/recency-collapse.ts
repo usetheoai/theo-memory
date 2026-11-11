@@ -47,19 +47,22 @@ export interface RecencyCollapseCandidate {
   readonly score: number;
   readonly embedding: readonly number[];
   readonly createdAtMs: number;
-  /** Text is used to protect distinct values and temporal qualifiers from paraphrase collapse. */
+  /** Text is used to protect temporal qualifiers and polarity from paraphrase collapse. */
   readonly text?: string;
 }
 
-const VALUE_MARKER = /\b(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)\b|\b\d+(?:[.,:/-]\d+)*(?:%|k|m|am|pm)?\b|\$\s?\d[\d,.]*/gi;
-const TEMPORAL_MARKER = /\b(?:today|yesterday|tomorrow|last\s+(?:sunday|monday|tuesday|wednesday|thursday|friday|saturday|week|month|year)|(?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d+)\s+(?:days?|weeks?|months?|years?)\s+ago|black\s+friday|christmas|new\s+year)\b|\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s+\d{4})?\b|\b\d{1,2}(?:st|nd|rd|th)?\s+of\s+(?:january|february|march|april|may|june|july|august|september|october|november|december)\b/gi;
+const TEMPORAL_MARKER = /\b(?:today|yesterday|tomorrow|last\s+(?:sunday|monday|tuesday|wednesday|thursday|friday|saturday|week|month|year)|(?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d+)\s+(?:days?|weeks?|months?|years?)\s+ago|black\s+friday|christmas|new\s+year)\b|\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s+\d{4})?\b|\b\d{1,2}(?:st|nd|rd|th)?\s+of\s+(?:january|february|march|april|may|june|july|august|september|october|november|december)\b|\b(?:19|20)\d{2}\b/gi;
 const POLARITY_MARKER = /\b(?:not|never|no longer|cannot|can't|isn't|aren't|doesn't|didn't|without)\b/gi;
 
+/**
+ * Markers that make two near-paraphrases different facts: when they happened (dates, years,
+ * relative times) and whether they hold (negation). A different value is not one of them: the
+ * same statement with a new count, price or time is an update, and the newer fact wins (#249).
+ */
 function materialMarkers(text: string | undefined): string[] {
   if (text === undefined) return [];
   return [
     ...(text.match(TEMPORAL_MARKER) ?? []).map((value) => `time:${value.toLowerCase().replace(/\s+/g, ' ')}`),
-    ...(text.match(VALUE_MARKER) ?? []).map((value) => `value:${value.toLowerCase().replace(/\s+/g, '')}`),
     ...(text.match(POLARITY_MARKER) ?? []).map((value) => `polarity:${value.toLowerCase().replace(/\s+/g, ' ')}`),
   ];
 }
