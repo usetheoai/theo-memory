@@ -1,0 +1,159 @@
+{
+  "users": [
+    {
+      "id": "cjp-ines",
+      "facts": [
+        { "key": "marathon-2022", "text": "Ines ran the Lisbon marathon in 3 hours 48 minutes in October 2022.", "observedAt": "2022-10-20", "role": "distinct" },
+        { "key": "home-old", "text": "Ines lives in a flat in Coimbra.", "observedAt": "2022-11-05", "role": "old", "update": "home" },
+        { "key": "books-2022", "text": "Ines read 31 books in 2022.", "observedAt": "2023-01-03", "role": "distinct" },
+        { "key": "allergy", "text": "Ines is allergic to penicillin.", "observedAt": "2023-02-14", "role": "distinct" },
+        { "key": "piano-old", "text": "Ines's piano teacher is Mr. Duarte.", "observedAt": "2023-04-02", "role": "old", "update": "piano" },
+        { "key": "marathon-2023", "text": "Ines ran the Porto marathon in 3 hours 36 minutes in November 2023.", "observedAt": "2023-11-12", "role": "distinct" },
+        { "key": "books-2023", "text": "Ines read 44 books in 2023.", "observedAt": "2024-01-04", "role": "distinct" },
+        { "key": "home-new", "text": "Since February 2024, Ines lives in a house in Braga.", "observedAt": "2024-02-20", "role": "new", "update": "home" },
+        { "key": "trip-march", "text": "Ines visited Seville for a weekend in March 2024.", "observedAt": "2024-03-25", "role": "distinct" },
+        { "key": "piano-new", "text": "Ines's piano teacher is now Ms. Faria.", "observedAt": "2024-04-10", "role": "new", "update": "piano" },
+        { "key": "trip-may", "text": "Ines visited Granada for a weekend in May 2024.", "observedAt": "2024-05-27", "role": "distinct" },
+        { "key": "coffee", "text": "Ines drinks her coffee without sugar.", "observedAt": "2024-06-01", "role": "distinct" }
+      ],
+      "questions": [
+        { "query": "What was Ines's time in the Lisbon marathon?", "pattern": "3 hours 48" },
+        { "query": "What was Ines's time in the Porto marathon?", "pattern": "3 hours 36" },
+        { "query": "How many books did Ines read in 2022?", "pattern": "\\b31\\b" },
+        { "query": "How many books did Ines read in 2023?", "pattern": "\\b44\\b" },
+        { "query": "Which city did Ines visit in March 2024?", "pattern": "Seville" },
+        { "query": "Which city did Ines visit in May 2024?", "pattern": "Granada" },
+        { "query": "What is Ines allergic to?", "pattern": "penicillin" },
+        { "query": "How does Ines take her coffee?", "pattern": "sugar" },
+        { "query": "Where does Ines live?", "pattern": "Braga", "stalePattern": "Coimbra" },
+        { "query": "Who is Ines's piano teacher?", "pattern": "Faria", "stalePattern": "Duarte" },
+        { "query": "Where did Ines live in 2023?", "pattern": "Coimbra", "stalePattern": "Braga", "asOf": "2023-06-15" },
+        { "query": "Who was Ines's piano teacher in mid 2023?", "pattern": "Duarte", "stalePattern": "Faria", "asOf": "2023-07-01" }
+      ]
+    },
+    {
+      "id": "cjp-rafael",
+      "facts": [
+        { "key": "harvest-2022", "text": "Rafael's vineyard produced 8,200 bottles in 2022.", "observedAt": "2022-12-10", "role": "distinct" },
+        { "key": "accountant-old", "text": "Rafael's accountant is Bruno Teixeira.", "observedAt": "2023-01-15", "role": "old", "update": "accountant" },
+        { "key": "fair-spring", "text": "Rafael sold 340 bottles at the spring wine fair in April 2023.", "observedAt": "2023-04-30", "role": "distinct" },
+        { "key": "tractor-old", "text": "Rafael drives a John Deere tractor.", "observedAt": "2023-05-08", "role": "old", "update": "tractor" },
+        { "key": "fair-autumn", "text": "Rafael sold 510 bottles at the autumn wine fair in October 2023.", "observedAt": "2023-10-29", "role": "distinct" },
+        { "key": "harvest-2023", "text": "Rafael's vineyard produced 9,600 bottles in 2023.", "observedAt": "2023-12-12", "role": "distinct" },
+        { "key": "daughter", "text": "Rafael's daughter is named Clara.", "observedAt": "2024-01-07", "role": "distinct" },
+        { "key": "accountant-new", "text": "Rafael switched accountants and now works with Helena Moura.", "observedAt": "2024-02-02", "role": "new", "update": "accountant" },
+        { "key": "award-2023", "text": "Rafael's red blend won a silver medal at the 2023 Douro competition.", "observedAt": "2024-02-18", "role": "distinct" },
+        { "key": "award-2024", "text": "Rafael's red blend won a gold medal at the 2024 Douro competition.", "observedAt": "2024-06-22", "role": "distinct" },
+        { "key": "tractor-new", "text": "Rafael replaced his tractor and now drives a Kubota.", "observedAt": "2024-07-03", "role": "new", "update": "tractor" },
+        { "key": "dog", "text": "Rafael has a sheepdog named Bolota.", "observedAt": "2024-07-15", "role": "distinct" }
+      ],
+      "questions": [
+        { "query": "How many bottles did Rafael's vineyard produce in 2022?", "pattern": "8,200" },
+        { "query": "How many bottles did Rafael's vineyard produce in 2023?", "pattern": "9,600" },
+        { "query": "How many bottles did Rafael sell at the spring wine fair?", "pattern": "\\b340\\b" },
+        { "query": "How many bottles did Rafael sell at the autumn wine fair?", "pattern": "\\b510\\b" },
+        { "query": "Which medal did Rafael's red blend win at the 2023 Douro competition?", "pattern": "silver" },
+        { "query": "Which medal did Rafael's red blend win at the 2024 Douro competition?", "pattern": "gold" },
+        { "query": "What is the name of Rafael's daughter?", "pattern": "Clara" },
+        { "query": "What is the name of Rafael's dog?", "pattern": "Bolota" },
+        { "query": "Who is Rafael's accountant?", "pattern": "Helena", "stalePattern": "Bruno" },
+        { "query": "What tractor does Rafael drive?", "pattern": "Kubota", "stalePattern": "John Deere" },
+        { "query": "Who was Rafael's accountant in 2023?", "pattern": "Bruno", "stalePattern": "Helena", "asOf": "2023-08-01" },
+        { "query": "What tractor did Rafael drive in late 2023?", "pattern": "John Deere", "stalePattern": "Kubota", "asOf": "2023-11-15" }
+      ]
+    },
+    {
+      "id": "cjp-amara",
+      "facts": [
+        { "key": "patients-q1", "text": "Amara saw 410 patients at her clinic in the first quarter of 2023.", "observedAt": "2023-04-02", "role": "distinct" },
+        { "key": "insurer-old", "text": "Amara's health insurer is Bupa.", "observedAt": "2023-04-20", "role": "old", "update": "insurer" },
+        { "key": "patients-q2", "text": "Amara saw 465 patients at her clinic in the second quarter of 2023.", "observedAt": "2023-07-03", "role": "distinct" },
+        { "key": "conf-2023", "text": "Amara gave a talk on pediatric asthma at a conference in Nairobi in September 2023.", "observedAt": "2023-09-28", "role": "distinct" },
+        { "key": "nurse-old", "text": "Amara's head nurse is Grace Otieno.", "observedAt": "2023-10-10", "role": "old", "update": "nurse" },
+        { "key": "language", "text": "Amara speaks Swahili, English and French.", "observedAt": "2023-11-01", "role": "distinct" },
+        { "key": "conf-2024", "text": "Amara gave a talk on childhood vaccines at a conference in Accra in April 2024.", "observedAt": "2024-04-25", "role": "distinct" },
+        { "key": "insurer-new", "text": "Amara changed her health insurer to AXA.", "observedAt": "2024-05-06", "role": "new", "update": "insurer" },
+        { "key": "garden-2023", "text": "Amara harvested 22 kg of tomatoes from her garden in 2023.", "observedAt": "2024-05-10", "role": "distinct" },
+        { "key": "nurse-new", "text": "Amara's head nurse is now Esther Wanjiru.", "observedAt": "2024-06-14", "role": "new", "update": "nurse" },
+        { "key": "garden-2024", "text": "Amara harvested 35 kg of tomatoes from her garden in 2024.", "observedAt": "2024-10-20", "role": "distinct" },
+        { "key": "tea", "text": "Amara prefers rooibos tea.", "observedAt": "2024-10-25", "role": "distinct" }
+      ],
+      "questions": [
+        { "query": "How many patients did Amara see in the first quarter of 2023?", "pattern": "\\b410\\b" },
+        { "query": "How many patients did Amara see in the second quarter of 2023?", "pattern": "\\b465\\b" },
+        { "query": "What did Amara talk about at the Nairobi conference?", "pattern": "asthma" },
+        { "query": "What did Amara talk about at the Accra conference?", "pattern": "vaccine" },
+        { "query": "How many kilograms of tomatoes did Amara harvest in 2023?", "pattern": "\\b22 kg" },
+        { "query": "How many kilograms of tomatoes did Amara harvest in 2024?", "pattern": "\\b35 kg" },
+        { "query": "Which languages does Amara speak?", "pattern": "Swahili" },
+        { "query": "What tea does Amara prefer?", "pattern": "rooibos" },
+        { "query": "Who is Amara's health insurer?", "pattern": "AXA", "stalePattern": "Bupa" },
+        { "query": "Who is Amara's head nurse?", "pattern": "Esther", "stalePattern": "Grace" },
+        { "query": "Who was Amara's health insurer in 2023?", "pattern": "Bupa", "stalePattern": "AXA", "asOf": "2023-12-01" },
+        { "query": "Who was Amara's head nurse at the end of 2023?", "pattern": "Grace", "stalePattern": "Esther", "asOf": "2023-12-20" }
+      ]
+    },
+    {
+      "id": "cjp-jonas",
+      "facts": [
+        { "key": "climb-2022", "text": "Jonas climbed Mont Blanc in July 2022.", "observedAt": "2022-07-30", "role": "distinct" },
+        { "key": "employer-old", "text": "Jonas works as a structural engineer at Weber Bau.", "observedAt": "2022-09-12", "role": "old", "update": "employer" },
+        { "key": "climb-2023", "text": "Jonas climbed the Matterhorn in August 2023.", "observedAt": "2023-08-20", "role": "distinct" },
+        { "key": "bike", "text": "Jonas owns a gravel bike from Canyon.", "observedAt": "2023-09-03", "role": "distinct" },
+        { "key": "electricity-jan", "text": "Jonas paid 96 euros for electricity in January 2024.", "observedAt": "2024-02-05", "role": "distinct" },
+        { "key": "electricity-feb", "text": "Jonas paid 81 euros for electricity in February 2024.", "observedAt": "2024-03-04", "role": "distinct" },
+        { "key": "physio-old", "text": "Jonas sees physiotherapist Lena Brandt for his knee.", "observedAt": "2024-03-15", "role": "old", "update": "physio" },
+        { "key": "employer-new", "text": "Jonas is now a structural engineer at Holzmann Partner.", "observedAt": "2024-04-01", "role": "new", "update": "employer" },
+        { "key": "concert-may", "text": "Jonas saw Radiohead in Berlin in May 2024.", "observedAt": "2024-05-19", "role": "distinct" },
+        { "key": "concert-sep", "text": "Jonas saw Massive Attack in Hamburg in September 2024.", "observedAt": "2024-09-22", "role": "distinct" },
+        { "key": "physio-new", "text": "Jonas now sees physiotherapist Tobias Kern for his knee.", "observedAt": "2024-10-08", "role": "new", "update": "physio" },
+        { "key": "birthday", "text": "Jonas's birthday is on 14 March.", "observedAt": "2024-10-10", "role": "distinct" }
+      ],
+      "questions": [
+        { "query": "Which mountain did Jonas climb in 2022?", "pattern": "Mont Blanc" },
+        { "query": "Which mountain did Jonas climb in 2023?", "pattern": "Matterhorn" },
+        { "query": "How much did Jonas pay for electricity in January 2024?", "pattern": "\\b96\\b" },
+        { "query": "How much did Jonas pay for electricity in February 2024?", "pattern": "\\b81\\b" },
+        { "query": "Which band did Jonas see in Berlin?", "pattern": "Radiohead" },
+        { "query": "Which band did Jonas see in Hamburg?", "pattern": "Massive Attack" },
+        { "query": "What bike does Jonas own?", "pattern": "Canyon" },
+        { "query": "When is Jonas's birthday?", "pattern": "14(th)? (of )?March|March 14" },
+        { "query": "Where does Jonas work?", "pattern": "Holzmann", "stalePattern": "Weber" },
+        { "query": "Which physiotherapist does Jonas see?", "pattern": "Tobias", "stalePattern": "Lena" },
+        { "query": "Where did Jonas work in 2023?", "pattern": "Weber", "stalePattern": "Holzmann", "asOf": "2023-06-01" },
+        { "query": "Which physiotherapist did Jonas see in summer 2024?", "pattern": "Lena", "stalePattern": "Tobias", "asOf": "2024-07-01" }
+      ]
+    },
+    {
+      "id": "cjp-mei",
+      "facts": [
+        { "key": "tea-sales-2022", "text": "Mei's tea shop sold 2,300 kg of oolong in 2022.", "observedAt": "2023-01-08", "role": "distinct" },
+        { "key": "landlord-old", "text": "Mei rents her shop from Mr. Chen.", "observedAt": "2023-02-01", "role": "old", "update": "landlord" },
+        { "key": "workshop-june", "text": "Mei ran a tea tasting workshop for 18 people in June 2023.", "observedAt": "2023-06-25", "role": "distinct" },
+        { "key": "sister", "text": "Mei's sister Ling lives in Vancouver.", "observedAt": "2023-07-04", "role": "distinct" },
+        { "key": "workshop-nov", "text": "Mei ran a tea tasting workshop for 27 people in November 2023.", "observedAt": "2023-11-26", "role": "distinct" },
+        { "key": "tea-sales-2023", "text": "Mei's tea shop sold 2,950 kg of oolong in 2023.", "observedAt": "2024-01-06", "role": "distinct" },
+        { "key": "supplier-old", "text": "Mei buys her oolong from a farm in Alishan.", "observedAt": "2024-01-20", "role": "old", "update": "supplier" },
+        { "key": "landlord-new", "text": "Mei's shop has a new landlord, Mrs. Wong, since March 2024.", "observedAt": "2024-03-12", "role": "new", "update": "landlord" },
+        { "key": "trip-2023", "text": "Mei travelled to Fujian to visit tea gardens in April 2023.", "observedAt": "2024-04-02", "role": "distinct" },
+        { "key": "trip-2024", "text": "Mei travelled to Yunnan to visit tea gardens in April 2024.", "observedAt": "2024-04-28", "role": "distinct" },
+        { "key": "supplier-new", "text": "Mei now buys her oolong from a farm in Lishan instead.", "observedAt": "2024-08-09", "role": "new", "update": "supplier" },
+        { "key": "cat", "text": "Mei has a cat named Mochi.", "observedAt": "2024-08-15", "role": "distinct" }
+      ],
+      "questions": [
+        { "query": "How much oolong did Mei's shop sell in 2022?", "pattern": "2,300" },
+        { "query": "How much oolong did Mei's shop sell in 2023?", "pattern": "2,950" },
+        { "query": "How many people came to Mei's June 2023 workshop?", "pattern": "\\b18\\b" },
+        { "query": "How many people came to Mei's November 2023 workshop?", "pattern": "\\b27\\b" },
+        { "query": "Where did Mei travel to visit tea gardens in 2023?", "pattern": "Fujian" },
+        { "query": "Where did Mei travel to visit tea gardens in 2024?", "pattern": "Yunnan" },
+        { "query": "Where does Mei's sister live?", "pattern": "Vancouver" },
+        { "query": "What is the name of Mei's cat?", "pattern": "Mochi" },
+        { "query": "Who is the landlord of Mei's shop?", "pattern": "Wong", "stalePattern": "Chen" },
+        { "query": "Where does Mei buy her oolong?", "pattern": "\\bLishan", "stalePattern": "Alishan" },
+        { "query": "Who was the landlord of Mei's shop in 2023?", "pattern": "Chen", "stalePattern": "Wong", "asOf": "2023-09-01" },
+        { "query": "Where did Mei buy her oolong in spring 2024?", "pattern": "Alishan", "stalePattern": "\\bLishan", "asOf": "2024-05-01" }
+      ]
+    }
+  ]
+}
