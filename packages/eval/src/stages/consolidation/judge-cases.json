@@ -1,0 +1,160 @@
+{
+  "description": "Hand-written cases for the LLM-judged consolidation in reflect. Each user holds families of distinct facts that share wording (different events, periods or items: all must stay current), updates of one attribute (the older value must stop being current), and unrelated facts. Updates marked loggedOutOfOrder are written newest first, so their creation order is the reverse of their validity order. Written before any measurement.",
+  "users": [
+    {
+      "id": "cj-maya",
+      "facts": [
+        { "key": "race-boston", "text": "Maya ran the Boston half marathon in 1:52 in April 2024.", "observedAt": "2024-04-15", "role": "distinct" },
+        { "key": "race-chicago", "text": "Maya ran the Chicago half marathon in 1:47 in October 2024.", "observedAt": "2024-10-13", "role": "distinct" },
+        { "key": "books-h1", "text": "Maya read 11 novels between January and June 2024.", "observedAt": "2024-06-30", "role": "distinct" },
+        { "key": "books-h2", "text": "Maya read 6 novels between July and December 2024.", "observedAt": "2024-12-31", "role": "distinct" },
+        { "key": "cat-1", "text": "Maya adopted a cat named Pepper in 2021.", "observedAt": "2021-05-01", "role": "distinct" },
+        { "key": "cat-2", "text": "Maya adopted a second cat named Olive in 2023.", "observedAt": "2023-08-01", "role": "distinct" },
+        { "key": "job-old", "text": "Maya works as a pharmacist at Riverside Hospital.", "observedAt": "2022-02-01", "role": "old", "update": "job" },
+        { "key": "job-new", "text": "Maya now works as a pharmacist at Northgate Clinic.", "observedAt": "2024-09-01", "role": "new", "update": "job" },
+        { "key": "city-new", "text": "Maya now lives in Portland.", "observedAt": "2023-11-01", "role": "new", "update": "city", "loggedOutOfOrder": true },
+        { "key": "city-old", "text": "Maya lives in Denver.", "observedAt": "2020-03-01", "role": "old", "update": "city", "loggedOutOfOrder": true },
+        { "key": "allergy", "text": "Maya is allergic to peanuts.", "observedAt": "2019-01-10", "role": "distinct" },
+        { "key": "cello", "text": "Maya plays the cello.", "observedAt": "2018-09-01", "role": "distinct" }
+      ],
+      "questions": [
+        { "query": "What was Maya's time in the Chicago half marathon?", "pattern": "1:47" },
+        { "query": "What was Maya's time in the Boston half marathon?", "pattern": "1:52" },
+        { "query": "How many novels did Maya read in the first half of 2024?", "pattern": "\\b11 novels" },
+        { "query": "How many novels did Maya read in the second half of 2024?", "pattern": "\\b6 novels" },
+        { "query": "What is the name of Maya's first cat?", "pattern": "Pepper" },
+        { "query": "What is the name of Maya's second cat?", "pattern": "Olive" },
+        { "query": "Where does Maya work?", "pattern": "Northgate", "stalePattern": "Riverside" },
+        { "query": "Where did Maya work in 2023?", "asOf": "2023-06-01", "pattern": "Riverside", "stalePattern": "Northgate" },
+        { "query": "Where did Maya work in January 2025?", "asOf": "2025-01-15", "pattern": "Northgate", "stalePattern": "Riverside" },
+        { "query": "What city does Maya live in?", "pattern": "Portland", "stalePattern": "Denver" },
+        { "query": "What city did Maya live in during 2022?", "asOf": "2022-06-01", "pattern": "Denver", "stalePattern": "Portland" },
+        { "query": "What city did Maya live in at the start of 2024?", "asOf": "2024-01-15", "pattern": "Portland", "stalePattern": "Denver" }
+      ]
+    },
+    {
+      "id": "cj-tomas",
+      "facts": [
+        { "key": "ride-napa", "text": "Tomas rode the Napa gran fondo, 100 km, in 4 hours 10 minutes in May 2024.", "observedAt": "2024-05-18", "role": "distinct" },
+        { "key": "ride-sonoma", "text": "Tomas rode the Sonoma gran fondo, 100 km, in 3 hours 55 minutes in September 2024.", "observedAt": "2024-09-21", "role": "distinct" },
+        { "key": "saved-q1", "text": "Tomas saved 3,000 dollars in the first quarter of 2024.", "observedAt": "2024-03-31", "role": "distinct" },
+        { "key": "saved-q2", "text": "Tomas saved 4,500 dollars in the second quarter of 2024.", "observedAt": "2024-06-30", "role": "distinct" },
+        { "key": "kid-1", "text": "Tomas's daughter Lena was born in 2019.", "observedAt": "2019-04-02", "role": "distinct" },
+        { "key": "kid-2", "text": "Tomas's son Ivo was born in 2022.", "observedAt": "2022-11-20", "role": "distinct" },
+        { "key": "car-old", "text": "Tomas drives a 2015 Honda Civic.", "observedAt": "2019-01-01", "role": "old", "update": "car" },
+        { "key": "car-new", "text": "Tomas now drives a 2023 Toyota Prius.", "observedAt": "2024-02-01", "role": "new", "update": "car" },
+        { "key": "carrier-new", "text": "Tomas's mobile carrier is now T-Mobile.", "observedAt": "2024-05-01", "role": "new", "update": "carrier", "loggedOutOfOrder": true },
+        { "key": "carrier-old", "text": "Tomas's mobile carrier is Verizon.", "observedAt": "2021-01-01", "role": "old", "update": "carrier", "loggedOutOfOrder": true },
+        { "key": "languages", "text": "Tomas speaks Portuguese and Spanish.", "observedAt": "2018-01-01", "role": "distinct" },
+        { "key": "diet", "text": "Tomas is vegetarian.", "observedAt": "2020-06-01", "role": "distinct" }
+      ],
+      "questions": [
+        { "query": "How long did Tomas take on the Sonoma gran fondo?", "pattern": "3 hours 55" },
+        { "query": "How long did Tomas take on the Napa gran fondo?", "pattern": "4 hours 10" },
+        { "query": "How much did Tomas save in the first quarter of 2024?", "pattern": "3,000" },
+        { "query": "How much did Tomas save in the second quarter of 2024?", "pattern": "4,500" },
+        { "query": "What is the name of Tomas's daughter?", "pattern": "Lena" },
+        { "query": "What is the name of Tomas's son?", "pattern": "Ivo" },
+        { "query": "What car does Tomas drive?", "pattern": "Prius", "stalePattern": "Civic" },
+        { "query": "What car did Tomas drive in 2022?", "asOf": "2022-06-01", "pattern": "Civic", "stalePattern": "Prius" },
+        { "query": "What car did Tomas drive in the summer of 2024?", "asOf": "2024-07-01", "pattern": "Prius", "stalePattern": "Civic" },
+        { "query": "Which mobile carrier does Tomas use?", "pattern": "T-Mobile", "stalePattern": "Verizon" },
+        { "query": "Which mobile carrier did Tomas use in 2022?", "asOf": "2022-06-01", "pattern": "Verizon", "stalePattern": "T-Mobile" },
+        { "query": "Which mobile carrier did Tomas use in late 2024?", "asOf": "2024-11-01", "pattern": "T-Mobile", "stalePattern": "Verizon" }
+      ]
+    },
+    {
+      "id": "cj-priya",
+      "facts": [
+        { "key": "talk-pycon", "text": "Priya gave a talk on data privacy at PyCon in May 2023.", "observedAt": "2023-05-20", "role": "distinct" },
+        { "key": "talk-europython", "text": "Priya gave a talk on property-based testing at EuroPython in July 2024.", "observedAt": "2024-07-12", "role": "distinct" },
+        { "key": "km-march", "text": "Priya cycled 420 km in March 2024.", "observedAt": "2024-03-31", "role": "distinct" },
+        { "key": "km-april", "text": "Priya cycled 610 km in April 2024.", "observedAt": "2024-04-30", "role": "distinct" },
+        { "key": "trip-kyoto", "text": "Priya visited Kyoto in the spring of 2022.", "observedAt": "2022-04-10", "role": "distinct" },
+        { "key": "trip-lisbon", "text": "Priya visited Lisbon in the autumn of 2023.", "observedAt": "2023-10-15", "role": "distinct" },
+        { "key": "manager-old", "text": "Priya's manager is Daniel Okafor.", "observedAt": "2022-01-10", "role": "old", "update": "manager" },
+        { "key": "manager-new", "text": "Priya's manager is now Sofia Brandt.", "observedAt": "2024-06-03", "role": "new", "update": "manager" },
+        { "key": "gym-new", "text": "Priya now trains at the Core Studio gym.", "observedAt": "2024-03-01", "role": "new", "update": "gym", "loggedOutOfOrder": true },
+        { "key": "gym-old", "text": "Priya trains at the FitLab Midtown gym.", "observedAt": "2021-02-01", "role": "old", "update": "gym", "loggedOutOfOrder": true },
+        { "key": "coffee", "text": "Priya drinks her coffee black.", "observedAt": "2020-01-01", "role": "distinct" },
+        { "key": "japanese", "text": "Priya is learning Japanese.", "observedAt": "2021-09-01", "role": "distinct" }
+      ],
+      "questions": [
+        { "query": "What was Priya's talk at EuroPython about?", "pattern": "property-based testing" },
+        { "query": "What was Priya's talk at PyCon about?", "pattern": "data privacy" },
+        { "query": "How far did Priya cycle in March 2024?", "pattern": "420 km" },
+        { "query": "How far did Priya cycle in April 2024?", "pattern": "610 km" },
+        { "query": "Which city did Priya visit in the autumn of 2023?", "pattern": "Lisbon" },
+        { "query": "Which city did Priya visit in the spring of 2022?", "pattern": "Kyoto" },
+        { "query": "Who is Priya's manager?", "pattern": "Sofia Brandt", "stalePattern": "Okafor" },
+        { "query": "Who was Priya's manager in 2023?", "asOf": "2023-06-01", "pattern": "Okafor", "stalePattern": "Sofia Brandt" },
+        { "query": "Who was Priya's manager at the end of 2024?", "asOf": "2024-12-01", "pattern": "Sofia Brandt", "stalePattern": "Okafor" },
+        { "query": "Which gym does Priya train at?", "pattern": "Core Studio", "stalePattern": "FitLab" },
+        { "query": "Which gym did Priya train at in 2022?", "asOf": "2022-06-01", "pattern": "FitLab", "stalePattern": "Core Studio" },
+        { "query": "Which gym did Priya train at in mid 2024?", "asOf": "2024-07-01", "pattern": "Core Studio", "stalePattern": "FitLab" }
+      ]
+    },
+    {
+      "id": "cj-kofi",
+      "facts": [
+        { "key": "goals-harbor", "text": "Kofi scored 2 goals in the league match against Harbor FC in March 2024.", "observedAt": "2024-03-09", "role": "distinct" },
+        { "key": "goals-valley", "text": "Kofi scored 1 goal in the cup match against Valley United in April 2024.", "observedAt": "2024-04-13", "role": "distinct" },
+        { "key": "paintings-2022", "text": "Kofi sold 40 paintings in 2022.", "observedAt": "2022-12-31", "role": "distinct" },
+        { "key": "paintings-2023", "text": "Kofi sold 55 paintings in 2023.", "observedAt": "2023-12-31", "role": "distinct" },
+        { "key": "garden-2023", "text": "Kofi grew tomatoes in his garden in 2023.", "observedAt": "2023-05-01", "role": "distinct" },
+        { "key": "garden-2024", "text": "Kofi grew peppers in his garden in 2024.", "observedAt": "2024-05-01", "role": "distinct" },
+        { "key": "rent-old", "text": "Kofi's rent is 1,400 dollars a month.", "observedAt": "2022-07-01", "role": "old", "update": "rent" },
+        { "key": "rent-new", "text": "Kofi's rent went up to 1,550 dollars a month.", "observedAt": "2024-07-01", "role": "new", "update": "rent" },
+        { "key": "band-new", "text": "Kofi says his favorite band is now Khruangbin.", "observedAt": "2023-02-01", "role": "new", "update": "band", "loggedOutOfOrder": true },
+        { "key": "band-old", "text": "Kofi's favorite band is Radiohead.", "observedAt": "2015-06-01", "role": "old", "update": "band", "loggedOutOfOrder": true },
+        { "key": "hand", "text": "Kofi is left-handed.", "observedAt": "2017-01-01", "role": "distinct" },
+        { "key": "teaching", "text": "Kofi teaches art classes on weekends.", "observedAt": "2021-03-01", "role": "distinct" }
+      ],
+      "questions": [
+        { "query": "How many goals did Kofi score against Harbor FC?", "pattern": "2 goals" },
+        { "query": "How many goals did Kofi score against Valley United?", "pattern": "1 goal\\b" },
+        { "query": "How many paintings did Kofi sell in 2022?", "pattern": "40 paintings" },
+        { "query": "How many paintings did Kofi sell in 2023?", "pattern": "55 paintings" },
+        { "query": "What did Kofi grow in his garden in 2023?", "pattern": "tomatoes" },
+        { "query": "What did Kofi grow in his garden in 2024?", "pattern": "peppers" },
+        { "query": "How much is Kofi's rent?", "pattern": "1,550", "stalePattern": "1,400" },
+        { "query": "How much was Kofi's rent in 2023?", "asOf": "2023-06-01", "pattern": "1,400", "stalePattern": "1,550" },
+        { "query": "How much was Kofi's rent at the end of 2024?", "asOf": "2024-12-01", "pattern": "1,550", "stalePattern": "1,400" },
+        { "query": "What is Kofi's favorite band?", "pattern": "Khruangbin", "stalePattern": "Radiohead" },
+        { "query": "What was Kofi's favorite band in 2020?", "asOf": "2020-06-01", "pattern": "Radiohead", "stalePattern": "Khruangbin" },
+        { "query": "What was Kofi's favorite band in 2024?", "asOf": "2024-06-01", "pattern": "Khruangbin", "stalePattern": "Radiohead" }
+      ]
+    },
+    {
+      "id": "cj-elena",
+      "facts": [
+        { "key": "climb-rainier", "text": "Elena climbed Mount Rainier in July 2022.", "observedAt": "2022-07-16", "role": "distinct" },
+        { "key": "climb-whitney", "text": "Elena climbed Mount Whitney in August 2024.", "observedAt": "2024-08-10", "role": "distinct" },
+        { "key": "croissants-nov", "text": "Elena's bakery sold 1,200 croissants in November 2024.", "observedAt": "2024-11-30", "role": "distinct" },
+        { "key": "croissants-dec", "text": "Elena's bakery sold 1,750 croissants in December 2024.", "observedAt": "2024-12-31", "role": "distinct" },
+        { "key": "course-french", "text": "Elena completed a French course in 2021.", "observedAt": "2021-06-01", "role": "distinct" },
+        { "key": "course-italian", "text": "Elena completed an Italian course in 2023.", "observedAt": "2023-06-01", "role": "distinct" },
+        { "key": "opening-old", "text": "Elena's bakery opens at 7 am.", "observedAt": "2023-01-02", "role": "old", "update": "opening" },
+        { "key": "opening-new", "text": "Elena's bakery now opens at 6 am.", "observedAt": "2024-10-01", "role": "new", "update": "opening" },
+        { "key": "email-new", "text": "Elena's email address is now elena.rossi@proton.me.", "observedAt": "2024-04-01", "role": "new", "update": "email", "loggedOutOfOrder": true },
+        { "key": "email-old", "text": "Elena's email address is elena.r@mailbox.org.", "observedAt": "2020-02-01", "role": "old", "update": "email", "loggedOutOfOrder": true },
+        { "key": "brothers", "text": "Elena has two brothers.", "observedAt": "2016-01-01", "role": "distinct" },
+        { "key": "maps", "text": "Elena collects vintage maps.", "observedAt": "2019-03-01", "role": "distinct" }
+      ],
+      "questions": [
+        { "query": "Which mountain did Elena climb in 2024?", "pattern": "Whitney" },
+        { "query": "Which mountain did Elena climb in 2022?", "pattern": "Rainier" },
+        { "query": "How many croissants did Elena's bakery sell in November 2024?", "pattern": "1,200" },
+        { "query": "How many croissants did Elena's bakery sell in December 2024?", "pattern": "1,750" },
+        { "query": "Which language course did Elena complete in 2021?", "pattern": "French" },
+        { "query": "Which language course did Elena complete in 2023?", "pattern": "Italian" },
+        { "query": "What time does Elena's bakery open?", "pattern": "6 am", "stalePattern": "7 am" },
+        { "query": "What time did Elena's bakery open in early 2024?", "asOf": "2024-02-01", "pattern": "7 am", "stalePattern": "6 am" },
+        { "query": "What time did Elena's bakery open at the end of 2024?", "asOf": "2024-12-15", "pattern": "6 am", "stalePattern": "7 am" },
+        { "query": "What is Elena's email address?", "pattern": "elena\\.rossi@proton\\.me", "stalePattern": "elena\\.r@mailbox\\.org" },
+        { "query": "What was Elena's email address in 2022?", "asOf": "2022-06-01", "pattern": "elena\\.r@mailbox\\.org", "stalePattern": "elena\\.rossi@proton\\.me" },
+        { "query": "What was Elena's email address in mid 2024?", "asOf": "2024-07-01", "pattern": "elena\\.rossi@proton\\.me", "stalePattern": "elena\\.r@mailbox\\.org" }
+      ]
+    }
+  ]
+}
