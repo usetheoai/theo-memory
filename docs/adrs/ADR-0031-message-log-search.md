@@ -117,3 +117,21 @@ The ordering inside the list stays weak: the answer ranked first in 2 of 11 on t
 a window of 5, the first item of each ranking scores 1/61, and the tie breaks on message id,
 which carries no meaning, so a word match often sits above the match by meaning.
 
+
+### Tie-break by meaning, rejected (same day)
+
+The guess above was wrong. Breaking fused ties on cosine distance instead of message id was tried
+against criteria fixed beforehand, on a fourth held-out set (`cases-tiebreak.json`, 300
+distractors per user). The answer ranked first in 2 of 11 lost paraphrases, against a bar of half,
+so the change was reverted. On `cases-fusion.json` the ranks did not move at all (2 of 11, MRR
+0.42).
+
+The rankings show why. In 8 of the 11 questions the first message is the user's own turn that
+raised the problem ("My glasses keep fogging up when I wear a mask."); the answer ranked second or
+third in 8 of the 11, first in 2 and fifth in 1. That turn is the closest text to a paraphrased question, so it wins on meaning as well
+as on rank; no tie is involved. Coverage stayed at 11 of 11 lost paraphrases (BM25 alone: 0), and
+recall was unchanged in all 15 questions.
+
+The search treats each turn as a separate document, while the answer lives in the reply to the turn
+that matches. Fixing the order means returning or scoring the exchange (the matching turn with its
+neighbour), not reordering single turns. That is a separate change, not made here.
