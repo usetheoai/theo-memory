@@ -146,14 +146,18 @@ export class InMemoryMessageLog implements MessageLog {
       .map((row) => ({ id: row.id, score: bm25.get(row.id) ?? 0 }))
       .sort(byScoreThenId);
     const queryVector = options.queryVector;
+    // Each ranking contributes only its first `limit` ids (a window equal to the list size), so a
+    // weak word match cannot outrank the best match by meaning just by appearing in both (ADR-0031).
+    const window = Math.max(0, options.limit);
     const ranked = queryVector === undefined
       ? lexical
       : reciprocalRankFusion([
-        lexical.map((r) => r.id),
+        lexical.slice(0, window).map((r) => r.id),
         visible
           .filter((row) => row.embedding !== null)
           .map((row) => ({ id: row.id, score: cosineSimilarity(queryVector, row.embedding!) }))
           .sort(byScoreThenId)
+          .slice(0, window)
           .map((r) => r.id),
       ]);
     await Promise.resolve();

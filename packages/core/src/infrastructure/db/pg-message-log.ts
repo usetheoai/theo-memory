@@ -189,7 +189,8 @@ export class PgMessageLog implements MessageLog {
     }
     // With a query vector, the BM25 ranking and the cosine ranking of the messages that carry an
     // embedding are fused by Reciprocal Rank Fusion; both rankings break ties on message_id, as
-    // the in-memory adapter does.
+    // the in-memory adapter does. Each ranking contributes only its first $2 (= limit) rows, so a
+    // weak word match cannot outrank the best match by meaning just by appearing in both.
     let fused = ', final AS (SELECT message_id, rank AS score FROM scored)';
     if (options.queryVector !== undefined) {
       params.push(toVectorLiteral(options.queryVector));
@@ -204,7 +205,8 @@ export class PgMessageLog implements MessageLog {
        final AS (
          SELECT message_id,
                 COALESCE(1.0 / (${String(RRF_K)} + l.r), 0) + COALESCE(1.0 / (${String(RRF_K)} + s.r), 0) AS score
-           FROM lexical l FULL OUTER JOIN semantic s USING (message_id)
+           FROM (SELECT * FROM lexical WHERE r <= $2) l
+           FULL OUTER JOIN (SELECT * FROM semantic WHERE r <= $2) s USING (message_id)
        )`;
     }
     // Same Okapi BM25 (Lucene IDF, k1, b) and english lexemes as PgvectorStore.keywordSearch,

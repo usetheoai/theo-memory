@@ -245,6 +245,21 @@ export function runMessageLogConformance(name: string, setup: () => Promise<Mess
       expect(await ctx.inScope(userA, () => ctx.log.search(userA, 'knee', { limit: 5, queryVector: axis(0) }))).toEqual([]);
     });
 
+    test('with a query vector, the best match by meaning is not pushed out by weaker word matches', async () => {
+      const half = axis(0).map((x, i) => (i === 1 ? 1 : x));
+      await ctx.inScope(userA, () => ctx.log.append(userA, [
+        { role: 'user', content: 'raise the saddle a little' },
+        { role: 'user', content: 'a lower seat strains the joint' },
+        { role: 'user', content: 'my bike pain story one' },
+        { role: 'user', content: 'my bike pain story two' },
+        { role: 'user', content: 'my bike pain story three' },
+      ], undefined, [axis(0), half, axis(2), axis(3), axis(4)]));
+
+      const found = await ctx.inScope(userA, () => ctx.log.search(userA, 'bike pain', { limit: 2, queryVector: axis(0) }));
+
+      expect(found.map((m) => m.content)).toContain('raise the saddle a little');
+    });
+
     test('append rejects embeddings that do not line up with the messages', async () => {
       await expect(ctx.inScope(userA, () => ctx.log.append(userA, [{ role: 'user', content: 'a' }, { role: 'user', content: 'b' }], undefined, [axis(0)])))
         .rejects.toThrow(RangeError);

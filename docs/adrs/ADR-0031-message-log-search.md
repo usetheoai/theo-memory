@@ -103,3 +103,17 @@ outranks one present only in the cosine ranking, even when the latter ranks firs
 to the fusion has to be judged on new questions with its own criteria, since it was conceived
 from these.
 
+### Windowed fusion (same day)
+
+Each ranking now contributes only its first `limit` messages to the fusion. The per-ranking
+window is the mechanism Elasticsearch's RRF retriever exposes as `rank_window_size` (its default
+is 10); setting it equal to the requested list size was chosen before measuring and not fitted. Judged only on a new case
+set written before the change (`cases-fusion.json`, 4 users, with the same 300 distractors):
+lost paraphrases 10 of 11 (BM25 alone 0 of 11), lexical 3 of 3 for both, `recall` unchanged in 15
+of 15. On the earlier sets, recorded but not used to decide, lost paraphrases went from 9 of 20 to
+19 of 20.
+
+The ordering inside the list stays weak: the answer ranked first in 2 of 11 on the new set. With
+a window of 5, the first item of each ranking scores 1/61, and the tie breaks on message id,
+which carries no meaning, so a word match often sits above the match by meaning.
+
