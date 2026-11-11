@@ -17,8 +17,7 @@ import { dirname } from 'node:path';
 import pg from 'pg';
 import { z } from 'zod';
 
-import { createLocalMemory, PgvectorStore, runMigrations } from '@usetheo/memory';
-import { LlmJudgedMergeConflictPolicy } from '@usetheo/memory/contract';
+import { createLocalMemory, LlmJudgedMergeConflictPolicy, PgvectorStore, runMigrations } from '@usetheo/memory';
 import { OpenAICompatibleEmbedder } from '@usetheo/memory/embedders/openai-compatible';
 import { OpenAILLM } from '@usetheo/memory/llms/openai';
 
