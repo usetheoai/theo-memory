@@ -15,6 +15,7 @@ import type { OpenAPIRegistry } from '@asteasolutions/zod-to-openapi';
 import { MemoryEvidenceSchema } from '@usetheo/memory/contract';
 import { z } from 'zod';
 
+import { MessageSearchQuerySchema } from './handlers/messages-search.js';
 import { registerMemoryJobPaths } from './openapi-memory-jobs.js';
 import {
   AddMemberBody,
@@ -298,6 +299,43 @@ export function registerAllPaths(registry: OpenAPIRegistry): void {
       },
       404: { description: 'Unknown scope type or empty id.' },
       422: { description: 'Invalid query (bad limit / cursor / asOf, or both after+before).' },
+    },
+  });
+
+  // ADR-0031 — BM25 search over the raw message log, separate from recall.
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/scopes/{type}/{id}/messages/search',
+    operationId: 'searchScopeMessages',
+    summary:
+      'Lexical (BM25) search over the raw messages the scope can see, best first. Reaches a turn extraction kept no fact of; matches words, not meaning.',
+    request: {
+      params: z.object({ type: ScopeTypeEnum, id: z.string().min(1) }),
+      query: MessageSearchQuerySchema,
+    },
+    responses: {
+      200: {
+        description: 'Matching messages, best score first. A foreign or empty scope returns no items.',
+        content: {
+          'application/json': {
+            schema: z.object({
+              items: z.array(
+                z.object({
+                  id: z.string(),
+                  role: z.enum(['system', 'user', 'assistant']),
+                  content: z.string(),
+                  score: z.number(),
+                  observed_at: z.string().nullable(),
+                  logged_at: z.string(),
+                }),
+              ),
+            }),
+          },
+        },
+      },
+      404: { description: 'Unknown scope type or empty id.' },
+      422: { description: 'Invalid query (missing q, limit outside 1..100, unknown parameter, or invalid asOf).' },
+      501: { description: 'The server runs without the raw message log (MESSAGE_LOG_DISABLED).' },
     },
   });
 

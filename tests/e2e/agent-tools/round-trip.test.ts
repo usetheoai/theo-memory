@@ -125,7 +125,7 @@ if (PG_URI === undefined || PG_URI === '') {
   });
 } else {
   describe('agent-tools CLI subprocess — MCP handshake + tools/list (T7.1)', () => {
-    it('spawns the CLI, completes initialize handshake, lists the 13 registered tools', async () => {
+    it('spawns the CLI, completes initialize handshake, lists the 14 registered tools', async () => {
       // T2.1: CLI consolidated under commander — invoke `mcp` subcommand
       // explicitly. The legacy `themory-mcp` basename alias (EC-27) is
       // covered separately by tests/integration/cli-consolidated.test.ts.
@@ -210,7 +210,7 @@ if (PG_URI === undefined || PG_URI === '') {
       };
       const names = listResponse.result.tools.map((t) => t.name);
       // 4 locked verbs + episodes (G3-MCP) + skills tools + read/inspect surface.
-      // This list said 8 while thirteen tools shipped: the suite was never wired
+      // This list said 8 while thirteen tools shipped (fourteen since search_messages): the suite was never wired
       // into CI, so nothing caught the drift.
       // Mirrors buildToolsListResponse declaration order (list-handler.ts).
       expect(names).toEqual([
@@ -219,6 +219,7 @@ if (PG_URI === undefined || PG_URI === '') {
         'forget',
         'reflect',
         'episodes',
+        'search_messages',
         'add_skill',
         'forget_skill',
         'execute_skill',

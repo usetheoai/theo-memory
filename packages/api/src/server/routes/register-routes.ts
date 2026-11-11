@@ -38,6 +38,7 @@ import {
 } from '../handlers/members.js';
 import { memoryEvidenceHandler } from '../handlers/memory-evidence.js';
 import { getMemoryJob, submitMemoryJob, retryMemoryJob } from '../handlers/memory-jobs.js';
+import { messagesSearchHandler } from '../handlers/messages-search.js';
 import { metricsHandler } from '../handlers/metrics.js';
 import { recallTracesHandler } from '../handlers/recall-traces.js';
 import { recallHandler } from '../handlers/recall.js';
@@ -161,6 +162,7 @@ function registerScopeRoutes(app: OpenAPIHono, options: CreateServerOptions): vo
   }
   app.get('/v1/scopes/:type/:id/memories', requireScopeOnPrincipal('memory:read'), (c) => scopesHandler(c, memory));
   app.get('/v1/scopes/:type/:id/episodes', requireScopeOnPrincipal('memory:read'), (c) => episodesHandler(c, memory));
+  app.get('/v1/scopes/:type/:id/messages/search', requireScopeOnPrincipal('memory:read'), (c) => messagesSearchHandler(c, memory));
   // Session-separation fix (2026-07-23): enumerate a user's session sub-scopes.
   app.get('/v1/scopes/:type/:id/sessions', requireScopeOnPrincipal('memory:read'), (c) => sessionsHandler(c, memory));
   app.delete('/v1/scopes/:type/:id/memories/:memId', requireScopeOnPrincipal('memory:delete'), (c) => scopedForgetHandler(c, memory));

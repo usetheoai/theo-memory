@@ -53,4 +53,8 @@ of 27 questions; facts or messages answered 17.
 Lexical only: a question that shares no word with the turn rarely finds it. Postgres uses the
 `english` dictionary, so Portuguese text gets no stemming and its function words match, which
 puts unrelated turns in the list. The search scans the scope's messages on each call, with no
-index; that is linear in the scope's log size. REST and MCP do not expose it yet.
+index; that is linear in the scope's log size.
+
+REST serves it as `GET /v1/scopes/{type}/{id}/messages/search` and MCP as the `search_messages`
+tool, both bound to the acting user the same way as recall; the MCP isolation gate covers it
+across workspaces and across users of one workspace.

@@ -26,6 +26,7 @@ import {
   EmbedderError,
   EntityForgetScopeError,
   MemoryStoreError,
+  MessageLogNotConfigured,
   MissingScopeError,
   ReflectionNotConfigured,
 } from '@usetheo/memory/contract';
@@ -132,6 +133,9 @@ export function classifyError(err: unknown): ClassifiedError {
   }
   if (err instanceof ContentTooLargeError) {
     return execution(err.message);
+  }
+  if (err instanceof MessageLogNotConfigured) {
+    return execution('This server runs without the raw message log, so message search is unavailable. Use recall instead.');
   }
   if (err instanceof ReflectionNotConfigured) {
     // v0.1 reflect algorithm deferred to v0.4a per CLAUDE.md Roadmap Item 5.

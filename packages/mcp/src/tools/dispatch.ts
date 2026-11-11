@@ -25,6 +25,7 @@ import { listEntitiesHandler, TOOL_NAME as LIST_ENTITIES } from './list-entities
 import { recallHandler, TOOL_NAME as RECALL } from './recall-handler.js';
 import { reflectHandler, TOOL_NAME as REFLECT } from './reflect-handler.js';
 import { rememberHandler, TOOL_NAME as REMEMBER } from './remember-handler.js';
+import { searchMessagesHandler, TOOL_NAME as SEARCH_MESSAGES } from './search-messages-handler.js';
 import { updateMemoryHandler, TOOL_NAME as UPDATE_MEMORY } from './update-memory-handler.js';
 
 type HandlerFn = (
@@ -39,6 +40,8 @@ const HANDLERS = new Map<string, HandlerFn>([
   [REFLECT, reflectHandler],
   // mcp-episodes-tool (G3-MCP) — temporal episodic read surface over MCP.
   [EPISODES, episodesHandler],
+  // ADR-0031 — BM25 search over the raw message log, separate from recall.
+  [SEARCH_MESSAGES, searchMessagesHandler],
   // skills-write-surface T2.3 (D3) — author + curate skills over MCP.
   [ADD_SKILL, addSkillHandler],
   [FORGET_SKILL, forgetSkillHandler],

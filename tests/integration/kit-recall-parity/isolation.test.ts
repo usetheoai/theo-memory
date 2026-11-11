@@ -195,6 +195,23 @@ if (PG_URI === undefined || PG_URI === '') {
       expect(attackerRows.rows[0]?.c).toBeGreaterThanOrEqual(1);
     });
 
+    test('search_messages — (A,X) finds ZERO of (B) and ZERO of (A,Y) logged messages', async () => {
+      await setupPool.query('TRUNCATE memory_messages CASCADE');
+      await setupPool.query("INSERT INTO workspaces (id, name) VALUES ('tn-A', 'A'), ('tn-B', 'B') ON CONFLICT DO NOTHING");
+      for (const [p, content] of [[B, 'kumquat from B'], [AY, 'kumquat from AY'], [AX, 'kumquat from AX']] as const) {
+        await pool.query(
+          'INSERT INTO memory_messages (workspace_id, user_id, role, content) VALUES ($1, $2, $3, $4)',
+          [p.workspaceId, p.userId, 'user', content],
+        );
+      }
+
+      const res = await withScope(ctxOf(AX), () => dispatch('search_messages', { query: 'kumquat', limit: 10 }, deps()));
+
+      expect(res.isError ?? false).toBe(false);
+      const found = (res.structuredContent as { messages: { content: string }[] }).messages.map((m) => m.content);
+      expect(found).toEqual(['kumquat from AX']);
+    });
+
     test('delete_entities — (A,X) deletes ZERO of (B) and (A,Y); targets survive', async () => {
       await seedEntity(B, 'Zeta');
       await seedEntity(AY, 'Zeta');

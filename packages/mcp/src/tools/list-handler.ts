@@ -76,6 +76,12 @@ import {
 } from './remember-schema.js';
 import { emitToolSchema } from './schema-emit.js';
 import {
+  DESCRIPTION as SEARCH_MESSAGES_DESC,
+  INPUT_SCHEMA as searchMessagesInput,
+  OUTPUT_SCHEMA as searchMessagesOutput,
+  TOOL_NAME as SEARCH_MESSAGES_NAME,
+} from './search-messages-schema.js';
+import {
   TOOL_NAME as UPDATE_MEMORY_NAME,
   DESCRIPTION as UPDATE_MEMORY_DESC,
   INPUT_SCHEMA as updateMemoryInput,
@@ -124,6 +130,13 @@ export function buildToolsListResponse(): ToolsListResponse {
         description: EPISODES_DESC,
         inputSchema: emitToolSchema(episodesInput) as ToolsListResponse['tools'][number]['inputSchema'],
         outputSchema: emitToolSchema(episodesOutput) as ToolsListResponse['tools'][number]['outputSchema'],
+      },
+      // ADR-0031 — BM25 search over the raw message log, separate from recall.
+      {
+        name: SEARCH_MESSAGES_NAME,
+        description: SEARCH_MESSAGES_DESC,
+        inputSchema: emitToolSchema(searchMessagesInput) as ToolsListResponse['tools'][number]['inputSchema'],
+        outputSchema: emitToolSchema(searchMessagesOutput) as ToolsListResponse['tools'][number]['outputSchema'],
       },
       // skills-write-surface T2.3 (D3) — author + curate skills over MCP.
       {

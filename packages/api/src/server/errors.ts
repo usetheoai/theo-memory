@@ -30,6 +30,7 @@ import {
   InvalidSkillError,
   MemoryNotFound,
   MemoryStoreError,
+  MessageLogNotConfigured,
   MissingScopeError,
   WorkspaceMismatch,
 } from '@usetheo/memory/contract';
@@ -84,6 +85,9 @@ export function mapDomainErrorToResponse(err: unknown): MappedErrorResponse {
       status: 501,
       body: { code: 'NOT_IMPLEMENTED', message: 'Feature not available on this runtime.' },
     };
+  }
+  if (err instanceof MessageLogNotConfigured) {
+    return { status: 501, body: { code: 'MESSAGE_LOG_DISABLED', message: 'This server runs without the raw message log.' } };
   }
   if (err instanceof InvalidSkillError) {
     return { status: 422, body: { code: 'INVALID_SKILL', message: 'Skill payload validation failed.' } };

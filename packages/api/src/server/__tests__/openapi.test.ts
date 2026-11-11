@@ -51,6 +51,7 @@ describe('T1.4 — GET /v1/openapi.json', () => {
     expect(spec.paths['/v1/memory-jobs/{jobId}']?.get?.operationId).toBe('getMemoryJob');
     expect(spec.paths['/v1/memory-jobs/{jobId}/retry']?.post?.operationId).toBe('retryMemoryJob');
     expect(spec.paths['/v1/scopes/{type}/{id}/memories/{memoryId}/evidence']?.get?.operationId).toBe('listMemoryEvidence');
+    expect(spec.paths['/v1/scopes/{type}/{id}/messages/search']?.get?.operationId).toBe('searchScopeMessages');
     const json = JSON.stringify(spec);
     for (const property of ['Idempotency-Key','originSourceId','distinctSourceCount','expiresAt','nextOffset','idempotentReplay']) {
       expect(json).toContain(property);
