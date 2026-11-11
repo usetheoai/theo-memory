@@ -5,8 +5,8 @@
  * Each question is also answered by the BM25-only ranking over the same stored messages (the
  * log searched without a query vector), so the hybrid ranking is compared on equal data.
  *
- * Criteria are fixed in docs/benchmarks/m30-longmemeval-local.md ("Busca no registro de
- * mensagens" and "Busca semântica no registro de mensagens") before any run. Required env: OPENAI_API_KEY, OPENAI_CHAT_MODEL,
+ * Each case set was committed before the change it measures; the criteria and results are
+ * recorded in ADR-0031. Required env: OPENAI_API_KEY, OPENAI_CHAT_MODEL,
  * MESSAGE_RECALL_OUT (report path). Optional: THEOMEM_PG_URI (admin URI), MESSAGE_RECALL_DB,
  * MESSAGE_RECALL_DISTRACTORS=1 to append the 300 messages of `distractors.json` to every user's
  * log (with embeddings, without extraction), for the large-scope criterion H28 to H30, and

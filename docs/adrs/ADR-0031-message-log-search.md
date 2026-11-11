@@ -30,7 +30,8 @@ suite on the in-memory and Postgres adapters.
 
 ## Evidence
 
-The criteria were fixed before any code or run (docs/benchmarks/m30-longmemeval-local.md). A new
+The criteria were written down before any code or run, in the maintainer's working notes, which
+are not in the repository; this section is the versioned record of them and of the result. A new
 hand-written evaluation (`packages/eval/src/stages/message-recall`, 5 users, 24 conversations, 27
 questions, gpt-4o-mini and text-embedding-3-small over an isolated Postgres) stored 13 facts.
 For 22 questions no stored fact held the answer. Among the 11 of those whose question repeats a
@@ -77,8 +78,8 @@ messages and gives exact ranks.
 The list is now ranked, not filtered: with fewer matching turns than `limit`, neighbours by
 meaning fill it, and `score` is the fused score instead of BM25.
 
-Evidence: criteria H25 to H27 were fixed before the code (docs/benchmarks/m30-longmemeval-local.md),
-and a second hand-written case set (`cases-paraphrase.json`, 4 users) was committed before the
+Evidence: criteria H25 to H27 were written down before the code, in the same working notes, and a
+second hand-written case set (`cases-paraphrase.json`, 4 users) was committed before the
 implementation. In one run over both sets (9 users, 42 questions), among paraphrased questions
 extraction lost, the hybrid list held the answer in 19 of 20 and the BM25 list in 4 of 20; among
 lexical ones, 15 of 15 for both. `recall` was unchanged in 42 of 42.

@@ -3,8 +3,8 @@
  * older and the newer fact are stored verbatim in a fresh in-memory scope with real embeddings,
  * their creation times set at the adapter seam, and `recall({ recencyCollapse: {} })` is asked for
  * the older text. An update pair should come back as the newer fact alone; a distinct-event pair
- * must keep both. Criteria H34 to H36 are fixed in docs/benchmarks/m30-longmemeval-local.md
- * before the code change.
+ * must keep both. The pairs were committed before the change they measure; the criteria and the
+ * result are in the commit that changed the collapse guard (#249).
  *
  * Required env: OPENAI_API_KEY, COLLAPSE_PAIRS_OUT (report path).
  */
