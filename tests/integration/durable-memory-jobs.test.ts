@@ -363,6 +363,23 @@ describe.skipIf(!process.env['THEOMEM_PG_URI'])('durable extraction jobs on enfo
     expect(rows).toEqual([{embedded:true}]);
   });
 
+  test('a job whose input yields no fact still logs the input',async()=>{
+    vi.mocked(llm.generateResponse).mockResolvedValueOnce({memory:[]});
+    await jobs.submit({...input,text:'Try chamomile tea before bed',sourceId:'session-a:no-fact'},actor,'log-no-fact');
+    expect(await worker.runOnce()).toBe('succeeded');
+    const {rows}=await db.setupPool.query<{content:string;embedded:boolean}>(
+      'SELECT content, embedding IS NOT NULL AS embedded FROM memory_messages');
+    expect(rows).toEqual([{content:'Try chamomile tea before bed',embedded:true}]);
+  });
+
+  test('an input that yields no fact links no memory to its logged message',async()=>{
+    vi.mocked(llm.generateResponse).mockResolvedValueOnce({memory:[]});
+    await jobs.submit({...input,text:'Try chamomile tea before bed',sourceId:'session-a:no-fact-links'},actor,'log-no-fact-links');
+    expect(await worker.runOnce()).toBe('succeeded');
+    const {rows}=await db.setupPool.query<{count:number}>('SELECT COUNT(*)::int AS count FROM memory_message_sources');
+    expect(rows[0]?.count).toBe(0);
+  });
+
   test('a job extractor sees the preceding turns of the same scope',async()=>{
     await jobs.submit(input,actor,'context-1');
     expect(await worker.runOnce()).toBe('succeeded');

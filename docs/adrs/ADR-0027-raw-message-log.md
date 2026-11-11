@@ -66,7 +66,8 @@ by up to `contextMessageCount` turns.
 
 The durable job path (`PgMemoryJobProcessor`) reads the preceding turns while preparing, where
 nothing is written because preparation can repeat, and appends and links the input in the same
-transaction that commits its facts, graph and history. A failed application leaves nothing in
+transaction that commits its facts, graph and history. An input that yields no fact is still
+appended, with no memory linked, as on the synchronous path (#250). A failed application leaves nothing in
 the log there, which the synchronous path cannot promise. Jobs carry no observation time, so
 their logged messages have none. Two jobs of one scope that prepare concurrently do not see
 each other's input as context.

@@ -107,7 +107,8 @@ export class PgMemoryJobProcessor implements MemoryJobProcessor {
           ...(job.input.originSourceId!==undefined?{originSourceId:job.input.originSourceId}:{})},
       },previous);
       if(graphFailures.length>0)throw new Error('Graph preparation was incomplete.');
-      const messageVector=this.config.messageLog===false||staging.facts.length===0?undefined:await embedder.embed(job.input.text);
+      // ADR-0031: the input is logged whether or not it yielded a fact (#250), so it is embedded too.
+      const messageVector=this.config.messageLog===false?undefined:await embedder.embed(job.input.text);
       return PreparedMemoryBatchSchema.parse({facts:staging.facts,nodes:nodeCalls,edges:edgeCalls,supersessions:staging.supersessions,
         ...(messageVector!==undefined?{messageVector:[...messageVector]}:{})});
     });
@@ -145,8 +146,9 @@ export class PgMemoryJobProcessor implements MemoryJobProcessor {
           }
         }
       }
-      // ADR-0027: the input joins the log in the same transaction as its facts, so a rollback drops both.
-      if(this.config.messageLog!==false&&persisted.size>0){
+      // ADR-0027: the input joins the log in the same transaction as its facts, so a rollback drops
+      // both. An input that yielded no fact is logged too, unlinked, so message search reaches it (#250).
+      if(this.config.messageLog!==false){
         const log=new PgMessageLog(pool);
         await log.linkSources(filters,[...new Set(persisted.values())],
           await log.append(filters,[{role:'user',content:job.input.text}],undefined,[draft.messageVector??null]));
