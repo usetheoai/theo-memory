@@ -8,7 +8,8 @@
  * past instant).
  *
  * Required env: OPENAI_API_KEY, OPENAI_CHAT_MODEL, CONSOLIDATION_JUDGE_OUT (report path).
- * Optional: THEOMEM_PG_URI (admin URI), CONSOLIDATION_JUDGE_DB.
+ * Optional: THEOMEM_PG_URI (admin URI), CONSOLIDATION_JUDGE_DB, CONSOLIDATION_JUDGE_CASES (case
+ * file in this directory, default judge-cases.json).
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -57,7 +58,9 @@ const adminUri = process.env['THEOMEM_PG_URI'] ?? 'postgresql://themem:themem@lo
 const dbName = process.env['CONSOLIDATION_JUDGE_DB'] ?? 'themem_consolidation_judge';
 if (!/^[a-z_][a-z0-9_]*$/.test(dbName)) throw new Error(`CONSOLIDATION_JUDGE_DB must be a plain identifier, got '${dbName}'`);
 
-const cases = casesSchema.parse(JSON.parse(readFileSync(new URL('./judge-cases.json', import.meta.url), 'utf8')));
+const caseFile = process.env['CONSOLIDATION_JUDGE_CASES'] ?? 'judge-cases.json';
+if (!/^judge-cases[a-z-]*\.json$/.test(caseFile)) throw new Error(`CONSOLIDATION_JUDGE_CASES names an unexpected file: '${caseFile}'`);
+const cases = casesSchema.parse(JSON.parse(readFileSync(new URL(`./${caseFile}`, import.meta.url), 'utf8')));
 for (const user of cases.users) {
   const updates = new Map<string, string[]>();
   for (const f of user.facts) {
@@ -192,7 +195,7 @@ try {
     derived: reflections.reduce((n, r) => n + r.derived, 0),
   };
   mkdirSync(dirname(outPath), { recursive: true });
-  writeFileSync(outPath, JSON.stringify({ model: process.env['OPENAI_CHAT_MODEL'], factListSize: FACT_LIST_SIZE, summary, updates, facts, questions, reflections }, null, 2));
+  writeFileSync(outPath, JSON.stringify({ caseFile, model: process.env['OPENAI_CHAT_MODEL'], factListSize: FACT_LIST_SIZE, summary, updates, facts, questions, reflections }, null, 2));
   console.log(JSON.stringify(summary, null, 2));
 } finally {
   await pool.end();
