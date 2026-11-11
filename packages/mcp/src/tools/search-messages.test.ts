@@ -53,6 +53,26 @@ describe('search_messages tool', () => {
     expect(sc.messages.map((m) => m.content).sort()).toEqual(['global tea', 'session tea']);
   });
 
+  it('with surroundingTurns, returns the turns around each result in structured content and text', async () => {
+    const memory = await build();
+    await memory.user('alice').rememberMessages([
+      { role: 'user', content: 'My glasses keep fogging up.' },
+      { role: 'assistant', content: 'Wash the lenses with dish soap.' },
+    ]);
+
+    const result = await call(memory, { query: 'glasses', limit: 1, surroundingTurns: 1 });
+
+    const sc = OUTPUT_SCHEMA.parse(result.structuredContent);
+    expect(sc.messages[0]?.surrounding?.after.map((m) => m.content)).toEqual(['Wash the lenses with dish soap.']);
+    expect(JSON.stringify(result.content)).toContain('Wash the lenses with dish soap.');
+  });
+
+  it('rejects surroundingTurns above 5 as invalid params', async () => {
+    const memory = await build();
+
+    await expect(call(memory, { query: 'tea', surroundingTurns: 6 })).rejects.toThrow(/Invalid params/);
+  });
+
   it('honors limit and rejects one above 100 as invalid params', async () => {
     const memory = await build();
     for (let i = 0; i < 4; i += 1) await memory.user('alice').remember(`tea ${String(i)}`);

@@ -181,6 +181,7 @@ export type {
  *
  */
 export type { Embedder } from './dip/embedder.js';
+export type { LoggedMessage, ScoredLoggedMessage, SurroundingTurns } from './dip/message-log.js';
 
 /**
  * `Reranker` DIP — optional post-threshold relevance re-scoring port (Item 23).

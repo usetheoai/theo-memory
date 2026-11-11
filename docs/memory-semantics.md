@@ -103,7 +103,10 @@ memories alone. `recall(query, { includeSources: true })` returns each memory wi
 messages, so the caller can check the fact against what was said.
 `searchMessages(query)` searches those messages directly (BM25 fused with embedding
 similarity, five by default), which reaches a turn extraction kept no fact of, also when the
-question is a paraphrase. The list is ranked, not filtered.
+question is a paraphrase. The list is ranked, not filtered. With `surroundingTurns: 1`, each
+result also carries the turn logged just before and just after it in the same stream, so a
+matching question comes back with its reply. On the durable job path, an input that yields no
+fact is not logged yet (#250).
 `createLocalMemory({ messageLog: false })` turns the log off. See ADR-0027
 and ADR-0028.
 

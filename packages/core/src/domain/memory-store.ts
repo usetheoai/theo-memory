@@ -94,6 +94,12 @@ export interface SearchMessagesOptions {
   readonly limit?: number;
   /** Leave out messages observed (or, without an observation time, logged) after this instant. */
   readonly asOf?: Date;
+  /**
+   * Turns to return on each side of every result, 0..5. Default 0. With 1, a matching question
+   * comes back with the reply logged after it (ADR-0031). The turns come from the result's own
+   * stream, in logging order, and respect `asOf`.
+   */
+  readonly surroundingTurns?: number;
 }
 
 export interface ScopedMemory {

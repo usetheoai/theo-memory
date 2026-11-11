@@ -260,6 +260,59 @@ export function runMessageLogConformance(name: string, setup: () => Promise<Mess
       expect(found.map((m) => m.content)).toContain('raise the saddle a little');
     });
 
+    test('without surroundingTurns, a result carries no surrounding turns', async () => {
+      await ctx.inScope(userA, () => ctx.log.append(userA, [{ role: 'user', content: 'a' }, { role: 'user', content: 'the rabbit' }]));
+      const [found] = await ctx.inScope(userA, () => ctx.log.search(userA, 'rabbit', { limit: 1 }));
+      expect(found?.surrounding).toBeUndefined();
+    });
+
+    test('surroundingTurns returns the turns logged just before and after each result, in order', async () => {
+      await ctx.inScope(userA, () => ctx.log.append(userA, [
+        { role: 'user', content: 'one' },
+        { role: 'assistant', content: 'two' },
+        { role: 'user', content: 'my rabbit is ill' },
+      ]));
+      await ctx.inScope(userA, () => ctx.log.append(userA, [
+        { role: 'assistant', content: 'see a vet' },
+        { role: 'user', content: 'five' },
+      ]));
+      const one = await ctx.inScope(userA, () => ctx.log.search(userA, 'rabbit', { limit: 1, surroundingTurns: 1 }));
+      expect(one[0]?.surrounding?.before.map((m) => m.content)).toEqual(['two']);
+      expect(one[0]?.surrounding?.after.map((m) => m.content)).toEqual(['see a vet']);
+      const two = await ctx.inScope(userA, () => ctx.log.search(userA, 'rabbit', { limit: 1, surroundingTurns: 2 }));
+      expect(two[0]?.surrounding?.before.map((m) => m.content)).toEqual(['one', 'two']);
+      expect(two[0]?.surrounding?.after.map((m) => m.content)).toEqual(['see a vet', 'five']);
+    });
+
+    test('surroundingTurns stops at the edges of the log', async () => {
+      await ctx.inScope(userA, () => ctx.log.append(userA, [{ role: 'user', content: 'my rabbit' }]));
+      const [found] = await ctx.inScope(userA, () => ctx.log.search(userA, 'rabbit', { limit: 1, surroundingTurns: 1 }));
+      expect(found?.surrounding).toEqual({ before: [], after: [] });
+    });
+
+    test('surrounding turns come only from the stream of the result, never another session or user', async () => {
+      const otherSession: Filters = { ...userA, session_id: 'conformance-other-session' };
+      await ctx.inScope(sessionA, () => ctx.log.append(sessionA, [{ role: 'user', content: 'session before' }]));
+      await ctx.inScope(otherSession, () => ctx.log.append(otherSession, [{ role: 'user', content: 'other session' }]));
+      await ctx.inScope(userB, () => ctx.log.append(userB, [{ role: 'user', content: 'other user' }]));
+      await ctx.inScope(userA, () => ctx.log.append(userA, [{ role: 'user', content: 'global' }]));
+      await ctx.inScope(sessionA, () => ctx.log.append(sessionA, [{ role: 'user', content: 'session rabbit' }]));
+      await ctx.inScope(otherSession, () => ctx.log.append(otherSession, [{ role: 'user', content: 'other session later' }]));
+      const visible: Filters = { ...sessionA, scopeHierarchy: { session: 'conformance-session' } };
+      const [found] = await ctx.inScope(sessionA, () => ctx.log.search(visible, 'rabbit', { limit: 1, surroundingTurns: 1 }));
+      expect(found?.content).toBe('session rabbit');
+      expect(found?.surrounding?.before.map((m) => m.content)).toEqual(['session before']);
+      expect(found?.surrounding?.after).toEqual([]);
+    });
+
+    test('surrounding turns respect asOf', async () => {
+      await ctx.inScope(userA, () => ctx.log.append(userA, [{ role: 'user', content: 'old rabbit' }], new Date('2023-01-01T00:00:00Z')));
+      await ctx.inScope(userA, () => ctx.log.append(userA, [{ role: 'assistant', content: 'later reply' }], new Date('2024-01-01T00:00:00Z')));
+      const [found] = await ctx.inScope(userA, () =>
+        ctx.log.search({ ...userA, asOf: new Date('2023-06-01T00:00:00Z') }, 'rabbit', { limit: 1, surroundingTurns: 1 }));
+      expect(found?.surrounding?.after).toEqual([]);
+    });
+
     test('append rejects embeddings that do not line up with the messages', async () => {
       await expect(ctx.inScope(userA, () => ctx.log.append(userA, [{ role: 'user', content: 'a' }, { role: 'user', content: 'b' }], undefined, [axis(0)])))
         .rejects.toThrow(RangeError);

@@ -44,6 +44,31 @@ describe('GET /v1/scopes/:type/:id/messages/search', () => {
     expect(body.items[0]!.score).toBeGreaterThan(0);
   });
 
+  test('surroundingTurns returns the turns around each result', async () => {
+    const memory = await build();
+    await memory.user('ana').rememberMessages([
+      { role: 'user', content: 'My glasses keep fogging up.' },
+      { role: 'assistant', content: 'Wash the lenses with dish soap.' },
+    ]);
+
+    const res = await search(memory, '/v1/scopes/user/ana/messages/search?q=glasses&limit=1&surroundingTurns=1');
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { items: { content: string; surrounding?: { before: unknown[]; after: { role: string; content: string; observed_at: string | null; logged_at: string }[] } }[] };
+    expect(body.items[0]?.content).toBe('My glasses keep fogging up.');
+    expect(body.items[0]?.surrounding?.before).toEqual([]);
+    expect(body.items[0]?.surrounding?.after).toMatchObject([{ role: 'assistant', content: 'Wash the lenses with dish soap.', observed_at: null }]);
+  });
+
+  test('without surroundingTurns, items carry no surrounding field', async () => {
+    const memory = await build();
+    await memory.user('ana').remember('tea');
+
+    const body = (await (await search(memory, '/v1/scopes/user/ana/messages/search?q=tea')).json()) as { items: object[] };
+
+    expect(body.items[0]).not.toHaveProperty('surrounding');
+  });
+
   test('honors limit', async () => {
     const memory = await build();
     for (let i = 0; i < 4; i += 1) await memory.user('ana').remember(`tea note ${String(i)}`);
@@ -68,6 +93,8 @@ describe('GET /v1/scopes/:type/:id/messages/search', () => {
     ['missing q', '/v1/scopes/user/ana/messages/search'],
     ['limit 0', '/v1/scopes/user/ana/messages/search?q=tea&limit=0'],
     ['limit 101', '/v1/scopes/user/ana/messages/search?q=tea&limit=101'],
+    ['surroundingTurns 6', '/v1/scopes/user/ana/messages/search?q=tea&surroundingTurns=6'],
+    ['surroundingTurns -1', '/v1/scopes/user/ana/messages/search?q=tea&surroundingTurns=-1'],
     ['invalid asOf', '/v1/scopes/user/ana/messages/search?q=tea&asOf=yesterday'],
     ['unknown parameter', '/v1/scopes/user/ana/messages/search?q=tea&topK=3'],
   ])('rejects %s with 422', async (_name, path) => {

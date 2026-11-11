@@ -50,6 +50,7 @@ export {
 /** Message search list size when the caller gives none: short, per Principle 2. */
 const DEFAULT_MESSAGE_SEARCH_LIMIT = 5;
 const MAX_MESSAGE_SEARCH_LIMIT = 100;
+const MAX_SURROUNDING_TURNS = 5;
 
 export class LocalScopedMemory implements ScopedMemory {
   constructor(
@@ -274,13 +275,17 @@ export class LocalScopedMemory implements ScopedMemory {
     if (options?.asOf !== undefined && Number.isNaN(options.asOf.getTime())) {
       throw new InvalidScope('asOf must be a valid Date');
     }
+    const surroundingTurns = options?.surroundingTurns ?? 0;
+    if (!Number.isInteger(surroundingTurns) || surroundingTurns < 0 || surroundingTurns > MAX_SURROUNDING_TURNS) {
+      throw new RangeError(`searchMessages: surroundingTurns must be an integer in 0..${String(MAX_SURROUNDING_TURNS)}, got ${String(surroundingTurns)}`);
+    }
     const log = this.config.messageLog;
     if (log === undefined || log === false) throw new MessageLogNotConfigured('searchMessages');
     const filters: Filters = options?.asOf === undefined ? this.filters : { ...this.filters, asOf: options.asOf };
     // ADR-0031: BM25 fused with cosine over the message embeddings. An embedder failure surfaces,
     // as it does for recall.
     const queryVector = await this.config.embedder.embed(query);
-    return log.search(filters, query, { limit, queryVector });
+    return log.search(filters, query, { limit, queryVector, ...(surroundingTurns > 0 ? { surroundingTurns } : {}) });
   }
 
   /** Paged scope listing; `entity` option = theo-cloud#252 memory_entities filter. */

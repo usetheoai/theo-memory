@@ -135,3 +135,39 @@ recall was unchanged in all 15 questions.
 The search treats each turn as a separate document, while the answer lives in the reply to the turn
 that matches. Fixing the order means returning or scoring the exchange (the matching turn with its
 neighbour), not reordering single turns. That is a separate change, not made here.
+
+### Surrounding turns (same day)
+
+`searchMessages` takes `surroundingTurns` (0..5, default 0). With it, every result carries the
+turns logged just before and after it in the same stream (workspace, user, session, agent), in
+logging order, under `asOf`. Ranking and scores do not change. The same option is on the REST
+endpoint (`surroundingTurns` query parameter, `surrounding` on each item) and on the
+`search_messages` MCP tool.
+
+Measured against criteria fixed beforehand, on a fifth held-out set (`cases-context.json`, 300
+distractors per user), over five runs with a fresh database each. The protocol was amended after
+the first two runs and before the five, because a single run was not enough (see below); the
+first two runs do not count.
+
+| Lost paraphrases (8 per run) | Result |
+|---|---|
+| Answer in the first result of the list, or in its surrounding turns, `surroundingTurns: 1` | mean 5 of 8 (4 to 6) |
+| Answer in the first result, no surrounding turns | mean 2.4 of 8 |
+| Answer anywhere in 2 results with surrounding turns, against a flat list of 6 | 8 of 8 against 8 of 8 in every run, with 42 to 44 messages read against 48 |
+| `recall` unchanged by the search | 16 of 16 in every run |
+
+Two limits came up while measuring. First, the first result depends on the run: the first place
+of each ranking scores 1/61, and the tie falls on the message id, a random UUID. Two identical
+runs gave 6 and 3 of 8 for the same reading. Second, the fusion window follows `limit`, so the
+first result of `limit: 1` and the first of the default list of 5 can differ.
+
+The log does not know where a conversation ends, so the first turn of one conversation can bring
+the last turn of the previous one.
+
+The lookup groups results by stream and names each stream column with `=` or `IS NULL`, so it
+reads only that stream through `memory_messages_scope_seq_idx`. A first version compared the
+columns with `IS NOT DISTINCT FROM`; `EXPLAIN` showed the index used for the workspace only, with
+every other user's messages read and filtered. A second version still sorted the stream's whole
+range on each side; ordering by every index column instead of `seq` alone lets the planner walk
+the index and stop after `surroundingTurns` rows. On a 50,000-message stream that took a lookup
+from 20 ms to 0.15 ms.

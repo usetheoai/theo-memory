@@ -17,7 +17,7 @@ import { dirname } from 'node:path';
 
 import pg from 'pg';
 
-import { createLocalMemory, PgMessageLog, PgvectorStore, runMigrations, type Embedder } from '@usetheo/memory';
+import { createLocalMemory, PgMessageLog, PgvectorStore, runMigrations, type Embedder, type LoggedMessage, type ScoredLoggedMessage } from '@usetheo/memory';
 import { OpenAICompatibleEmbedder } from '@usetheo/memory/embedders/openai-compatible';
 import { OpenAILLM } from '@usetheo/memory/llms/openai';
 
@@ -104,8 +104,26 @@ try {
   const rows: (SemanticResult & {
     caseFile: string; facts: string[]; messages: string[]; bm25Messages: string[]; factsTop: string[];
     hybridRank: number | null; bm25Rank: number | null; searchMs: number;
+    windowTop1: boolean; windowTop1AtLimit1: boolean; budget: { flat: BudgetRead; windows: BudgetRead };
   })[] = [];
-  for (const { file, cases } of caseSets) for (const user of cases.users) {
+  const SURROUNDING_TURNS = 1;
+const BUDGET_MESSAGES = 6;
+const BUDGET_WINDOWS = 2;
+interface BudgetRead { hit: boolean; messages: number; characters: number }
+function windowOf(m: ScoredLoggedMessage): LoggedMessage[] {
+  return [...(m.surrounding?.before ?? []), m, ...(m.surrounding?.after ?? [])];
+}
+/** What a reader of the result gets: distinct messages, their characters, and whether the answer is among them. */
+function budgetRead(pattern: string, groups: readonly (readonly LoggedMessage[])[]): BudgetRead {
+  const distinct = new Map(groups.flat().map((m) => [m.id, m.content] as const));
+  const contents = [...distinct.values()];
+  return { hit: contents.some((c) => matchesPattern(pattern, c)), messages: contents.length, characters: contents.reduce((n, c) => n + c.length, 0) };
+}
+function totalBudget(reads: readonly BudgetRead[]) {
+  return { hits: reads.filter((r) => r.hit).length, messages: reads.reduce((n, r) => n + r.messages, 0), characters: reads.reduce((n, r) => n + r.characters, 0) };
+}
+
+for (const { file, cases } of caseSets) for (const user of cases.users) {
     const scope = memory.user(user.id);
     for (const conversation of user.conversations) await scope.rememberMessages(conversation);
     if (distractors.length > 0) await log.append({ workspace_id: 'default', user_id: user.id }, distractors, undefined, distractorVectors);
@@ -117,6 +135,14 @@ try {
       const messages = await scope.searchMessages(q.query, { limit: MESSAGE_LIST_SIZE });
       const searchMs = performance.now() - started;
       const bm25 = await log.search({ workspace_id: 'default', user_id: user.id }, q.query, { limit: MESSAGE_LIST_SIZE });
+      // H41: the answer in the first result or the turns around it. H42: the same message budget
+      // as a flat list of BUDGET_MESSAGES, spent on BUDGET_WINDOWS results with their neighbours.
+      // The first result of the usual list, and of a list of one: the fusion window follows the
+      // list size, so the two can differ.
+      const [first] = await scope.searchMessages(q.query, { limit: MESSAGE_LIST_SIZE, surroundingTurns: SURROUNDING_TURNS });
+      const [only] = await scope.searchMessages(q.query, { limit: 1, surroundingTurns: SURROUNDING_TURNS });
+      const flat = await scope.searchMessages(q.query, { limit: BUDGET_MESSAGES });
+      const windows = await scope.searchMessages(q.query, { limit: BUDGET_WINDOWS, surroundingTurns: SURROUNDING_TURNS });
       const after = await scope.recall(q.query, { topK: FACT_LIST_SIZE });
       rows.push({
         caseFile: file,
@@ -135,6 +161,9 @@ try {
         hybridRank: firstHitRank(q.pattern, messages.map((m) => m.content)),
         bm25Rank: firstHitRank(q.pattern, bm25.map((m) => m.content)),
         searchMs,
+        windowTop1: first !== undefined && windowOf(first).some((m) => matchesPattern(q.pattern, m.content)),
+        windowTop1AtLimit1: only !== undefined && windowOf(only).some((m) => matchesPattern(q.pattern, m.content)),
+        budget: { flat: budgetRead(q.pattern, flat.map((m) => [m])), windows: budgetRead(q.pattern, windows.map(windowOf)) },
       });
     }
   }
@@ -148,6 +177,18 @@ try {
     semantic: summarizeSemantic(rows),
     lostParaphraseRanks: { hybrid: rankSummary(lostParaphrase.map((r) => r.hybridRank)), bm25: rankSummary(lostParaphrase.map((r) => r.bm25Rank)) },
     searchMs: { p50: percentile(0.5), p95: percentile(0.95) },
+    surrounding: {
+      h41: {
+        windowTop1: lostParaphrase.filter((r) => r.windowTop1).length,
+        windowTop1AtLimit1: lostParaphrase.filter((r) => r.windowTop1AtLimit1).length,
+        flatTop1: lostParaphrase.filter((r) => r.hybridRank === 1).length, total: lostParaphrase.length },
+      h42: {
+        windows: totalBudget(lostParaphrase.map((r) => r.budget.windows)),
+        flat: totalBudget(lostParaphrase.map((r) => r.budget.flat)),
+        total: lostParaphrase.length,
+      },
+      h43: { recallUnchanged: rows.filter((r) => r.recallUnchanged).length, total: rows.length },
+    },
     bySet,
     embedded,
   };

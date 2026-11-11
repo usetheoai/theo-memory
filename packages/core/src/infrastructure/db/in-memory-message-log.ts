@@ -161,7 +161,24 @@ export class InMemoryMessageLog implements MessageLog {
           .map((r) => r.id),
       ]);
     await Promise.resolve();
-    return ranked.slice(0, Math.max(0, options.limit)).map((r) => ({ ...project(this.rows.get(r.id)!), score: r.score }));
+    const turns = options.surroundingTurns ?? 0;
+    return ranked.slice(0, Math.max(0, options.limit)).map((r) => {
+      const row = this.rows.get(r.id)!;
+      const result = { ...project(row), score: r.score };
+      if (turns <= 0) return result;
+      // The result's own stream, oldest first: the same scope key, still under asOf.
+      const stream = [...this.rows.values()]
+        .filter((other) => other.scopeKey === row.scopeKey && (asOf === undefined || (other.observedAt ?? other.loggedAt) <= asOf))
+        .sort((a, b) => a.seq - b.seq);
+      const at = stream.findIndex((other) => other.id === row.id);
+      return {
+        ...result,
+        surrounding: {
+          before: stream.slice(Math.max(0, at - turns), at).map(project),
+          after: stream.slice(at + 1, at + 1 + turns).map(project),
+        },
+      };
+    });
   }
 
 }

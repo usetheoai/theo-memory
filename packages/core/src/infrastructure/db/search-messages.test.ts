@@ -79,6 +79,26 @@ describe('ScopedMemory.searchMessages', () => {
     await expect(memory.user('ana').searchMessages('tea', { limit: 101 })).rejects.toThrow(RangeError);
   });
 
+  test('surroundingTurns brings the reply logged after the matching turn', async () => {
+    const memory = await build();
+    await memory.user('ana').rememberMessages([
+      { role: 'user', content: 'My glasses keep fogging up.' },
+      { role: 'assistant', content: 'Wash the lenses with a drop of dish soap.' },
+    ]);
+
+    const [found] = await memory.user('ana').searchMessages('glasses fogging', { limit: 1, surroundingTurns: 1 });
+
+    expect(found?.content).toBe('My glasses keep fogging up.');
+    expect(found?.surrounding?.after.map((m) => m.content)).toEqual(['Wash the lenses with a drop of dish soap.']);
+  });
+
+  test('rejects surroundingTurns outside 0..5', async () => {
+    const memory = await build();
+    await expect(memory.user('ana').searchMessages('tea', { surroundingTurns: -1 })).rejects.toThrow(RangeError);
+    await expect(memory.user('ana').searchMessages('tea', { surroundingTurns: 6 })).rejects.toThrow(RangeError);
+    await expect(memory.user('ana').searchMessages('tea', { surroundingTurns: 1.5 })).rejects.toThrow(RangeError);
+  });
+
   test('fails loudly when the message log is turned off', async () => {
     const memory = await build(false);
     await expect(memory.user('ana').searchMessages('tea')).rejects.toThrow(MessageLogNotConfigured);

@@ -15,7 +15,7 @@ import type { OpenAPIRegistry } from '@asteasolutions/zod-to-openapi';
 import { MemoryEvidenceSchema } from '@usetheo/memory/contract';
 import { z } from 'zod';
 
-import { MessageSearchQuerySchema } from './handlers/messages-search.js';
+import { MessageSearchItemSchema, MessageSearchQuerySchema } from './handlers/messages-search.js';
 import { registerMemoryJobPaths } from './openapi-memory-jobs.js';
 import {
   AddMemberBody,
@@ -308,7 +308,7 @@ export function registerAllPaths(registry: OpenAPIRegistry): void {
     path: '/v1/scopes/{type}/{id}/messages/search',
     operationId: 'searchScopeMessages',
     summary:
-      'Search over the raw messages the scope can see, by words and by meaning (BM25 and embedding similarity fused by rank), best first. Reaches a turn extraction kept no fact of. The list is ranked, not filtered.',
+      'Search over the raw messages the scope can see, by words and by meaning (BM25 and embedding similarity fused by rank), best first. Reaches a turn extraction kept no fact of. The list is ranked, not filtered. With surroundingTurns, each result also carries the turns logged just before and after it in the same stream.',
     request: {
       params: z.object({ type: ScopeTypeEnum, id: z.string().min(1) }),
       query: MessageSearchQuerySchema,
@@ -318,23 +318,12 @@ export function registerAllPaths(registry: OpenAPIRegistry): void {
         description: 'Messages by fused rank score, best first. A foreign or empty scope returns no items.',
         content: {
           'application/json': {
-            schema: z.object({
-              items: z.array(
-                z.object({
-                  id: z.string(),
-                  role: z.enum(['system', 'user', 'assistant']),
-                  content: z.string(),
-                  score: z.number(),
-                  observed_at: z.string().nullable(),
-                  logged_at: z.string(),
-                }),
-              ),
-            }),
+            schema: z.object({ items: z.array(MessageSearchItemSchema) }),
           },
         },
       },
       404: { description: 'Unknown scope type or empty id.' },
-      422: { description: 'Invalid query (missing q, limit outside 1..100, unknown parameter, or invalid asOf).' },
+      422: { description: 'Invalid query (missing q, limit outside 1..100, surroundingTurns outside 0..5, unknown parameter, or invalid asOf).' },
       501: { description: 'The server runs without the raw message log (MESSAGE_LOG_DISABLED).' },
     },
   });

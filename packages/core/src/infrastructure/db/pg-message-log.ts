@@ -42,6 +42,16 @@ function toVectorLiteral(vector: readonly number[]): string {
   return `[${vector.join(',')}]`;
 }
 
+/** A search hit with the stream it was logged in, to find its surrounding turns. */
+interface HitStreamRow {
+  readonly message_id: string;
+  /** bigint as text, so no precision is lost. */
+  readonly seq: string;
+  readonly user_id: string | null;
+  readonly session_id: string | null;
+  readonly agent_id: string | null;
+}
+
 function toLogged(row: MessageRow): LoggedMessage {
   return { id: row.message_id, role: row.role, content: row.content, observedAt: row.observed_at, loggedAt: row.logged_at };
 }
@@ -211,12 +221,13 @@ export class PgMessageLog implements MessageLog {
     }
     // Same Okapi BM25 (Lucene IDF, k1, b) and english lexemes as PgvectorStore.keywordSearch,
     // over the messages this scope can see.
-    const { rows } = await this.pool.query<MessageRow & { rank: number }>(
+    const { rows } = await this.pool.query<MessageRow & HitStreamRow & { rank: number }>(
       `WITH q AS (
          SELECT array_agg(DISTINCT lexeme) AS lexemes FROM unnest(to_tsvector('english', $1))
        ),
        docs AS (
-         SELECT m.message_id, m.role, m.content, m.observed_at, m.logged_at, m.embedding, to_tsvector('english', m.content) AS tsv
+         SELECT m.message_id, m.role, m.content, m.observed_at, m.logged_at, m.embedding, m.seq, m.user_id, m.session_id, m.agent_id,
+                to_tsvector('english', m.content) AS tsv
            FROM memory_messages m
           WHERE ${clauses.join(' AND ')}
        ),
@@ -248,12 +259,81 @@ export class PgMessageLog implements MessageLog {
           GROUP BY t.message_id
        )
        ${fused}
-       SELECT d.message_id, d.role, d.content, d.observed_at, d.logged_at, f.score::float8 AS rank
+       SELECT d.message_id, d.role, d.content, d.observed_at, d.logged_at, d.seq::text AS seq,
+              d.user_id, d.session_id, d.agent_id, f.score::float8 AS rank
          FROM final f JOIN docs d ON d.message_id = f.message_id
         ORDER BY f.score DESC, d.message_id
         LIMIT $2`,
       params,
     );
-    return rows.map((row) => ({ ...toLogged(row), score: Number(row.rank) }));
+    const results = rows.map((row) => ({ ...toLogged(row), score: Number(row.rank) }));
+    const turns = Math.max(0, Math.trunc(options.surroundingTurns ?? 0));
+    if (turns === 0 || results.length === 0) return results;
+    const surrounding = await this.surroundingOf(visibility.workspaceId, rows, turns, filters.asOf);
+    return results.map((r) => ({ ...r, surrounding: surrounding.get(r.id) ?? { before: [], after: [] } }));
+  }
+
+  /**
+   * The `turns` messages logged just before and after each hit, from the hit's own stream
+   * (workspace, user, session, agent), oldest first, under `asOf` when given. Hits are grouped by
+   * stream so each lookup names the stream with `=` or `IS NULL` on every column, and each side
+   * orders by every column of `memory_messages_scope_seq_idx`: with the prefix fixed that is the
+   * `seq` order, and the planner walks the index from the hit and stops after `turns` rows. With
+   * `ORDER BY seq` alone the planner sorted the stream's whole range instead (measured: 20 ms
+   * against 0.15 ms per result on a 50,000-message stream). A search sees at most a session and its user's global
+   * stream, so this is one or two queries.
+   */
+  private async surroundingOf(
+    workspaceId: string,
+    hits: readonly HitStreamRow[],
+    turns: number,
+    asOf: Date | undefined,
+  ): Promise<ReadonlyMap<string, { before: LoggedMessage[]; after: LoggedMessage[] }>> {
+    const streams = new Map<string, HitStreamRow[]>();
+    for (const hit of hits) {
+      const key = JSON.stringify([hit.user_id, hit.session_id, hit.agent_id]);
+      streams.set(key, [...(streams.get(key) ?? []), hit]);
+    }
+    const byHit = new Map<string, { before: LoggedMessage[]; after: LoggedMessage[] }>();
+    for (const group of streams.values()) {
+      const [first] = group as [HitStreamRow, ...HitStreamRow[]];
+      // $1 = hit ids, $2 = hit seqs (aligned), $3 = turns, $4 = workspace, then the stream columns.
+      const params: unknown[] = [group.map((h) => h.message_id), group.map((h) => h.seq), turns, workspaceId];
+      const clauses = ['m.workspace_id = $4'];
+      for (const [column, value] of [['user_id', first.user_id], ['session_id', first.session_id], ['agent_id', first.agent_id]] as const) {
+        if (value === null) {
+          clauses.push(`m.${column} IS NULL`);
+        } else {
+          params.push(value);
+          clauses.push(`m.${column} = $${String(params.length)}`);
+        }
+      }
+      if (asOf !== undefined) {
+        params.push(asOf.toISOString());
+        clauses.push(`COALESCE(m.observed_at, m.logged_at) <= $${String(params.length)}::timestamptz`);
+      }
+      const stream = clauses.join(' AND ');
+      const { rows } = await this.pool.query<MessageRow & { hit_id: string; side: 'before' | 'after' }>(
+        `SELECT h.hit_id, n.side, n.message_id, n.role, n.content, n.observed_at, n.logged_at
+           FROM unnest($1::uuid[], $2::bigint[]) AS h(hit_id, seq)
+           CROSS JOIN LATERAL (
+             (SELECT 'before' AS side, m.message_id, m.role, m.content, m.observed_at, m.logged_at, m.seq
+                FROM memory_messages m WHERE ${stream} AND m.seq < h.seq
+               ORDER BY m.workspace_id DESC, m.user_id DESC, m.session_id DESC, m.agent_id DESC, m.seq DESC LIMIT $3)
+             UNION ALL
+             (SELECT 'after' AS side, m.message_id, m.role, m.content, m.observed_at, m.logged_at, m.seq
+                FROM memory_messages m WHERE ${stream} AND m.seq > h.seq
+               ORDER BY m.workspace_id, m.user_id, m.session_id, m.agent_id, m.seq LIMIT $3)
+           ) n
+          ORDER BY h.hit_id, n.seq`,
+        params,
+      );
+      for (const row of rows) {
+        const entry = byHit.get(row.hit_id) ?? { before: [], after: [] };
+        entry[row.side].push(toLogged(row));
+        byHit.set(row.hit_id, entry);
+      }
+    }
+    return byHit;
   }
 }

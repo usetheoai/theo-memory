@@ -23,9 +23,19 @@ export interface LoggedMessage {
   readonly loggedAt: Date;
 }
 
-/** A logged message returned by `search`, with its BM25 score (higher is better). */
+/** The turns logged right before and after a search result, in the result's own stream. */
+export interface SurroundingTurns {
+  /** Oldest first, ending with the turn just before the result. */
+  readonly before: readonly LoggedMessage[];
+  /** Oldest first, starting with the turn just after the result. */
+  readonly after: readonly LoggedMessage[];
+}
+
+/** A logged message returned by `search`, with its score (higher is better). */
 export interface ScoredLoggedMessage extends LoggedMessage {
   readonly score: number;
+  /** Present only when the search asked for `surroundingTurns`. */
+  readonly surrounding?: SurroundingTurns;
 }
 
 export interface MessageSearchOptions {
@@ -37,6 +47,13 @@ export interface MessageSearchOptions {
    * result's `score` is the fused score. Without it, the search is BM25 only.
    */
   readonly queryVector?: readonly number[];
+  /**
+   * How many turns to return on each side of every result (ADR-0031). The turns come from the
+   * result's own stream (same workspace, user, session and agent), in logging order, and respect
+   * `asOf`. The log does not know where one conversation ends, so the first turn of a
+   * conversation can bring the last turn of the previous one. Unset or 0: no surrounding turns.
+   */
+  readonly surroundingTurns?: number;
 }
 
 export interface MessageLog {
