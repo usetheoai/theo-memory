@@ -9,8 +9,8 @@ const row = (over: Partial<QuestionResult>): QuestionResult => ({
 });
 
 describe('message-recall scoring', () => {
-  test('every question in the case file has the form it declares', () => {
-    const cases = caseFileSchema.parse(JSON.parse(readFileSync(new URL('./cases.json', import.meta.url), 'utf8')));
+  test.each(['cases.json', 'cases-paraphrase.json'])('every question in %s has the form it declares', (file) => {
+    const cases = caseFileSchema.parse(JSON.parse(readFileSync(new URL(`./${file}`, import.meta.url), 'utf8')));
     expect(formViolations(cases)).toEqual([]);
   });
 

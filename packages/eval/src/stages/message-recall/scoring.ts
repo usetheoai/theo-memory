@@ -26,6 +26,7 @@ const FUNCTION_WORDS = new Set([
   'should', 'could', 'would', 'can', 'will', 'must', 'have', 'has', 'had', 'that', 'this', 'for', 'go', 'get',
   'o', 'os', 'as', 'um', 'uma', 'de', 'da', 'do', 'das', 'dos', 'em', 'na', 'no', 'com', 'para', 'por', 'que',
   'qual', 'quando', 'ele', 'ela', 'eu', 'minha', 'meu', 'até', 'antes', 'depois', 'vem', 'devo', 'fazer',
+  'ao', 'aos', 'à', 'às',
 ]);
 
 export function contentWords(text: string): Set<string> {
