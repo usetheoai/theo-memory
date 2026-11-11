@@ -9,7 +9,7 @@ const row = (over: Partial<QuestionResult>): QuestionResult => ({
 });
 
 describe('message-recall scoring', () => {
-  test.each(['cases.json', 'cases-paraphrase.json', 'cases-fusion.json', 'cases-tiebreak.json'])('every question in %s has the form it declares', (file) => {
+  test.each(['cases.json', 'cases-paraphrase.json', 'cases-fusion.json', 'cases-tiebreak.json', 'cases-context.json'])('every question in %s has the form it declares', (file) => {
     const cases = caseFileSchema.parse(JSON.parse(readFileSync(new URL(`./${file}`, import.meta.url), 'utf8')));
     expect(formViolations(cases)).toEqual([]);
   });
