@@ -89,3 +89,17 @@ after the fact rather than as a criterion: the answer ranked first in 11 of 20 l
 against about 2.5 expected by chance, with a mean reciprocal rank of 0.71. A test with large scopes
 and distractor turns is still to come before any claim beyond these sets.
 
+### Large scopes (same day)
+
+With 300 distractor messages added to every user's log (criteria H28 to H30, fixed before the
+data was generated), the hybrid list held the answer in 9 of 20 lost paraphrases, below the 60%
+bar; BM25 alone held 2 of 20. Lexical questions stayed at 15 of 15 and `recall` was unchanged.
+The search is therefore not claimed to find paraphrases in large scopes.
+
+A diagnosis after the run located the loss in the fusion, not in the embeddings: ranked by
+cosine alone, the answer came first in 14 of the 20 and within the top 5 in 19. BM25 returns
+every message sharing any word with the query, and under RRF a message present in both rankings
+outranks one present only in the cosine ranking, even when the latter ranks first there. A change
+to the fusion has to be judged on new questions with its own criteria, since it was conceived
+from these.
+
