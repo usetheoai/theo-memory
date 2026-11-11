@@ -69,7 +69,8 @@ Each logged message stores its embedding (migration 0038, nullable, same dimensi
 job path computes it in `prepare`, outside the commit transaction. With a query vector,
 `MessageLog.search` fuses two rankings of the visible messages by Reciprocal Rank Fusion with the
 published constant k = 60, unfitted: the BM25 ranking, and the cosine ranking of the messages that
-carry an embedding. Both rankings break ties on message id, in both adapters. `searchMessages`
+carry an embedding. Both rankings broke ties on message id at first; see "Deterministic tie-break"
+below for the rule that replaced it. `searchMessages`
 always embeds the query; an embedder failure throws, as in `recall`. On write, an embedding
 failure keeps the message without a vector, emits `message_log_failed` (`operation: embed`), and
 the message stays findable by its words. There is no ANN index: the scan covers one scope's
@@ -172,3 +173,33 @@ every other user's messages read and filtered. A second version still sorted the
 range on each side; ordering by every index column instead of `seq` alone lets the planner walk
 the index and stop after `surroundingTurns` rows. On a 50,000-message stream that took a lookup
 from 20 ms to 0.15 ms.
+
+### Deterministic tie-break (same day)
+
+Every ordering in the search (the BM25 ranking, the cosine ranking and the fused list) now breaks a
+tie on the message closer to the query in meaning, a message with no embedding last, and then on
+the one logged first. Without a query vector the tie goes straight to logging order. The message id
+no longer decides anything, so the same log and query give the same list on any database. The
+rule has no parameter.
+
+A tie-break on recency (observation time, then logging order) was tried first and not adopted. It
+passed its criteria (order independent of ids, same coverage, `recall` unchanged), but the first
+result got worse on all three sets: the 300 distractor messages were the newest in each log and
+won every tie. In a real log, recent small talk would sit above the older exchange that answers.
+
+The criteria for the rule kept were fixed before the code: order independent of ids (conformance
+tests on both adapters, six scopes, both logging orders), no loss of coverage, `recall` unchanged,
+and a first place not below the id-based runs on two of three sets. All passed. The three case
+sets were already used, so the readings below are recorded, not claimed as held-out gains.
+
+| Set (300 distractors) | Lost paraphrases in list | Answer first | Answer in first result or its surrounding turns |
+|---|---|---|---|
+| `cases-fusion.json` | 10 of 11 | 2 of 11 (MRR 0.42) | 8 of 11 |
+| `cases-tiebreak.json` | 11 of 11 | 2 of 11 (MRR 0.47) | 10 of 11 |
+| `cases-context.json` | 8 of 8 | 4 of 8 (MRR 0.71) | 7 of 8 |
+
+`recall` was unchanged in all 46 questions. On `cases-context.json`, three runs with a fresh
+database each gave the same numbers; with the id tie-break the last column had ranged from 3 to 6
+of 8 over seven runs. The answer itself still ranks first in only about a quarter of the lost
+paraphrases on the first two sets: the turn that raised the problem is the closest text to the
+question, and the answer is its neighbour, which `surroundingTurns` returns.

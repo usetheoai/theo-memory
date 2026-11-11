@@ -260,6 +260,40 @@ export function runMessageLogConformance(name: string, setup: () => Promise<Mess
       expect(found.map((m) => m.content)).toContain('raise the saddle a little');
     });
 
+    test('with a query vector, a fused tie goes to the message closer in meaning, whatever the ids', async () => {
+      // With limit 1 each ranking contributes one message: the word match tops BM25 and the
+      // meaning match tops cosine, so both score 1/(k+1). Several scopes and both logging orders,
+      // so a tie-break on ids or on logging order could not pass by luck.
+      const partlyClose = axis(1).map((x, i) => (i === 1 ? 0.6 : i === 2 ? 0.8 : x));
+      for (let i = 0; i < 6; i += 1) {
+        const scope: Filters = { workspace_id: 'default', user_id: `meaning-tie-${String(i)}` };
+        const wordMatch = { message: { role: 'user' as const, content: 'my bike story' }, vector: partlyClose };
+        const meaningMatch = { message: { role: 'user' as const, content: 'raise the saddle a little' }, vector: axis(1) };
+        for (const entry of i % 2 === 0 ? [wordMatch, meaningMatch] : [meaningMatch, wordMatch]) {
+          await ctx.inScope(scope, () => ctx.log.append(scope, [entry.message], undefined, [entry.vector]));
+        }
+
+        const found = await ctx.inScope(scope, () => ctx.log.search(scope, 'bike', { limit: 1, queryVector: axis(1) }));
+
+        expect(found.map((m) => m.content)).toEqual(['raise the saddle a little']);
+      }
+    });
+
+    test('messages equal in words and in meaning come back in logging order, with or without a query vector', async () => {
+      for (let i = 0; i < 6; i += 1) {
+        const scope: Filters = { workspace_id: 'default', user_id: `logging-order-${String(i)}` };
+        const [first, second] = i % 2 === 0 ? ['bike red', 'bike tan'] : ['bike tan', 'bike red'];
+        await ctx.inScope(scope, () => ctx.log.append(scope, [{ role: 'user', content: first }], undefined, [axis(1)]));
+        await ctx.inScope(scope, () => ctx.log.append(scope, [{ role: 'user', content: second }], undefined, [axis(1)]));
+
+        const byMeaning = await ctx.inScope(scope, () => ctx.log.search(scope, 'bike', { limit: 2, queryVector: axis(1) }));
+        const byWords = await ctx.inScope(scope, () => ctx.log.search(scope, 'bike', { limit: 2 }));
+
+        expect(byMeaning.map((m) => m.content)).toEqual([first, second]);
+        expect(byWords.map((m) => m.content)).toEqual([first, second]);
+      }
+    });
+
     test('without surroundingTurns, a result carries no surrounding turns', async () => {
       await ctx.inScope(userA, () => ctx.log.append(userA, [{ role: 'user', content: 'a' }, { role: 'user', content: 'the rabbit' }]));
       const [found] = await ctx.inScope(userA, () => ctx.log.search(userA, 'rabbit', { limit: 1 }));

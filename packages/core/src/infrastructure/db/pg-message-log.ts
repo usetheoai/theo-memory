@@ -198,18 +198,24 @@ export class PgMessageLog implements MessageLog {
       clauses.push(`COALESCE(m.observed_at, m.logged_at) <= $${String(params.length)}::timestamptz`);
     }
     // With a query vector, the BM25 ranking and the cosine ranking of the messages that carry an
-    // embedding are fused by Reciprocal Rank Fusion; both rankings break ties on message_id, as
-    // the in-memory adapter does. Each ranking contributes only its first $2 (= limit) rows, so a
+    // embedding are fused by Reciprocal Rank Fusion. Every ordering breaks a tie on the message
+    // closest to the query in meaning (no embedding last), then on the one logged first, as the
+    // in-memory adapter does; never on message_id, which is random (ADR-0031). Each ranking contributes only its first $2 (= limit) rows, so a
     // weak word match cannot outrank the best match by meaning just by appearing in both.
     let fused = ', final AS (SELECT message_id, rank AS score FROM scored)';
+    let tieBreak = 'd.seq';
     if (options.queryVector !== undefined) {
       params.push(toVectorLiteral(options.queryVector));
       const q = `$${String(params.length)}::vector`;
+      tieBreak = `d.embedding <=> ${q} NULLS LAST, d.seq`;
       fused = `, lexical AS (
-         SELECT message_id, row_number() OVER (ORDER BY rank DESC, message_id) AS r FROM scored
+         SELECT s.message_id,
+                row_number() OVER (ORDER BY s.rank DESC, ${tieBreak}) AS r
+           FROM scored s JOIN docs d USING (message_id)
        ),
        semantic AS (
-         SELECT message_id, row_number() OVER (ORDER BY embedding <=> ${q}, message_id) AS r
+         SELECT message_id,
+                row_number() OVER (ORDER BY embedding <=> ${q}, seq) AS r
            FROM docs WHERE embedding IS NOT NULL
        ),
        final AS (
@@ -262,7 +268,7 @@ export class PgMessageLog implements MessageLog {
        SELECT d.message_id, d.role, d.content, d.observed_at, d.logged_at, d.seq::text AS seq,
               d.user_id, d.session_id, d.agent_id, f.score::float8 AS rank
          FROM final f JOIN docs d ON d.message_id = f.message_id
-        ORDER BY f.score DESC, d.message_id
+        ORDER BY f.score DESC, ${tieBreak}
         LIMIT $2`,
       params,
     );

@@ -34,8 +34,23 @@ function tokenize(text: string): string[] {
   return text.toLowerCase().split(/\W+/).filter((t) => t.length > 0);
 }
 
-function byScoreThenId(a: { id: string; score: number }, b: { id: string; score: number }): number {
-  return b.score - a.score || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+/**
+ * Best score first; a tie goes to the message closest to the query in meaning (one with no
+ * embedding, or any message when the search has no query vector, after those that have one), then
+ * to the one logged first. Never to the id, which is random (ADR-0031).
+ */
+function byScoreThenMeaning(rows: ReadonlyMap<string, Row>, closeness: ReadonlyMap<string, number>) {
+  return (a: { id: string; score: number }, b: { id: string; score: number }): number => {
+    if (b.score !== a.score) return b.score - a.score;
+    const left = closeness.get(a.id);
+    const right = closeness.get(b.id);
+    if (left !== right) {
+      if (left === undefined) return 1;
+      if (right === undefined) return -1;
+      return right - left;
+    }
+    return rows.get(a.id)!.seq - rows.get(b.id)!.seq;
+  };
 }
 
 function project(row: Row): LoggedMessage {
@@ -140,12 +155,16 @@ export class InMemoryMessageLog implements MessageLog {
     const asOf = filters.asOf;
     const visible = [...this.rows.values()].filter((row) => isVisible(visibility, rowScope(row))
       && (asOf === undefined || (row.observedAt ?? row.loggedAt) <= asOf));
+    const queryVector = options.queryVector;
+    const closeness = new Map<string, number>(queryVector === undefined ? [] : visible
+      .filter((row) => row.embedding !== null)
+      .map((row) => [row.id, cosineSimilarity(queryVector, row.embedding!)]));
+    const order = byScoreThenMeaning(this.rows, closeness);
     const bm25 = bm25Scores(tokenize(query), visible.map((row) => ({ id: row.id, terms: tokenize(row.content) })));
     const lexical = visible
       .filter((row) => bm25.has(row.id))
       .map((row) => ({ id: row.id, score: bm25.get(row.id) ?? 0 }))
-      .sort(byScoreThenId);
-    const queryVector = options.queryVector;
+      .sort(order);
     // Each ranking contributes only its first `limit` ids (a window equal to the list size), so a
     // weak word match cannot outrank the best match by meaning just by appearing in both (ADR-0031).
     const window = Math.max(0, options.limit);
@@ -153,13 +172,11 @@ export class InMemoryMessageLog implements MessageLog {
       ? lexical
       : reciprocalRankFusion([
         lexical.slice(0, window).map((r) => r.id),
-        visible
-          .filter((row) => row.embedding !== null)
-          .map((row) => ({ id: row.id, score: cosineSimilarity(queryVector, row.embedding!) }))
-          .sort(byScoreThenId)
+        [...closeness].map(([id, score]) => ({ id, score }))
+          .sort(order)
           .slice(0, window)
           .map((r) => r.id),
-      ]);
+      ]).sort(order);
     await Promise.resolve();
     const turns = options.surroundingTurns ?? 0;
     return ranked.slice(0, Math.max(0, options.limit)).map((r) => {
