@@ -8,11 +8,12 @@
  */
 import type { Pool } from 'pg';
 
-import type { LoggedMessage, MessageLog } from '../../domain/dip/message-log.js';
+import type { LoggedMessage, MessageLog, MessageSearchOptions, ScoredLoggedMessage } from '../../domain/dip/message-log.js';
 import type { Message } from '../../domain/message.js';
+import { BM25_B, BM25_K1 } from '../../domain/retrieval/bm25.js';
 import type { Filters } from '../../domain/scope.js';
 
-import { scopePartition } from './scope-partition.js';
+import { scopePartition, scopeVisibility } from './scope-partition.js';
 
 interface MessageRow {
   readonly message_id: string;
@@ -137,5 +138,82 @@ export class PgMessageLog implements MessageLog {
     // Their memory_message_sources rows go with them (ON DELETE CASCADE).
     const result = await this.pool.query(`DELETE FROM memory_messages WHERE ${clauses.join(' AND ')}`, params);
     return result.rowCount ?? 0;
+  }
+
+  async search(filters: Filters, query: string, options: MessageSearchOptions): Promise<readonly ScoredLoggedMessage[]> {
+    const limit = Math.max(0, Math.trunc(options.limit));
+    if (limit === 0) return [];
+    const visibility = scopeVisibility(filters);
+    // $1 = query text, $2 = limit, $3 = workspace, then the scope columns.
+    const params: unknown[] = [query, limit, visibility.workspaceId];
+    const clauses = ['m.workspace_id = $3'];
+    for (const [column, value] of [['user_id', visibility.userId], ['agent_id', visibility.agentId]] as const) {
+      if (value === undefined) continue;
+      if (value === null) {
+        clauses.push(`m.${column} IS NULL`);
+      } else {
+        params.push(value);
+        clauses.push(`m.${column} = $${String(params.length)}`);
+      }
+    }
+    if (visibility.sessionIds !== undefined) {
+      const named = visibility.sessionIds.filter((id): id is string => id !== null);
+      const parts: string[] = [];
+      if (visibility.sessionIds.includes(null)) parts.push('m.session_id IS NULL');
+      if (named.length > 0) {
+        params.push(named);
+        parts.push(`m.session_id = ANY($${String(params.length)}::text[])`);
+      }
+      clauses.push(`(${parts.join(' OR ')})`);
+    }
+    if (filters.asOf !== undefined) {
+      params.push(filters.asOf.toISOString());
+      clauses.push(`COALESCE(m.observed_at, m.logged_at) <= $${String(params.length)}::timestamptz`);
+    }
+    // Same Okapi BM25 (Lucene IDF, k1, b) and english lexemes as PgvectorStore.keywordSearch,
+    // over the messages this scope can see.
+    const { rows } = await this.pool.query<MessageRow & { rank: number }>(
+      `WITH q AS (
+         SELECT array_agg(DISTINCT lexeme) AS lexemes FROM unnest(to_tsvector('english', $1))
+       ),
+       docs AS (
+         SELECT m.message_id, m.role, m.content, m.observed_at, m.logged_at, to_tsvector('english', m.content) AS tsv
+           FROM memory_messages m
+          WHERE ${clauses.join(' AND ')}
+       ),
+       doc_len AS (
+         SELECT d.message_id, COALESCE(SUM(COALESCE(array_length(u.positions, 1), 1)), 0)::float8 AS dl
+           FROM docs d LEFT JOIN LATERAL unnest(d.tsv) u ON true
+          GROUP BY d.message_id
+       ),
+       stats AS (
+         SELECT COUNT(*)::float8 AS n, COALESCE(AVG(dl), 0)::float8 AS avgdl FROM doc_len
+       ),
+       terms AS (
+         SELECT d.message_id, u.lexeme, COALESCE(array_length(u.positions, 1), 1)::float8 AS tf
+           FROM docs d, q, unnest(d.tsv) u
+          WHERE u.lexeme = ANY(q.lexemes)
+       ),
+       df AS (
+         SELECT lexeme, COUNT(*)::float8 AS df FROM terms GROUP BY lexeme
+       ),
+       scored AS (
+         SELECT t.message_id,
+                SUM(ln(1 + (s.n - f.df + 0.5) / (f.df + 0.5))
+                    * t.tf * (${String(BM25_K1)} + 1)
+                    / (t.tf + ${String(BM25_K1)} * (1 - ${String(BM25_B)} + ${String(BM25_B)} * l.dl / NULLIF(s.avgdl, 0)))) AS rank
+           FROM terms t
+           JOIN df f USING (lexeme)
+           JOIN doc_len l ON l.message_id = t.message_id
+           CROSS JOIN stats s
+          GROUP BY t.message_id
+       )
+       SELECT d.message_id, d.role, d.content, d.observed_at, d.logged_at, sc.rank::float8 AS rank
+         FROM scored sc JOIN docs d ON d.message_id = sc.message_id
+        ORDER BY sc.rank DESC, d.message_id
+        LIMIT $2`,
+      params,
+    );
+    return rows.map((row) => ({ ...toLogged(row), score: Number(row.rank) }));
   }
 }

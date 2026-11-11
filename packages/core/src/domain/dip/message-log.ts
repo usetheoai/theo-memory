@@ -23,6 +23,16 @@ export interface LoggedMessage {
   readonly loggedAt: Date;
 }
 
+/** A logged message returned by `search`, with its BM25 score (higher is better). */
+export interface ScoredLoggedMessage extends LoggedMessage {
+  readonly score: number;
+}
+
+export interface MessageSearchOptions {
+  /** Maximum number of messages returned. */
+  readonly limit: number;
+}
+
 export interface MessageLog {
   /** Append messages to the scope's log, in order. Returns one id per message, in the same order. */
   append(filters: Filters, messages: readonly Message[], observedAt?: Date): Promise<readonly string[]>;
@@ -53,4 +63,13 @@ export interface MessageLog {
    * recall predicate, not a partition, and is rejected. Returns the number of messages erased.
    */
   eraseScope(filters: Filters): Promise<number>;
+
+  /**
+   * Okapi BM25 over the messages `filters` can see, best first; messages sharing no term with
+   * the query are left out. Visibility follows the memory store: a user's global scope sees no
+   * session or agent messages, and a user-bound session (`scopeHierarchy: { session }`) sees its
+   * own messages plus the user's global ones. With `filters.asOf`, a message observed (or, without
+   * an observation time, logged) after that instant is left out.
+   */
+  search(filters: Filters, query: string, options: MessageSearchOptions): Promise<readonly ScoredLoggedMessage[]>;
 }

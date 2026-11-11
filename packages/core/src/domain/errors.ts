@@ -158,6 +158,16 @@ export class BiTemporalNotSupportedLocally extends Error {
   }
 }
 
+/** A raw-message operation was called on a memory created with `messageLog: false`. */
+export class MessageLogNotConfigured extends Error {
+  override readonly name = 'MessageLogNotConfigured' as const;
+
+  constructor(operation: string, options?: ErrorOptions) {
+    super(`${operation} needs the raw message log, but this memory was created with messageLog: false.`, options);
+    Object.setPrototypeOf(this, MessageLogNotConfigured.prototype);
+  }
+}
+
 export class ReflectionNotConfigured extends Error {
   override readonly name = 'ReflectionNotConfigured' as const;
 

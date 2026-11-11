@@ -78,6 +78,7 @@ export type {
   MemoryConfig,
   MemoryStore,
   ScopedMemory,
+  SearchMessagesOptions,
 } from './memory-store.js';
 
 /**
@@ -133,6 +134,7 @@ export {
   MemoryStoreError,
   MissingScopeError,
   ReflectionNotConfigured,
+  MessageLogNotConfigured,
   RerankerConflict,
   SkillAlreadyExists,
   SkillExecutionNotConfiguredError,

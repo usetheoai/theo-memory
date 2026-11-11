@@ -4,11 +4,12 @@
  */
 import { randomUUID } from 'node:crypto';
 
-import type { LoggedMessage, MessageLog } from '../../domain/dip/message-log.js';
+import type { LoggedMessage, MessageLog, MessageSearchOptions, ScoredLoggedMessage } from '../../domain/dip/message-log.js';
 import type { Message } from '../../domain/message.js';
+import { bm25Scores } from '../../domain/retrieval/bm25.js';
 import type { Filters } from '../../domain/scope.js';
 
-import { matchesPartitionColumn, scopePartition } from './scope-partition.js';
+import { isVisible, matchesPartitionColumn, scopePartition, scopeVisibility } from './scope-partition.js';
 
 interface Row extends LoggedMessage {
   readonly scopeKey: string;
@@ -17,6 +18,16 @@ interface Row extends LoggedMessage {
 
 function scopeKey(filters: Filters): string {
   return JSON.stringify([filters.workspace_id ?? 'default', filters.user_id ?? null, filters.session_id ?? null, filters.agent_id ?? null]);
+}
+
+function rowScope(row: Row): { workspaceId: string; userId: string | null; sessionId: string | null; agentId: string | null } {
+  const [workspaceId, userId, sessionId, agentId] = JSON.parse(row.scopeKey) as [string, string | null, string | null, string | null];
+  return { workspaceId, userId, sessionId, agentId };
+}
+
+/** Same tokenization as the in-memory store's keyword search (no stemming, no stop words). */
+function tokenize(text: string): string[] {
+  return text.toLowerCase().split(/\W+/).filter((t) => t.length > 0);
 }
 
 function project(row: Row): LoggedMessage {
@@ -95,11 +106,11 @@ export class InMemoryMessageLog implements MessageLog {
     const partition = scopePartition(filters);
     const erased: string[] = [];
     for (const row of this.rows.values()) {
-      const [workspaceId, userId, sessionId, agentId] = JSON.parse(row.scopeKey) as [string, string | null, string | null, string | null];
-      if (workspaceId === partition.workspaceId
-        && matchesPartitionColumn(partition.userId, userId)
-        && matchesPartitionColumn(partition.sessionId, sessionId)
-        && matchesPartitionColumn(partition.agentId, agentId)) {
+      const scope = rowScope(row);
+      if (scope.workspaceId === partition.workspaceId
+        && matchesPartitionColumn(partition.userId, scope.userId)
+        && matchesPartitionColumn(partition.sessionId, scope.sessionId)
+        && matchesPartitionColumn(partition.agentId, scope.agentId)) {
         erased.push(row.id);
       }
     }
@@ -107,5 +118,19 @@ export class InMemoryMessageLog implements MessageLog {
     for (const set of this.links.values()) for (const id of erased) set.delete(id);
     await Promise.resolve();
     return erased.length;
+  }
+
+  async search(filters: Filters, query: string, options: MessageSearchOptions): Promise<readonly ScoredLoggedMessage[]> {
+    const visibility = scopeVisibility(filters);
+    const asOf = filters.asOf;
+    const visible = [...this.rows.values()].filter((row) => isVisible(visibility, rowScope(row))
+      && (asOf === undefined || (row.observedAt ?? row.loggedAt) <= asOf));
+    const scores = bm25Scores(tokenize(query), visible.map((row) => ({ id: row.id, terms: tokenize(row.content) })));
+    await Promise.resolve();
+    return visible
+      .filter((row) => scores.has(row.id))
+      .map((row) => ({ ...project(row), score: scores.get(row.id) ?? 0 }))
+      .sort((a, b) => b.score - a.score || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+      .slice(0, Math.max(0, options.limit));
   }
 }

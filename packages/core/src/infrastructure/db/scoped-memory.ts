@@ -6,7 +6,7 @@
  * `scoped-retrieval.ts` — so this file stays under the 300-LoC budget. The helper
  * functions are re-exported below for backward compatibility with existing importers.
  */
-import type { LoggedMessage } from '../../domain/dip/message-log.js';
+import type { LoggedMessage, ScoredLoggedMessage } from '../../domain/dip/message-log.js';
 import type { RecallCacheStore } from '../../domain/dip/recall-cache-store.js';
 import type { RecallTraceStore } from '../../domain/dip/recall-trace-store.js';
 import type { ReflectionPolicy } from '../../domain/dip/reflection-policy.js';
@@ -16,11 +16,11 @@ import {
   encodeEpisodeCursor,
   resolveEpisodeLimit,
 } from '../../domain/episode.js';
-import { InvalidScope, MemoryNotFound } from '../../domain/errors.js';
+import { InvalidScope, MemoryNotFound, MessageLogNotConfigured } from '../../domain/errors.js';
 import { runExtractionPipeline } from '../../domain/extraction/pipeline.js';
 import { emitEvent } from '../../domain/memory-event.js';
 import type { MemoryItem, MemoryItemWithScore } from '../../domain/memory-item.js';
-import type { ScopedMemory, SessionSummary } from '../../domain/memory-store.js';
+import type { ScopedMemory, SearchMessagesOptions, SessionSummary } from '../../domain/memory-store.js';
 import type { Message } from '../../domain/message.js';
 import { resolveOntology } from '../../domain/ontology.js';
 import type {
@@ -46,6 +46,10 @@ export {
   assertScopeIsNonEmpty,
   deriveScopeFromPayload,
 } from './scope-filters.js';
+
+/** Message search list size when the caller gives none: short, per Principle 2. */
+const DEFAULT_MESSAGE_SEARCH_LIMIT = 5;
+const MAX_MESSAGE_SEARCH_LIMIT = 100;
 
 export class LocalScopedMemory implements ScopedMemory {
   constructor(
@@ -260,6 +264,20 @@ export class LocalScopedMemory implements ScopedMemory {
    */
   async listSessions(): Promise<readonly SessionSummary[]> {
     return listScopeSessions(this.config, this.filters);
+  }
+
+  async searchMessages(query: string, options?: SearchMessagesOptions): Promise<readonly ScoredLoggedMessage[]> {
+    const limit = options?.limit ?? DEFAULT_MESSAGE_SEARCH_LIMIT;
+    if (!Number.isInteger(limit) || limit < 1 || limit > MAX_MESSAGE_SEARCH_LIMIT) {
+      throw new RangeError(`searchMessages: limit must be an integer in 1..${String(MAX_MESSAGE_SEARCH_LIMIT)}, got ${String(limit)}`);
+    }
+    if (options?.asOf !== undefined && Number.isNaN(options.asOf.getTime())) {
+      throw new InvalidScope('asOf must be a valid Date');
+    }
+    const log = this.config.messageLog;
+    if (log === undefined || log === false) throw new MessageLogNotConfigured('searchMessages');
+    const filters: Filters = options?.asOf === undefined ? this.filters : { ...this.filters, asOf: options.asOf };
+    return log.search(filters, query, { limit });
   }
 
   /** Paged scope listing; `entity` option = theo-cloud#252 memory_entities filter. */

@@ -20,6 +20,7 @@
  * @see ADR-0008 — DIP method counts (5 DIPs: VectorStore 11, LLM 2, Embedder 2, HistoryManager 4+3, ReflectionPolicy 1+2)
  * @see ADR-0009 — cloud auth: THEOKIT_API_KEY reuse + optional apiKey override
  */
+import type { ScoredLoggedMessage } from './dip/message-log.js';
 import type { EpisodeListOptions, EpisodePage } from './episode.js';
 import type { HistoryEntry } from './history-entry.js';
 import type { MemoryItem, MemoryItemWithScore } from './memory-item.js';
@@ -87,6 +88,14 @@ export interface SessionSummary {
  * leak), so a multi-tenant gateway can delete-by-id without an O(scope)
  * ownership pre-check.
  */
+/** Options of `ScopedMemory.searchMessages`. */
+export interface SearchMessagesOptions {
+  /** Maximum number of messages, 1..100. Default 5. */
+  readonly limit?: number;
+  /** Leave out messages observed (or, without an observation time, logged) after this instant. */
+  readonly asOf?: Date;
+}
+
 export interface ScopedMemory {
   /**
    * @param text — free-form natural language. **Storage is verbatim** — see
@@ -118,6 +127,15 @@ export interface ScopedMemory {
    * without it the M8 session tier was unenumerable, so no UI session picker).
    */
   listSessions(): Promise<readonly SessionSummary[]>;
+
+  /**
+   * Lexical (BM25) search over the raw messages this scope can see, best first, separate from
+   * `recall`. It reaches what was said even when extraction kept no fact of it. A user-bound
+   * session sees its own messages and the user's global ones, like `recall`. `limit` defaults
+   * to 5 and must be an integer in 1..100 (`RangeError` otherwise); throws
+   * `MessageLogNotConfigured` when the memory was created with `messageLog: false`.
+   */
+  searchMessages(query: string, options?: SearchMessagesOptions): Promise<readonly ScoredLoggedMessage[]>;
 
   /**
    * Episodic / message-log read surface (M2 / gap G3): list this scope's

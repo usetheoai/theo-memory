@@ -165,5 +165,49 @@ export function runMessageLogConformance(name: string, setup: () => Promise<Mess
       const anyUser: Filters = { workspace_id: 'default', session_id: 'conformance-session' };
       expect(await ctx.inScope(anyUser, () => ctx.log.eraseScope(anyUser))).toBe(2);
     });
+
+    test('search ranks the scope messages that share a query term and leaves out the rest', async () => {
+      await ctx.inScope(userA, () => ctx.log.append(userA, [
+        { role: 'user', content: 'I adopted a rabbit named Pepper' },
+        { role: 'user', content: 'The weather was lovely today' },
+        { role: 'user', content: 'Pepper the rabbit chewed the rabbit cage' },
+      ]));
+      const found = await ctx.inScope(userA, () => ctx.log.search(userA, 'rabbit Pepper', { limit: 5 }));
+      expect(found.map((m) => m.content)).toEqual(['Pepper the rabbit chewed the rabbit cage', 'I adopted a rabbit named Pepper']);
+      expect(found.every((m) => m.score > 0)).toBe(true);
+      expect(await ctx.inScope(userA, () => ctx.log.search(userA, 'rabbit', { limit: 1 }))).toHaveLength(1);
+    });
+
+    test('search finds nothing for a query without a matching term', async () => {
+      await ctx.inScope(userA, () => ctx.log.append(userA, [{ role: 'user', content: 'I adopted a rabbit' }]));
+      expect(await ctx.inScope(userA, () => ctx.log.search(userA, 'volcano', { limit: 5 }))).toEqual([]);
+    });
+
+    test('search never returns another user', async () => {
+      await ctx.inScope(userB, () => ctx.log.append(userB, [{ role: 'user', content: 'my rabbit is named Pepper' }]));
+      expect(await ctx.inScope(userA, () => ctx.log.search(userA, 'rabbit', { limit: 5 }))).toEqual([]);
+    });
+
+    test("a user's global search does not see that user's sessions", async () => {
+      await ctx.inScope(sessionA, () => ctx.log.append(sessionA, [{ role: 'user', content: 'rabbit in a session' }]));
+      expect(await ctx.inScope(userA, () => ctx.log.search({ ...userA, scopeHierarchy: 'global' }, 'rabbit', { limit: 5 }))).toEqual([]);
+    });
+
+    test("a user-bound session search sees its own and the user's global messages, not other sessions", async () => {
+      const otherSession: Filters = { ...userA, session_id: 'conformance-other-session' };
+      await ctx.inScope(userA, () => ctx.log.append(userA, [{ role: 'user', content: 'global rabbit' }]));
+      await ctx.inScope(sessionA, () => ctx.log.append(sessionA, [{ role: 'user', content: 'session rabbit' }]));
+      await ctx.inScope(otherSession, () => ctx.log.append(otherSession, [{ role: 'user', content: 'other session rabbit' }]));
+      const visible: Filters = { ...sessionA, scopeHierarchy: { session: 'conformance-session' } };
+      const found = await ctx.inScope(sessionA, () => ctx.log.search(visible, 'rabbit', { limit: 5 }));
+      expect(found.map((m) => m.content).sort()).toEqual(['global rabbit', 'session rabbit']);
+    });
+
+    test('search with asOf leaves out messages observed after that instant', async () => {
+      await ctx.inScope(userA, () => ctx.log.append(userA, [{ role: 'user', content: 'old rabbit' }], new Date('2023-01-01T00:00:00Z')));
+      await ctx.inScope(userA, () => ctx.log.append(userA, [{ role: 'user', content: 'new rabbit' }], new Date('2024-01-01T00:00:00Z')));
+      const found = await ctx.inScope(userA, () => ctx.log.search({ ...userA, asOf: new Date('2023-06-01T00:00:00Z') }, 'rabbit', { limit: 5 }));
+      expect(found.map((m) => m.content)).toEqual(['old rabbit']);
+    });
   });
 }

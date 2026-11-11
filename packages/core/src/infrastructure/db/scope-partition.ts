@@ -34,3 +34,30 @@ export function scopePartition(filters: Filters): ScopePartition {
 export function matchesPartitionColumn(expected: PartitionColumn, actual: string | null): boolean {
   return expected === undefined || expected === actual;
 }
+
+/**
+ * What a scope can READ, which is wider than what it erases: a user-bound session reads its own
+ * rows plus the user's global rows. `sessionIds` lists the allowed session values (`null` is
+ * "no session"); `undefined` allows any.
+ */
+export interface ScopeVisibility {
+  readonly workspaceId: string;
+  readonly userId: PartitionColumn;
+  readonly agentId: PartitionColumn;
+  readonly sessionIds: readonly (string | null)[] | undefined;
+}
+
+export function scopeVisibility(filters: Filters): ScopeVisibility {
+  const hierarchy = filters.scopeHierarchy;
+  const base = { workspaceId: filters.workspace_id ?? 'default', userId: filters.user_id };
+  if (hierarchy === 'global') return { ...base, agentId: null, sessionIds: [null] };
+  if (hierarchy !== undefined) return { ...base, agentId: null, sessionIds: [hierarchy.session, null] };
+  return { ...base, agentId: filters.agent_id, sessionIds: filters.session_id === undefined ? undefined : [filters.session_id] };
+}
+
+export function isVisible(visibility: ScopeVisibility, row: { workspaceId: string; userId: string | null; sessionId: string | null; agentId: string | null }): boolean {
+  return row.workspaceId === visibility.workspaceId
+    && matchesPartitionColumn(visibility.userId, row.userId)
+    && matchesPartitionColumn(visibility.agentId, row.agentId)
+    && (visibility.sessionIds === undefined || visibility.sessionIds.includes(row.sessionId));
+}
