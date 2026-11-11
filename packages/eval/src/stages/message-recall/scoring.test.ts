@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, test } from 'vitest';
 
-import { caseFileSchema, formViolations, summarize, summarizeSemantic, type QuestionResult, type SemanticResult } from './scoring.js';
+import { caseFileSchema, firstHitRank, formViolations, rankSummary, summarize, summarizeSemantic, type QuestionResult, type SemanticResult } from './scoring.js';
 
 const row = (over: Partial<QuestionResult>): QuestionResult => ({
   user: 'u', query: 'q', form: 'lexical', lostByExtraction: true, messagesHit: true, factsHit: false, recallUnchanged: true, ...over,
@@ -66,5 +66,15 @@ describe('message-recall scoring', () => {
     test('H27 fails when any recall changed', () => {
       expect(summarizeSemantic([sem({ recallUnchanged: false })]).h27Pass).toBe(false);
     });
+  });
+
+  test('firstHitRank gives the 1-based position of the first match, or null', () => {
+    expect(firstHitRank('washer', ['tap', 'a worn washer', 'washer again'])).toBe(2);
+    expect(firstHitRank('washer', ['tap'])).toBeNull();
+  });
+
+  test('rankSummary counts top-1 and averages reciprocal ranks, a miss counting 0', () => {
+    expect(rankSummary([1, 2, null, 4])).toEqual({ top1: 1, total: 4, mrr: (1 + 0.5 + 0 + 0.25) / 4 });
+    expect(rankSummary([])).toEqual({ top1: 0, total: 0, mrr: 0 });
   });
 });

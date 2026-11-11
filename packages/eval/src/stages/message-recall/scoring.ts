@@ -121,3 +121,19 @@ export function summarizeSemantic(rows: readonly SemanticResult[]) {
     h27Pass: h27.hits === h27.total,
   };
 }
+
+/** 1-based position of the first message matching `pattern`, or null when none does. */
+export function firstHitRank(pattern: string, contents: readonly string[]): number | null {
+  const index = contents.findIndex((c) => matchesPattern(pattern, c));
+  return index === -1 ? null : index + 1;
+}
+
+/** Top-1 hits and mean reciprocal rank over the given ranks (null counts as 0). */
+export function rankSummary(ranks: readonly (number | null)[]) {
+  return {
+    top1: ranks.filter((r) => r === 1).length,
+    total: ranks.length,
+    mrr: ranks.length === 0 ? 0 : ranks.reduce<number>((sum, r) => sum + (r === null ? 0 : 1 / r), 0) / ranks.length,
+  };
+}
+

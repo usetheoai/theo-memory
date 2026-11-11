@@ -7,7 +7,9 @@
  *
  * Criteria are fixed in docs/benchmarks/m30-longmemeval-local.md ("Busca no registro de
  * mensagens" and "Busca semântica no registro de mensagens") before any run. Required env: OPENAI_API_KEY, OPENAI_CHAT_MODEL,
- * MESSAGE_RECALL_OUT (report path). Optional: THEOMEM_PG_URI (admin URI), MESSAGE_RECALL_DB.
+ * MESSAGE_RECALL_OUT (report path). Optional: THEOMEM_PG_URI (admin URI), MESSAGE_RECALL_DB,
+ * MESSAGE_RECALL_DISTRACTORS=1 to append the 300 messages of `distractors.json` to every user's
+ * log (with embeddings, without extraction), for the large-scope criterion H28 to H30.
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -18,7 +20,9 @@ import { createLocalMemory, PgMessageLog, PgvectorStore, runMigrations, type Emb
 import { OpenAICompatibleEmbedder } from '@usetheo/memory/embedders/openai-compatible';
 import { OpenAILLM } from '@usetheo/memory/llms/openai';
 
-import { caseFileSchema, formViolations, matchesPattern, summarize, summarizeSemantic, type SemanticResult } from './scoring.js';
+import { z } from 'zod';
+
+import { caseFileSchema, firstHitRank, formViolations, matchesPattern, rankSummary, summarize, summarizeSemantic, type SemanticResult } from './scoring.js';
 
 /** Fixed before measuring (pre-registration): Principle 2 asks for short lists. */
 const MESSAGE_LIST_SIZE = 5;
@@ -37,6 +41,11 @@ const apiKey = requiredEnv('OPENAI_API_KEY');
 const chatModel = requiredEnv('OPENAI_CHAT_MODEL');
 const adminUri = process.env['THEOMEM_PG_URI'] ?? 'postgresql://themem:themem@localhost:5442/themem';
 const dbName = process.env['MESSAGE_RECALL_DB'] ?? 'themem_message_recall';
+const withDistractors = process.env['MESSAGE_RECALL_DISTRACTORS'] === '1';
+const distractors = withDistractors
+  ? z.object({ messages: z.array(z.object({ role: z.enum(['user', 'assistant']), content: z.string().min(1) })).length(300) })
+    .parse(JSON.parse(readFileSync(new URL('./distractors.json', import.meta.url), 'utf8'))).messages
+  : [];
 if (!/^[a-z_][a-z0-9_]*$/.test(dbName)) throw new Error(`MESSAGE_RECALL_DB must be a plain identifier, got '${dbName}'`);
 
 const CASE_FILES = ['cases.json', 'cases-paraphrase.json'] as const;
@@ -80,16 +89,24 @@ try {
     embeddingDim: EMBEDDING_DIM,
   });
   const log = new PgMessageLog(pool);
+  // Embedded once with the provider directly, so `embedded` keeps counting the system's own calls.
+  const distractorVectors = distractors.length === 0 ? [] : await provider.embedBatch(distractors.map((m) => m.content));
 
-  const rows: (SemanticResult & { caseFile: string; facts: string[]; messages: string[]; bm25Messages: string[]; factsTop: string[] })[] = [];
+  const rows: (SemanticResult & {
+    caseFile: string; facts: string[]; messages: string[]; bm25Messages: string[]; factsTop: string[];
+    hybridRank: number | null; bm25Rank: number | null; searchMs: number;
+  })[] = [];
   for (const { file, cases } of caseSets) for (const user of cases.users) {
     const scope = memory.user(user.id);
     for (const conversation of user.conversations) await scope.rememberMessages(conversation);
+    if (distractors.length > 0) await log.append({ workspace_id: 'default', user_id: user.id }, distractors, undefined, distractorVectors);
     const stored = (await scope.getAll({ topK: 1000 })).map((item) => item.text);
     console.log(`[message-recall] ${user.id}: ${String(user.conversations.length)} conversations -> ${String(stored.length)} facts`);
     for (const q of user.questions) {
       const before = await scope.recall(q.query, { topK: FACT_LIST_SIZE });
+      const started = performance.now();
       const messages = await scope.searchMessages(q.query, { limit: MESSAGE_LIST_SIZE });
+      const searchMs = performance.now() - started;
       const bm25 = await log.search({ workspace_id: 'default', user_id: user.id }, q.query, { limit: MESSAGE_LIST_SIZE });
       const after = await scope.recall(q.query, { topK: FACT_LIST_SIZE });
       rows.push({
@@ -106,12 +123,25 @@ try {
         factsTop: before.map((i) => i.text),
         messages: messages.map((m) => m.content),
         bm25Messages: bm25.map((m) => m.content),
+        hybridRank: firstHitRank(q.pattern, messages.map((m) => m.content)),
+        bm25Rank: firstHitRank(q.pattern, bm25.map((m) => m.content)),
+        searchMs,
       });
     }
   }
 
   const bySet = Object.fromEntries(CASE_FILES.map((file) => [file, summarize(rows.filter((r) => r.caseFile === file))]));
-  const summary = { semantic: summarizeSemantic(rows), bySet, embedded };
+  const lostParaphrase = rows.filter((r) => r.lostByExtraction && r.form === 'paraphrase');
+  const latencies = rows.map((r) => r.searchMs).sort((a, b) => a - b);
+  const percentile = (q: number) => latencies[Math.min(latencies.length - 1, Math.floor(q * latencies.length))] ?? 0;
+  const summary = {
+    distractorsPerUser: distractors.length,
+    semantic: summarizeSemantic(rows),
+    lostParaphraseRanks: { hybrid: rankSummary(lostParaphrase.map((r) => r.hybridRank)), bm25: rankSummary(lostParaphrase.map((r) => r.bm25Rank)) },
+    searchMs: { p50: percentile(0.5), p95: percentile(0.95) },
+    bySet,
+    embedded,
+  };
   mkdirSync(dirname(outPath), { recursive: true });
   writeFileSync(outPath, JSON.stringify({
     config: { chatModel, embeddingModel: EMBEDDING_MODEL, messageListSize: MESSAGE_LIST_SIZE, factListSize: FACT_LIST_SIZE, caseFiles: CASE_FILES },
