@@ -75,11 +75,13 @@ const OPENROUTER_KEY =
 
 // Demo env-shift mirror — promote OpenRouter key + URL + model so the
 // OpenAI SDK reaches openai/gpt-4o-mini via openrouter.ai/api/v1.
-if (OPENROUTER_KEY !== '' && (process.env['OPENAI_API_KEY'] ?? '') === '') {
-  process.env['OPENAI_API_KEY'] = OPENROUTER_KEY;
-}
+// The key follows the endpoint: when this file picks OpenRouter, it sends the OpenRouter
+// key even if an OpenAI key is also set, which would otherwise go to OpenRouter and fail 401.
 if ((process.env['OPENAI_BASE_URL'] ?? '') === '') {
   process.env['OPENAI_BASE_URL'] = 'https://openrouter.ai/api/v1';
+  if (OPENROUTER_KEY !== '') process.env['OPENAI_API_KEY'] = OPENROUTER_KEY;
+} else if (OPENROUTER_KEY !== '' && (process.env['OPENAI_API_KEY'] ?? '') === '') {
+  process.env['OPENAI_API_KEY'] = OPENROUTER_KEY;
 }
 if ((process.env['OPENAI_CHAT_MODEL'] ?? '') === '') {
   process.env['OPENAI_CHAT_MODEL'] = 'openai/gpt-4o-mini';
