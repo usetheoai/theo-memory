@@ -9,7 +9,8 @@
  * mensagens" and "Busca semântica no registro de mensagens") before any run. Required env: OPENAI_API_KEY, OPENAI_CHAT_MODEL,
  * MESSAGE_RECALL_OUT (report path). Optional: THEOMEM_PG_URI (admin URI), MESSAGE_RECALL_DB,
  * MESSAGE_RECALL_DISTRACTORS=1 to append the 300 messages of `distractors.json` to every user's
- * log (with embeddings, without extraction), for the large-scope criterion H28 to H30.
+ * log (with embeddings, without extraction), for the large-scope criterion H28 to H30, and
+ * MESSAGE_RECALL_CASES, a comma-separated list of case files (default: the first two sets).
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -48,7 +49,10 @@ const distractors = withDistractors
   : [];
 if (!/^[a-z_][a-z0-9_]*$/.test(dbName)) throw new Error(`MESSAGE_RECALL_DB must be a plain identifier, got '${dbName}'`);
 
-const CASE_FILES = ['cases.json', 'cases-paraphrase.json'] as const;
+const CASE_FILES = (process.env['MESSAGE_RECALL_CASES'] ?? 'cases.json,cases-paraphrase.json').split(',').map((f) => f.trim());
+for (const file of CASE_FILES) {
+  if (!/^cases[a-z-]*\.json$/.test(file)) throw new Error(`MESSAGE_RECALL_CASES names an unexpected file: '${file}'`);
+}
 const caseSets = CASE_FILES.map((file) => {
   const cases = caseFileSchema.parse(JSON.parse(readFileSync(new URL(`./${file}`, import.meta.url), 'utf8')));
   const violations = formViolations(cases);
@@ -56,6 +60,11 @@ const caseSets = CASE_FILES.map((file) => {
   return { file, cases };
 });
 const userIds = caseSets.flatMap((set) => set.cases.users.map((u) => u.id));
+// A distractor that holds an answer would score a false hit.
+for (const q of caseSets.flatMap((set) => set.cases.users.flatMap((u) => u.questions))) {
+  const holding = distractors.find((m) => matchesPattern(q.pattern, m.content));
+  if (holding !== undefined) throw new Error(`Distractor matches the answer pattern /${q.pattern}/: '${holding.content}'`);
+}
 if (new Set(userIds).size !== userIds.length) throw new Error('A user id appears in more than one case file');
 
 const admin = new pg.Pool({ connectionString: adminUri });

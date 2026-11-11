@@ -1,0 +1,99 @@
+{
+  "users": [
+    {
+      "id": "priya",
+      "conversations": [
+        [
+          { "role": "user", "content": "My sourdough starter smells like nail polish remover." },
+          { "role": "assistant", "content": "That acetone smell means it is hungry; feed it twice a day for a few days." }
+        ],
+        [
+          { "role": "user", "content": "The landlord wants to raise the rent by 15 percent." },
+          { "role": "assistant", "content": "Check your lease for a renewal clause and ask him for the increase in writing." }
+        ],
+        [
+          { "role": "user", "content": "My daughter keeps waking up at 5am." },
+          { "role": "assistant", "content": "Blackout curtains and a later bedtime usually shift that wake-up." }
+        ],
+        [
+          { "role": "user", "content": "thanks, bye" },
+          { "role": "assistant", "content": "Bye!" }
+        ]
+      ],
+      "questions": [
+        { "query": "How often should I give my yeast culture flour and water?", "pattern": "twice a day", "form": "paraphrase" },
+        { "query": "What document should I review about the housing cost going up?", "pattern": "lease", "form": "paraphrase" },
+        { "query": "What could stop my child rising before dawn?", "pattern": "blackout curtains", "form": "paraphrase" },
+        { "query": "How much does the landlord want to raise the rent?", "pattern": "15 percent", "form": "lexical" }
+      ]
+    },
+    {
+      "id": "jonah",
+      "conversations": [
+        [
+          { "role": "user", "content": "My hands go numb when I type for long." },
+          { "role": "assistant", "content": "Try a wrist rest and lower the keyboard so your forearms stay level." }
+        ],
+        [
+          { "role": "user", "content": "I'm torn between a kayak and a paddleboard for the lake." },
+          { "role": "assistant", "content": "A sit-on-top kayak is steadier if you want to bring a cooler along." }
+        ],
+        [
+          { "role": "user", "content": "Our smoke alarm chirps every minute at night." },
+          { "role": "assistant", "content": "That chirp is a low battery; swap in a fresh 9-volt." }
+        ]
+      ],
+      "questions": [
+        { "query": "What would ease the tingling in my fingers at the computer?", "pattern": "wrist rest", "form": "paraphrase" },
+        { "query": "Which boat is more stable for carrying drinks on the water?", "pattern": "sit-on-top", "form": "paraphrase" },
+        { "query": "Why does the fire detector beep?", "pattern": "low battery|9-volt", "form": "paraphrase" },
+        { "query": "What did you say about the kayak?", "pattern": "sit-on-top", "form": "lexical" }
+      ]
+    },
+    {
+      "id": "lucia",
+      "conversations": [
+        [
+          { "role": "user", "content": "Minha planta de jiboia está com as folhas amarelando." },
+          { "role": "assistant", "content": "Provavelmente é excesso de rega; deixe o substrato secar entre uma rega e outra." }
+        ],
+        [
+          { "role": "user", "content": "Vou dar uma palestra na semana que vem e fico com a voz trêmula." },
+          { "role": "assistant", "content": "Respire fundo pelo diafragma e ensaie em voz alta três vezes antes." }
+        ],
+        [
+          { "role": "user", "content": "beleza" },
+          { "role": "assistant", "content": "Até mais!" }
+        ]
+      ],
+      "questions": [
+        { "query": "Por que o vegetal da sala está perdendo a cor?", "pattern": "excesso de rega|substrato", "form": "paraphrase" },
+        { "query": "Como controlar o nervosismo ao falar em público?", "pattern": "diafragma", "form": "paraphrase" },
+        { "query": "Quando é a palestra?", "pattern": "semana que vem", "form": "lexical" }
+      ]
+    },
+    {
+      "id": "samir",
+      "conversations": [
+        [
+          { "role": "user", "content": "The car battery died twice this week in the cold." },
+          { "role": "assistant", "content": "Have the alternator tested; if it charges fine, the battery is probably past its life." }
+        ],
+        [
+          { "role": "user", "content": "My parrot started plucking its feathers." },
+          { "role": "assistant", "content": "Feather plucking often comes from boredom, so add foraging toys and see an avian vet." }
+        ],
+        [
+          { "role": "user", "content": "I want to start saving for a house deposit." },
+          { "role": "assistant", "content": "Set up an automatic transfer on payday into a separate high-yield account." }
+        ]
+      ],
+      "questions": [
+        { "query": "What part of the vehicle should a mechanic check for the starting problem?", "pattern": "alternator", "form": "paraphrase" },
+        { "query": "How can I keep the bird entertained?", "pattern": "foraging toys", "form": "paraphrase" },
+        { "query": "How should I put money aside for a home?", "pattern": "automatic transfer|high-yield", "form": "paraphrase" },
+        { "query": "What kind of vet should see the parrot?", "pattern": "avian", "form": "lexical" }
+      ]
+    }
+  ]
+}
