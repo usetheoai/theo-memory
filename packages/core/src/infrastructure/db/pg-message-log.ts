@@ -12,6 +12,8 @@ import type { LoggedMessage, MessageLog } from '../../domain/dip/message-log.js'
 import type { Message } from '../../domain/message.js';
 import type { Filters } from '../../domain/scope.js';
 
+import { scopePartition } from './scope-partition.js';
+
 interface MessageRow {
   readonly message_id: string;
   readonly role: Message['role'];
@@ -115,6 +117,25 @@ export class PgMessageLog implements MessageLog {
         WHERE s.memory_id = $5 AND s.message_id = m.message_id AND ${scopeSql('m')}`,
       [...scopeParams(filters), memoryId],
     );
+    return result.rowCount ?? 0;
+  }
+
+  async eraseScope(filters: Filters): Promise<number> {
+    const partition = scopePartition(filters);
+    const params: string[] = [partition.workspaceId];
+    const clauses = ['workspace_id = $1'];
+    const columns = [['user_id', partition.userId], ['session_id', partition.sessionId], ['agent_id', partition.agentId]] as const;
+    for (const [column, value] of columns) {
+      if (value === undefined) continue;
+      if (value === null) {
+        clauses.push(`${column} IS NULL`);
+      } else {
+        params.push(value);
+        clauses.push(`${column} = $${String(params.length)}`);
+      }
+    }
+    // Their memory_message_sources rows go with them (ON DELETE CASCADE).
+    const result = await this.pool.query(`DELETE FROM memory_messages WHERE ${clauses.join(' AND ')}`, params);
     return result.rowCount ?? 0;
   }
 }

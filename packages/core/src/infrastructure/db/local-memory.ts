@@ -27,6 +27,7 @@ import type { LocalMemoryConfig } from './config.js';
 import { PgEvictor } from './eviction/index.js';
 import { listSkillsBySubjectImpl, makeScopedSkillMemory } from './local-skill-factory.js';
 import { PgvectorStore as PgvectorStoreClass } from './pgvector-store.js';
+import { resetScope } from './scope-reset.js';
 import {
   assertScopeIsNonEmpty,
   deriveScopeFromPayload,
@@ -255,13 +256,9 @@ export class LocalMemory implements Memory {
 
   async reset(scope: Scope): Promise<void> {
     assertScopeIsNonEmpty(scope);
-    const filters = filtersFromScope(scope);
-    // includeSoftDeleted=true: an administrative scope wipe must physically remove
-    // EVERY row in scope, including already-forgotten tombstones (GDPR erasure).
-    const [results] = await this.config.vectorStore.list(filters, 10_000, true);
-    for (const r of results) {
-      await this.config.vectorStore.delete(r.id);
-    }
+    // GDPR erasure: every row of the partition (tombstones included), its logged messages
+    // and its cached recalls. See scope-reset.ts.
+    await resetScope(this.config, this.recallCacheStore, scope, this.workspaceId);
   }
 
   /**

@@ -8,6 +8,8 @@ import type { LoggedMessage, MessageLog } from '../../domain/dip/message-log.js'
 import type { Message } from '../../domain/message.js';
 import type { Filters } from '../../domain/scope.js';
 
+import { matchesPartitionColumn, scopePartition } from './scope-partition.js';
+
 interface Row extends LoggedMessage {
   readonly scopeKey: string;
   readonly seq: number;
@@ -87,5 +89,23 @@ export class InMemoryMessageLog implements MessageLog {
     this.links.delete(`${key}|${memoryId}`);
     await Promise.resolve();
     return erased;
+  }
+
+  async eraseScope(filters: Filters): Promise<number> {
+    const partition = scopePartition(filters);
+    const erased: string[] = [];
+    for (const row of this.rows.values()) {
+      const [workspaceId, userId, sessionId, agentId] = JSON.parse(row.scopeKey) as [string, string | null, string | null, string | null];
+      if (workspaceId === partition.workspaceId
+        && matchesPartitionColumn(partition.userId, userId)
+        && matchesPartitionColumn(partition.sessionId, sessionId)
+        && matchesPartitionColumn(partition.agentId, agentId)) {
+        erased.push(row.id);
+      }
+    }
+    for (const id of erased) this.rows.delete(id);
+    for (const set of this.links.values()) for (const id of erased) set.delete(id);
+    await Promise.resolve();
+    return erased.length;
   }
 }

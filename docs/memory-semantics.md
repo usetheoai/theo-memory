@@ -97,7 +97,9 @@ resolves relative dates ("last Friday") against `observedAt`; without it, they s
 Every write also lands in the scope's raw message log, linked to the memories it produced, and
 the next write's extractor sees the last 10 turns of the same scope as context. A hard forget
 erases the memory's source messages, including their citations of other memories; a soft
-forget keeps them. `recall(query, { includeSources: true })` returns each memory with those
+forget keeps them. `Memory.reset(scope)` deletes the scope's memories and every message logged
+for it, including turns that produced no memory; a session reset leaves the user's global
+memories alone. `recall(query, { includeSources: true })` returns each memory with those
 messages, so the caller can check the fact against what was said.
 `createLocalMemory({ messageLog: false })` turns the log off. See ADR-0027
 and ADR-0028.

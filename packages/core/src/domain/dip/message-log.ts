@@ -44,4 +44,13 @@ export interface MessageLog {
    * Returns the number of messages erased. Called by hard forget.
    */
   eraseSourcesOf(filters: Filters, memoryId: string): Promise<number>;
+
+  /**
+   * Erase every message of a scope, whether or not it produced a memory, with its links.
+   * Matching follows the memory store's scope filter, so a reset erases the same partition
+   * from both: each id present in `filters` must be equal, an absent id matches any value,
+   * and `scopeHierarchy: 'global'` requires no session and no agent. A session hierarchy is a
+   * recall predicate, not a partition, and is rejected. Returns the number of messages erased.
+   */
+  eraseScope(filters: Filters): Promise<number>;
 }

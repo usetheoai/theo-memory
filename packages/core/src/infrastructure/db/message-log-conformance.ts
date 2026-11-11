@@ -130,5 +130,40 @@ export function runMessageLogConformance(name: string, setup: () => Promise<Mess
       expect(await ctx.inScope(userB, () => ctx.log.eraseSourcesOf(userB, memoryId))).toBe(0);
       expect(await ctx.inScope(userA, () => ctx.log.sourcesOf(userA, memoryId))).toHaveLength(1);
     });
+
+    test('eraseScope erases every message of the scope, with or without a memory, and counts them', async () => {
+      const memoryId = await ctx.inScope(userA, () => ctx.createMemory(userA));
+      const [linked] = await ctx.inScope(userA, () => ctx.log.append(userA, [{ role: 'user', content: 'produced a fact' }]));
+      await ctx.inScope(userA, () => ctx.log.append(userA, [{ role: 'user', content: 'produced nothing' }]));
+      await ctx.inScope(userA, () => ctx.log.linkSources(userA, [memoryId], [linked!]));
+      expect(await ctx.inScope(userA, () => ctx.log.eraseScope({ ...userA, scopeHierarchy: 'global' }))).toBe(2);
+      expect(await ctx.inScope(userA, () => ctx.log.recent(userA, 10))).toEqual([]);
+      expect(await ctx.inScope(userA, () => ctx.log.sourcesOf(userA, memoryId))).toEqual([]);
+    });
+
+    test("eraseScope of a user's global scope keeps that user's sessions and every other user", async () => {
+      await ctx.inScope(userA, () => ctx.log.append(userA, [{ role: 'user', content: 'global of A' }]));
+      await ctx.inScope(sessionA, () => ctx.log.append(sessionA, [{ role: 'user', content: 'session of A' }]));
+      await ctx.inScope(userB, () => ctx.log.append(userB, [{ role: 'user', content: 'global of B' }]));
+      await ctx.inScope(userA, () => ctx.log.eraseScope({ ...userA, scopeHierarchy: 'global' }));
+      expect((await ctx.inScope(sessionA, () => ctx.log.recent(sessionA, 10))).map((m) => m.content)).toEqual(['session of A']);
+      expect((await ctx.inScope(userB, () => ctx.log.recent(userB, 10))).map((m) => m.content)).toEqual(['global of B']);
+    });
+
+    test("eraseScope of a user's session keeps the user's global messages", async () => {
+      await ctx.inScope(userA, () => ctx.log.append(userA, [{ role: 'user', content: 'global of A' }]));
+      await ctx.inScope(sessionA, () => ctx.log.append(sessionA, [{ role: 'user', content: 'session of A' }]));
+      expect(await ctx.inScope(sessionA, () => ctx.log.eraseScope(sessionA))).toBe(1);
+      expect((await ctx.inScope(userA, () => ctx.log.recent(userA, 10))).map((m) => m.content)).toEqual(['global of A']);
+      expect(await ctx.inScope(sessionA, () => ctx.log.recent(sessionA, 10))).toEqual([]);
+    });
+
+    test('eraseScope without a user erases that session for every user', async () => {
+      await ctx.inScope(sessionA, () => ctx.log.append(sessionA, [{ role: 'user', content: 'session of A' }]));
+      const sessionB: Filters = { ...userB, session_id: 'conformance-session' };
+      await ctx.inScope(sessionB, () => ctx.log.append(sessionB, [{ role: 'user', content: 'session of B' }]));
+      const anyUser: Filters = { workspace_id: 'default', session_id: 'conformance-session' };
+      expect(await ctx.inScope(anyUser, () => ctx.log.eraseScope(anyUser))).toBe(2);
+    });
   });
 }
