@@ -1434,8 +1434,8 @@ export class PgvectorStore implements VectorStore {
 
   /**
    * v0.7 T2.1 — persist N `ConflictResolutionResult` rows atomically: for each
-   * result, soft-delete the rejected memory ids (`t_invalid = NOW()` per
-   * ADR-0006) AND insert one `consolidation_history` audit row. EC-8 absorbed:
+   * result, soft-delete the rejected memory ids (`t_invalid` = the kept memory's valid-from,
+   * #237) AND insert one `consolidation_history` audit row. EC-8 absorbed:
    * the entire batch runs inside a single `withTransaction` so a mid-batch
    * `INSERT consolidation_history` failure rolls BOTH the soft-deletes AND
    * any earlier inserts; the consumer never observes half-applied state.
@@ -1476,10 +1476,19 @@ export class PgvectorStore implements VectorStore {
           promotedCount += 1;
         }
         if (r.rejectedMemoryIds.length > 0) {
+          // #237: a rejected memory stops being valid when the kept one became valid (its t_valid,
+          // else its created_at), as supersession on write does (ADR-0029), so `recall({ asOf })`
+          // between the change and this run returns only the kept value. A rejected memory that
+          // started after the kept one has no such end, so it falls back to NOW(), as before.
           await client.query(
-            `UPDATE memories SET t_invalid = NOW()
-              WHERE id = ANY($1::uuid[]) AND t_invalid IS NULL`,
-            [[...r.rejectedMemoryIds]],
+            `UPDATE memories m
+                SET t_invalid = COALESCE(
+                  (SELECT COALESCE(k.t_valid, k.created_at) FROM memories k
+                    WHERE k.id = $2::uuid
+                      AND COALESCE(k.t_valid, k.created_at) >= COALESCE(m.t_valid, m.created_at)),
+                  NOW())
+              WHERE m.id = ANY($1::uuid[]) AND m.t_invalid IS NULL`,
+            [[...r.rejectedMemoryIds], r.keptMemoryId],
           );
         }
         await client.query(

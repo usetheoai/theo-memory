@@ -58,4 +58,15 @@ describe.skipIf(PG_URI === undefined || PG_URI === '')('reflect conflict resolut
     expect(await invalid(january)).toBe(true);
     expect(await invalid(july)).toBe(false);
   });
+
+  test('the invalidated memory stops being valid when the kept one became valid, not when reflect ran', async () => {
+    await memory.user('anna').reflect({ conflictResolution: new LlmJudgedMergeConflictPolicy({ llm: judge(() => july, () => january) }) });
+
+    const { rows } = await db.setupPool.query<{ t_invalid: Date }>('SELECT t_invalid FROM memories WHERE id = $1', [january]);
+    expect(rows[0]?.t_invalid.toISOString()).toBe('2023-07-20T00:00:00.000Z');
+    const between = await memory.user('anna').recall('team', { topK: 10, asOf: new Date('2023-09-01T00:00:00Z') });
+    expect(between.map((m) => m.text)).toEqual(['team has 6 women']);
+    const before = await memory.user('anna').recall('team', { topK: 10, asOf: new Date('2023-03-01T00:00:00Z') });
+    expect(before.map((m) => m.text)).toEqual(['team has 5 women']);
+  });
 });

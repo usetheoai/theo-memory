@@ -125,6 +125,11 @@ replaced ids in `supersedes`. The extractor decides, so a wrong call can hide a 
 from current recall; it is never deleted. `createLocalMemory({ supersedeOnWrite: false })`
 turns this off. See ADR-0029.
 
+`reflect` with a conflict policy replaces facts the same way: a fact it rejects stops being true
+when the fact it keeps became true, not when reflect ran, and `consolidation_history` records the
+decision with its reason. The LLM judge resolves at most one replacement per cluster in one run
+(#237), so a scope holding several stale values may need more than one run.
+
 ## Loading both contexts and saving off the live path
 
 `MemorySession` coordinates an authenticated `ScopedMemory` with an application
