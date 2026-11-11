@@ -59,7 +59,8 @@ try {
   });
 
   const questions: { user: string; query: string; asOf: string | undefined; kind: QuestionKind; answer: boolean; stale: boolean; top: string[] }[] = [];
-  const supersessions: { user: string; replaced: string; by: string }[] = [];
+  const supersessions: { user: string; replaced: string; by: string; replacedKind: string | null; byKind: string | null }[] = [];
+  const memories: { user: string; text: string; factKind: string | null; current: boolean }[] = [];
   const stored: { user: string; facts: number; memories: number; current: number }[] = [];
 
   const ask = async (scope: ReturnType<typeof memory.user>, q: JudgeQuestion) => {
@@ -81,12 +82,20 @@ try {
       [user.id],
     );
     stored.push({ user: user.id, facts: user.facts.length, memories: Number(memRows[0]!.total), current: Number(memRows[0]!.current) });
-    const { rows: hist } = await pool.query<{ prev_text: string | null; new_text: string | null }>(
-      `SELECT h.prev_text, h.new_text FROM history h JOIN memories m ON m.id = h.memory_id
+    // fact_kind is read from the payload when the write path stores it (#252); null otherwise.
+    const { rows: hist } = await pool.query<{ prev_text: string | null; new_text: string | null; replaced_kind: string | null; by_kind: string | null }>(
+      `SELECT h.prev_text, h.new_text, m.payload->>'fact_kind' AS replaced_kind,
+              (SELECT n.payload->>'fact_kind' FROM memories n WHERE n.user_id = $1 AND n.text = h.new_text LIMIT 1) AS by_kind
+         FROM history h JOIN memories m ON m.id = h.memory_id
         WHERE h.event = 'supersede' AND m.user_id = $1 ORDER BY h.id`,
       [user.id],
     );
-    for (const h of hist) supersessions.push({ user: user.id, replaced: h.prev_text ?? '', by: h.new_text ?? '' });
+    for (const h of hist) supersessions.push({ user: user.id, replaced: h.prev_text ?? '', by: h.new_text ?? '', replacedKind: h.replaced_kind, byKind: h.by_kind });
+    const { rows: mems } = await pool.query<{ text: string; fact_kind: string | null; current: boolean }>(
+      `SELECT text, payload->>'fact_kind' AS fact_kind, t_invalid IS NULL AS current FROM memories WHERE user_id = $1 ORDER BY created_at`,
+      [user.id],
+    );
+    for (const m of mems) memories.push({ user: user.id, text: m.text, factKind: m.fact_kind, current: m.current });
     for (const q of user.questions) {
       const result = await ask(scope, q);
       questions.push({ user: user.id, query: q.query, asOf: q.asOf, kind: questionKind(user, q), ...result });
@@ -107,10 +116,11 @@ try {
       replacedBy: supersessions.filter((s) => s.user === q.user && matches(cases.users.find((u) => u.id === q.user)!.questions.find((x) => x.query === q.query)!.pattern, s.replaced)).map((s) => s.by),
     })),
     supersessions: supersessions.length,
+    factKinds: Object.fromEntries(['state', 'event', 'none'].map((k) => [k, memories.filter((m) => (m.factKind ?? 'none') === k).length])),
     stored,
   };
   mkdirSync(dirname(outPath), { recursive: true });
-  writeFileSync(outPath, JSON.stringify({ caseFile, model: process.env['OPENAI_CHAT_MODEL'], factListSize: FACT_LIST_SIZE, summary, supersessions, questions }, null, 2));
+  writeFileSync(outPath, JSON.stringify({ caseFile, model: process.env['OPENAI_CHAT_MODEL'], factListSize: FACT_LIST_SIZE, summary, supersessions, memories, questions }, null, 2));
   console.log(JSON.stringify(summary, null, 2));
 } finally {
   await pool.end();
