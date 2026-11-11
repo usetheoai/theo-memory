@@ -11,38 +11,21 @@
  * Optional: THEOMEM_PG_URI (admin URI), CONSOLIDATION_JUDGE_DB, CONSOLIDATION_JUDGE_CASES (case
  * file in this directory, default judge-cases.json).
  */
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 import pg from 'pg';
-import { z } from 'zod';
 
 import { createLocalMemory, LlmJudgedMergeConflictPolicy, PgvectorStore, runMigrations } from '@usetheo/memory';
 import { OpenAICompatibleEmbedder } from '@usetheo/memory/embedders/openai-compatible';
 import { OpenAILLM } from '@usetheo/memory/llms/openai';
 
+import { loadJudgeCases, matches, questionKind, type JudgeQuestion, type QuestionKind } from './judge-cases.js';
+
 /** Fixed before measuring: Principle 2 asks for short lists. */
 const FACT_LIST_SIZE = 5;
 const EMBEDDING_MODEL = 'text-embedding-3-small';
 const EMBEDDING_DIM = 1536;
-
-const factSchema = z.object({
-  key: z.string().min(1),
-  text: z.string().min(1),
-  observedAt: z.string().date(),
-  role: z.enum(['distinct', 'old', 'new']),
-  update: z.string().optional(),
-  loggedOutOfOrder: z.boolean().optional(),
-});
-const questionSchema = z.object({
-  query: z.string().min(1),
-  pattern: z.string().min(1),
-  stalePattern: z.string().optional(),
-  asOf: z.string().date().optional(),
-});
-const casesSchema = z.object({
-  users: z.array(z.object({ id: z.string().min(1), facts: z.array(factSchema), questions: z.array(questionSchema) })),
-});
 
 function requiredEnv(name: string): string {
   const value = process.env[name];
@@ -58,21 +41,7 @@ const dbName = process.env['CONSOLIDATION_JUDGE_DB'] ?? 'themem_consolidation_ju
 if (!/^[a-z_][a-z0-9_]*$/.test(dbName)) throw new Error(`CONSOLIDATION_JUDGE_DB must be a plain identifier, got '${dbName}'`);
 
 const caseFile = process.env['CONSOLIDATION_JUDGE_CASES'] ?? 'judge-cases.json';
-if (!/^judge-cases[a-z-]*\.json$/.test(caseFile)) throw new Error(`CONSOLIDATION_JUDGE_CASES names an unexpected file: '${caseFile}'`);
-const cases = casesSchema.parse(JSON.parse(readFileSync(new URL(`./${caseFile}`, import.meta.url), 'utf8')));
-for (const user of cases.users) {
-  const updates = new Map<string, string[]>();
-  for (const f of user.facts) {
-    if (f.role === 'distinct') continue;
-    if (f.update === undefined) throw new Error(`${user.id}/${f.key}: an update fact needs 'update'`);
-    updates.set(f.update, [...(updates.get(f.update) ?? []), f.role]);
-  }
-  for (const [name, roles] of updates) {
-    if (roles.sort().join() !== 'new,old') throw new Error(`${user.id}: update '${name}' needs exactly one old and one new fact`);
-  }
-}
-
-const matches = (pattern: string, text: string): boolean => new RegExp(pattern, 'i').test(text);
+const cases = loadJudgeCases(caseFile);
 
 const admin = new pg.Pool({ connectionString: adminUri });
 try {
@@ -98,8 +67,6 @@ try {
   const policy = new LlmJudgedMergeConflictPolicy({ llm });
 
   const facts: { user: string; key: string; role: string; update: string | undefined; outOfOrder: boolean; invalidated: boolean }[] = [];
-  /** distinct: about a distinct fact; current / asOf-before-change / asOf-after-change: about an update. */
-  type QuestionKind = 'distinct' | 'current' | 'asOf-before-change' | 'asOf-after-change';
   const questions: {
     user: string; query: string; asOf: string | undefined; kind: QuestionKind;
     before: { answer: boolean; stale: boolean; top: string[] };
@@ -107,7 +74,7 @@ try {
   }[] = [];
   const reflections: { user: string; derived: number; decisions: unknown[] }[] = [];
 
-  const ask = async (scope: ReturnType<typeof memory.user>, q: z.infer<typeof questionSchema>) => {
+  const ask = async (scope: ReturnType<typeof memory.user>, q: JudgeQuestion) => {
     const items = await scope.recall(q.query, { topK: FACT_LIST_SIZE, ...(q.asOf === undefined ? {} : { asOf: new Date(`${q.asOf}T12:00:00Z`) }) });
     const top = items.map((i) => i.text);
     return {
@@ -152,13 +119,7 @@ try {
       facts.push({ user: user.id, key: f.key, role: f.role, update: f.update, outOfOrder: f.loggedOutOfOrder === true, invalidated: invalid.get(ids.get(f.key)!) === true });
     }
     const after = await Promise.all(user.questions.map((q) => ask(scope, q)));
-    const oldTexts = user.facts.filter((f) => f.role === 'old').map((f) => f.text);
-    const kindOf = (q: z.infer<typeof questionSchema>): QuestionKind => {
-      if (q.stalePattern === undefined) return 'distinct';
-      if (q.asOf === undefined) return 'current';
-      return oldTexts.some((t) => matches(q.stalePattern!, t)) ? 'asOf-after-change' : 'asOf-before-change';
-    };
-    user.questions.forEach((q, i) => questions.push({ user: user.id, query: q.query, asOf: q.asOf, kind: kindOf(q), before: before[i]!, after: after[i]! }));
+    user.questions.forEach((q, i) => questions.push({ user: user.id, query: q.query, asOf: q.asOf, kind: questionKind(user, q), before: before[i]!, after: after[i]! }));
     console.log(`[consolidation-judge] ${user.id}: ${String(result.derivedMemoriesCreated)} derived, ${String(decisions.rowCount ?? 0)} decisions`);
   }
 
