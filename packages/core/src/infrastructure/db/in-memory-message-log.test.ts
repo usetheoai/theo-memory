@@ -10,5 +10,6 @@ runMessageLogConformance('InMemoryMessageLog', () => {
     createMemory: () => Promise.resolve(randomUUID()),
     inScope: (_filters, fn) => fn(),
     reset: () => Promise.resolve(),
+    embeddingDim: 8,
   });
 });

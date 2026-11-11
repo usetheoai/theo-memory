@@ -104,6 +104,30 @@ describe.skipIf(ROOT_PG_URI === '')(
  await pool.end();
  });
 
+ it('message embeddings follow the dimension change: messages kept, vectors cleared', async () => {
+ const pool = new pg.Pool({ connectionString: testUri });
+ const m = await import('@usetheo/memory');
+ try {
+ await m.runMigrations(pool);
+ const vec = `[${Array.from({ length: 1536 }, () => '0.1').join(',')}]`;
+ await pool.query(
+ `INSERT INTO memory_messages (workspace_id, user_id, role, content, embedding)
+ VALUES ('default', 'u-dim', 'user', 'my knee hurts', $1::vector)`,
+ [vec],
+ );
+
+ await m.runMigrations(pool, { embeddingDim: 384 });
+
+ expect(await getColumnDim(pool, 'memory_messages')).toBe(384);
+ const { rows } = await pool.query<{ content: string; embedding: string | null }>(
+ 'SELECT content, embedding::text AS embedding FROM memory_messages',
+ );
+ expect(rows).toEqual([{ content: 'my knee hurts', embedding: null }]);
+ } finally {
+ await pool.end();
+ }
+ });
+
  it('EC-4: runMigrations parametric recreates HNSW indexes after ALTER', async () => {
  const pool = new pg.Pool({ connectionString: testUri });
  const m = await import('@usetheo/memory');

@@ -1,6 +1,7 @@
 /**
- * GET /v1/scopes/:type/:id/messages/search — Okapi BM25 search over the raw messages the scope
- * can see (ADR-0031), separate from recall. Reaches a turn extraction kept no fact of.
+ * GET /v1/scopes/:type/:id/messages/search — hybrid search over the raw messages the scope can
+ * see (ADR-0031): Okapi BM25 fused with embedding similarity by Reciprocal Rank Fusion. Separate
+ * from recall; reaches a turn extraction kept no fact of, also when the query is a paraphrase.
  *
  * Same scope boundary as the episodes and listing endpoints: the user tier binds to the acting
  * Principal, session and agent tiers carry its userId. Query validation failures answer 422; a

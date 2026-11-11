@@ -35,6 +35,8 @@ export const PreparedMemoryBatchSchema=z.object({
   edges:z.array(z.object({memoryId:z.string().uuid(),edges:z.array(edgeSchema).max(50)})).max(256),
   /** ADR-0029: existing memories a staged fact replaces; applied in the commit transaction. Absent in older drafts. */
   supersessions:z.array(z.object({memoryId:z.string().uuid(),supersededIds:z.array(z.string().uuid()).min(1).max(10)})).max(256).default([]),
+  /** ADR-0031: embedding of the logged input message, computed in prepare. Absent in older drafts. */
+  messageVector:vectorSchema.optional(),
 }).strict();
 type PreparedBatch=z.infer<typeof PreparedMemoryBatchSchema>;
 
@@ -105,7 +107,9 @@ export class PgMemoryJobProcessor implements MemoryJobProcessor {
           ...(job.input.originSourceId!==undefined?{originSourceId:job.input.originSourceId}:{})},
       },previous);
       if(graphFailures.length>0)throw new Error('Graph preparation was incomplete.');
-      return PreparedMemoryBatchSchema.parse({facts:staging.facts,nodes:nodeCalls,edges:edgeCalls,supersessions:staging.supersessions});
+      const messageVector=this.config.messageLog===false||staging.facts.length===0?undefined:await embedder.embed(job.input.text);
+      return PreparedMemoryBatchSchema.parse({facts:staging.facts,nodes:nodeCalls,edges:edgeCalls,supersessions:staging.supersessions,
+        ...(messageVector!==undefined?{messageVector:[...messageVector]}:{})});
     });
   }
 
@@ -144,7 +148,8 @@ export class PgMemoryJobProcessor implements MemoryJobProcessor {
       // ADR-0027: the input joins the log in the same transaction as its facts, so a rollback drops both.
       if(this.config.messageLog!==false&&persisted.size>0){
         const log=new PgMessageLog(pool);
-        await log.linkSources(filters,[...new Set(persisted.values())],await log.append(filters,[{role:'user',content:job.input.text}]));
+        await log.linkSources(filters,[...new Set(persisted.values())],
+          await log.append(filters,[{role:'user',content:job.input.text}],undefined,[draft.messageVector??null]));
       }
       const entities=new PgMemoryEntityStore(pool),graph=new PgMemoryGraphStore(pool);
       for(const node of draft.nodes){

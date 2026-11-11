@@ -5,8 +5,11 @@
 import { randomUUID } from 'node:crypto';
 
 import type { LoggedMessage, MessageLog, MessageSearchOptions, ScoredLoggedMessage } from '../../domain/dip/message-log.js';
+import { assertEmbeddingsAligned } from '../../domain/dip/message-log.js';
 import type { Message } from '../../domain/message.js';
 import { bm25Scores } from '../../domain/retrieval/bm25.js';
+import { cosineSimilarity } from '../../domain/retrieval/cosine.js';
+import { reciprocalRankFusion } from '../../domain/retrieval/rank-fusion.js';
 import type { Filters } from '../../domain/scope.js';
 
 import { isVisible, matchesPartitionColumn, scopePartition, scopeVisibility } from './scope-partition.js';
@@ -14,6 +17,7 @@ import { isVisible, matchesPartitionColumn, scopePartition, scopeVisibility } fr
 interface Row extends LoggedMessage {
   readonly scopeKey: string;
   readonly seq: number;
+  readonly embedding: readonly number[] | null;
 }
 
 function scopeKey(filters: Filters): string {
@@ -30,6 +34,10 @@ function tokenize(text: string): string[] {
   return text.toLowerCase().split(/\W+/).filter((t) => t.length > 0);
 }
 
+function byScoreThenId(a: { id: string; score: number }, b: { id: string; score: number }): number {
+  return b.score - a.score || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+}
+
 function project(row: Row): LoggedMessage {
   return { id: row.id, role: row.role, content: row.content, observedAt: row.observedAt, loggedAt: row.loggedAt };
 }
@@ -40,16 +48,23 @@ export class InMemoryMessageLog implements MessageLog {
   private readonly links = new Map<string, Set<string>>();
   private seq = 0;
 
-  async append(filters: Filters, messages: readonly Message[], observedAt?: Date): Promise<readonly string[]> {
+  async append(
+    filters: Filters,
+    messages: readonly Message[],
+    observedAt?: Date,
+    embeddings?: readonly (readonly number[] | null)[],
+  ): Promise<readonly string[]> {
+    assertEmbeddingsAligned(messages, embeddings);
     const key = scopeKey(filters);
     const loggedAt = new Date();
-    const ids = messages.map((m) => {
+    const ids = messages.map((m, index) => {
       const id = randomUUID();
       this.seq += 1;
       this.rows.set(id, {
         id, role: m.role, content: m.content,
         observedAt: observedAt === undefined ? null : new Date(observedAt),
         loggedAt, scopeKey: key, seq: this.seq,
+        embedding: embeddings?.[index] ?? null,
       });
       return id;
     });
@@ -125,12 +140,24 @@ export class InMemoryMessageLog implements MessageLog {
     const asOf = filters.asOf;
     const visible = [...this.rows.values()].filter((row) => isVisible(visibility, rowScope(row))
       && (asOf === undefined || (row.observedAt ?? row.loggedAt) <= asOf));
-    const scores = bm25Scores(tokenize(query), visible.map((row) => ({ id: row.id, terms: tokenize(row.content) })));
+    const bm25 = bm25Scores(tokenize(query), visible.map((row) => ({ id: row.id, terms: tokenize(row.content) })));
+    const lexical = visible
+      .filter((row) => bm25.has(row.id))
+      .map((row) => ({ id: row.id, score: bm25.get(row.id) ?? 0 }))
+      .sort(byScoreThenId);
+    const queryVector = options.queryVector;
+    const ranked = queryVector === undefined
+      ? lexical
+      : reciprocalRankFusion([
+        lexical.map((r) => r.id),
+        visible
+          .filter((row) => row.embedding !== null)
+          .map((row) => ({ id: row.id, score: cosineSimilarity(queryVector, row.embedding!) }))
+          .sort(byScoreThenId)
+          .map((r) => r.id),
+      ]);
     await Promise.resolve();
-    return visible
-      .filter((row) => scores.has(row.id))
-      .map((row) => ({ ...project(row), score: scores.get(row.id) ?? 0 }))
-      .sort((a, b) => b.score - a.score || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
-      .slice(0, Math.max(0, options.limit));
+    return ranked.slice(0, Math.max(0, options.limit)).map((r) => ({ ...project(this.rows.get(r.id)!), score: r.score }));
   }
+
 }

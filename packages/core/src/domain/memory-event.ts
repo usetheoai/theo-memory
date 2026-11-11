@@ -137,7 +137,8 @@ export const MEMORY_EVENTS = [
   // history_persist_failed. @see CLAUDE.md § IMPORTANTE Princípio 3
   'retrieval_counted_failed',
   // ADR-0027 — reading or appending the raw message log failed. Non-fatal: the write already
-  // committed (or extraction proceeds without context). Attribute `operation` is recent|append.
+  // committed (or extraction proceeds without context). Attribute `operation` is recent|append|embed
+  // (embed: the messages were logged without embeddings, findable by their words only; ADR-0031).
   'message_log_failed',
   'memory_superseded',
   'supersession_rejected',

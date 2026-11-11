@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, test } from 'vitest';
 
-import { caseFileSchema, formViolations, summarize, type QuestionResult } from './scoring.js';
+import { caseFileSchema, formViolations, summarize, summarizeSemantic, type QuestionResult, type SemanticResult } from './scoring.js';
 
 const row = (over: Partial<QuestionResult>): QuestionResult => ({
   user: 'u', query: 'q', form: 'lexical', lostByExtraction: true, messagesHit: true, factsHit: false, recallUnchanged: true, ...over,
@@ -37,5 +37,34 @@ describe('message-recall scoring', () => {
 
   test('H24 fails when any recall changed', () => {
     expect(summarize([row({}), row({ recallUnchanged: false })]).h24Pass).toBe(false);
+  });
+
+  describe('semantic message search (H25, H26)', () => {
+    const sem = (over: Partial<SemanticResult>): SemanticResult => ({ ...row({ form: 'paraphrase' }), bm25Hit: false, ...over });
+
+    test('H25 passes at 60% of lost paraphrases when hybrid beats BM25', () => {
+      const s = summarizeSemantic([sem({}), sem({}), sem({}), sem({ messagesHit: false }), sem({ messagesHit: false })]);
+      expect(s.h25).toEqual({ hybrid: { hits: 3, total: 5 }, bm25: { hits: 0, total: 5 } });
+      expect(s.h25Pass).toBe(true);
+    });
+
+    test('H25 fails below 60% or without beating BM25', () => {
+      expect(summarizeSemantic([sem({}), sem({ messagesHit: false })]).h25Pass).toBe(false);
+      expect(summarizeSemantic([sem({ bm25Hit: true }), sem({ bm25Hit: true })]).h25Pass).toBe(false);
+    });
+
+    test('H25 ignores paraphrases that extraction kept', () => {
+      expect(summarizeSemantic([sem({ lostByExtraction: false })]).h25.hybrid.total).toBe(0);
+    });
+
+    test('H26 fails when hybrid loses a lexical question BM25 found', () => {
+      const lex = (over: Partial<SemanticResult>) => sem({ form: 'lexical', ...over });
+      expect(summarizeSemantic([lex({ bm25Hit: true, messagesHit: false })]).h26Pass).toBe(false);
+      expect(summarizeSemantic([lex({ bm25Hit: true }), lex({ messagesHit: false })]).h26Pass).toBe(true);
+    });
+
+    test('H27 fails when any recall changed', () => {
+      expect(summarizeSemantic([sem({ recallUnchanged: false })]).h27Pass).toBe(false);
+    });
   });
 });

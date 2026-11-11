@@ -31,11 +31,26 @@ export interface ScoredLoggedMessage extends LoggedMessage {
 export interface MessageSearchOptions {
   /** Maximum number of messages returned. */
   readonly limit: number;
+  /**
+   * The query's embedding. When given, the BM25 ranking and the cosine ranking of the visible
+   * messages that carry an embedding are fused by Reciprocal Rank Fusion (ADR-0031), and each
+   * result's `score` is the fused score. Without it, the search is BM25 only.
+   */
+  readonly queryVector?: readonly number[];
 }
 
 export interface MessageLog {
-  /** Append messages to the scope's log, in order. Returns one id per message, in the same order. */
-  append(filters: Filters, messages: readonly Message[], observedAt?: Date): Promise<readonly string[]>;
+  /**
+   * Append messages to the scope's log, in order. Returns one id per message, in the same order.
+   * `embeddings`, when given, holds one vector (or null) per message, aligned with `messages`;
+   * a message stored without one is reachable by `search` through its words only.
+   */
+  append(
+    filters: Filters,
+    messages: readonly Message[],
+    observedAt?: Date,
+    embeddings?: readonly (readonly number[] | null)[],
+  ): Promise<readonly string[]>;
 
   /** Record that each memory in `memoryIds` was produced from each message in `messageIds`. Idempotent. */
   linkSources(filters: Filters, memoryIds: readonly string[], messageIds: readonly string[]): Promise<void>;
@@ -69,7 +84,18 @@ export interface MessageLog {
    * the query are left out. Visibility follows the memory store: a user's global scope sees no
    * session or agent messages, and a user-bound session (`scopeHierarchy: { session }`) sees its
    * own messages plus the user's global ones. With `filters.asOf`, a message observed (or, without
-   * an observation time, logged) after that instant is left out.
+   * an observation time, logged) after that instant is left out. With `options.queryVector`, the
+   * ranking is hybrid (see `MessageSearchOptions.queryVector`) and a message need not share a word.
    */
   search(filters: Filters, query: string, options: MessageSearchOptions): Promise<readonly ScoredLoggedMessage[]>;
+}
+
+/**
+ * Checks the `embeddings` argument of `MessageLog.append`: absent, or one entry per message.
+ * Every adapter calls it first, so a misaligned batch fails before anything is written.
+ */
+export function assertEmbeddingsAligned(messages: readonly Message[], embeddings: readonly unknown[] | undefined): void {
+  if (embeddings !== undefined && embeddings.length !== messages.length) {
+    throw new RangeError(`MessageLog.append: ${String(embeddings.length)} embeddings for ${String(messages.length)} messages`);
+  }
 }

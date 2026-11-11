@@ -89,8 +89,16 @@ export async function runExtractionPipeline(
   }
   const items = await extractAndPersist(messages, filters, deps, options, previous);
   if (items.some((item) => item.idempotentReplay === true)) return items;
+  // ADR-0031: each logged message carries its embedding for search by meaning. Without one it is
+  // still logged and found by its words, so an embedding failure is reported, never fatal.
+  let embeddings: readonly (readonly number[])[] | undefined;
   try {
-    const messageIds = await log.append(filters, messages, options?.observedAt);
+    embeddings = await deps.embedder.embedBatch(messages.map((m) => m.content));
+  } catch (err) {
+    emitEvent(deps.tracer, 'message_log_failed', { operation: 'embed', error: err instanceof Error ? err.name : 'UnknownError' });
+  }
+  try {
+    const messageIds = await log.append(filters, messages, options?.observedAt, embeddings);
     await log.linkSources(filters, items.map((item) => item.id), messageIds);
   } catch (err) {
     emitEvent(deps.tracer, 'message_log_failed', { operation: 'append', error: err instanceof Error ? err.name : 'UnknownError' });

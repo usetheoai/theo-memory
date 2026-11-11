@@ -55,6 +55,7 @@ if (PG_URI === undefined || PG_URI === '') {
       reset: async () => {
         await setupPool.query('TRUNCATE memory_message_sources, memory_messages, memories RESTART IDENTITY CASCADE');
       },
+      embeddingDim: 1536,
     }));
 
   describe('PgMessageLog erasure enforced by the database', () => {

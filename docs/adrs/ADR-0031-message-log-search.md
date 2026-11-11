@@ -1,4 +1,4 @@
-# ADR-0031: Lexical search over the raw message log
+# ADR-0031: Search over the raw message log
 
 Status: Implemented
 
@@ -44,13 +44,15 @@ of 27 questions; facts or messages answered 17.
   second list would change its contract for every consumer.
 - Merge messages into the fact ranking. Rejected: raw turns and extracted facts score on
   different scales, and a turn would displace the fact derived from it.
-- Embed every message for semantic search. Deferred: the same evaluation answered 1 of 11
-  paraphrased questions from messages, and that hit came from Portuguese function words matching
-  under the `english` dictionary. Embedding is the next candidate, gated on its own criteria.
+- Embed every message for semantic search. Deferred at first: the same evaluation answered 1 of
+  11 paraphrased questions from messages, and that hit came from Portuguese function words
+  matching under the `english` dictionary. Adopted later on its own criteria; see the amendment
+  below.
 
 ## Consequences
 
-Lexical only: a question that shares no word with the turn rarely finds it. Postgres uses the
+As first shipped, the search was lexical only: a question that shares no word with the turn
+rarely found it. Postgres uses the
 `english` dictionary, so Portuguese text gets no stemming and its function words match, which
 puts unrelated turns in the list. The search scans the scope's messages on each call, with no
 index; that is linear in the scope's log size.
@@ -58,3 +60,32 @@ index; that is linear in the scope's log size.
 REST serves it as `GET /v1/scopes/{type}/{id}/messages/search` and MCP as the `search_messages`
 tool, both bound to the acting user the same way as recall; the MCP isolation gate covers it
 across workspaces and across users of one workspace.
+
+## Amendment, 2026-11-11: embeddings and rank fusion
+
+Each logged message stores its embedding (migration 0038, nullable, same dimension as
+`memories.embedding`), computed with the memory's embedder in one batch per write; the durable
+job path computes it in `prepare`, outside the commit transaction. With a query vector,
+`MessageLog.search` fuses two rankings of the visible messages by Reciprocal Rank Fusion with the
+published constant k = 60, unfitted: the BM25 ranking, and the cosine ranking of the messages that
+carry an embedding. Both rankings break ties on message id, in both adapters. `searchMessages`
+always embeds the query; an embedder failure throws, as in `recall`. On write, an embedding
+failure keeps the message without a vector, emits `message_log_failed` (`operation: embed`), and
+the message stays findable by its words. There is no ANN index: the scan covers one scope's
+messages and gives exact ranks.
+
+The list is now ranked, not filtered: with fewer matching turns than `limit`, neighbours by
+meaning fill it, and `score` is the fused score instead of BM25.
+
+Evidence: criteria H25 to H27 were fixed before the code (docs/benchmarks/m30-longmemeval-local.md),
+and a second hand-written case set (`cases-paraphrase.json`, 4 users) was committed before the
+implementation. In one run over both sets (9 users, 42 questions), among paraphrased questions
+extraction lost, the hybrid list held the answer in 19 of 20 and the BM25 list in 4 of 20; among
+lexical ones, 15 of 15 for both. `recall` was unchanged in 42 of 42.
+
+The 60% bar of H25 turned out weak: scopes in these sets hold 6 to 11 messages, so 5 random
+messages would contain the answer about 61% of the time. Top-1 is the stronger reading, recorded
+after the fact rather than as a criterion: the answer ranked first in 11 of 20 lost paraphrases,
+against about 2.5 expected by chance, with a mean reciprocal rank of 0.71. A test with large scopes
+and distractor turns is still to come before any claim beyond these sets.
+

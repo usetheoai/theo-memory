@@ -39,7 +39,7 @@ describe('GET /v1/scopes/:type/:id/messages/search', () => {
 
     expect(res.status).toBe(200);
     const body = (await res.json()) as Body;
-    expect(body.items).toHaveLength(1);
+    // The ranking is hybrid (ADR-0031): the other turn may follow as a neighbour by meaning.
     expect(body.items[0]).toMatchObject({ role: 'user', content: 'If the insomnia continues, try chamomile tea.', observed_at: '2024-03-01T08:00:00.000Z' });
     expect(body.items[0]!.score).toBeGreaterThan(0);
   });

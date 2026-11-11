@@ -101,8 +101,9 @@ forget keeps them. `Memory.reset(scope)` deletes the scope's memories and every 
 for it, including turns that produced no memory; a session reset leaves the user's global
 memories alone. `recall(query, { includeSources: true })` returns each memory with those
 messages, so the caller can check the fact against what was said.
-`searchMessages(query)` searches those messages directly (BM25, five by default), which
-reaches a turn extraction kept no fact of; it matches words, not meaning.
+`searchMessages(query)` searches those messages directly (BM25 fused with embedding
+similarity, five by default), which reaches a turn extraction kept no fact of, also when the
+question is a paraphrase. The list is ranked, not filtered.
 `createLocalMemory({ messageLog: false })` turns the log off. See ADR-0027
 and ADR-0028.
 

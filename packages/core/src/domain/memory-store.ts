@@ -129,8 +129,11 @@ export interface ScopedMemory {
   listSessions(): Promise<readonly SessionSummary[]>;
 
   /**
-   * Lexical (BM25) search over the raw messages this scope can see, best first, separate from
-   * `recall`. It reaches what was said even when extraction kept no fact of it. A user-bound
+   * Search over the raw messages this scope can see, best first, separate from `recall`: BM25
+   * fused with embedding similarity by Reciprocal Rank Fusion (ADR-0031), so a paraphrase finds
+   * the turn too, and neighbours by meaning can fill the list. `score` is the fused score. It
+   * reaches what was said even when extraction kept no fact of it. The query is embedded with the
+   * memory's embedder, and an embedder failure throws, as in `recall`. A user-bound
    * session sees its own messages and the user's global ones, like `recall`. `limit` defaults
    * to 5 and must be an integer in 1..100 (`RangeError` otherwise); throws
    * `MessageLogNotConfigured` when the memory was created with `messageLog: false`.

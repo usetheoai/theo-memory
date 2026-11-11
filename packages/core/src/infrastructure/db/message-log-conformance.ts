@@ -14,6 +14,8 @@ export interface MessageLogConformanceContext {
   /** Run `fn` with the workspace context the adapter's writes need. */
   readonly inScope: <T>(filters: Filters, fn: () => Promise<T>) => Promise<T>;
   readonly reset: () => Promise<void>;
+  /** Dimension of the message embedding column the adapter accepts. */
+  readonly embeddingDim: number;
 }
 
 export function runMessageLogConformance(name: string, setup: () => Promise<MessageLogConformanceContext>): void {
@@ -208,6 +210,44 @@ export function runMessageLogConformance(name: string, setup: () => Promise<Mess
       await ctx.inScope(userA, () => ctx.log.append(userA, [{ role: 'user', content: 'new rabbit' }], new Date('2024-01-01T00:00:00Z')));
       const found = await ctx.inScope(userA, () => ctx.log.search({ ...userA, asOf: new Date('2023-06-01T00:00:00Z') }, 'rabbit', { limit: 5 }));
       expect(found.map((m) => m.content)).toEqual(['old rabbit']);
+    });
+
+    /** Unit vector along axis `i`: orthogonal to every other axis, so similarity has no ties. */
+    function axis(i: number): number[] {
+      const v = new Array<number>(ctx.embeddingDim).fill(0);
+      v[i] = 1;
+      return v;
+    }
+
+    test('with a query vector, search finds a message by meaning when no word matches', async () => {
+      await ctx.inScope(userA, () => ctx.log.append(userA, [
+        { role: 'user', content: 'my knee hurts after cycling' },
+        { role: 'user', content: 'the weather was lovely' },
+      ], undefined, [axis(0), axis(1)]));
+
+      const found = await ctx.inScope(userA, () => ctx.log.search(userA, 'joint pain', { limit: 1, queryVector: axis(0) }));
+
+      expect(found.map((m) => m.content)).toEqual(['my knee hurts after cycling']);
+    });
+
+    test('with a query vector, a message logged without an embedding is still found by its words', async () => {
+      await ctx.inScope(userA, () => ctx.log.append(userA, [{ role: 'user', content: 'rabbit named Pepper' }]));
+      await ctx.inScope(userA, () => ctx.log.append(userA, [{ role: 'user', content: 'the weather was lovely' }], undefined, [axis(1)]));
+
+      const found = await ctx.inScope(userA, () => ctx.log.search(userA, 'rabbit', { limit: 5, queryVector: axis(1) }));
+
+      expect(found.map((m) => m.content).sort()).toEqual(['rabbit named Pepper', 'the weather was lovely']);
+    });
+
+    test("with a query vector, search never returns another user's message", async () => {
+      await ctx.inScope(userB, () => ctx.log.append(userB, [{ role: 'user', content: 'knee pain' }], undefined, [axis(0)]));
+
+      expect(await ctx.inScope(userA, () => ctx.log.search(userA, 'knee', { limit: 5, queryVector: axis(0) }))).toEqual([]);
+    });
+
+    test('append rejects embeddings that do not line up with the messages', async () => {
+      await expect(ctx.inScope(userA, () => ctx.log.append(userA, [{ role: 'user', content: 'a' }, { role: 'user', content: 'b' }], undefined, [axis(0)])))
+        .rejects.toThrow(RangeError);
     });
   });
 }

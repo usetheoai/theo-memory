@@ -1,5 +1,5 @@
 /**
- * `search_messages` tool: BM25 search over the raw message log (ADR-0031), bound to the
+ * `search_messages` tool: hybrid search over the raw message log (ADR-0031), bound to the
  * authenticated user like `recall`. Exercised over a real in-memory runtime.
  */
 import { createLocalMemory, InMemoryMessageLog, InMemoryVectorStore } from '@usetheo/memory';

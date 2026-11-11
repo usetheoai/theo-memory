@@ -74,7 +74,7 @@ export interface QuestionResult {
 
 export interface Tally { readonly hits: number; readonly total: number }
 
-function tally(rows: readonly QuestionResult[], hit: (r: QuestionResult) => boolean): Tally {
+function tally<T>(rows: readonly T[], hit: (r: T) => boolean): Tally {
   return { hits: rows.filter(hit).length, total: rows.length };
 }
 
@@ -95,5 +95,29 @@ export function summarize(rows: readonly QuestionResult[]) {
     factsOnly: tally(rows, (r) => r.factsHit),
     union: tally(rows, (r) => r.factsHit || r.messagesHit),
     unionOnLost: tally(lost, (r) => r.factsHit || r.messagesHit),
+  };
+}
+
+/** A question answered by both rankings over the same stored messages (ADR-0031). */
+export interface SemanticResult extends QuestionResult {
+  /** `messagesHit` is the hybrid list; this is the BM25-only list. */
+  readonly bm25Hit: boolean;
+}
+
+/** H25-H27 of the semantic message search criterion, fixed before implementation. */
+export function summarizeSemantic(rows: readonly SemanticResult[]) {
+  const lost = rows.filter((r) => r.lostByExtraction);
+  const paraphrase = lost.filter((r) => r.form === 'paraphrase');
+  const lexical = lost.filter((r) => r.form === 'lexical');
+  const h25 = { hybrid: tally(paraphrase, (r) => r.messagesHit), bm25: tally(paraphrase, (r) => r.bm25Hit) };
+  const h26 = { hybrid: tally(lexical, (r) => r.messagesHit), bm25: tally(lexical, (r) => r.bm25Hit) };
+  const h27 = tally(rows, (r) => r.recallUnchanged);
+  return {
+    h25,
+    h25Pass: h25.hybrid.total > 0 && h25.hybrid.hits * 5 >= h25.hybrid.total * 3 && h25.hybrid.hits > h25.bm25.hits,
+    h26,
+    h26Pass: h26.hybrid.hits >= h26.bm25.hits,
+    h27,
+    h27Pass: h27.hits === h27.total,
   };
 }

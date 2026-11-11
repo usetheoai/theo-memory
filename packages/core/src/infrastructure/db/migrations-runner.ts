@@ -277,6 +277,16 @@ async function applyDimChange(pool: Pool, targetDim: number): Promise<void> {
         DELETE FROM recall_cache;
       END IF;
     END $$`);
+    // Message embeddings (migration 0038) follow the same dimension. The column is nullable, so
+    // the vectors are cleared and the messages themselves are kept: they stay searchable by
+    // their words until something embeds them again.
+    await client.query(`DO $$ BEGIN
+      IF EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema = 'public' AND table_name = 'memory_messages' AND column_name = 'embedding') THEN
+        UPDATE memory_messages SET embedding = NULL WHERE embedding IS NOT NULL;
+        EXECUTE 'ALTER TABLE "memory_messages" ALTER COLUMN "embedding" TYPE vector(${String(targetDim)})';
+      END IF;
+    END $$`);
     await client.query(`ALTER TABLE "memories" ALTER COLUMN "embedding" TYPE vector(${String(targetDim)})`);
     await client.query(`ALTER TABLE "entities" ALTER COLUMN "embedding" TYPE vector(${String(targetDim)})`);
     await client.query(`DO $$ BEGIN
@@ -328,7 +338,7 @@ async function applyDimChange(pool: Pool, targetDim: number): Promise<void> {
          FROM pg_attribute a
          JOIN pg_class c ON c.oid = a.attrelid
         WHERE (
-                (c.relname IN ('memories', 'entities') AND a.attname = 'embedding')
+                (c.relname IN ('memories', 'entities', 'memory_messages') AND a.attname = 'embedding')
              OR (c.relname = 'recall_cache' AND a.attname = 'query_embedding')
               )
           AND a.attisdropped = false

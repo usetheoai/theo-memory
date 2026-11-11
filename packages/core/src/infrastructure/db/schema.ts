@@ -826,6 +826,7 @@ export const memoryMessages = pgTable('memory_messages', {
   role: text('role').notNull(), content: text('content').notNull(),
   observedAt: timestamp('observed_at', { withTimezone: true }),
   loggedAt: timestamp('logged_at', { withTimezone: true }).notNull().defaultNow(),
+  embedding: vector('embedding', { dimensions: 1536 }),
 }, (table) => [
   index('memory_messages_scope_seq_idx').on(table.workspaceId, table.userId, table.sessionId, table.agentId, table.seq),
   check('memory_messages_role_check', sql`${table.role} IN ('user','assistant','system')`),

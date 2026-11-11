@@ -355,6 +355,14 @@ describe.skipIf(!process.env['THEOMEM_PG_URI'])('durable extraction jobs on enfo
     expect(sources.map(m=>[m.role,m.content])).toEqual([['user','I prefer dark colors']]);
   });
 
+  test('a committed job stores the embedding of its logged input',async()=>{
+    await jobs.submit(input,actor,'log-embedding');
+    expect(await worker.runOnce()).toBe('succeeded');
+    const {rows}=await db.setupPool.query<{embedded:boolean}>(
+      `SELECT embedding IS NOT NULL AS embedded FROM memory_messages WHERE content='I prefer dark colors'`);
+    expect(rows).toEqual([{embedded:true}]);
+  });
+
   test('a job extractor sees the preceding turns of the same scope',async()=>{
     await jobs.submit(input,actor,'context-1');
     expect(await worker.runOnce()).toBe('succeeded');

@@ -32,7 +32,8 @@ describe('ScopedMemory.searchMessages', () => {
     const found = await memory.user('ana').searchMessages('chamomile tea');
 
     expect(await memory.user('ana').getAll()).toEqual([]);
-    expect(found.map((m) => m.content)).toEqual(['If the insomnia continues, try chamomile tea before bed.']);
+    // With embeddings, neighbours by meaning also rank, so the word match is asserted first, not alone.
+    expect(found[0]?.content).toBe('If the insomnia continues, try chamomile tea before bed.');
   });
 
   test('returns at most `limit` messages, best score first', async () => {
@@ -81,5 +82,43 @@ describe('ScopedMemory.searchMessages', () => {
   test('fails loudly when the message log is turned off', async () => {
     const memory = await build(false);
     await expect(memory.user('ana').searchMessages('tea')).rejects.toThrow(MessageLogNotConfigured);
+  });
+});
+
+describe('ScopedMemory.searchMessages by meaning', () => {
+  /** Words of one concept share an axis, so similarity stands in for meaning. */
+  const CONCEPTS: readonly (readonly string[])[] = [['knee', 'joint', 'pain', 'hurts'], ['weather', 'sunny', 'lovely']];
+  function conceptVector(text: string): number[] {
+    const words = text.toLowerCase().split(/\W+/);
+    return [...CONCEPTS.map((c) => (c.some((w) => words.includes(w)) ? 1 : 0)), 0.01];
+  }
+  const conceptEmbedder = {
+    embed: async (text: string) => conceptVector(text),
+    embedBatch: async (texts: readonly string[]) => texts.map(conceptVector),
+  };
+
+  test('finds a turn that shares no word with the query', async () => {
+    const memory = await createLocalMemory({
+      vectorStore: new InMemoryVectorStore(), llm: noFacts, embedder: conceptEmbedder, embeddingDim: 3, entityBoost: false,
+      messageLog: new InMemoryMessageLog(),
+    });
+    await memory.user('omar').remember('My knee is killing me after cycling.');
+    await memory.user('omar').remember('It was sunny all afternoon.');
+
+    const found = await memory.user('omar').searchMessages('joint ache', { limit: 1 });
+
+    expect(found.map((m) => m.content)).toEqual(['My knee is killing me after cycling.']);
+  });
+
+  test('a message whose embedding failed is kept and found by its words', async () => {
+    const failingBatch = { ...conceptEmbedder, embedBatch: async () => { throw new Error('embedding provider down'); } };
+    const memory = await createLocalMemory({
+      vectorStore: new InMemoryVectorStore(), llm: noFacts, embedder: failingBatch, embeddingDim: 3, entityBoost: false,
+      messageLog: new InMemoryMessageLog(),
+    });
+
+    await memory.user('omar').remember('I lent my drill to the neighbour.');
+
+    expect((await memory.user('omar').searchMessages('drill')).map((m) => m.content)).toEqual(['I lent my drill to the neighbour.']);
   });
 });

@@ -302,20 +302,20 @@ export function registerAllPaths(registry: OpenAPIRegistry): void {
     },
   });
 
-  // ADR-0031 — BM25 search over the raw message log, separate from recall.
+  // ADR-0031 — hybrid (BM25 + embedding, fused by rank) search over the raw message log.
   registry.registerPath({
     method: 'get',
     path: '/v1/scopes/{type}/{id}/messages/search',
     operationId: 'searchScopeMessages',
     summary:
-      'Lexical (BM25) search over the raw messages the scope can see, best first. Reaches a turn extraction kept no fact of; matches words, not meaning.',
+      'Search over the raw messages the scope can see, by words and by meaning (BM25 and embedding similarity fused by rank), best first. Reaches a turn extraction kept no fact of. The list is ranked, not filtered.',
     request: {
       params: z.object({ type: ScopeTypeEnum, id: z.string().min(1) }),
       query: MessageSearchQuerySchema,
     },
     responses: {
       200: {
-        description: 'Matching messages, best score first. A foreign or empty scope returns no items.',
+        description: 'Messages by fused rank score, best first. A foreign or empty scope returns no items.',
         content: {
           'application/json': {
             schema: z.object({

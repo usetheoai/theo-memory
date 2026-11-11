@@ -277,7 +277,10 @@ export class LocalScopedMemory implements ScopedMemory {
     const log = this.config.messageLog;
     if (log === undefined || log === false) throw new MessageLogNotConfigured('searchMessages');
     const filters: Filters = options?.asOf === undefined ? this.filters : { ...this.filters, asOf: options.asOf };
-    return log.search(filters, query, { limit });
+    // ADR-0031: BM25 fused with cosine over the message embeddings. An embedder failure surfaces,
+    // as it does for recall.
+    const queryVector = await this.config.embedder.embed(query);
+    return log.search(filters, query, { limit, queryVector });
   }
 
   /** Paged scope listing; `entity` option = theo-cloud#252 memory_entities filter. */
