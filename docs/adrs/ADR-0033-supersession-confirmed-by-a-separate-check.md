@@ -1,6 +1,6 @@
 # ADR-0033: Supersession on write is confirmed by a separate check
 
-Status: Proposed
+Status: Rejected (2026-11-12, after a measured implementation; see Outcome)
 
 ## Context
 
@@ -81,3 +81,31 @@ reported. The criteria are fixed in the benchmark log before the first run.
   measured failure needs it yet beyond that one case. Deferred.
 - Embedding similarity between A and B above a threshold. A threshold would have to be fitted, and
   "3 times in 2023" and "5 times in 2024" are close in any embedding.
+
+## Outcome
+
+The decision was implemented and measured on `judge-cases-supersession-check.json`, committed
+before any run, three runs per arm against the current code. It was reverted because it did not
+reach zero losses.
+
+| | current code | with the check |
+|---|---|---|
+| distinct facts lost to supersession, of 48 | 8, 8, 8 | 3, 4, 4 |
+| current answers right, of 12 | 11, 11, 12 | 12, 12, 12 |
+| stale value in the top 5 of current answers | 0, 0, 0 | 0, 0, 0 |
+| `asOf` answers right, of 12 | 12, 12, 12 | 12, 12, 12 |
+| confirmation calls per run | | 22 |
+
+The check refused the period pairs the period guard cannot read: a year used as an adjective ("the
+2022 Coniston regatta") and a German year without a preposition ("Ortrud erntete 2022 120 Kilo
+Äpfel"). It confirmed every real update. It also confirmed repeated occurrences of an activity in
+different places ("ran a half marathon in Tewkesbury" against "in Ludlow", a jazz concert in Getxo
+against one in Albarracín), as if they were a change of address, and one German adjective-year pair
+in all three runs.
+
+Given only the two texts, the model cannot tell whether the attribute holds one value or many.
+"Ran a half marathon in X" and "lives in X" have the same shape; the attribute's cardinality is what
+decides whether B replaces A. The prompt was not changed after seeing these errors, since that would
+fit it to the test set. A next design needs a cardinality signal that does not come from the same
+pair of texts. #252 stays open.
+
