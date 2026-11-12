@@ -82,5 +82,7 @@ describe.skipIf(!HAS_NPM)('EC-1 absorption gate — build pipeline emits dist/ag
     // SEPA pre-RED MAJOR finding: tsc exit 0 alone is NOT proof — verify the actual file exists.
     execFileSync(NPM_BIN as string, ['run', 'build'], { cwd: REPO_ROOT, stdio: 'pipe', encoding: 'utf-8' });
     expect(existsSync(resolve(REPO_ROOT, 'dist', 'agent-tools', 'cli.js'))).toBe(true);
-  }, 30_000);
+    // No per-test timeout: the suite's 90 s default applies. The build takes about 11 s alone
+    // and about 37 s inside a full suite run, which a 30 s cap turned into a load-dependent failure.
+  });
 });
