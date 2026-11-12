@@ -1,0 +1,551 @@
+{
+  "users": [
+    {
+      "id": "lng4-bogdan",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Bogdan hates beetroot.",
+          "observedAt": "2024-05-06",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Bogdan owns a Peugeot 208.",
+          "observedAt": "2024-05-09",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Bogdan keeps bees.",
+          "observedAt": "2024-05-12",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Bogdan supports Śląsk Wrocław.",
+          "observedAt": "2024-05-15",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Bogdan is diabetic.",
+          "observedAt": "2024-05-18",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What vegetable does Bogdan hate?",
+          "pattern": "beetroot"
+        },
+        {
+          "query": "What car does Bogdan own?",
+          "pattern": "Peugeot"
+        },
+        {
+          "query": "What does Bogdan keep?",
+          "pattern": "bees"
+        },
+        {
+          "query": "Which club does Bogdan support?",
+          "pattern": "Wroc"
+        },
+        {
+          "query": "What condition does Bogdan have?",
+          "pattern": "diabetic"
+        }
+      ]
+    },
+    {
+      "id": "lng4-ilinca",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Ilinca owns a Suzuki Swift.",
+          "observedAt": "2024-05-21",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Ilinca supports Dinamo.",
+          "observedAt": "2024-05-24",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Ilinca is lactose intolerant.",
+          "observedAt": "2024-05-27",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What car does Ilinca own?",
+          "pattern": "Swift"
+        },
+        {
+          "query": "Which club does Ilinca support?",
+          "pattern": "Dinamo"
+        },
+        {
+          "query": "What intolerance does Ilinca have?",
+          "pattern": "lactose"
+        }
+      ]
+    },
+    {
+      "id": "lng4-goncalo",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Gonçalo hates olives.",
+          "observedAt": "2024-05-30",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Gonçalo owns a Mazda MX-5.",
+          "observedAt": "2024-06-02",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Gonçalo keeps rabbits.",
+          "observedAt": "2024-06-05",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Gonçalo reads Eça de Queirós.",
+          "observedAt": "2024-06-08",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Gonçalo is colour blind.",
+          "observedAt": "2024-06-11",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Gonçalo brews cider.",
+          "observedAt": "2024-06-14",
+          "role": "distinct"
+        },
+        {
+          "key": "f6",
+          "text": "Gonçalo hiked to Avebury.",
+          "observedAt": "2024-06-17",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What does Gonçalo hate?",
+          "pattern": "olives"
+        },
+        {
+          "query": "What car does Gonçalo own?",
+          "pattern": "Mazda"
+        },
+        {
+          "query": "What animals does Gonçalo keep?",
+          "pattern": "rabbits"
+        },
+        {
+          "query": "Which author does Gonçalo read?",
+          "pattern": "Queir"
+        },
+        {
+          "query": "What condition does Gonçalo have?",
+          "pattern": "colou?r blind"
+        },
+        {
+          "query": "What does Gonçalo brew?",
+          "pattern": "cider"
+        },
+        {
+          "query": "Where did Gonçalo hike to?",
+          "pattern": "Avebury"
+        }
+      ]
+    },
+    {
+      "id": "lng4-aigerim",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Aigerim owns a Citroën C3.",
+          "observedAt": "2024-06-20",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What car does Aigerim own?",
+          "pattern": "Citro"
+        }
+      ]
+    },
+    {
+      "id": "lng4-zsofia",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Zsófia owns a Subaru Impreza.",
+          "observedAt": "2024-06-23",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Zsófia reads Magda Szabó.",
+          "observedAt": "2024-06-26",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Zsófia supports Ferencváros.",
+          "observedAt": "2024-06-29",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Zsófia embroiders cushions.",
+          "observedAt": "2024-07-02",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What car does Zsófia own?",
+          "pattern": "Impreza"
+        },
+        {
+          "query": "Which author does Zsófia read?",
+          "pattern": "Szab"
+        },
+        {
+          "query": "Which club does Zsófia support?",
+          "pattern": "Ferencv"
+        },
+        {
+          "query": "What does Zsófia embroider?",
+          "pattern": "cushions"
+        }
+      ]
+    },
+    {
+      "id": "lng4-nnamdi",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Nnamdi owns a Vauxhall Corsa.",
+          "observedAt": "2024-07-05",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Nnamdi keeps parrots.",
+          "observedAt": "2024-07-08",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What car does Nnamdi own?",
+          "pattern": "Corsa"
+        },
+        {
+          "query": "What birds does Nnamdi keep?",
+          "pattern": "parrots"
+        }
+      ]
+    },
+    {
+      "id": "lng4-rosangela",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Rosângela Prates trabalha como enfermeira em Teresina.",
+          "observedAt": "2024-07-11",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "O irmão de Rosângela se chama Vítor e mora em Maceió.",
+          "observedAt": "2024-07-14",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Rosângela faz pilates toda segunda-feira.",
+          "observedAt": "2024-07-17",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Rosângela tem uma gata chamada Jabuticaba.",
+          "observedAt": "2024-07-20",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Rosângela não come doce depois do jantar.",
+          "observedAt": "2024-07-23",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Qual é a profissão de Rosângela?",
+          "pattern": "enfermeira"
+        },
+        {
+          "query": "Onde mora o irmão de Rosângela?",
+          "pattern": "Macei"
+        },
+        {
+          "query": "O que Rosângela faz às segundas?",
+          "pattern": "pilates"
+        },
+        {
+          "query": "Como se chama a gata de Rosângela?",
+          "pattern": "Jabuticaba"
+        },
+        {
+          "query": "O que Rosângela não come depois do jantar?",
+          "pattern": "doce"
+        }
+      ]
+    },
+    {
+      "id": "lng4-inmaculada",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Inmaculada Peña trabaja como fontanera en Albacete.",
+          "observedAt": "2024-07-26",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "La abuela de Inmaculada se llama Remedios y vive en Huelva.",
+          "observedAt": "2024-07-29",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Inmaculada corre por el parque todas las mañanas.",
+          "observedAt": "2024-08-01",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Inmaculada tiene una tortuga que se llama Lenteja.",
+          "observedAt": "2024-08-04",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Inmaculada no bebe vino desde hace años.",
+          "observedAt": "2024-08-07",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "¿En qué trabaja Inmaculada?",
+          "pattern": "fontanera"
+        },
+        {
+          "query": "¿Dónde vive la abuela de Inmaculada?",
+          "pattern": "Huelva"
+        },
+        {
+          "query": "¿Dónde corre Inmaculada?",
+          "pattern": "parque"
+        },
+        {
+          "query": "¿Cómo se llama la tortuga de Inmaculada?",
+          "pattern": "Lenteja"
+        },
+        {
+          "query": "¿Qué no bebe Inmaculada?",
+          "pattern": "vino"
+        }
+      ]
+    },
+    {
+      "id": "lng4-ludovica",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Ludovica Sartori lavora come architetta a Trieste.",
+          "observedAt": "2024-08-10",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Il fratello di Ludovica si chiama Matteo e vive a Perugia.",
+          "observedAt": "2024-08-13",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Ludovica suona la chitarra ogni sera.",
+          "observedAt": "2024-08-16",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Ludovica ha un gatto nero che si chiama Pepe.",
+          "observedAt": "2024-08-19",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Ludovica non beve latte da molti anni.",
+          "observedAt": "2024-08-22",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Che lavoro fa Ludovica?",
+          "pattern": "architetta"
+        },
+        {
+          "query": "Dove vive il fratello di Ludovica?",
+          "pattern": "Perugia"
+        },
+        {
+          "query": "Che strumento suona Ludovica?",
+          "pattern": "chitarra"
+        },
+        {
+          "query": "Come si chiama il gatto di Ludovica?",
+          "pattern": "Pepe"
+        },
+        {
+          "query": "Cosa non beve Ludovica?",
+          "pattern": "latte"
+        }
+      ]
+    },
+    {
+      "id": "lng4-wiebke",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Wiebke Petersen arbeitet als Tierärztin in Lübeck.",
+          "observedAt": "2024-08-25",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Die Schwester von Wiebke heißt Frauke und wohnt in Kassel.",
+          "observedAt": "2024-08-28",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Wiebke schwimmt jeden Mittwoch im Hallenbad.",
+          "observedAt": "2024-08-31",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Wiebke hat einen Hund, der Fips heißt.",
+          "observedAt": "2024-09-03",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Wiebke trinkt morgens nie Kaffee.",
+          "observedAt": "2024-09-06",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Als was arbeitet Wiebke?",
+          "pattern": "Tierärztin"
+        },
+        {
+          "query": "Wo wohnt die Schwester von Wiebke?",
+          "pattern": "Kassel"
+        },
+        {
+          "query": "Wo schwimmt Wiebke am Mittwoch?",
+          "pattern": "Hallenbad"
+        },
+        {
+          "query": "Wie heißt der Hund von Wiebke?",
+          "pattern": "Fips"
+        },
+        {
+          "query": "Was trinkt Wiebke morgens nie?",
+          "pattern": "Kaffee"
+        }
+      ]
+    },
+    {
+      "id": "lng4-segolene",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Ségolène Marchand travaille comme pharmacienne à Dijon.",
+          "observedAt": "2024-09-09",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "La sœur de Ségolène s'appelle Margaux et habite à Limoges.",
+          "observedAt": "2024-09-12",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Ségolène fait du vélo tous les dimanches.",
+          "observedAt": "2024-09-15",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Ségolène a un lapin qui s'appelle Caramel.",
+          "observedAt": "2024-09-18",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Ségolène ne mange jamais de viande rouge.",
+          "observedAt": "2024-09-21",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Quel est le métier de Ségolène ?",
+          "pattern": "pharmacienne"
+        },
+        {
+          "query": "Où habite la sœur de Ségolène ?",
+          "pattern": "Limoges"
+        },
+        {
+          "query": "Que fait Ségolène le dimanche ?",
+          "pattern": "v[ée]lo"
+        },
+        {
+          "query": "Comment s'appelle le lapin de Ségolène ?",
+          "pattern": "Caramel"
+        },
+        {
+          "query": "Que ne mange jamais Ségolène ?",
+          "pattern": "viande"
+        }
+      ]
+    }
+  ]
+}
