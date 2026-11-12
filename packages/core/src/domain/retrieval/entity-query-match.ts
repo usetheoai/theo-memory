@@ -8,7 +8,7 @@
  * ## Why the query is normalized into the key's alphabet
  *
  * Entity keys are persisted by {@link normalizeEntityKey}
- * (`domain/extraction/entity-linking.ts`): lowercase, trimmed, whitespace collapsed
+ * (`domain/entity-key.ts`): lowercase, trimmed, whitespace collapsed
  * into `_`. Diacritics survive. So "São Paulo" is stored as `são_paulo`.
  *
  * The BM25 lemmatizer is not a usable counterpart: `lemmatizeForBm25`
@@ -23,48 +23,11 @@
  * rewritten. Reverting the key's `_` back to a space would break the second case, since
  * `_` is ambiguous once written — it encodes both "was a space" and "was an underscore".
  *
- * @see {@link normalizeEntityKey} — the write-path counterpart this mirrors.
+ * @see {@link entityKeysNamedIn} — the rule, shared with the write path, which links an entity
+ *   to the facts that name it.
  */
 
-import { normalizeEntityKey } from '../extraction/entity-linking.js';
-
-/**
- * A character that can be part of a word, diacritics included. Anything else — `_`, `+`,
- * `#`, `.`, `*` — is a boundary. The `u` flag is what keeps `ã` a letter instead of
- * splitting it, which is precisely where the BM25 lemmatizer fails.
- */
-const WORD_CHAR_RE = /[\p{L}\p{N}]/u;
-
-/** Positions outside the string count as boundaries, so start/end anchor a match. */
-function isBoundaryAt(text: string, index: number): boolean {
-  if (index < 0 || index >= text.length) {
-    return true;
-  }
-  return !WORD_CHAR_RE.test(text.charAt(index));
-}
-
-/**
- * True when `key` occurs in `haystack` delimited by word boundaries, so `paulo` does not
- * match inside `paul_mccartney`.
- *
- * Boundaries are checked by index arithmetic, never by a regex built from the key. Keys
- * come from LLM-emitted entity names, where `C++`, `F#`, `.NET` and `A*` are ordinary;
- * `new RegExp('c++')` throws `SyntaxError: Nothing to repeat`, which on the read path
- * would take down every recall that touched such a memory.
- */
-function containsAsWord(haystack: string, key: string): boolean {
-  let from = 0;
-  for (;;) {
-    const at = haystack.indexOf(key, from);
-    if (at === -1) {
-      return false;
-    }
-    if (isBoundaryAt(haystack, at - 1) && isBoundaryAt(haystack, at + key.length)) {
-      return true;
-    }
-    from = at + 1;
-  }
-}
+import { entityKeysNamedIn } from '../entity-key.js';
 
 /**
  * Returns the subset of `entityKeys` mentioned in `query`.
@@ -79,18 +42,7 @@ export function matchEntityKeysInQuery(
   query: string,
   entityKeys: readonly string[],
 ): readonly string[] {
-  const normalizedQuery = normalizeEntityKey(query);
-  if (normalizedQuery.length === 0) {
-    return [];
-  }
-
-  const matched: string[] = [];
-  for (const key of entityKeys) {
-    if (key.length > 0 && containsAsWord(normalizedQuery, key)) {
-      matched.push(key);
-    }
-  }
-  return matched;
+  return entityKeysNamedIn(query, entityKeys);
 }
 
 /**
