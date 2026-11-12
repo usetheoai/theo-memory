@@ -12,6 +12,8 @@ import { emitEvent } from '../memory-event.js';
 import type { MemoryItem } from '../memory-item.js';
 import type { Filters } from '../scope.js';
 
+import { differentPeriods } from './period-anchor.js';
+
 export interface SupersessionRequest {
   /** The persisted memory, with the store's authoritative id. */
   readonly memory: MemoryItem;
@@ -26,8 +28,9 @@ export interface SupersessionResult {
 }
 
 /**
- * Invalidate what each request names. Ids the prompt never showed, and the memory itself,
- * are rejected (`supersession_rejected`). Memories the store declines, because they are no
+ * Invalidate what each request names. Ids the prompt never showed, the memory itself, and a
+ * memory about a different explicit period than the new fact (a 2023 count is not a version of
+ * the 2024 count, #252) are rejected (`supersession_rejected`). Memories the store declines, because they are no
  * longer current or became valid after `at`, are reported as `supersession_skipped`.
  */
 export async function applySupersessions(
@@ -52,6 +55,10 @@ export async function applySupersessions(
       const target = /^\d+$/.test(promptId) ? shown.get(Number(promptId)) : undefined;
       if (target === undefined || target.id === memory.id) {
         emitEvent(tracer, 'supersession_rejected', { reason: target === undefined ? 'unknown_id' : 'self' });
+        continue;
+      }
+      if (differentPeriods(memory.text, target.text)) {
+        emitEvent(tracer, 'supersession_rejected', { reason: 'different_period' });
         continue;
       }
       targets.set(target.id, target.text);

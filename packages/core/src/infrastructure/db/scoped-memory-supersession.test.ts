@@ -48,3 +48,35 @@ describe('supersession on write through createLocalMemory', () => {
   });
 
 });
+
+/** Writes the new count and asks to replace whichever shown memory holds the other year's count. */
+const yearlyCountLlm: LLM = {
+  generateResponse: (messages) => {
+    const system = messages[0]?.content ?? '';
+    const input = system.slice(system.lastIndexOf('## New Messages'));
+    const text = /2023/.test(input) ? 'Oskar planted 65 apple trees in 2023' : /Ruth/.test(input) ? "Oskar's farm manager is now Ruth Albers" : /Petra/.test(input) ? "Oskar's farm manager is Petra Vogel" : 'Oskar planted 40 apple trees in 2022';
+    const shown = system.split('\n').filter((line) => /^\d+\. /.test(line));
+    const target = /2023/.test(input) ? shown.find((l) => l.includes('2022')) : /Ruth/.test(input) ? shown.find((l) => l.includes('Petra')) : undefined;
+    const id = target?.split('.')[0];
+    return Promise.resolve({ memory: [{ id: '0', text, ...(id !== undefined ? { supersedes_memory_ids: [id] } : {}) }] });
+  },
+  generateChat: () => Promise.resolve({ role: 'assistant', content: '' }),
+};
+
+describe('supersession refuses a fact about another period (#252)', () => {
+  test('a count for 2023 does not replace the count for 2022', async () => {
+    const memory = await createLocalMemory({ vectorStore: new InMemoryVectorStore(), embedder, llm: yearlyCountLlm, embeddingDim: MAX_EMBEDDING_DIM });
+    await memory.user('oskar').remember('I planted 40 apple trees in 2022', { observedAt: new Date('2022-12-30T00:00:00Z') });
+    const [later] = await memory.user('oskar').remember('I planted 65 apple trees in 2023', { observedAt: new Date('2023-12-29T00:00:00Z') });
+    expect(later?.supersedes).toBeUndefined();
+    const current = await memory.user('oskar').recall('how many apple trees did Oskar plant', { threshold: 0 });
+    expect(current.map((m) => m.text).sort()).toEqual(['Oskar planted 40 apple trees in 2022', 'Oskar planted 65 apple trees in 2023']);
+  });
+
+  test('a change without a period still replaces the old value', async () => {
+    const memory = await createLocalMemory({ vectorStore: new InMemoryVectorStore(), embedder, llm: yearlyCountLlm, embeddingDim: MAX_EMBEDDING_DIM });
+    const [petra] = await memory.user('oskar').remember('My farm manager is Petra', { observedAt: new Date('2022-03-10T00:00:00Z') });
+    const [ruth] = await memory.user('oskar').remember('My farm manager is now Ruth', { observedAt: new Date('2024-02-01T00:00:00Z') });
+    expect(ruth?.supersedes).toEqual([petra!.id]);
+  });
+});
