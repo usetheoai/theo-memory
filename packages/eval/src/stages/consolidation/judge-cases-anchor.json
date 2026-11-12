@@ -1,0 +1,683 @@
+{
+  "users": [
+    {
+      "id": "cja-oskar",
+      "facts": [
+        {
+          "key": "manager-old",
+          "text": "Oskar's farm manager is Petra Vogel.",
+          "observedAt": "2022-03-10",
+          "role": "old",
+          "update": "manager"
+        },
+        {
+          "key": "car-old",
+          "text": "Oskar drives a 2009 Land Rover Defender.",
+          "observedAt": "2022-05-01",
+          "role": "old",
+          "update": "car"
+        },
+        {
+          "key": "lyon",
+          "text": "Oskar visited Lyon in August 2022.",
+          "observedAt": "2022-08-25",
+          "role": "distinct"
+        },
+        {
+          "key": "trees-2022",
+          "text": "Oskar planted 40 apple trees in 2022.",
+          "observedAt": "2022-12-30",
+          "role": "distinct"
+        },
+        {
+          "key": "allergy",
+          "text": "Oskar is allergic to bee stings.",
+          "observedAt": "2023-02-02",
+          "role": "distinct"
+        },
+        {
+          "key": "cider-q1",
+          "text": "Oskar earned 12,000 euros from cider in the first quarter of 2023.",
+          "observedAt": "2023-04-03",
+          "role": "distinct"
+        },
+        {
+          "key": "cider-q2",
+          "text": "Oskar earned 15,500 euros from cider in the second quarter of 2023.",
+          "observedAt": "2023-07-04",
+          "role": "distinct"
+        },
+        {
+          "key": "trees-2023",
+          "text": "Oskar planted 65 apple trees in 2023.",
+          "observedAt": "2023-12-29",
+          "role": "distinct"
+        },
+        {
+          "key": "manager-new",
+          "text": "Oskar's farm manager is now Ruth Albers.",
+          "observedAt": "2024-02-01",
+          "role": "new",
+          "update": "manager"
+        },
+        {
+          "key": "dog",
+          "text": "Oskar's dog is called Bruno.",
+          "observedAt": "2024-03-03",
+          "role": "distinct"
+        },
+        {
+          "key": "car-new",
+          "text": "Oskar now drives a 2022 Ford Ranger.",
+          "observedAt": "2024-05-01",
+          "role": "new",
+          "update": "car"
+        },
+        {
+          "key": "porto",
+          "text": "Oskar visited Porto in August 2024.",
+          "observedAt": "2024-08-28",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "How many apple trees did Oskar plant in 2022?",
+          "pattern": "\\b40\\b"
+        },
+        {
+          "query": "How many apple trees did Oskar plant in 2023?",
+          "pattern": "\\b65\\b"
+        },
+        {
+          "query": "How much did Oskar earn from cider in the first quarter of 2023?",
+          "pattern": "12,000"
+        },
+        {
+          "query": "How much did Oskar earn from cider in the second quarter of 2023?",
+          "pattern": "15,500"
+        },
+        {
+          "query": "Which city did Oskar visit in August 2022?",
+          "pattern": "Lyon"
+        },
+        {
+          "query": "Which city did Oskar visit in August 2024?",
+          "pattern": "Porto"
+        },
+        {
+          "query": "What is Oskar allergic to?",
+          "pattern": "bee sting"
+        },
+        {
+          "query": "What is the name of Oskar's dog?",
+          "pattern": "Bruno"
+        },
+        {
+          "query": "Who is Oskar's farm manager?",
+          "pattern": "Ruth Albers",
+          "stalePattern": "Petra Vogel"
+        },
+        {
+          "query": "Who was Oskar's farm manager?",
+          "pattern": "Petra Vogel",
+          "stalePattern": "Ruth Albers",
+          "asOf": "2023-06-01"
+        },
+        {
+          "query": "What car does Oskar drive?",
+          "pattern": "Ranger",
+          "stalePattern": "Defender"
+        },
+        {
+          "query": "What car did Oskar drive?",
+          "pattern": "Defender",
+          "stalePattern": "Ranger",
+          "asOf": "2023-01-01"
+        }
+      ]
+    },
+    {
+      "id": "cja-beatriz",
+      "facts": [
+        {
+          "key": "dentist-old",
+          "text": "A dentista de Beatriz é a Dra. Lúcia Prado.",
+          "observedAt": "2022-02-01",
+          "role": "old",
+          "update": "dentist"
+        },
+        {
+          "key": "city-old",
+          "text": "Beatriz mora em Campinas.",
+          "observedAt": "2022-06-01",
+          "role": "old",
+          "update": "city"
+        },
+        {
+          "key": "salvador",
+          "text": "Beatriz viajou para Salvador em julho de 2022.",
+          "observedAt": "2022-07-28",
+          "role": "distinct"
+        },
+        {
+          "key": "km-2022",
+          "text": "Beatriz correu 1.200 km em 2022.",
+          "observedAt": "2022-12-20",
+          "role": "distinct"
+        },
+        {
+          "key": "guitar",
+          "text": "Beatriz toca violão.",
+          "observedAt": "2023-01-10",
+          "role": "distinct"
+        },
+        {
+          "key": "cakes-mar",
+          "text": "Beatriz vendeu 300 bolos em março de 2023.",
+          "observedAt": "2023-03-31",
+          "role": "distinct"
+        },
+        {
+          "key": "cakes-apr",
+          "text": "Beatriz vendeu 420 bolos em abril de 2023.",
+          "observedAt": "2023-04-30",
+          "role": "distinct"
+        },
+        {
+          "key": "km-2023",
+          "text": "Beatriz correu 1.450 km em 2023.",
+          "observedAt": "2023-12-20",
+          "role": "distinct"
+        },
+        {
+          "key": "dentist-new",
+          "text": "A dentista de Beatriz agora é a Dra. Marta Reis.",
+          "observedAt": "2024-01-15",
+          "role": "new",
+          "update": "dentist"
+        },
+        {
+          "key": "cat",
+          "text": "O gato de Beatriz se chama Pipoca.",
+          "observedAt": "2024-02-02",
+          "role": "distinct"
+        },
+        {
+          "key": "city-new",
+          "text": "Desde março de 2024, Beatriz mora em Curitiba.",
+          "observedAt": "2024-03-10",
+          "role": "new",
+          "update": "city"
+        },
+        {
+          "key": "recife",
+          "text": "Beatriz viajou para Recife em julho de 2024.",
+          "observedAt": "2024-07-28",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Quantos quilômetros Beatriz correu em 2022?",
+          "pattern": "1\\.200"
+        },
+        {
+          "query": "Quantos quilômetros Beatriz correu em 2023?",
+          "pattern": "1\\.450"
+        },
+        {
+          "query": "Quantos bolos Beatriz vendeu em março de 2023?",
+          "pattern": "\\b300\\b"
+        },
+        {
+          "query": "Quantos bolos Beatriz vendeu em abril de 2023?",
+          "pattern": "\\b420\\b"
+        },
+        {
+          "query": "Para qual cidade Beatriz viajou em julho de 2022?",
+          "pattern": "Salvador"
+        },
+        {
+          "query": "Para qual cidade Beatriz viajou em julho de 2024?",
+          "pattern": "Recife"
+        },
+        {
+          "query": "Que instrumento Beatriz toca?",
+          "pattern": "viol[aã]o"
+        },
+        {
+          "query": "Como se chama o gato de Beatriz?",
+          "pattern": "Pipoca"
+        },
+        {
+          "query": "Quem é a dentista de Beatriz?",
+          "pattern": "Marta Reis",
+          "stalePattern": "L[uú]cia Prado"
+        },
+        {
+          "query": "Quem era a dentista de Beatriz?",
+          "pattern": "L[uú]cia Prado",
+          "stalePattern": "Marta Reis",
+          "asOf": "2023-01-01"
+        },
+        {
+          "query": "Em que cidade Beatriz mora?",
+          "pattern": "Curitiba",
+          "stalePattern": "Campinas"
+        },
+        {
+          "query": "Em que cidade Beatriz morava?",
+          "pattern": "Campinas",
+          "stalePattern": "Curitiba",
+          "asOf": "2023-06-01"
+        }
+      ]
+    },
+    {
+      "id": "cja-diego",
+      "facts": [
+        {
+          "key": "coach-old",
+          "text": "El entrenador de Diego es Pablo Ruiz.",
+          "observedAt": "2022-04-01",
+          "role": "old",
+          "update": "coach"
+        },
+        {
+          "key": "job-old",
+          "text": "Diego trabaja en una panadería en Valencia.",
+          "observedAt": "2022-09-01",
+          "role": "old",
+          "update": "job"
+        },
+        {
+          "key": "seville",
+          "text": "Diego corrió la maratón de Sevilla en 2022 en 3 horas 50 minutos.",
+          "observedAt": "2022-11-10",
+          "role": "distinct"
+        },
+        {
+          "key": "books-2022",
+          "text": "Diego leyó 18 libros en 2022.",
+          "observedAt": "2023-01-02",
+          "role": "distinct"
+        },
+        {
+          "key": "german",
+          "text": "Diego habla alemán.",
+          "observedAt": "2023-03-15",
+          "role": "distinct"
+        },
+        {
+          "key": "malaga",
+          "text": "Diego corrió la maratón de Málaga en 2023 en 3 horas 41 minutos.",
+          "observedAt": "2023-11-10",
+          "role": "distinct"
+        },
+        {
+          "key": "books-2023",
+          "text": "Diego leyó 26 libros en 2023.",
+          "observedAt": "2024-01-02",
+          "role": "distinct"
+        },
+        {
+          "key": "pay-jan",
+          "text": "Diego ganó 2.000 dólares en enero de 2024.",
+          "observedAt": "2024-02-01",
+          "role": "distinct"
+        },
+        {
+          "key": "pay-feb",
+          "text": "Diego ganó 2.600 dólares en febrero de 2024.",
+          "observedAt": "2024-03-01",
+          "role": "distinct"
+        },
+        {
+          "key": "coach-new",
+          "text": "El entrenador de Diego ahora es Sergio Mena.",
+          "observedAt": "2024-04-01",
+          "role": "new",
+          "update": "coach"
+        },
+        {
+          "key": "sister",
+          "text": "La hermana de Diego se llama Lucía.",
+          "observedAt": "2024-05-05",
+          "role": "distinct"
+        },
+        {
+          "key": "job-new",
+          "text": "Diego ahora trabaja en una librería en Valencia.",
+          "observedAt": "2024-06-01",
+          "role": "new",
+          "update": "job"
+        }
+      ],
+      "questions": [
+        {
+          "query": "¿Cuántos libros leyó Diego en 2022?",
+          "pattern": "\\b18\\b"
+        },
+        {
+          "query": "¿Cuántos libros leyó Diego en 2023?",
+          "pattern": "\\b26\\b"
+        },
+        {
+          "query": "¿Cuánto ganó Diego en enero de 2024?",
+          "pattern": "2\\.000"
+        },
+        {
+          "query": "¿Cuánto ganó Diego en febrero de 2024?",
+          "pattern": "2\\.600"
+        },
+        {
+          "query": "¿En cuánto tiempo corrió Diego la maratón de Sevilla?",
+          "pattern": "3 horas 50"
+        },
+        {
+          "query": "¿En cuánto tiempo corrió Diego la maratón de Málaga?",
+          "pattern": "3 horas 41"
+        },
+        {
+          "query": "¿Qué idioma habla Diego?",
+          "pattern": "alem[aá]n"
+        },
+        {
+          "query": "¿Cómo se llama la hermana de Diego?",
+          "pattern": "Luc[ií]a"
+        },
+        {
+          "query": "¿Quién es el entrenador de Diego?",
+          "pattern": "Sergio Mena",
+          "stalePattern": "Pablo Ruiz"
+        },
+        {
+          "query": "¿Quién era el entrenador de Diego?",
+          "pattern": "Pablo Ruiz",
+          "stalePattern": "Sergio Mena",
+          "asOf": "2023-04-01"
+        },
+        {
+          "query": "¿Dónde trabaja Diego?",
+          "pattern": "librer[ií]a",
+          "stalePattern": "panader[ií]a"
+        },
+        {
+          "query": "¿Dónde trabajaba Diego?",
+          "pattern": "panader[ií]a",
+          "stalePattern": "librer[ií]a",
+          "asOf": "2023-01-01"
+        }
+      ]
+    },
+    {
+      "id": "cja-hana",
+      "facts": [
+        {
+          "key": "scooter-old",
+          "text": "Hana owns a 2011 Yamaha scooter.",
+          "observedAt": "2022-05-05",
+          "role": "old",
+          "update": "scooter"
+        },
+        {
+          "key": "son-old",
+          "text": "Hana's son Kenji was born in 2015.",
+          "observedAt": "2022-10-10",
+          "role": "old",
+          "update": "son"
+        },
+        {
+          "key": "donation-2022",
+          "text": "Hana donated 200 dollars to the library in 2022.",
+          "observedAt": "2023-01-05",
+          "role": "distinct"
+        },
+        {
+          "key": "cello",
+          "text": "Hana plays the cello.",
+          "observedAt": "2023-02-12",
+          "role": "distinct"
+        },
+        {
+          "key": "swim-june",
+          "text": "Hana swam 30 km in June 2023.",
+          "observedAt": "2023-07-01",
+          "role": "distinct"
+        },
+        {
+          "key": "swim-july",
+          "text": "Hana swam 42 km in July 2023.",
+          "observedAt": "2023-08-01",
+          "role": "distinct"
+        },
+        {
+          "key": "friend",
+          "text": "Hana's best friend is Mirela Stan.",
+          "observedAt": "2023-09-09",
+          "role": "distinct"
+        },
+        {
+          "key": "donation-2023",
+          "text": "Hana donated 350 dollars to the library in 2023.",
+          "observedAt": "2024-01-05",
+          "role": "distinct"
+        },
+        {
+          "key": "tea",
+          "text": "Hana's favourite tea is genmaicha.",
+          "observedAt": "2024-02-20",
+          "role": "distinct"
+        },
+        {
+          "key": "scooter-new",
+          "text": "Hana now owns a 2023 Honda scooter.",
+          "observedAt": "2024-05-05",
+          "role": "new",
+          "update": "scooter"
+        },
+        {
+          "key": "shifts",
+          "text": "Hana works night shifts at the airport.",
+          "observedAt": "2024-06-06",
+          "role": "distinct"
+        },
+        {
+          "key": "son-new",
+          "text": "Hana's son Kenji was actually born in 2016.",
+          "observedAt": "2024-10-10",
+          "role": "new",
+          "update": "son"
+        }
+      ],
+      "questions": [
+        {
+          "query": "How far did Hana swim in June 2023?",
+          "pattern": "\\b30 km"
+        },
+        {
+          "query": "How far did Hana swim in July 2023?",
+          "pattern": "\\b42 km"
+        },
+        {
+          "query": "How much did Hana donate to the library in 2022?",
+          "pattern": "\\b200 dollars"
+        },
+        {
+          "query": "How much did Hana donate to the library in 2023?",
+          "pattern": "\\b350 dollars"
+        },
+        {
+          "query": "What instrument does Hana play?",
+          "pattern": "cello"
+        },
+        {
+          "query": "Who is Hana's best friend?",
+          "pattern": "Mirela"
+        },
+        {
+          "query": "What is Hana's favourite tea?",
+          "pattern": "genmaicha"
+        },
+        {
+          "query": "Where does Hana work night shifts?",
+          "pattern": "night shift"
+        },
+        {
+          "query": "What scooter does Hana own?",
+          "pattern": "Honda",
+          "stalePattern": "Yamaha"
+        },
+        {
+          "query": "What scooter did Hana own?",
+          "pattern": "Yamaha",
+          "stalePattern": "Honda",
+          "asOf": "2023-01-01"
+        },
+        {
+          "query": "In which year was Hana's son Kenji born?",
+          "pattern": "2016",
+          "stalePattern": "\\b2015\\b"
+        }
+      ]
+    },
+    {
+      "id": "cja-felix",
+      "facts": [
+        {
+          "key": "accountant-old",
+          "text": "Felix's accountant is Nora Lind.",
+          "observedAt": "2022-03-03",
+          "role": "old",
+          "update": "accountant"
+        },
+        {
+          "key": "landlord-old",
+          "text": "Felix rents his bakery from Mr. Haas.",
+          "observedAt": "2022-06-06",
+          "role": "old",
+          "update": "landlord"
+        },
+        {
+          "key": "daughter",
+          "text": "Felix's daughter is called Emma.",
+          "observedAt": "2022-09-09",
+          "role": "distinct"
+        },
+        {
+          "key": "vegetarian",
+          "text": "Felix is vegetarian.",
+          "observedAt": "2023-01-15",
+          "role": "distinct"
+        },
+        {
+          "key": "half-2023",
+          "text": "Felix ran a half marathon in 1 hour 52 minutes in April 2023.",
+          "observedAt": "2023-04-30",
+          "role": "distinct"
+        },
+        {
+          "key": "tomatoes-2023",
+          "text": "Felix grew 90 kg of tomatoes in 2023.",
+          "observedAt": "2023-10-01",
+          "role": "distinct"
+        },
+        {
+          "key": "accountant-new",
+          "text": "Felix's accountant is now Ivo Berg.",
+          "observedAt": "2024-02-02",
+          "role": "new",
+          "update": "accountant"
+        },
+        {
+          "key": "half-2024",
+          "text": "Felix ran a half marathon in 1 hour 47 minutes in April 2024.",
+          "observedAt": "2024-04-30",
+          "role": "distinct"
+        },
+        {
+          "key": "landlord-new",
+          "text": "Since May 2024, Felix rents his bakery from Mrs. Kraft.",
+          "observedAt": "2024-05-20",
+          "role": "new",
+          "update": "landlord"
+        },
+        {
+          "key": "loaves-q3",
+          "text": "Felix's bakery sold 1,800 loaves in the third quarter of 2024.",
+          "observedAt": "2024-10-02",
+          "role": "distinct"
+        },
+        {
+          "key": "tomatoes-2024",
+          "text": "Felix grew 120 kg of tomatoes in 2024.",
+          "observedAt": "2024-10-03",
+          "role": "distinct"
+        },
+        {
+          "key": "loaves-q4",
+          "text": "Felix's bakery sold 2,300 loaves in the fourth quarter of 2024.",
+          "observedAt": "2025-01-03",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "How many tomatoes did Felix grow in 2023?",
+          "pattern": "\\b90 kg"
+        },
+        {
+          "query": "How many tomatoes did Felix grow in 2024?",
+          "pattern": "\\b120 kg"
+        },
+        {
+          "query": "How many loaves did Felix's bakery sell in the third quarter of 2024?",
+          "pattern": "1,800"
+        },
+        {
+          "query": "How many loaves did Felix's bakery sell in the fourth quarter of 2024?",
+          "pattern": "2,300"
+        },
+        {
+          "query": "How fast did Felix run the half marathon in April 2023?",
+          "pattern": "1 hour 52"
+        },
+        {
+          "query": "How fast did Felix run the half marathon in April 2024?",
+          "pattern": "1 hour 47"
+        },
+        {
+          "query": "What is the name of Felix's daughter?",
+          "pattern": "Emma"
+        },
+        {
+          "query": "What diet does Felix follow?",
+          "pattern": "vegetarian"
+        },
+        {
+          "query": "Who is Felix's accountant?",
+          "pattern": "Ivo Berg",
+          "stalePattern": "Nora Lind"
+        },
+        {
+          "query": "Who was Felix's accountant?",
+          "pattern": "Nora Lind",
+          "stalePattern": "Ivo Berg",
+          "asOf": "2023-06-01"
+        },
+        {
+          "query": "Who does Felix rent his bakery from?",
+          "pattern": "Kraft",
+          "stalePattern": "Haas"
+        },
+        {
+          "query": "Who did Felix rent his bakery from?",
+          "pattern": "Haas",
+          "stalePattern": "Kraft",
+          "asOf": "2023-06-01"
+        }
+      ]
+    }
+  ]
+}
