@@ -8,7 +8,7 @@
  * CONSOLIDATION_JUDGE_CASES (default judge-cases.json), THEOMEM_PG_URI,
  * CONSOLIDATION_WRITE_DB (default themem_consolidation_write; dropped and recreated).
  */
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 import pg from 'pg';
@@ -36,6 +36,9 @@ const adminUri = process.env['THEOMEM_PG_URI'] ?? 'postgresql://themem:themem@lo
 const dbName = process.env['CONSOLIDATION_WRITE_DB'] ?? 'themem_consolidation_write';
 if (!/^[a-z_][a-z0-9_]*$/.test(dbName)) throw new Error(`CONSOLIDATION_WRITE_DB must be a plain identifier, got '${dbName}'`);
 const caseFile = process.env['CONSOLIDATION_JUDGE_CASES'] ?? 'judge-cases.json';
+// Optional JSON-lines log of every LLM call (start of the system prompt, user content, answer), to see
+// which call of the write path produced a text (#254). Off unless the path is set.
+const llmLogPath = process.env['CONSOLIDATION_WRITE_LLM_LOG'];
 const cases = loadJudgeCases(caseFile);
 
 const admin = new pg.Pool({ connectionString: adminUri });
@@ -47,6 +50,25 @@ try {
 }
 const uri = new URL(adminUri);
 uri.pathname = `/${dbName}`;
+/** Wraps an LLM so each call is appended to a JSON-lines file; the call itself is unchanged. */
+function loggedLlm(llm: OpenAILLM, path: string): OpenAILLM {
+  mkdirSync(dirname(path), { recursive: true });
+  const record = (kind: string, messages: readonly { role: string; content: string }[], answer: unknown) =>
+    appendFileSync(path, `${JSON.stringify({ kind, system: (messages.find((m) => m.role === 'system')?.content ?? '').slice(0, 120), user: messages.filter((m) => m.role === 'user').map((m) => m.content).join('\n'), answer })}\n`);
+  return Object.assign(Object.create(Object.getPrototypeOf(llm) as object) as OpenAILLM, llm, {
+    generateResponse: async (...args: Parameters<OpenAILLM['generateResponse']>) => {
+      const answer = await llm.generateResponse(...args);
+      record('response', args[0], answer);
+      return answer;
+    },
+    generateChat: async (...args: Parameters<OpenAILLM['generateChat']>) => {
+      const answer = await llm.generateChat(...args);
+      record('chat', args[0], answer);
+      return answer;
+    },
+  });
+}
+
 const pool = new pg.Pool({ connectionString: uri.toString() });
 
 try {
@@ -54,7 +76,7 @@ try {
   const memory = await createLocalMemory({
     vectorStore: new PgvectorStore(pool, { embeddingDim: EMBEDDING_DIM }),
     embedder: new OpenAICompatibleEmbedder({ apiKey, baseUrl: 'https://api.openai.com/v1', model: EMBEDDING_MODEL, dimensions: EMBEDDING_DIM }),
-    llm: new OpenAILLM(),
+    llm: llmLogPath === undefined ? new OpenAILLM() : loggedLlm(new OpenAILLM(), llmLogPath),
     embeddingDim: EMBEDDING_DIM,
   });
 
