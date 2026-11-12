@@ -1,0 +1,618 @@
+{
+  "users": [
+    {
+      "id": "lng5-radoslaw",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Radosław Krawczyk sells tyres in Grimsby.",
+          "observedAt": "2024-11-04",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Radosław hates radishes.",
+          "observedAt": "2024-11-07",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Radosław owns a Volkswagen Polo.",
+          "observedAt": "2024-11-10",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Radosław keeps quails.",
+          "observedAt": "2024-11-13",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Radosław reads Henryk Sienkiewicz.",
+          "observedAt": "2024-11-16",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Radosław's sister Małgorzata is a vet.",
+          "observedAt": "2024-11-19",
+          "role": "distinct"
+        },
+        {
+          "key": "f6",
+          "text": "Radosław supports Górnik Zabrze.",
+          "observedAt": "2024-11-22",
+          "role": "distinct"
+        },
+        {
+          "key": "f7",
+          "text": "Radosław is epileptic.",
+          "observedAt": "2024-11-25",
+          "role": "distinct"
+        },
+        {
+          "key": "f8",
+          "text": "Radosław restores clocks.",
+          "observedAt": "2024-11-28",
+          "role": "distinct"
+        },
+        {
+          "key": "f9",
+          "text": "Radosław jogged to Cleethorpes.",
+          "observedAt": "2024-12-01",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What does Radosław sell?",
+          "pattern": "tyres"
+        },
+        {
+          "query": "What vegetable does Radosław hate?",
+          "pattern": "radishes"
+        },
+        {
+          "query": "What car does Radosław own?",
+          "pattern": "Polo"
+        },
+        {
+          "query": "What birds does Radosław keep?",
+          "pattern": "quails"
+        },
+        {
+          "query": "Which author does Radosław read?",
+          "pattern": "Sienkiewicz"
+        },
+        {
+          "query": "What is Radosław's sister?",
+          "pattern": "\\bvet\\b"
+        },
+        {
+          "query": "Which club does Radosław support?",
+          "pattern": "rnik"
+        },
+        {
+          "query": "What condition does Radosław have?",
+          "pattern": "epileptic"
+        },
+        {
+          "query": "What does Radosław restore?",
+          "pattern": "clocks"
+        },
+        {
+          "query": "Where did Radosław jog to?",
+          "pattern": "Cleethorpes"
+        }
+      ]
+    },
+    {
+      "id": "lng5-afonso",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Afonso owns a Cupra Formentor.",
+          "observedAt": "2024-12-04",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Afonso supports Vitória de Guimarães.",
+          "observedAt": "2024-12-07",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What car does Afonso own?",
+          "pattern": "Formentor"
+        },
+        {
+          "query": "Which club does Afonso support?",
+          "pattern": "Guimar"
+        }
+      ]
+    },
+    {
+      "id": "lng5-roxana",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Roxana owns a Seat Arona.",
+          "observedAt": "2024-12-10",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Roxana reads Liviu Rebreanu.",
+          "observedAt": "2024-12-13",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Roxana supports CFR Cluj.",
+          "observedAt": "2024-12-16",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Roxana sews quilts.",
+          "observedAt": "2024-12-19",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What car does Roxana own?",
+          "pattern": "Arona"
+        },
+        {
+          "query": "Which author does Roxana read?",
+          "pattern": "Rebreanu"
+        },
+        {
+          "query": "Which club does Roxana support?",
+          "pattern": "Cluj"
+        },
+        {
+          "query": "What does Roxana sew?",
+          "pattern": "quilts"
+        }
+      ]
+    },
+    {
+      "id": "lng5-pieter",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Pieter van der Velde installs solar panels in Hastings.",
+          "observedAt": "2024-12-22",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Pieter owns a Saab 9-3.",
+          "observedAt": "2024-12-25",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Pieter supports Feyenoord.",
+          "observedAt": "2024-12-28",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What does Pieter install?",
+          "pattern": "solar"
+        },
+        {
+          "query": "What car does Pieter own?",
+          "pattern": "Saab"
+        },
+        {
+          "query": "Which club does Pieter support?",
+          "pattern": "Feyenoord"
+        }
+      ]
+    },
+    {
+      "id": "lng5-gulnara",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Gulnara owns a Mitsubishi Colt.",
+          "observedAt": "2024-12-31",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Gulnara keeps guinea pigs.",
+          "observedAt": "2025-01-03",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Gulnara crochets blankets.",
+          "observedAt": "2025-01-06",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What car does Gulnara own?",
+          "pattern": "Colt"
+        },
+        {
+          "query": "What animals does Gulnara keep?",
+          "pattern": "guinea"
+        },
+        {
+          "query": "What does Gulnara crochet?",
+          "pattern": "blankets"
+        }
+      ]
+    },
+    {
+      "id": "lng5-chidinma",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Chidinma owns a Lancia Ypsilon.",
+          "observedAt": "2025-01-09",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What car does Chidinma own?",
+          "pattern": "Ypsilon"
+        }
+      ]
+    },
+    {
+      "id": "lng5-marlene",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Marlene Quintela trabalha como dentista em Sorocaba.",
+          "observedAt": "2025-01-12",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "O pai de Marlene se chama Osvaldo e mora em Petrópolis.",
+          "observedAt": "2025-01-15",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Marlene nada na piscina do clube às terças.",
+          "observedAt": "2025-01-18",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Marlene tem um coelho chamado Paçoca.",
+          "observedAt": "2025-01-21",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Marlene não bebe café à noite.",
+          "observedAt": "2025-01-24",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Qual é a profissão de Marlene?",
+          "pattern": "dentista"
+        },
+        {
+          "query": "Onde mora o pai de Marlene?",
+          "pattern": "Petr"
+        },
+        {
+          "query": "Onde Marlene nada?",
+          "pattern": "piscina"
+        },
+        {
+          "query": "Como se chama o coelho de Marlene?",
+          "pattern": "Pa[çc]oca"
+        },
+        {
+          "query": "O que Marlene não bebe à noite?",
+          "pattern": "caf"
+        }
+      ]
+    },
+    {
+      "id": "lng5-fulgencio",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Fulgencio Arroyo trabaja como cartero en Badajoz.",
+          "observedAt": "2025-01-27",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "La hermana de Fulgencio se llama Amparo y vive en Soria.",
+          "observedAt": "2025-01-30",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Fulgencio juega al ajedrez en el casino del pueblo.",
+          "observedAt": "2025-02-02",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Fulgencio tiene un perro que se llama Chispa.",
+          "observedAt": "2025-02-05",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Fulgencio no come pescado frito.",
+          "observedAt": "2025-02-08",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "¿En qué trabaja Fulgencio?",
+          "pattern": "cartero"
+        },
+        {
+          "query": "¿Dónde vive la hermana de Fulgencio?",
+          "pattern": "Soria"
+        },
+        {
+          "query": "¿Dónde juega Fulgencio al ajedrez?",
+          "pattern": "casino"
+        },
+        {
+          "query": "¿Cómo se llama el perro de Fulgencio?",
+          "pattern": "Chispa"
+        },
+        {
+          "query": "¿Qué no come Fulgencio?",
+          "pattern": "pescado"
+        }
+      ]
+    },
+    {
+      "id": "lng5-ornella",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Ornella Fabbri lavora come avvocata a Modena.",
+          "observedAt": "2025-02-11",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Il padre di Ornella si chiama Gino e vive a Ancona.",
+          "observedAt": "2025-02-14",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Ornella balla il tango ogni giovedì.",
+          "observedAt": "2025-02-17",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Ornella ha una tartaruga che si chiama Lumaca.",
+          "observedAt": "2025-02-20",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Ornella non beve vino rosso.",
+          "observedAt": "2025-02-23",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Che lavoro fa Ornella?",
+          "pattern": "avvocata"
+        },
+        {
+          "query": "Dove vive il padre di Ornella?",
+          "pattern": "Ancona"
+        },
+        {
+          "query": "Cosa balla Ornella?",
+          "pattern": "tango"
+        },
+        {
+          "query": "Come si chiama la tartaruga di Ornella?",
+          "pattern": "Lumaca"
+        },
+        {
+          "query": "Cosa non beve Ornella?",
+          "pattern": "vino"
+        }
+      ]
+    },
+    {
+      "id": "lng5-ulrike",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Ulrike Hartmann arbeitet als Apothekerin in Würzburg.",
+          "observedAt": "2025-02-26",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Der Bruder von Ulrike heißt Jürgen und wohnt in Passau.",
+          "observedAt": "2025-03-01",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Ulrike singt jeden Dienstag im Kirchenchor.",
+          "observedAt": "2025-03-04",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Ulrike hat einen Wellensittich, der Fritzi heißt.",
+          "observedAt": "2025-03-07",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Ulrike isst nie scharfes Essen.",
+          "observedAt": "2025-03-10",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Als was arbeitet Ulrike?",
+          "pattern": "Apothekerin"
+        },
+        {
+          "query": "Wo wohnt der Bruder von Ulrike?",
+          "pattern": "Passau"
+        },
+        {
+          "query": "Wo singt Ulrike?",
+          "pattern": "Kirchenchor"
+        },
+        {
+          "query": "Wie heißt der Wellensittich von Ulrike?",
+          "pattern": "Fritzi"
+        },
+        {
+          "query": "Was isst Ulrike nie?",
+          "pattern": "scharf"
+        }
+      ]
+    },
+    {
+      "id": "lng5-anatole",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Anatole Garnier travaille comme boulanger à Besançon.",
+          "observedAt": "2025-03-13",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "La mère d'Anatole s'appelle Odile et habite à Tours.",
+          "observedAt": "2025-03-16",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Anatole court dans le parc tous les matins.",
+          "observedAt": "2025-03-19",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Anatole a un chat qui s'appelle Moustache.",
+          "observedAt": "2025-03-22",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Anatole ne boit jamais de bière.",
+          "observedAt": "2025-03-25",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Quel est le métier d'Anatole ?",
+          "pattern": "boulanger"
+        },
+        {
+          "query": "Où habite la mère d'Anatole ?",
+          "pattern": "Tours"
+        },
+        {
+          "query": "Où court Anatole ?",
+          "pattern": "parc"
+        },
+        {
+          "query": "Comment s'appelle le chat d'Anatole ?",
+          "pattern": "Moustache"
+        },
+        {
+          "query": "Que ne boit jamais Anatole ?",
+          "pattern": "bi[èe]re"
+        }
+      ]
+    },
+    {
+      "id": "lng5-maarten",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Maarten de Graaf werkt als bakker in Leiden.",
+          "observedAt": "2025-03-28",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "De moeder van Maarten heet Truus en woont in Arnhem.",
+          "observedAt": "2025-03-31",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Maarten zwemt elke woensdag in het zwembad.",
+          "observedAt": "2025-04-03",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Maarten heeft een hond die Bolletje heet.",
+          "observedAt": "2025-04-06",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Maarten drinkt nooit koffie na het eten.",
+          "observedAt": "2025-04-09",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Wat voor werk doet Maarten?",
+          "pattern": "bakker"
+        },
+        {
+          "query": "Waar woont de moeder van Maarten?",
+          "pattern": "Arnhem"
+        },
+        {
+          "query": "Waar zwemt Maarten op woensdag?",
+          "pattern": "zwembad"
+        },
+        {
+          "query": "Hoe heet de hond van Maarten?",
+          "pattern": "Bolletje"
+        },
+        {
+          "query": "Wat drinkt Maarten nooit na het eten?",
+          "pattern": "koffie"
+        }
+      ]
+    }
+  ]
+}
