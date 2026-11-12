@@ -13,26 +13,9 @@
 # above are stripped before Trivy reads the file — see scripts hook in
 # the docker-publish workflow if/when the allowlist needs entries).
 #
-# At v0.1.0-alpha this file is intentionally EMPTY — no production CVE
-# has been allowlisted yet. New entries require a sunset date written
+# This file is intentionally EMPTY: no CVE is allowlisted. The libssl3
+# entries for the debian12 runtime base went away with the move to the
+# debian13 base, which ships the fixed OpenSSL. New entries require a sunset date written
 # next to the CVE ID on the SAME line via a `# sunset: YYYY-MM-DD` trailing
 # comment for human review.
 #
-
-# ── OpenSSL / libssl3 in the distroless runtime base (added 2026-06-30, issue #86) ──
-# Runtime = gcr.io/distroless/nodejs22-debian12:nonroot @sha256:13593b75… which still
-# ships libssl3 3.0.18-1~deb12u2. The fixes (3.0.19 / 3.0.20-1~deb12u2) are PUBLISHED in
-# Debian but NOT yet in the distroless rebuild. We cannot `apt upgrade` a distroless
-# runtime (no shell/apt), and switching to node:22-slim to patch would ENLARGE the attack
-# surface (shell + apt + more packages) — a worse trade for a Node/amd64 server. The
-# CRITICAL (CVE-2026-31789) is a 32-bit-only heap overflow → NOT exploitable on this amd64
-# image; the HIGH ones are DANE-TLSA / CMS / PKCS7 paths node TLS does not exercise.
-# ACTION: re-evaluate at sunset OR when distroless ships libssl3 ≥ 3.0.20-1~deb12u2
-# (track: re-run docker-publish; if the base updated, delete these lines).
-# sunset: 2026-07-30  (CRITICAL ≤ 30d per deps-audit-golden-rule; the whole set re-checked together)
-CVE-2026-31789
-CVE-2026-28387
-CVE-2026-28388
-CVE-2026-28389
-CVE-2026-28390
-CVE-2026-45447

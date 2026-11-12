@@ -30,7 +30,6 @@ import type { AddressInfo } from 'node:net';
 
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { withScope } from '@usetheo/memory-agent-core';
 
 import type { McpServer } from '../server.js';
@@ -143,7 +142,7 @@ export async function connectSse(options: SseOptions): Promise<SseHandle> {
       const userId = decodeURIComponent(httpMatch[2] ?? '');
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => randomUUID() });
       const server = options.serverFactory();
-      await server.start(transport as unknown as Transport);
+      await server.start(transport);
       await withScope({ session: { userId } }, () => transport.handleRequest(req, res));
       return;
     }
