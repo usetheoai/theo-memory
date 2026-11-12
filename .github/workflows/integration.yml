@@ -83,7 +83,7 @@ jobs:
 
     services:
       postgres:
-        image: pgvector/pgvector@sha256:1d533553fefe4f12e5d80c7b80622ba0c382abb5758856f52983d8789179f0fb  # :pg16
+        image: pgvector/pgvector:0.8.7-pg18@sha256:c29f30688a9ad961691bdf0ec1650717cc132a5814619d80f80463d6e4c42e47
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -182,7 +182,7 @@ jobs:
 
     services:
       postgres:
-        image: pgvector/pgvector@sha256:1d533553fefe4f12e5d80c7b80622ba0c382abb5758856f52983d8789179f0fb  # :pg16
+        image: pgvector/pgvector:0.8.7-pg18@sha256:c29f30688a9ad961691bdf0ec1650717cc132a5814619d80f80463d6e4c42e47
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres

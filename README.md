@@ -119,7 +119,7 @@ For exact application records, contextual evidence, and asynchronous session ext
 ```bash
 # 1. Start Postgres + pgvector
 docker run -d --name pgvector -e POSTGRES_USER=themem -e POSTGRES_PASSWORD=themem \
-  -e POSTGRES_DB=themem -p 5432:5432 ankane/pgvector:v0.5.1
+  -e POSTGRES_DB=themem -p 5432:5432 pgvector/pgvector:0.8.7-pg18
 
 # 2. Start the server — it applies pending migrations before it binds the port
 docker run -p 8080:8080 \
@@ -509,7 +509,7 @@ npm run lint                # Zero warnings
 |---|---|
 | Contract / unit tests | ~970 passing |
 | Test files | 400+ |
-| Integration tests | 540+ (against `ankane/pgvector:v0.5.1`) |
+| Integration tests | 540+ (against `pgvector/pgvector:0.8.7-pg18`) |
 | Source lines | ~20,000 |
 | DIP interfaces | 13 |
 | Migrations | 29 |

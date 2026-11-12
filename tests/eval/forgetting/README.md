@@ -6,7 +6,7 @@ forgetting pipeline per plan T7.3.
 ## Quick start
 
 ```bash
-# 1. Boot pgvector (or point at any reachable ankane/pgvector:v0.5.1 instance)
+# 1. Boot pgvector (or point at any reachable pgvector/pgvector:0.8.7-pg18 instance)
 docker compose up -d pgvector
 
 # 2. Apply v0.4b migrations if not already applied

@@ -21,6 +21,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- The bundled Postgres image is now `pgvector/pgvector:0.8.7-pg18` (pinned by digest) in `docker-compose.yaml`, `docker-compose.prod.yaml`, the wishlist example and the CI integration workflow, replacing `ankane/pgvector:v0.5.1` locally and pgvector 0.8.5 on Postgres 16 in CI, so local runs and CI test the same server. Postgres 18 keeps its data under `/var/lib/postgresql/18/docker`, so the data volume now mounts `/var/lib/postgresql` and is named `themem_pgdata_pg18` (dev) and `themory_pgdata_pg18` (prod compose). The old volumes are left untouched; to keep existing data, restore a `pg_dumpall` of the old server into the new one before switching.
+
 - `recall({ recencyCollapse: {} })` no longer merges two near-identical facts whose dates, years or negation differ ("visited Lisbon in 2019" and "...in 2022"), since they can be distinct events. A changed value of the same statement still merges, and the newer fact wins. (#249)
 
 - **`OpenAILLM` now sends `temperature: 0` on every call.** It passed no sampling parameter, so extraction ran at the provider default (1 on the OpenAI API) and the same conversation ingested twice gave different memories: in two LoCoMo ingestions of one conversation at the same commit, 85 of about 600 retrieved memory texts were identical. The new `OpenAILLMOptions.temperature` (in [0, 2], `RangeError` otherwise) restores another value. The effect on extraction quality has not been measured. Everything built on `OpenAILLM` is affected, including the reflection, importance and conflict-judge calls and the answerer of the eval runners. (#241)
