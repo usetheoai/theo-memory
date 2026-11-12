@@ -7,7 +7,11 @@
  *
  * Env: LANGUAGE_JUDGE_RUN (write-run output JSON), LANGUAGE_JUDGE_USERS (user id → ISO 639-1),
  * LANGUAGE_JUDGE_MODELS (comma-separated, an odd number; default gpt-4o,gpt-4.1,gpt-4.1-mini),
+ * LANGUAGE_JUDGE_MASK (set to 1 to judge each text with its proper names and numbers masked),
  * OPENAI_BASE_URL, OPENAI_API_KEY.
+ *
+ * Masking exists because the judges, like the language detector, name the language of a short
+ * text from its names: three judges called "Ilinca supports Dinamo" Romanian.
  */
 import { readFileSync } from 'node:fs';
 import { z } from 'zod';
@@ -55,6 +59,23 @@ async function judge(texts: readonly string[], model: string): Promise<string[]>
   return single.map((codes) => codes[0]!);
 }
 
+const NAME_PARTICLES = new Set(['de', 'da', 'do', 'dos', 'das', 'del', 'della', 'di', 'du', 'van', 'von', 'der', 'den', 'ter', 'la', 'le', 'al', 'bin', 'ibn']);
+const capitalised = (word: string): boolean => /^[("'\u201c]?\p{Lu}/u.test(word);
+
+/** Capitalised words become X, words with a digit N, and a name particle between two names is dropped. */
+export function maskNames(text: string): string {
+  const words = text.split(/\s+/u).filter(Boolean);
+  return words
+    .map((word, i) => {
+      if (/\d/u.test(word)) return 'N';
+      if (capitalised(word)) return `X${word.match(/['\u2019]s[.,!?;:]*$/u)?.[0] ?? word.match(/[.,!?;:]+$/u)?.[0] ?? ''}`;
+      const between = i > 0 && i < words.length - 1 && capitalised(words[i - 1]!) && capitalised(words[i + 1]!);
+      return between && NAME_PARTICLES.has(word) ? '' : word;
+    })
+    .filter(Boolean)
+    .join(' ');
+}
+
 function majority(votes: readonly string[]): string | null {
   const counts = new Map<string, number>();
   for (const v of votes) counts.set(v, (counts.get(v) ?? 0) + 1);
@@ -77,7 +98,8 @@ async function judgeAll(kind: 'memory' | 'relation') {
       ? run.memories.filter((m) => m.user === user && m.current).map((m) => m.text)
       : [...new Set(run.relations.filter((r) => r.user === user).map((r) => r.relation))];
     if (texts.length === 0) continue;
-    const byModel = await Promise.all(models.map((m) => judge(texts, m)));
+    const shown = process.env['LANGUAGE_JUDGE_MASK'] === '1' ? texts.map(maskNames) : texts;
+    const byModel = await Promise.all(models.map((m) => judge(shown, m)));
     judged += texts.length;
     texts.forEach((text, i) => {
       const votes = byModel.map((v) => v[i]!);
