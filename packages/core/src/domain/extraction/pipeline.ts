@@ -31,7 +31,7 @@ import type { RememberOptions } from '../options.js';
 import type { Filters } from '../scope.js';
 import { attachWriteContext, validateWriteContext, writeRequestHash } from '../write-context.js';
 
-import { linkEntities, type RelationTriple } from './entity-linking.js';
+import { keepAnnotationsNamedBy, linkEntities, type RelationTriple } from './entity-linking.js';
 import { prepareExtractedEvidence, extractedMemoryEvidence } from './evidence.js';
 import { applyFactGate } from './fact-gate.js';
 import { scoreNewFacts } from './importance-scoring.js';
@@ -367,12 +367,12 @@ async function extractAndPersist(
   const extractedCount = extracted.length;
   extracted = prepareExtractedEvidence(applyFactGate(extracted, tracer), messages, tracer);
   if (extracted.length < extractedCount && (llmEntities !== undefined || relations !== undefined)) {
-    // Batch-level graph annotations have no per-fact provenance. They could retain
-    // a rejected preference by attaching it to a surviving fact. Fall back to
-    // extracting nodes from the kept texts and omit these unassignable edges.
-    llmEntities = undefined;
-    relations = undefined;
-    emitEvent(tracer, 'extraction_evidence_dropped', { reason: 'filtered_batch_graph_annotations', target: 'graph' });
+    // Graph annotations come for the whole call. Keep only what a surviving fact names,
+    // so a dropped draft cannot attach its entities or relations to a kept fact. With no
+    // entity left, linking falls back to extracting nodes from the kept texts.
+    const kept = keepAnnotationsNamedBy(extracted, llmEntities, relations, tracer);
+    llmEntities = kept.entities !== undefined && kept.entities.length > 0 ? kept.entities : undefined;
+    relations = kept.relations;
   }
 
   if (extracted.length === 0) {

@@ -5,6 +5,7 @@
  * multilingual) entities survive.
  *
  */
+import type { Tracer } from '@opentelemetry/api';
 import { describe, expect, it } from 'vitest';
 
 import type { Embedder } from '../dip/embedder.js';
@@ -13,7 +14,7 @@ import type { MemoryEntityStore, UpsertAndLinkParams } from '../dip/memory-entit
 import type { MemoryGraphStore, UpsertEdgesParams } from '../dip/memory-graph-store.js';
 import type { MemoryItem } from '../memory-item.js';
 import type { Filters } from '../scope.js';
-import { linkEntities, type EntityLinkingDeps, type LlmEntity, type RelationTriple } from './entity-linking.js';
+import { keepAnnotationsNamedBy, linkEntities, type EntityLinkingDeps, type LlmEntity, type RelationTriple } from './entity-linking.js';
 
 function fakeEmbedder(): Embedder {
   return {
@@ -141,5 +142,58 @@ describe('linkEntities — a write with several facts links each entity to the f
     await linkEntities(facts, FILTERS, deps, undefined, relations, entities);
 
     expect(edgeLinks).toEqual(['m1:halvard>sigvald']);
+  });
+});
+
+describe('keepAnnotationsNamedBy — graph annotations when a draft of the call was dropped', () => {
+  function recordingTracer(sink: { event: string; attributes: Record<string, unknown> }[]): Tracer {
+    return {
+      startActiveSpan(name: string, fn: (span: unknown) => void): void {
+        const attributes: Record<string, unknown> = {};
+        fn({ setAttribute: (k: string, v: unknown) => { attributes[k] = v; }, end: () => undefined });
+        sink.push({ event: name, attributes });
+      },
+    } as unknown as Tracer;
+  }
+  const kept = [{ text: 'Øyfrid works as a nurse at Vardø Hospital' }];
+  const entities: LlmEntity[] = [{ name: 'Øyfrid', type: 'PERSON' }, { name: 'Vardø Hospital', type: 'ORG' }, { name: 'Jeremias', type: 'PERSON' }];
+  const relations: RelationTriple[] = [
+    { source: 'Øyfrid', relationship: 'works at', destination: 'Vardø Hospital' },
+    { source: 'Øyfrid', relationship: 'is married to', destination: 'Jeremias' },
+  ];
+
+  it('keeps an entity a surviving fact names, with the type the model gave it', () => {
+    const result = keepAnnotationsNamedBy(kept, entities, relations, undefined);
+
+    expect(result.entities).toContainEqual({ name: 'Vardø Hospital', type: 'ORG' });
+  });
+
+  it('drops an entity only the dropped draft named', () => {
+    const result = keepAnnotationsNamedBy(kept, entities, relations, undefined);
+
+    expect(result.entities?.map((e) => e.name)).not.toContain('Jeremias');
+  });
+
+  it('keeps a relation whose two ends a surviving fact names', () => {
+    const result = keepAnnotationsNamedBy(kept, entities, relations, undefined);
+
+    expect(result.relations).toContainEqual({ source: 'Øyfrid', relationship: 'works at', destination: 'Vardø Hospital' });
+  });
+
+  it('drops a relation with an end only the dropped draft named', () => {
+    const result = keepAnnotationsNamedBy(kept, entities, relations, undefined);
+
+    expect(result.relations?.map((r) => r.destination)).not.toContain('Jeremias');
+  });
+
+  it('reports how many entities and relations it dropped', () => {
+    const events: { event: string; attributes: Record<string, unknown> }[] = [];
+
+    keepAnnotationsNamedBy(kept, entities, relations, recordingTracer(events));
+
+    expect(events).toContainEqual({
+      event: 'extraction_evidence_dropped',
+      attributes: expect.objectContaining({ reason: 'unassignable_graph_annotations', dropped_entities: 1, dropped_relations: 1 }) as unknown,
+    });
   });
 });
