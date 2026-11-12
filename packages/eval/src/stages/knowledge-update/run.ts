@@ -62,8 +62,9 @@ export async function runKnowledgeUpdate(): Promise<KnowledgeUpdateResult> {
     getByRecallId: () => Promise.resolve([]),
   };
 
+  const vectorStore = new InMemoryVectorStore();
   const memory = (await createLocalMemory({
-    vectorStore: new InMemoryVectorStore(),
+    vectorStore,
     embedder: fixtureEmbedder(),
     llm: new StubLLM(),
     embeddingDim: f.embeddingDim,
@@ -72,9 +73,12 @@ export async function runKnowledgeUpdate(): Promise<KnowledgeUpdateResult> {
 
   try {
     const scope = memory.user('kb_update');
-    // Injected clock: older strictly before newer (distinct `created_at`).
-    await scope.remember(f.older.text, { infer: false, metadata: { created_at: f.older.createdAt } });
-    await scope.remember(f.newer.text, { infer: false, metadata: { created_at: f.newer.createdAt } });
+    // Inject the fixture clock at the adapter seam; caller metadata cannot spoof lifecycle fields.
+    for (const fact of [f.older, f.newer]) {
+      const [saved] = await scope.remember(fact.text, { infer: false });
+      const row = await vectorStore.get(saved!.id);
+      await vectorStore.update(saved!.id, fact.embedding, {...row!.payload, created_at: fact.createdAt});
+    }
 
     const plain = await scope.recall(f.query);
     const collapsed = await scope.recall(f.query, { recencyCollapse: {} });
@@ -114,8 +118,9 @@ export interface RealReadTimeCounterProof {
  */
 export async function runRealReadTimeCounterProof(): Promise<RealReadTimeCounterProof> {
   const f = KNOWLEDGE_UPDATE_REAL_FIXTURE;
+  const vectorStore = new InMemoryVectorStore();
   const memory = (await createLocalMemory({
-    vectorStore: new InMemoryVectorStore(),
+    vectorStore,
     embedder: realFixtureEmbedder(),
     llm: new StubLLM(),
     embeddingDim: f.embeddingDim,
@@ -123,8 +128,11 @@ export async function runRealReadTimeCounterProof(): Promise<RealReadTimeCounter
 
   try {
     const scope = memory.user('m23_readtime');
-    await scope.remember(f.older.text, { infer: false, metadata: { created_at: f.older.createdAt } });
-    await scope.remember(f.newer.text, { infer: false, metadata: { created_at: f.newer.createdAt } });
+    for (const fact of [f.older, f.newer]) {
+      const [saved] = await scope.remember(fact.text, { infer: false });
+      const row = await vectorStore.get(saved!.id);
+      await vectorStore.update(saved!.id, fact.embedding, {...row!.payload, created_at: fact.createdAt});
+    }
 
     const collapsed = await scope.recall(f.query5k, { recencyCollapse: {} });
     const collapsedTexts = collapsed.map((m) => m.text);

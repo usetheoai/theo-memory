@@ -1,0 +1,406 @@
+{
+  "users": [
+    {
+      "id": "lbl-iolanda",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Iolanda Brito trabalha como professora em Uberlândia.",
+          "observedAt": "2024-09-02",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "A filha de Iolanda se chama Clarice e estuda em Londrina.",
+          "observedAt": "2024-09-05",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Iolanda é sócia de um restaurante com o primo Haroldo.",
+          "observedAt": "2024-09-08",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "O marido de Iolanda, Edgar, conserta relógios.",
+          "observedAt": "2024-09-11",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Iolanda adotou um cachorro chamado Tufão.",
+          "observedAt": "2024-09-14",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Iolanda viaja para Ilhéus todo mês de julho.",
+          "observedAt": "2024-09-17",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Qual é a profissão de Iolanda?",
+          "pattern": "professora"
+        },
+        {
+          "query": "Onde estuda a filha de Iolanda?",
+          "pattern": "Londrina"
+        },
+        {
+          "query": "Com quem Iolanda é sócia?",
+          "pattern": "Haroldo"
+        },
+        {
+          "query": "O que Edgar conserta?",
+          "pattern": "rel[oó]gios"
+        },
+        {
+          "query": "Como se chama o cachorro de Iolanda?",
+          "pattern": "Tuf"
+        },
+        {
+          "query": "Para onde Iolanda viaja em julho?",
+          "pattern": "Ilh"
+        }
+      ]
+    },
+    {
+      "id": "lbl-consuelo",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Consuelo Ibáñez trabaja como panadera en Logroño.",
+          "observedAt": "2024-09-20",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "El hijo de Consuelo se llama Gonzalo y vive en Cuenca.",
+          "observedAt": "2024-09-23",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Consuelo es socia de una librería con su vecina Pilar.",
+          "observedAt": "2024-09-26",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "El marido de Consuelo, Fermín, arregla motos.",
+          "observedAt": "2024-09-29",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Consuelo adoptó un gato llamado Garbanzo.",
+          "observedAt": "2024-10-02",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Consuelo visita a su tía en Teruel cada verano.",
+          "observedAt": "2024-10-05",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "¿En qué trabaja Consuelo?",
+          "pattern": "panadera"
+        },
+        {
+          "query": "¿Dónde vive el hijo de Consuelo?",
+          "pattern": "Cuenca"
+        },
+        {
+          "query": "¿Con quién es socia Consuelo?",
+          "pattern": "Pilar"
+        },
+        {
+          "query": "¿Qué arregla Fermín?",
+          "pattern": "motos"
+        },
+        {
+          "query": "¿Cómo se llama el gato de Consuelo?",
+          "pattern": "Garbanzo"
+        },
+        {
+          "query": "¿Dónde vive la tía de Consuelo?",
+          "pattern": "Teruel"
+        }
+      ]
+    },
+    {
+      "id": "lbl-ottavio",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Ottavio Bianchi lavora come idraulico a Rimini.",
+          "observedAt": "2024-10-08",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "La figlia di Ottavio si chiama Beatrice e studia a Padova.",
+          "observedAt": "2024-10-11",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Ottavio è socio di una pizzeria con il cognato Renzo.",
+          "observedAt": "2024-10-14",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "La moglie di Ottavio, Graziella, ripara biciclette.",
+          "observedAt": "2024-10-17",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Ottavio ha adottato un cane che si chiama Briciola.",
+          "observedAt": "2024-10-20",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Ottavio va a trovare la nonna a Lecce ogni agosto.",
+          "observedAt": "2024-10-23",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Che lavoro fa Ottavio?",
+          "pattern": "idraulico"
+        },
+        {
+          "query": "Dove studia la figlia di Ottavio?",
+          "pattern": "Padova"
+        },
+        {
+          "query": "Con chi è socio Ottavio?",
+          "pattern": "Renzo"
+        },
+        {
+          "query": "Cosa ripara Graziella?",
+          "pattern": "biciclette"
+        },
+        {
+          "query": "Come si chiama il cane di Ottavio?",
+          "pattern": "Briciola"
+        },
+        {
+          "query": "Dove vive la nonna di Ottavio?",
+          "pattern": "Lecce"
+        }
+      ]
+    },
+    {
+      "id": "lbl-hannelore",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Hannelore Seidel arbeitet als Bäckerin in Erfurt.",
+          "observedAt": "2024-10-26",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Der Sohn von Hannelore heißt Torsten und studiert in Jena.",
+          "observedAt": "2024-10-29",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Hannelore führt eine Buchhandlung zusammen mit ihrer Nachbarin Gisela.",
+          "observedAt": "2024-11-01",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Der Mann von Hannelore, Dieter, repariert Uhren.",
+          "observedAt": "2024-11-04",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Hannelore hat einen Kater namens Pünktchen adoptiert.",
+          "observedAt": "2024-11-07",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Hannelore besucht jeden Sommer ihre Tante in Görlitz.",
+          "observedAt": "2024-11-10",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Als was arbeitet Hannelore?",
+          "pattern": "B[äa]ckerin"
+        },
+        {
+          "query": "Wo studiert der Sohn von Hannelore?",
+          "pattern": "Jena"
+        },
+        {
+          "query": "Mit wem führt Hannelore die Buchhandlung?",
+          "pattern": "Gisela"
+        },
+        {
+          "query": "Was repariert Dieter?",
+          "pattern": "Uhren"
+        },
+        {
+          "query": "Wie heißt der Kater von Hannelore?",
+          "pattern": "P[üu]nktchen"
+        },
+        {
+          "query": "Wo wohnt die Tante von Hannelore?",
+          "pattern": "G[öo]rlitz"
+        }
+      ]
+    },
+    {
+      "id": "lbl-baptiste",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Baptiste Lefèvre travaille comme menuisier à Angers.",
+          "observedAt": "2024-11-13",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "La fille de Baptiste s'appelle Solène et étudie à Poitiers.",
+          "observedAt": "2024-11-16",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Baptiste est associé dans une crêperie avec son beau-frère Yann.",
+          "observedAt": "2024-11-19",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "La femme de Baptiste, Gwenaëlle, répare des vélos.",
+          "observedAt": "2024-11-22",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Baptiste a adopté un chien qui s'appelle Praline.",
+          "observedAt": "2024-11-25",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Baptiste rend visite à sa grand-mère à Quimper chaque été.",
+          "observedAt": "2024-11-28",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Quel est le métier de Baptiste ?",
+          "pattern": "menuisier"
+        },
+        {
+          "query": "Où étudie la fille de Baptiste ?",
+          "pattern": "Poitiers"
+        },
+        {
+          "query": "Avec qui Baptiste est-il associé ?",
+          "pattern": "Yann"
+        },
+        {
+          "query": "Que répare Gwenaëlle ?",
+          "pattern": "v[ée]los"
+        },
+        {
+          "query": "Comment s'appelle le chien de Baptiste ?",
+          "pattern": "Praline"
+        },
+        {
+          "query": "Où vit la grand-mère de Baptiste ?",
+          "pattern": "Quimper"
+        }
+      ]
+    },
+    {
+      "id": "lbl-joost",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Joost van Dijk werkt als loodgieter in Zwolle.",
+          "observedAt": "2024-12-01",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "De dochter van Joost heet Femke en studeert in Groningen.",
+          "observedAt": "2024-12-04",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Joost runt een fietsenwinkel samen met zijn zwager Bram.",
+          "observedAt": "2024-12-07",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "De vrouw van Joost, Ineke, repareert klokken.",
+          "observedAt": "2024-12-10",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Joost heeft een kat geadopteerd die Snoesje heet.",
+          "observedAt": "2024-12-13",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Joost bezoekt elke zomer zijn oom in Maastricht.",
+          "observedAt": "2024-12-16",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Wat voor werk doet Joost?",
+          "pattern": "loodgieter"
+        },
+        {
+          "query": "Waar studeert de dochter van Joost?",
+          "pattern": "Groningen"
+        },
+        {
+          "query": "Met wie runt Joost de winkel?",
+          "pattern": "Bram"
+        },
+        {
+          "query": "Wat repareert Ineke?",
+          "pattern": "klokken"
+        },
+        {
+          "query": "Hoe heet de kat van Joost?",
+          "pattern": "Snoesje"
+        },
+        {
+          "query": "Waar woont de oom van Joost?",
+          "pattern": "Maastricht"
+        }
+      ]
+    }
+  ]
+}

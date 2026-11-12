@@ -76,7 +76,7 @@ export async function runRetrievalPipeline(
   // Step 4 + 5: BM25 keyword search + sigmoid normalization
   let bm25Results: readonly VectorStoreResult[] | null = null;
   if (hasBm25Query) {
-    bm25Results = await deps.vectorStore.keywordSearch(withSpeakerAlias(query), internalLimit, filters);
+    bm25Results = await deps.vectorStore.keywordSearch(withSpeakerAlias(query), internalLimit, filters, queryVector);
   }
   const queryLength = queryTokens.length;
   const bm25NormalizedById = new Map<string, number>();

@@ -1,77 +1,66 @@
 /**
  * e2e-qa — LongMemEval answer-generation + judge prompts.
  *
- * Faithful replication of the published LongMemEval
- * end-to-end QA prompts. The answerer builds
- * an answer from the recalled TheMemory memories; the judge scores it against
- * the gold answer with an ABSOLUTE binary yes/no verdict.
+ * The published LongMemEval answer template and category-specific judge templates.
+ * The answerer builds an answer from the recalled TheMemory memories; the judge
+ * scores it against the gold answer with a binary yes/no verdict.
  *
  * Both are called at temperature=0 (deterministic). The judge verdict is the
  * LAST 'yes'/'no' token after the closing </judge_thinking> tag.
  */
 
-/** Answer-generation prompt — LongMemEval methodology, memories newest-first. */
-export function buildAnswerPrompt(params: {
+/** Official LongMemEval answer template (CoT variant), for protocol-controlled evals. */
+export function buildLongMemEvalAnswerPrompt(params: {
   readonly question: string;
   readonly questionDate: string;
   readonly memories: string;
 }): string {
   return [
-    'You are a personal assistant with access to memories from past conversations',
-    'with a user. Answer the question using information from the memories below. Be',
-    'direct and concise.',
+    'I will give you several history chats between you and a user. Please answer the question based on the relevant chat history. Answer the question step by step: first extract all the relevant information, and then reason over the information to get the answer.',
     '',
-    `IMPORTANT: Today's date is ${params.questionDate}. All relative time`,
-    'expressions MUST be computed relative to this date.',
+    'History Chats:',
+    params.memories,
     '',
-    'Rules:',
-    '- Answer only when a memory DIRECTLY and SPECIFICALLY supports it.',
-    '- Most-recent value wins for conflicts.',
-    `- Compute time windows from ${params.questionDate}.`,
-    "- CRITICAL (#140): if the memories are absent OR only related-but-insufficient,",
-    "  DO NOT guess or infer — say you don't have that information (abstention).",
-    '  Related-but-insufficient memories are NOT grounds to fabricate an answer.',
-    '',
-    `Memories (newest-first):\n${params.memories}`,
-    '',
-    `Today's Date: ${params.questionDate}.`,
-    `Question: ${params.question}.`,
-    '',
-    'Provide full thinking in <mem_thinking> tags BEFORE the answer.',
+    `Current Date: ${params.questionDate}`,
+    `Question: ${params.question}`,
+    'Answer (step by step):',
   ].join('\n');
 }
 
-/** Judge prompt — the standard binary rubric with the anti-'no' bias check. */
-export function buildJudgePrompt(params: {
+/** Official LongMemEval category-specific binary judge templates. */
+export function buildLongMemEvalJudgePrompt(params: {
+  readonly questionType: string;
   readonly question: string;
   readonly answer: string;
   readonly response: string;
+  readonly abstention: boolean;
 }): string {
+  if (params.abstention) {
+    return [
+      'I will give you an unanswerable question, an explanation, and a response from a model. Please answer yes if the model correctly identifies the question as unanswerable. The model could say that the information is incomplete, or some other information is given but the asked information is not.',
+      '',
+      `Question: ${params.question}`,
+      `Explanation: ${params.answer}`,
+      `Model Response: ${params.response}`,
+      'Does the model correctly identify the question as unanswerable? Answer yes or no only.',
+    ].join('\n');
+  }
+  const shared = 'I will give you a question, a correct answer, and a response from a model. Please answer yes if the response contains the correct answer. Otherwise, answer no. If the response is equivalent to the correct answer or contains all the intermediate steps to get the correct answer, you should also answer yes. If the response only contains a subset of the information required by the answer, answer no.';
+  const categoryRule = params.questionType === 'temporal-reasoning'
+    ? ' In addition, do not penalize off-by-one errors for the number of days. If the question asks for the number of days/weeks/months, etc., and the model makes off-by-one errors (e.g., predicting 19 days when the answer is 18), the model\'s response is still correct.'
+    : params.questionType === 'knowledge-update'
+      ? ' If the response contains some previous information along with an updated answer, the response should be considered correct as long as the updated answer is the required answer.'
+      : params.questionType === 'single-session-preference'
+        ? ' The response is correct as long as it recalls and utilizes the user\'s personal information correctly; it does not need to reflect all points in the rubric.'
+        : '';
+  const answerLabel = params.questionType === 'single-session-preference' ? 'Rubric' : 'Correct Answer';
   return [
-    'I will give you a question, a correct answer (or rubric), and a model',
-    'response. Decide whether the model response is correct.',
+    shared + categoryRule,
     '',
-    'CORE PRINCIPLE — semantic equivalence: judge by MEANING, not exact words.',
-    '',
-    "IMPORTANT BIAS CHECK: you tend to say 'no' too quickly; before concluding",
-    "'no' verify the answer is truly wrong, not just differently worded; when in",
-    "doubt lean 'yes'.",
-    '',
-    'Rules:',
-    '- Extra details acceptable unless factually wrong.',
-    '- Match lists by semantic meaning.',
-    '- Hedging acceptable if the core number matches; off-by-one on days/weeks ok.',
-    '- Date format variations are equivalent.',
-    "- '0'/'nothing found' matches 'not enough information' and vice-versa.",
-    "- Abstention: any phrasing conveying 'don't have this information' is correct",
-    '  when the gold answer is an abstention.',
-    '',
-    `Question: ${params.question}.`,
-    `Correct Answer: ${params.answer}.`,
-    `Model Response: ${params.response}.`,
-    '',
-    'Think in <judge_thinking> tags, then give the final verdict as exactly',
-    "'yes' or 'no' on a new line after the closing tag.",
+    `Question: ${params.question}`,
+    `${answerLabel}: ${params.answer}`,
+    `Model Response: ${params.response}`,
+    'Is the model response correct? Answer yes or no only.',
   ].join('\n');
 }
 

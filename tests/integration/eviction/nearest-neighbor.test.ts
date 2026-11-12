@@ -116,5 +116,41 @@ if (PG_URI === undefined || PG_URI === '') {
       // Only the orthogonal active row counts → distance ≈ 1.0
       expect(distance).toBeGreaterThan(0.5);
     });
+
+    test('nearest names the closest live neighbour and its distance', async () => {
+      const idA = await seedMemory(makeEmbedding(0, 1.0));
+      const idB = await seedMemory(makeEmbedding(0, 0.95));
+      await seedMemory(makeEmbedding(1000, 1.0));
+      const provider = new PgNearestNeighborProvider(pool);
+      const neighbour = await provider.nearest(idA, { kind: 'agent', agentId: TEST_AGENT_ID });
+      expect(neighbour?.id).toBe(idB);
+      expect(neighbour?.distance).toBeLessThan(0.01);
+    });
+
+    test('nearest returns null when the scope holds no other live memory', async () => {
+      const id = await seedMemory(makeEmbedding(7));
+      await seedMemory(makeEmbedding(7, 0.9), new Date('2026-01-01T00:00:00Z'));
+      const provider = new PgNearestNeighborProvider(pool);
+      expect(await provider.nearest(id, { kind: 'agent', agentId: TEST_AGENT_ID })).toBeNull();
+    });
+
+    test('a pass never evicts every copy of a repeated fact (#240)', async () => {
+      // Three copies of one fact and three unrelated memories; half of the scope goes.
+      const copies = [
+        await seedMemory(makeEmbedding(0, 1.0)),
+        await seedMemory(makeEmbedding(0, 0.9)),
+        await seedMemory(makeEmbedding(0, 0.8)),
+      ];
+      for (const index of [300, 600, 900]) await seedMemory(makeEmbedding(index, 1.0));
+      const rows = await pool.query<{ id: string }>('SELECT id FROM memories WHERE agent_id = $1', [TEST_AGENT_ID]);
+      const at = new Date('2026-01-01T00:00:00Z');
+      const scope = { kind: 'agent' as const, agentId: TEST_AGENT_ID };
+      const candidates = rows.rows.map((r) => ({
+        id: r.id, text: 'nn seed', hash: r.id, scope, createdAt: at, updatedAt: at, metadata: {}, tValid: at, tInvalid: null,
+      }));
+      const victims = await policy.selectVictims(candidates, 0.5, { meanIsolationDistance: 0, now: at });
+      expect(victims).toHaveLength(3);
+      expect(copies.filter((id) => !victims.includes(id)).length).toBeGreaterThanOrEqual(1);
+    });
   });
 }

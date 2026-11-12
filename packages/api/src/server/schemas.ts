@@ -18,6 +18,7 @@
  * @see Plan theo-memory-standalone-p0 § ADR D12
  * @see Plan theo-memory-standalone-p0-fixes-cycle-1 § ADR D1 + EC-2
  */
+import { MemoryEvidenceSchema } from '@usetheo/memory/contract';
 import { z } from 'zod';
 
 const SCOPE_KEYS = ['userId', 'sessionId', 'agentId'] as const;
@@ -50,6 +51,12 @@ export const RememberBody = z
     ...ScopeFields,
     text: z.string().min(1),
     infer: z.boolean().optional(),
+    evidence: MemoryEvidenceSchema.optional(),
+    idempotencyKey: z.string().trim().min(1).max(256).optional(),
+    expiresAt: z.string().datetime({offset:true}).optional(),
+    /** When the text was said or written (ISO-8601), if not now. SDK RememberOptions.observedAt. */
+    observedAt: z.string().datetime({offset:true}).optional(),
+    strictExtraction: z.boolean().optional(),
     attributedTo: z.string().min(1).optional(),
     metadata: z.record(z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),
     /**
@@ -70,6 +77,8 @@ export const RecallBody = z
     threshold: z.number().min(0).max(1).optional(),
     attributedTo: z.string().min(1).optional(),
     asOf: z.string().datetime().optional(),
+    // ADR-0027 — return each result's raw source messages (`results[].sources`). Default off.
+    includeSources: z.boolean().optional(),
     // rest-graph-aware-recall — expose RecallOptions.graphExpand (v0.19.0 SDK
     // capability) over REST. Bounded: hops literal 1|2 (mirror the SDK type),
     // limit <= 100 (DoS-guard parity with topK). `.strict()` rejects unknown

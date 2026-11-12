@@ -1,3 +1,5 @@
+import { serve } from '@hono/node-server';
+import { PgMemoryEvidenceStore, PgMemoryJobStore } from '@usetheo/memory';
 /**
  * REST server composition root for `themory server` (Roadmap Item 16-18).
  *
@@ -10,7 +12,6 @@
  *
  * @see Plan theo-memory-standalone-p0 § T2.3 + ADR D8 + EC-31/32/33 + EC-47
  */
-import { serve } from '@hono/node-server';
 import {
   runMigrations,
   PgMemoryEntityStore,
@@ -120,7 +121,7 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
   const port = resolvePort(options?.port);
   const host = resolveHost(options?.host);
 
-  // Embedder selection (THEOMEM_EMBEDDER): local (Xenova 384) | openai (1536).
+  // Embedder selection (THEOMEM_EMBEDDER): local (384) | openai (1536) | compatible (configured; default 1024).
   // Migration dim MUST match the embedder; resolve once and reuse.
   const embedderKind = resolveEmbedderKind();
   const embedderDim = embeddingDimForKind(embedderKind);
@@ -343,6 +344,8 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
     // F-M1 (/review): wire the entities read port so GET /v1/scopes/:type/:id/entities
     // serves REAL extracted entities (not the attributed_to fallback) in production.
     // Shares the same pool the Memory factory uses; closes the slice's goal loop.
+    memoryEvidenceStore: new PgMemoryEvidenceStore(pool),
+    ...(process.env['THEOMEM_MEMORY_JOBS'] === 'true' ? { memoryJobs: new PgMemoryJobStore(pool) } : {}),
     memoryEntityStore: new PgMemoryEntityStore(pool),
     // slice2 T3.2 — wire the edges read port so GET /v1/scopes/:type/:id/graph
     // serves REAL relation edges in production (mirrors the entity-port F-M1 fix).

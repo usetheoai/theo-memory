@@ -23,6 +23,8 @@ import { eld } from 'eld';
  * unreliably; below this we return `null` (no directive) rather than guess.
  */
 export const MIN_DETECT_CHARS = 12;
+const MAX_SEGMENT_CHARS = 180;
+const MIN_SEGMENT_CHARS = 40;
 
 /**
  * Supported ISO-639-1 → English language name. Scope for fixes-cycle-1: the
@@ -46,21 +48,71 @@ export interface DetectedLanguage {
   readonly name: string;
 }
 
+function reliableLanguage(text: string): string | null {
+  if (text.trim().length < MIN_DETECT_CHARS) return null;
+  try {
+    const result = eld.detect(text.trim());
+    if (result.language === '' || (typeof result.isReliable === 'function' && !result.isReliable())) {
+      return null;
+    }
+    return result.language;
+  } catch {
+    return null;
+  }
+}
+
+function boundedSegments(text: string): string[] {
+  const sentences = text.split(/(?<=[.!?])\s+|\n+/).map((part) => part.trim()).filter(Boolean);
+  const segments: string[] = [];
+  for (const sentence of sentences) {
+    if (sentence.length <= MAX_SEGMENT_CHARS) {
+      if (sentence.length >= MIN_SEGMENT_CHARS) segments.push(sentence);
+      continue;
+    }
+    let current = '';
+    for (const word of sentence.split(/\s+/)) {
+      if (current.length > 0 && current.length + word.length + 1 > MAX_SEGMENT_CHARS) {
+        if (current.length >= MIN_SEGMENT_CHARS) segments.push(current);
+        current = '';
+      }
+      current = current.length === 0 ? word : `${current} ${word}`;
+    }
+    if (current.length >= MIN_SEGMENT_CHARS) segments.push(current);
+  }
+  return segments;
+}
+
 function detectCode(text: string): string | null {
   const trimmed = text.trim();
   if (trimmed.length < MIN_DETECT_CHARS) {
     return null;
   }
-  try {
-    const result = eld.detect(trimmed);
-    const code = result.language;
-    if (code === '' || (typeof result.isReliable === 'function' && !result.isReliable())) {
-      return null;
-    }
-    return code;
-  } catch {
+  const direct = reliableLanguage(trimmed);
+  // Long/domain-heavy turns can make the detector's global guess unreliable; it
+  // can also confidently pick the wrong majority language on a bilingual turn.
+  // Use independent substantial samples to confirm a directive in either case.
+  const votes = new Map<string, number>();
+  let total = 0;
+  let reliableSegments = 0;
+  for (const segment of boundedSegments(trimmed)) {
+    const language = reliableLanguage(segment);
+    if (language === null) continue;
+    reliableSegments += 1;
+    const weight = segment.length;
+    votes.set(language, (votes.get(language) ?? 0) + weight);
+    total += weight;
+  }
+  if (reliableSegments < 2 || votes.size === 0) return direct;
+  const ranked = [...votes.entries()].sort((a, b) => b[1] - a[1]);
+  const winner = ranked[0];
+  const runnerUp = ranked[1];
+  if (winner === undefined || (runnerUp !== undefined && runnerUp[1] === winner[1])) return null;
+  const winningWeight = winner[1];
+  if (winningWeight / total < 0.75) return null;
+  if (direct !== null && direct !== winner[0] && (votes.get(direct) ?? 0) / total >= 0.25) {
     return null;
   }
+  return winner[0];
 }
 
 /**
@@ -80,4 +132,11 @@ export function detectInputLanguage(text: string): DetectedLanguage | null {
     return null; // detected but unmapped — never inject a raw/unsupported code (EC-1)
   }
   return { iso6391: code, name };
+}
+
+/** The supported language for an ISO 639-1 code, or `null` when the code is not one of them. */
+export function languageFromCode(code: string): DetectedLanguage | null {
+  const iso6391 = code.trim().toLowerCase();
+  const name = ISO6391_TO_NAME[iso6391];
+  return name === undefined ? null : { iso6391, name };
 }

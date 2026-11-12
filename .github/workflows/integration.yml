@@ -4,9 +4,9 @@
 #   integration  — `pnpm run test:integration` (~95 testes contra OpenAI real). Roda SÓ em
 #                  schedule noturno e sob demanda (`workflow_dispatch`).
 #
-# POR QUE A SEPARAÇÃO (decisão do owner, 2026-07-27): na frota Blacksmith, cobrada por minuto,
-# este workflow era de longe o item mais caro do pipeline — máx. 28,8 min medidos, mais chamadas
-# reais à OpenAI, A CADA PUSH. Desligar tudo era a alternativa considerada e foi rejeitada porque
+# POR QUE A SEPARAÇÃO (decisão do owner, 2026-07-27): este workflow era de longe o item mais caro
+# do pipeline — máx. 28,8 min medidos, mais chamadas reais à OpenAI, A CADA PUSH. Com o repositório
+# público os runners GitHub-hosted não cobram minuto, mas as chamadas à OpenAI continuam pagas. Desligar tudo era a alternativa considerada e foi rejeitada porque
 # levaria junto a suíte de contrato: o `ci.yml` deliberadamente NÃO roda `pnpm test` (parte da
 # suíte "contract" sobe o servidor MCP e abre um `Pool` real, então sem banco ela falha por
 # infraestrutura, não por defeito), e o #104 existiu exatamente porque essa suíte não estava
@@ -43,6 +43,12 @@ on:
         default: true
     secrets:
       OPENAI_API_KEY: { required: false }
+  pull_request:
+    branches: [develop, main]
+    paths-ignore:
+      - '.claude/**'
+      - '**/*.md'
+      - 'docs/**'
   # Noturno 03:00 UTC — a suíte cara roda uma vez por dia contra develop, não por commit.
   schedule:
     - cron: '0 3 * * *'
@@ -77,7 +83,7 @@ jobs:
 
     services:
       postgres:
-        image: pgvector/pgvector@sha256:1d533553fefe4f12e5d80c7b80622ba0c382abb5758856f52983d8789179f0fb  # :pg16
+        image: pgvector/pgvector:0.8.7-pg18@sha256:c29f30688a9ad961691bdf0ec1650717cc132a5814619d80f80463d6e4c42e47
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -167,9 +173,7 @@ jobs:
     if: >-
       ${{ !inputs.called_by_workflow
           && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
-    # RUNNER — GitHub-hosted `ubuntu-latest`. The org has no runner serving the former
-    # Blacksmith label (`blacksmith-8vcpu-ubuntu-2404`) any more, so a job declaring it sits
-    # queued until cancelled. Service containers (`services: postgres`) are provisioned natively
+    # RUNNER — GitHub-hosted `ubuntu-latest` (free for a public repository). Service containers (`services: postgres`) are provisioned natively
     # on GitHub-hosted Linux runners.
     runs-on: ubuntu-latest
     # Medido: max 28,8 min (baixa o modelo Xenova ~22 MB com 6 tentativas, aplica schema, roda a
@@ -178,7 +182,7 @@ jobs:
 
     services:
       postgres:
-        image: pgvector/pgvector@sha256:1d533553fefe4f12e5d80c7b80622ba0c382abb5758856f52983d8789179f0fb  # :pg16
+        image: pgvector/pgvector:0.8.7-pg18@sha256:c29f30688a9ad961691bdf0ec1650717cc132a5814619d80f80463d6e4c42e47
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres

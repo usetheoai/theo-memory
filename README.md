@@ -75,6 +75,11 @@ const facts = await memory.user('alice').recall('UI preferences');
 
 ## Features
 
+For exact application records, contextual evidence, and asynchronous session extraction, see
+[Memory semantics and session lifecycle](docs/memory-semantics.md),
+[durable worker operations](docs/memory-jobs.md), and the
+[runnable wishlist example](examples/wishlist/README.md).
+
 - **Three-tier scope** — `user` (cross-session) · `session` (conversation) · `agent` (procedural) + `skills` (code-as-skill library)
 - **4-verb API** — `remember` · `recall` · `forget` · `reflect` — consistent across all tiers
 - **Hybrid retrieval** — semantic (cosine) + BM25 (lexical) + entity boost with threshold gating
@@ -114,7 +119,7 @@ const facts = await memory.user('alice').recall('UI preferences');
 ```bash
 # 1. Start Postgres + pgvector
 docker run -d --name pgvector -e POSTGRES_USER=themem -e POSTGRES_PASSWORD=themem \
-  -e POSTGRES_DB=themem -p 5432:5432 ankane/pgvector:v0.5.1
+  -e POSTGRES_DB=themem -p 5432:5432 pgvector/pgvector:0.8.7-pg18
 
 # 2. Start the server — it applies pending migrations before it binds the port
 docker run -p 8080:8080 \
@@ -504,7 +509,7 @@ npm run lint                # Zero warnings
 |---|---|
 | Contract / unit tests | ~970 passing |
 | Test files | 400+ |
-| Integration tests | 540+ (against `ankane/pgvector:v0.5.1`) |
+| Integration tests | 540+ (against `pgvector/pgvector:0.8.7-pg18`) |
 | Source lines | ~20,000 |
 | DIP interfaces | 13 |
 | Migrations | 29 |

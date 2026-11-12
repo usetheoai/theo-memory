@@ -1,0 +1,604 @@
+{
+  "users": [
+    {
+      "id": "lng3-chukwuemeka",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Chukwuemeka owns a Nissan Micra.",
+          "observedAt": "2024-03-04",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What car does Chukwuemeka own?",
+          "pattern": "Micra"
+        }
+      ]
+    },
+    {
+      "id": "lng3-agnieszka",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Agnieszka Zielińska bakes cakes in Slough.",
+          "observedAt": "2024-03-04",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Agnieszka dislikes dill.",
+          "observedAt": "2024-03-14",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Agnieszka owns a Hyundai i10.",
+          "observedAt": "2024-03-24",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Agnieszka keeps ferrets.",
+          "observedAt": "2024-04-03",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Agnieszka reads Stanisław Lem.",
+          "observedAt": "2024-04-13",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Agnieszka's grandfather Zbigniew was a miner.",
+          "observedAt": "2024-04-23",
+          "role": "distinct"
+        },
+        {
+          "key": "f6",
+          "text": "Agnieszka supports Wisła Kraków.",
+          "observedAt": "2024-05-03",
+          "role": "distinct"
+        },
+        {
+          "key": "f7",
+          "text": "Agnieszka is asthmatic.",
+          "observedAt": "2024-05-13",
+          "role": "distinct"
+        },
+        {
+          "key": "f8",
+          "text": "Agnieszka ran to Windsor.",
+          "observedAt": "2024-05-23",
+          "role": "distinct"
+        },
+        {
+          "key": "f9",
+          "text": "Agnieszka carves spoons.",
+          "observedAt": "2024-06-02",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What does Agnieszka bake?",
+          "pattern": "cakes"
+        },
+        {
+          "query": "What herb does Agnieszka dislike?",
+          "pattern": "dill"
+        },
+        {
+          "query": "What car does Agnieszka own?",
+          "pattern": "Hyundai"
+        },
+        {
+          "query": "What animals does Agnieszka keep?",
+          "pattern": "ferrets"
+        },
+        {
+          "query": "Which author does Agnieszka read?",
+          "pattern": "\\bLem\\b"
+        },
+        {
+          "query": "What was Agnieszka's grandfather?",
+          "pattern": "miner"
+        },
+        {
+          "query": "Which club does Agnieszka support?",
+          "pattern": "Wis"
+        },
+        {
+          "query": "What condition does Agnieszka have?",
+          "pattern": "asthmatic"
+        },
+        {
+          "query": "Where did Agnieszka run to?",
+          "pattern": "Windsor"
+        },
+        {
+          "query": "What does Agnieszka carve?",
+          "pattern": "spoons"
+        }
+      ]
+    },
+    {
+      "id": "lng3-joao",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "João hates cod.",
+          "observedAt": "2024-03-04",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "João owns a Renault Clio.",
+          "observedAt": "2024-03-14",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "João keeps canaries.",
+          "observedAt": "2024-03-24",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "João reads Fernando Pessoa.",
+          "observedAt": "2024-04-03",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "João's godson Duarte plays rugby.",
+          "observedAt": "2024-04-13",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What fish does João hate?",
+          "pattern": "\\bcod\\b"
+        },
+        {
+          "query": "What car does João own?",
+          "pattern": "Clio"
+        },
+        {
+          "query": "What birds does João keep?",
+          "pattern": "canaries"
+        },
+        {
+          "query": "Which poet does João read?",
+          "pattern": "Pessoa"
+        },
+        {
+          "query": "What sport does João's godson play?",
+          "pattern": "rugby"
+        }
+      ]
+    },
+    {
+      "id": "lng3-nurlan",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Nurlan Abenov drives taxis in Derby.",
+          "observedAt": "2024-03-04",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Nurlan owns a Lexus RX.",
+          "observedAt": "2024-03-14",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Nurlan is gluten intolerant.",
+          "observedAt": "2024-03-24",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What does Nurlan drive?",
+          "pattern": "taxis"
+        },
+        {
+          "query": "What car does Nurlan own?",
+          "pattern": "Lexus"
+        },
+        {
+          "query": "What intolerance does Nurlan have?",
+          "pattern": "gluten"
+        }
+      ]
+    },
+    {
+      "id": "lng3-mihaela",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Mihaela Ionescu is a florist in Wigan.",
+          "observedAt": "2024-03-04",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Mihaela hates aubergine.",
+          "observedAt": "2024-03-14",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Mihaela owns a Dacia Sandero.",
+          "observedAt": "2024-03-24",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Mihaela keeps geese.",
+          "observedAt": "2024-04-03",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Mihaela reads Mihai Eminescu.",
+          "observedAt": "2024-04-13",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Mihaela's nephew Sorin is a pilot.",
+          "observedAt": "2024-04-23",
+          "role": "distinct"
+        },
+        {
+          "key": "f6",
+          "text": "Mihaela supports Rapid București.",
+          "observedAt": "2024-05-03",
+          "role": "distinct"
+        },
+        {
+          "key": "f7",
+          "text": "Mihaela is vegan.",
+          "observedAt": "2024-05-13",
+          "role": "distinct"
+        },
+        {
+          "key": "f8",
+          "text": "Mihaela weaves rugs.",
+          "observedAt": "2024-05-23",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What is Mihaela's job?",
+          "pattern": "florist"
+        },
+        {
+          "query": "What vegetable does Mihaela hate?",
+          "pattern": "aubergine"
+        },
+        {
+          "query": "What car does Mihaela own?",
+          "pattern": "Sandero"
+        },
+        {
+          "query": "What birds does Mihaela keep?",
+          "pattern": "geese"
+        },
+        {
+          "query": "Which poet does Mihaela read?",
+          "pattern": "Eminescu"
+        },
+        {
+          "query": "What is Mihaela's nephew?",
+          "pattern": "pilot"
+        },
+        {
+          "query": "Which club does Mihaela support?",
+          "pattern": "Rapid"
+        },
+        {
+          "query": "What diet does Mihaela follow?",
+          "pattern": "vegan"
+        },
+        {
+          "query": "What does Mihaela weave?",
+          "pattern": "rugs"
+        }
+      ]
+    },
+    {
+      "id": "lng3-debora",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Débora Siqueira trabalha como advogada em Goiânia.",
+          "observedAt": "2024-03-04",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "A irmã de Débora se chama Paula e mora em Manaus.",
+          "observedAt": "2024-03-14",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Débora faz aulas de dança toda quinta-feira.",
+          "observedAt": "2024-03-24",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Débora tem um papagaio chamado Louro.",
+          "observedAt": "2024-04-03",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Débora não toma refrigerante desde o ano passado.",
+          "observedAt": "2024-04-13",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Qual é a profissão de Débora?",
+          "pattern": "advogada"
+        },
+        {
+          "query": "Onde mora a irmã de Débora?",
+          "pattern": "Manaus"
+        },
+        {
+          "query": "Que aula Débora faz às quintas?",
+          "pattern": "dan[cç]a"
+        },
+        {
+          "query": "Como se chama o papagaio de Débora?",
+          "pattern": "Louro"
+        },
+        {
+          "query": "O que Débora não toma?",
+          "pattern": "refrigerante"
+        }
+      ]
+    },
+    {
+      "id": "lng3-esteban",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Esteban Molina trabaja como carpintero en Córdoba.",
+          "observedAt": "2024-03-04",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "El padre de Esteban se llama Andrés y vive en Murcia.",
+          "observedAt": "2024-03-14",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Esteban toca el violín en una orquesta pequeña.",
+          "observedAt": "2024-03-24",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Esteban tiene un loro que se llama Paco.",
+          "observedAt": "2024-04-03",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Esteban nada en la piscina municipal los sábados.",
+          "observedAt": "2024-04-13",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "¿En qué trabaja Esteban?",
+          "pattern": "carpintero"
+        },
+        {
+          "query": "¿Dónde vive el padre de Esteban?",
+          "pattern": "Murcia"
+        },
+        {
+          "query": "¿Qué instrumento toca Esteban?",
+          "pattern": "viol[ií]n"
+        },
+        {
+          "query": "¿Cómo se llama el loro de Esteban?",
+          "pattern": "Paco"
+        },
+        {
+          "query": "¿Dónde nada Esteban?",
+          "pattern": "piscina"
+        }
+      ]
+    },
+    {
+      "id": "lng3-federica",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Federica Galli lavora come farmacista a Verona.",
+          "observedAt": "2024-03-04",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "La madre di Federica si chiama Anna e vive a Genova.",
+          "observedAt": "2024-03-14",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Federica canta in un coro ogni domenica mattina.",
+          "observedAt": "2024-03-24",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Federica ha un cane bianco che si chiama Neve.",
+          "observedAt": "2024-04-03",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Federica non mangia carne da molti anni.",
+          "observedAt": "2024-04-13",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Che lavoro fa Federica?",
+          "pattern": "farmacista"
+        },
+        {
+          "query": "Dove vive la madre di Federica?",
+          "pattern": "Genova"
+        },
+        {
+          "query": "Dove canta Federica?",
+          "pattern": "coro"
+        },
+        {
+          "query": "Come si chiama il cane di Federica?",
+          "pattern": "Neve"
+        },
+        {
+          "query": "Cosa non mangia Federica?",
+          "pattern": "carne"
+        }
+      ]
+    },
+    {
+      "id": "lng3-matthias",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Matthias Krüger arbeitet als Elektriker in Bremen.",
+          "observedAt": "2024-03-04",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Der Vater von Matthias heißt Klaus und wohnt in Rostock.",
+          "observedAt": "2024-03-14",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Matthias spielt jeden Freitag Tennis mit Freunden.",
+          "observedAt": "2024-03-24",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Matthias hat eine Katze, die Mimi heißt.",
+          "observedAt": "2024-04-03",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Matthias isst abends nie Süßigkeiten.",
+          "observedAt": "2024-04-13",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Als was arbeitet Matthias?",
+          "pattern": "Elektriker"
+        },
+        {
+          "query": "Wo wohnt der Vater von Matthias?",
+          "pattern": "Rostock"
+        },
+        {
+          "query": "Was spielt Matthias am Freitag?",
+          "pattern": "Tennis"
+        },
+        {
+          "query": "Wie heißt die Katze von Matthias?",
+          "pattern": "Mimi"
+        },
+        {
+          "query": "Was isst Matthias abends nie?",
+          "pattern": "S[üu]+[ßs]+igkeiten"
+        }
+      ]
+    },
+    {
+      "id": "lng3-amelie",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Amélie Durand travaille comme infirmière à Rennes.",
+          "observedAt": "2024-03-04",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Le frère d'Amélie s'appelle Hugo et habite à Nantes.",
+          "observedAt": "2024-03-14",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Amélie joue du piano tous les soirs après le dîner.",
+          "observedAt": "2024-03-24",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Amélie a un chien qui s'appelle Biscuit.",
+          "observedAt": "2024-04-03",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Amélie ne boit jamais de café le soir.",
+          "observedAt": "2024-04-13",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Quel est le métier d'Amélie ?",
+          "pattern": "infirmi"
+        },
+        {
+          "query": "Où habite le frère d'Amélie ?",
+          "pattern": "Nantes"
+        },
+        {
+          "query": "De quel instrument joue Amélie ?",
+          "pattern": "piano"
+        },
+        {
+          "query": "Comment s'appelle le chien d'Amélie ?",
+          "pattern": "Biscuit"
+        },
+        {
+          "query": "Que ne boit jamais Amélie le soir ?",
+          "pattern": "caf"
+        }
+      ]
+    }
+  ]
+}

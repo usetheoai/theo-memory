@@ -77,3 +77,6 @@ devops-audit-output/
 
 # Backups gerados por ferramenta de patch — nunca versionados
 .claude/.patch-backups/
+
+# Personal Claude Code tooling - never versioned
+.claude/

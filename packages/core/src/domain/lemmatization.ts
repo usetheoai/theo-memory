@@ -24,7 +24,10 @@ interface NaturalModule {
 let naturalModule: NaturalModule | null = null;
 try {
   const req = createRequire(import.meta.url);
-  naturalModule = req('natural') as NaturalModule;
+  // Load the Porter stemmer from its own module. The package entry point pulls in
+  // natural's storage plugins, which call `require('dotenv').config()` on load and
+  // would copy the consumer's `.env` into `process.env`.
+  naturalModule = { PorterStemmer: req('natural/lib/natural/stemmers/porter_stemmer') as NaturalModule['PorterStemmer'] };
 } catch {
   naturalModule = null;
 }

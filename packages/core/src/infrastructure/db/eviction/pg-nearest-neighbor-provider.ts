@@ -15,7 +15,7 @@
  */
 import type { Pool } from 'pg';
 
-import type { NearestNeighborProvider } from '../../../domain/dip/eviction-policy.js';
+import type { NearestNeighbor, NearestNeighborProvider } from '../../../domain/dip/eviction-policy.js';
 import type { Scope } from '../../../domain/scope.js';
 
 import { scopeColumn, scopeValue } from './scope-where.js';
@@ -26,6 +26,10 @@ export class PgNearestNeighborProvider implements NearestNeighborProvider {
   constructor(private readonly pool: Pool) {}
 
   async distance(memoryId: string, scope: Scope, workspaceId?: string): Promise<number> {
+    return (await this.nearest(memoryId, scope, workspaceId))?.distance ?? MAX_ISOLATION_DISTANCE;
+  }
+
+  async nearest(memoryId: string, scope: Scope, workspaceId?: string): Promise<NearestNeighbor | null> {
     const column = scopeColumn(scope);
     // multi-tenant-rbac-and-slice1-completion T3.1 (Slice 1 100%): when a
     // workspace is bound, restrict the neighbor search to the same tenant so a
@@ -35,7 +39,7 @@ export class PgNearestNeighborProvider implements NearestNeighborProvider {
     const sql = `WITH self AS (
         SELECT embedding FROM memories WHERE id = $1
       )
-      SELECT m.embedding <=> (SELECT embedding FROM self) AS distance
+      SELECT m.id, m.embedding <=> (SELECT embedding FROM self) AS distance
         FROM memories m
        WHERE m.${column} = $2
          AND m.id <> $1
@@ -46,14 +50,14 @@ export class PgNearestNeighborProvider implements NearestNeighborProvider {
       workspaceId !== undefined
         ? [memoryId, scopeValue(scope), workspaceId]
         : [memoryId, scopeValue(scope)];
-    const result = await this.pool.query<{ distance: number | string }>(
+    const result = await this.pool.query<{ id: string; distance: number | string }>(
       sql,
       [...params],
     );
     const row = result.rows[0];
     if (row === undefined) {
-      return MAX_ISOLATION_DISTANCE;
+      return null;
     }
-    return typeof row.distance === 'string' ? Number(row.distance) : row.distance;
+    return { id: row.id, distance: typeof row.distance === 'string' ? Number(row.distance) : row.distance };
   }
 }

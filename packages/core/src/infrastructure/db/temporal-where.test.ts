@@ -7,7 +7,7 @@ import { composeTemporalWhere } from './temporal-where.js';
 describe('composeTemporalWhere', () => {
   it('returns the currently-valid filter with no params when asOf is omitted', () => {
     const t = composeTemporalWhere(undefined, 6);
-    expect(t.sql).toBe('t_invalid IS NULL');
+    expect(t.sql).toBe('t_invalid IS NULL AND (expires_at IS NULL OR expires_at > NOW())');
     expect(t.params).toEqual([]);
     expect(t.nextParamIndex).toBe(6);
   });
@@ -25,7 +25,7 @@ describe('composeTemporalWhere', () => {
 
   it('prefixes columns with the given table alias so it is safe inside a JOIN (graph expansion reuse)', () => {
     const omitted = composeTemporalWhere(undefined, 6, 'm.');
-    expect(omitted.sql).toBe('m.t_invalid IS NULL');
+    expect(omitted.sql).toBe('m.t_invalid IS NULL AND (m.expires_at IS NULL OR m.expires_at > NOW())');
 
     const asOf = new Date('2026-01-01T00:00:00.000Z');
     const withAlias = composeTemporalWhere(asOf, 6, 'm.');

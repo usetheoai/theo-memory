@@ -22,6 +22,8 @@ import {
   resolveEpisodeLimit,
 } from '../../domain/episode.js';
 import { InvalidSkillError } from '../../domain/errors.js';
+import { evidenceFromPayload } from '../../domain/memory-evidence.js';
+import { bm25Scores } from '../../domain/retrieval/bm25.js';
 import type { Filters } from '../../domain/scope.js';
 import type { SkillLanguage } from '../../domain/skill.js';
 
@@ -75,7 +77,18 @@ function compareCreatedAtId(aDate: Date, aId: string, bDate: Date, bId: string):
   return aId < bId ? -1 : aId > bId ? 1 : 0;
 }
 
-function matchesFilters(payload: Payload, filters: Filters | undefined): boolean {
+function matchesFilters(payload: Payload, filters: Filters | undefined, includeInvalid = false): boolean {
+  const expiry = payload['expires_at'];
+  const instant = filters?.asOf?.getTime() ?? Date.now();
+  if (typeof expiry === 'string' && Date.parse(expiry) <= instant) return false;
+  // ADR-0029: a superseded row stops being current at its t_invalid, but stays for earlier reads.
+  const invalidFrom = payload['t_invalid'];
+  if (!includeInvalid && typeof invalidFrom === 'string' && Date.parse(invalidFrom) <= instant) return false;
+  // Bi-temporal replay: a row is not yet valid before its valid-from instant.
+  const validFrom = payload['t_valid'];
+  if (filters?.asOf !== undefined && typeof validFrom === 'string' && Date.parse(validFrom) > filters.asOf.getTime()) {
+    return false;
+  }
   if (filters === undefined) {
     return true;
   }
@@ -121,7 +134,7 @@ function matchesFilters(payload: Payload, filters: Filters | undefined): boolean
     if (value === undefined) {
       continue;
     }
-    if (key === 'kind' || key === 'excludeSuperseded' || key === 'category' || key === 'scopeHierarchy') {
+    if (key === 'asOf' || key === 'kind' || key === 'excludeSuperseded' || key === 'category' || key === 'scopeHierarchy') {
       continue;
     }
     // M8: when scopeHierarchy owns session_id/agent_id, skip their plain equality (kept in
@@ -189,29 +202,28 @@ export class InMemoryVectorStore implements VectorStore {
     query: string,
     topK = 10,
     filters?: Filters,
+    queryVector?: readonly number[],
   ): Promise<readonly VectorStoreResult[] | null> {
-    const queryTokens = new Set(query.toLowerCase().split(/\W+/).filter((t) => t.length > 0));
-    if (queryTokens.size === 0) {
+    const tokenize = (text: string): string[] => text.toLowerCase().split(/\W+/).filter((t) => t.length > 0);
+    const queryTokens = tokenize(query);
+    if (queryTokens.length === 0) {
       return [];
     }
-    const candidates: VectorStoreResult[] = [];
-    for (const [id, row] of this.rows.entries()) {
-      if (!matchesFilters(row.payload, filters)) {
-        continue;
-      }
-      const text = String(row.payload['text'] ?? '');
-      const tokens = text.toLowerCase().split(/\W+/);
-      let overlap = 0;
-      for (const tok of tokens) {
-        if (queryTokens.has(tok)) {
-          overlap += 1;
-        }
-      }
-      if (overlap > 0) {
-        candidates.push({ id, payload: row.payload, score: overlap });
-      }
-    }
-    candidates.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+    // BM25 over the rows the search is scoped to (same corpus definition as PgvectorStore).
+    const scoped = [...this.rows.entries()].filter(([, row]) => matchesFilters(row.payload, filters));
+    const scores = bm25Scores(
+      queryTokens,
+      scoped.map(([id, row]) => ({ id, terms: tokenize(String(row.payload['text'] ?? '')) })),
+    );
+    const candidates: VectorStoreResult[] = scoped
+      .filter(([id]) => scores.has(id))
+      .map(([id, row]) => ({
+        id,
+        payload: row.payload,
+        score: scores.get(id) ?? 0,
+        ...(queryVector === undefined ? {} : { similarity: cosineSim(queryVector, row.vector) }),
+      }));
+    candidates.sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
     await Promise.resolve();
     return candidates.slice(0, topK);
   }
@@ -222,7 +234,7 @@ export class InMemoryVectorStore implements VectorStore {
     if (row === undefined) {
       return null;
     }
-    return { id: vectorId, payload: row.payload };
+    return { id: vectorId, payload: row.payload, createdAt: row.createdAt };
   }
 
   async update(vectorId: string, vector: readonly number[], payload: Payload): Promise<void> {
@@ -238,6 +250,37 @@ export class InMemoryVectorStore implements VectorStore {
   async delete(vectorId: string): Promise<void> {
     this.rows.delete(vectorId);
     await Promise.resolve();
+  }
+
+  async supersede(filters: Filters, memoryIds: readonly string[], by: { readonly memoryId: string; readonly at: Date }): Promise<readonly string[]> {
+    await Promise.resolve();
+    const superseded: string[] = [];
+    for (const id of new Set(memoryIds)) {
+      const row = this.rows.get(id);
+      if (row === undefined || id === by.memoryId || typeof row.payload['t_invalid'] === 'string') continue;
+      if (((row.payload['workspace_id'] as string | undefined) ?? 'default') !== (filters.workspace_id ?? 'default')) continue;
+      const outOfScope = (['user_id', 'session_id', 'agent_id'] as const)
+        .some((col) => filters[col] !== undefined && filters[col] !== null && row.payload[col] !== filters[col]);
+      if (outOfScope) continue;
+      // Like Postgres, a row without an explicit valid time is valid from when it was stored.
+      const validFrom = typeof row.payload['t_valid'] === 'string' ? Date.parse(row.payload['t_valid']) : row.createdAt.getTime();
+      if (validFrom > by.at.getTime()) continue;
+      this.rows.set(id, { ...row, payload: { ...row.payload, t_invalid: by.at.toISOString(), superseded_by_memory: by.memoryId } });
+      superseded.push(id);
+    }
+    return superseded;
+  }
+
+  async setImportance(filters: Filters, memoryId: string, importance: number): Promise<boolean> {
+    await Promise.resolve();
+    const row = this.rows.get(memoryId);
+    if (row === undefined || typeof row.payload['t_invalid'] === 'string') return false;
+    if (((row.payload['workspace_id'] as string | undefined) ?? 'default') !== (filters.workspace_id ?? 'default')) return false;
+    const outOfScope = (['user_id', 'session_id', 'agent_id'] as const)
+      .some((col) => filters[col] !== undefined && filters[col] !== null && row.payload[col] !== filters[col]);
+    if (outOfScope) return false;
+    this.rows.set(memoryId, { ...row, payload: { ...row.payload, llm_importance_score: importance } });
+    return true;
   }
 
   /** Scope-checked delete (themory-scoped-forget T1.1). In-memory has no
@@ -269,13 +312,11 @@ export class InMemoryVectorStore implements VectorStore {
     _includeSoftDeleted = false,
     offset = 0,
   ): Promise<readonly [readonly VectorStoreResult[], number]> {
-    // InMemoryVectorStore hard-deletes (delete() removes the row), so it holds no
-    // soft-deleted state — `includeSoftDeleted` is a no-op here. The param exists
-    // for VectorStore DIP signature parity with PgvectorStore.
-    void _includeSoftDeleted;
+    // Forget hard-deletes here; the only invalidated rows are superseded ones (ADR-0029),
+    // which `includeSoftDeleted` returns like PgvectorStore does.
     const matching: VectorStoreResult[] = [];
     for (const [id, row] of this.rows.entries()) {
-      if (!matchesFilters(row.payload, filters)) {
+      if (!matchesFilters(row.payload, filters, _includeSoftDeleted)) {
         continue;
       }
       // dashboard-memories-tab-standardization T2.2 — project createdAt so
@@ -468,14 +509,33 @@ export class InMemoryVectorStore implements VectorStore {
     hash: string;
     embedding: readonly number[];
     derivedFrom: readonly string[];
-    scope: { userId?: string | null; sessionId?: string | null; agentId?: string | null };
+    attributedTo?: string;
+    scope: { workspaceId?: string | null; userId?: string | null; sessionId?: string | null; agentId?: string | null };
   }): Promise<string> {
     const id = `derived-${String(this.rows.size)}-${Date.now()}-${String(Math.random()).slice(2, 8)}`;
+    const sources=args.derivedFrom.flatMap(sourceId=>{const row=this.rows.get(sourceId);return row===undefined?[]:[row];});
+    const deadlines=sources.flatMap(row=>typeof row.payload['expires_at']==='string'?[Date.parse(row.payload['expires_at'])]:[]);
+    const origins=new Set<string>();
+    for(const source of sources){
+      const evidence=evidenceFromPayload(source.payload).evidence;
+      const origin=evidence?.originSourceId??evidence?.sourceId;
+      if(origin!==undefined)origins.add(origin);
+      const inherited=source.payload['origin_source_ids'];
+      if(typeof inherited==='string'){
+        const decoded:unknown=JSON.parse(inherited);
+        if(Array.isArray(decoded))for(const value of decoded)if(typeof value==='string')origins.add(value);
+      }
+    }
     const payload: Payload = {
       text: args.text,
       hash: args.hash,
       kind: 'derived',
+      workspace_id: args.scope.workspaceId ?? 'default',
+      distinct_source_count: origins.size,
+      origin_source_ids: JSON.stringify([...origins]),
+      ...(deadlines.length>0?{expires_at:new Date(Math.min(...deadlines)).toISOString()}:{}),
       derived_from: JSON.stringify([...args.derivedFrom]),
+      ...(args.attributedTo === undefined ? {} : { attributed_to: args.attributedTo }),
     };
     if (args.scope.userId !== undefined && args.scope.userId !== null) {
       payload['user_id'] = args.scope.userId;

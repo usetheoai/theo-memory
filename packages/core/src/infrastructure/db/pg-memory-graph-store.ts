@@ -145,15 +145,17 @@ export class PgMemoryGraphStore implements MemoryGraphStore {
       // the consumer distinguish retired edges from active ones per triple.
       `SELECT se.name AS source, ee.relation AS relation, te.name AS target,
               count(DISTINCT ee.source_memory_id) AS memory_count,
-              bool_or(ee.t_invalid IS NULL) AS active
+              bool_or(ee.t_invalid IS NULL AND source.t_invalid IS NULL AND (source.expires_at IS NULL OR source.expires_at>NOW())) AS active
          FROM entity_edges ee
+         JOIN memories source ON source.id=ee.source_memory_id
          JOIN entities se ON se.id = ee.source_entity_id
          JOIN entities te ON te.id = ee.target_entity_id
         WHERE ee.workspace_id = $1
           AND COALESCE(ee.user_id,'') = COALESCE($2,'')
           AND COALESCE(ee.session_id,'') = COALESCE($3,'')
           AND COALESCE(ee.agent_id,'') = COALESCE($4,'')
-          ${params.includeSuperseded === true ? '' : 'AND ee.t_invalid IS NULL'}
+          AND (source.expires_at IS NULL OR source.expires_at>NOW())
+          ${params.includeSuperseded === true ? '' : 'AND ee.t_invalid IS NULL AND source.t_invalid IS NULL'}
         GROUP BY se.name, ee.relation, te.name
         ORDER BY memory_count DESC, se.name ASC`,
       [workspaceId, filters.user_id ?? null, filters.session_id ?? null, filters.agent_id ?? null],

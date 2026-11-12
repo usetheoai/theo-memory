@@ -32,6 +32,7 @@ import {
   persistDraftsWithQuarantine,
   type VectorStoreWithDerivedInsert,
 } from './reflect-drafts.js';
+import { rowsToMemoryItems } from './row-mapping.js';
 
 /**
  * Map a Scope onto the (userId, sessionId, agentId) column tuple persisted by
@@ -112,17 +113,7 @@ export async function runReflection(
 
   // Fetch source memories
   const [results] = await config.vectorStore.list(filters, 100);
-  const sourceMemories: MemoryItem[] = results.map((r) => ({
-    id: r.id,
-    text: String(r.payload['text'] ?? ''),
-    hash: String(r.payload['hash'] ?? r.id),
-    scope,
-    metadata: { ...r.payload },
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    tValid: new Date(),
-    tInvalid: null,
-  }));
+  let sourceMemories: MemoryItem[] = rowsToMemoryItems(results, scope).items;
 
   // EC-5: empty-source short-circuit
   if (sourceMemories.length === 0) {
@@ -171,6 +162,17 @@ export async function runReflection(
       });
     }
 
+    // Consolidation can soft-delete source rows. Reflection and provenance
+    // validation must use the post-consolidation active set, or a derived row
+    // can cite a source that insertDerivedMemory correctly rejects.
+    if (conflictPolicy !== undefined) {
+      const [activeResults] = await config.vectorStore.list(filters, 100);
+      sourceMemories = rowsToMemoryItems(activeResults, scope).items;
+      if (sourceMemories.length === 0) {
+        return finishEmptyReflection(reflectionPolicy, scope, [], 'no-source-memories');
+      }
+    }
+
     // Execute reflection LLM call
     const drafts = await executeReflection({
       llm: config.llm,
@@ -199,6 +201,7 @@ export async function runReflection(
     const { persisted } = await persistDraftsWithQuarantine({
       drafts,
       sourceIds,
+      sourceMemories,
       embedder: config.embedder,
       store: storeWithDerived,
       scope,

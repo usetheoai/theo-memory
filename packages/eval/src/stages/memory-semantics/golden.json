@@ -1,0 +1,830 @@
+[
+  {
+    "name": "dark-colors-en",
+    "language": "en",
+    "input": "I usually prefer dark colors.",
+    "expected": [
+      {
+        "pattern": "dark|black",
+        "kind": "stated"
+      }
+    ],
+    "forbidden": [],
+    "attributedTo": "user",
+    "category": "dark"
+  },
+  {
+    "name": "dark-colors-pt",
+    "language": "pt",
+    "input": "Normalmente prefiro cores escuras.",
+    "expected": [
+      {
+        "pattern": "escur|pret",
+        "kind": "stated"
+      }
+    ],
+    "forbidden": [],
+    "attributedTo": "user",
+    "category": "dark"
+  },
+  {
+    "name": "simple-style-en",
+    "language": "en",
+    "input": "I prefer simple clothes over flashy outfits.",
+    "expected": [
+      {
+        "pattern": "simple|understated",
+        "kind": "stated"
+      }
+    ],
+    "forbidden": [],
+    "attributedTo": "user",
+    "category": "simple"
+  },
+  {
+    "name": "simple-style-pt",
+    "language": "pt",
+    "input": "Prefiro roupas simples a roupas chamativas.",
+    "expected": [
+      {
+        "pattern": "simpl|discret",
+        "kind": "stated"
+      }
+    ],
+    "forbidden": [],
+    "attributedTo": "user",
+    "category": "simple"
+  },
+  {
+    "name": "comfort-en",
+    "language": "en",
+    "input": "In five independent sessions Alice selected cushioned sneakers rather than stiff formal shoes. She has never explicitly stated a comfort preference.",
+    "expected": [
+      {
+        "pattern": "select.*cushion|cho.*cushion",
+        "kind": "stated"
+      },
+      {
+        "pattern": "(?:prefer|favor|tend).*(?:comfort|cushion)|(?:comfort|cushion).*(?:prefer|favor|tend)",
+        "kind": "inferred"
+      }
+    ],
+    "forbidden": [],
+    "attributedTo": "user",
+    "category": "inferred-pattern"
+  },
+  {
+    "name": "comfort-pt",
+    "language": "pt",
+    "input": "Em cinco sessões independentes Alice escolheu tênis acolchoados em vez de sapatos sociais rígidos. Ela nunca declarou explicitamente uma preferência de conforto.",
+    "expected": [
+      {
+        "pattern": "escolh.*acolcho",
+        "kind": "stated"
+      },
+      {
+        "pattern": "(?:prefer|prioriz|tend).*(?:confort|acolcho)|(?:confort|acolcho).*(?:prefer|prioriz|tend)",
+        "kind": "inferred"
+      }
+    ],
+    "forbidden": [],
+    "attributedTo": "user",
+    "category": "inferred-pattern"
+  },
+  {
+    "name": "allergy-en",
+    "language": "en",
+    "input": "I am allergic to wool.",
+    "expected": [
+      {
+        "pattern": "allerg.*wool|wool.*allerg",
+        "kind": "stated"
+      }
+    ],
+    "forbidden": [],
+    "attributedTo": "user",
+    "category": "allergy"
+  },
+  {
+    "name": "allergy-pt",
+    "language": "pt",
+    "input": "Tenho alergia a lã.",
+    "expected": [
+      {
+        "pattern": "alerg.*lã|lã.*alerg",
+        "kind": "stated"
+      }
+    ],
+    "forbidden": [],
+    "attributedTo": "user",
+    "category": "allergy"
+  },
+  {
+    "name": "vegetarian-en",
+    "language": "en",
+    "input": "I am vegetarian and do not eat meat.",
+    "expected": [
+      {
+        "pattern": "vegetarian",
+        "kind": "stated"
+      }
+    ],
+    "forbidden": [],
+    "attributedTo": "user",
+    "category": "vegetarian"
+  },
+  {
+    "name": "vegetarian-pt",
+    "language": "pt",
+    "input": "Sou vegetariano e não como carne.",
+    "expected": [
+      {
+        "pattern": "vegetarian",
+        "kind": "stated"
+      }
+    ],
+    "forbidden": [],
+    "attributedTo": "user",
+    "category": "vegetarian"
+  },
+  {
+    "name": "language-en",
+    "language": "en",
+    "input": "I prefer to communicate in Portuguese.",
+    "expected": [
+      {
+        "pattern": "Portuguese",
+        "kind": "stated"
+      }
+    ],
+    "forbidden": [],
+    "attributedTo": "user",
+    "category": "language"
+  },
+  {
+    "name": "language-pt",
+    "language": "pt",
+    "input": "Prefiro conversar em português.",
+    "expected": [
+      {
+        "pattern": "português",
+        "kind": "stated"
+      }
+    ],
+    "forbidden": [],
+    "attributedTo": "user",
+    "category": "language"
+  },
+  {
+    "name": "size-en",
+    "language": "en",
+    "input": "In five independent sessions Bruno picked plain, unadorned outfits rather than ornate ones. He has never explicitly stated a style preference.",
+    "expected": [
+      {
+        "pattern": "(?:pick|cho|select).*(?:plain|unadorn|simple)",
+        "kind": "stated"
+      },
+      {
+        "pattern": "(?:prefer|favor|tend).*(?:simple|plain|minimal|unadorn)",
+        "kind": "inferred"
+      }
+    ],
+    "forbidden": [],
+    "attributedTo": "user",
+    "category": "inferred-pattern"
+  },
+  {
+    "name": "size-pt",
+    "language": "pt",
+    "input": "Em cinco sessões independentes Bruno escolheu roupas simples e sem enfeites em vez de roupas ornamentadas. Ele nunca declarou explicitamente uma preferência de estilo.",
+    "expected": [
+      {
+        "pattern": "escolh.*(?:simpl|enfeit)",
+        "kind": "stated"
+      },
+      {
+        "pattern": "(?:prefer|prioriz|tend).*(?:simpl|discret|minimal)",
+        "kind": "inferred"
+      }
+    ],
+    "forbidden": [],
+    "attributedTo": "user",
+    "category": "inferred-pattern"
+  },
+  {
+    "name": "routine-en",
+    "language": "en",
+    "input": "Across five independent sessions Carla selected dark clothes for formal dinners rather than bright clothes. She has never explicitly stated a color preference.",
+    "expected": [
+      {
+        "pattern": "select.*dark|cho.*dark",
+        "kind": "stated"
+      },
+      {
+        "pattern": "(?:prefer|favor|tend).*dark",
+        "kind": "inferred"
+      }
+    ],
+    "forbidden": [],
+    "attributedTo": "user",
+    "category": "inferred-pattern"
+  },
+  {
+    "name": "routine-pt",
+    "language": "pt",
+    "input": "Em cinco sessões independentes Carla escolheu roupas escuras para jantares formais em vez de roupas vibrantes. Ela nunca declarou explicitamente uma preferência de cor.",
+    "expected": [
+      {
+        "pattern": "escolh.*escur",
+        "kind": "stated"
+      },
+      {
+        "pattern": "(?:prefer|prioriz|tend).*escur",
+        "kind": "inferred"
+      }
+    ],
+    "forbidden": [],
+    "attributedTo": "user",
+    "category": "inferred-pattern"
+  },
+  {
+    "name": "maybe-yellow-en",
+    "language": "en",
+    "input": "Maybe I will wear yellow today.",
+    "expected": [],
+    "forbidden": [
+      ".*"
+    ],
+    "attributedTo": "user",
+    "category": "maybe"
+  },
+  {
+    "name": "maybe-yellow-pt",
+    "language": "pt",
+    "input": "Talvez eu use amarelo hoje.",
+    "expected": [],
+    "forbidden": [
+      ".*"
+    ],
+    "attributedTo": "user",
+    "category": "maybe"
+  },
+  {
+    "name": "hypothetical-en",
+    "language": "en",
+    "input": "If I liked pink, I would buy that shirt.",
+    "expected": [],
+    "forbidden": [
+      ".*"
+    ],
+    "attributedTo": "user",
+    "category": "hypothetical"
+  },
+  {
+    "name": "hypothetical-pt",
+    "language": "pt",
+    "input": "Se eu gostasse de rosa, compraria essa camisa.",
+    "expected": [],
+    "forbidden": [
+      ".*"
+    ],
+    "attributedTo": "user",
+    "category": "hypothetical"
+  },
+  {
+    "name": "trying-color-en",
+    "language": "en",
+    "input": "I might try orange once, but I have not decided.",
+    "expected": [],
+    "forbidden": [
+      ".*"
+    ],
+    "attributedTo": "user",
+    "category": "trying"
+  },
+  {
+    "name": "trying-color-pt",
+    "language": "pt",
+    "input": "Talvez eu experimente laranja uma vez, mas ainda não decidi.",
+    "expected": [],
+    "forbidden": [
+      ".*"
+    ],
+    "attributedTo": "user",
+    "category": "trying"
+  },
+  {
+    "name": "passing-mood-en",
+    "language": "en",
+    "input": "Just for this morning I feel like wearing green.",
+    "expected": [],
+    "forbidden": [
+      ".*"
+    ],
+    "attributedTo": "user",
+    "category": "passing"
+  },
+  {
+    "name": "passing-mood-pt",
+    "language": "pt",
+    "input": "Só nesta manhã estou com vontade de usar verde.",
+    "expected": [],
+    "forbidden": [
+      ".*"
+    ],
+    "attributedTo": "user",
+    "category": "passing"
+  },
+  {
+    "name": "uncertain-preference-en",
+    "language": "en",
+    "input": "Perhaps I like yellow; I am not sure.",
+    "expected": [],
+    "forbidden": [
+      ".*"
+    ],
+    "attributedTo": "user",
+    "category": "uncertain"
+  },
+  {
+    "name": "uncertain-preference-pt",
+    "language": "pt",
+    "input": "Talvez eu goste de amarelo; não tenho certeza.",
+    "expected": [],
+    "forbidden": [
+      ".*"
+    ],
+    "attributedTo": "user",
+    "category": "uncertain"
+  },
+  {
+    "name": "question-en",
+    "language": "en",
+    "input": "Would blue shoes look good on me?",
+    "expected": [],
+    "forbidden": [
+      ".*"
+    ],
+    "attributedTo": "user",
+    "category": "question"
+  },
+  {
+    "name": "question-pt",
+    "language": "pt",
+    "input": "Sapatos azuis ficariam bem em mim?",
+    "expected": [],
+    "forbidden": [
+      ".*"
+    ],
+    "attributedTo": "user",
+    "category": "question"
+  },
+  {
+    "name": "greeting-en",
+    "language": "en",
+    "input": "Hello! Thanks, see you later.",
+    "expected": [],
+    "forbidden": [
+      ".*"
+    ],
+    "attributedTo": "user",
+    "category": "greeting"
+  },
+  {
+    "name": "greeting-pt",
+    "language": "pt",
+    "input": "Olá! Obrigado, até mais.",
+    "expected": [],
+    "forbidden": [
+      ".*"
+    ],
+    "attributedTo": "user",
+    "category": "greeting"
+  },
+  {
+    "name": "temporary-trial-en",
+    "language": "en",
+    "input": "I am trying this style today only, not changing my usual preferences.",
+    "expected": [],
+    "forbidden": [
+      ".*"
+    ],
+    "attributedTo": "user",
+    "category": "temporary"
+  },
+  {
+    "name": "temporary-trial-pt",
+    "language": "pt",
+    "input": "Estou testando este estilo só hoje, sem mudar minhas preferências habituais.",
+    "expected": [],
+    "forbidden": [
+      ".*"
+    ],
+    "attributedTo": "user",
+    "category": "temporary"
+  },
+  {
+    "name": "assistant-suggestion-en",
+    "language": "en",
+    "input": "I recommend considering a black jacket.",
+    "expected": [
+      {
+        "pattern": "recommend|suggest",
+        "kind": "stated"
+      }
+    ],
+    "forbidden": [
+      "(?:user|usuário).*(?:prefer|gosta|likes)"
+    ],
+    "attributedTo": "assistant",
+    "category": "assistant"
+  },
+  {
+    "name": "assistant-suggestion-pt",
+    "language": "pt",
+    "input": "Recomendo considerar uma jaqueta preta.",
+    "expected": [
+      {
+        "pattern": "recomend|suger",
+        "kind": "stated"
+      }
+    ],
+    "forbidden": [
+      "(?:user|usuário).*(?:prefer|gosta|likes)"
+    ],
+    "attributedTo": "assistant",
+    "category": "assistant"
+  },
+  {
+    "name": "assistant-offer-en",
+    "language": "en",
+    "input": "Would you like me to find some boots?",
+    "expected": [],
+    "forbidden": [
+      ".*"
+    ],
+    "attributedTo": "assistant",
+    "category": "assistant"
+  },
+  {
+    "name": "assistant-offer-pt",
+    "language": "pt",
+    "input": "Quer que eu procure algumas botas?",
+    "expected": [],
+    "forbidden": [
+      ".*"
+    ],
+    "attributedTo": "assistant",
+    "category": "assistant"
+  },
+  {
+    "name": "assistant-proposal-en",
+    "language": "en",
+    "input": "I suggest trying comfortable sneakers.",
+    "expected": [
+      {
+        "pattern": "suggest|recommend",
+        "kind": "stated"
+      }
+    ],
+    "forbidden": [
+      "(?:user|usuário).*(?:prefer|gosta|likes)"
+    ],
+    "attributedTo": "assistant",
+    "category": "assistant"
+  },
+  {
+    "name": "assistant-proposal-pt",
+    "language": "pt",
+    "input": "Sugiro experimentar tênis confortáveis.",
+    "expected": [
+      {
+        "pattern": "suger|recomend",
+        "kind": "stated"
+      }
+    ],
+    "forbidden": [
+      "(?:user|usuário).*(?:prefer|gosta|likes)"
+    ],
+    "attributedTo": "assistant",
+    "category": "assistant"
+  },
+  {
+    "name": "assistant-greeting-en",
+    "language": "en",
+    "input": "I will continue when you are ready.",
+    "expected": [],
+    "forbidden": [
+      ".*"
+    ],
+    "attributedTo": "assistant",
+    "category": "assistant"
+  },
+  {
+    "name": "assistant-greeting-pt",
+    "language": "pt",
+    "input": "Vou continuar quando você estiver pronto.",
+    "expected": [],
+    "forbidden": [
+      ".*"
+    ],
+    "attributedTo": "assistant",
+    "category": "assistant"
+  },
+  {
+    "name": "purchase-jacket-en",
+    "language": "en",
+    "input": "I bought a blue jacket yesterday.",
+    "expected": [
+      {
+        "pattern": "bought|purchased",
+        "kind": "stated"
+      }
+    ],
+    "forbidden": [
+      "prefer.*(?:blue|red|green)|prefere.*(?:azul|vermelh|verde)"
+    ],
+    "attributedTo": "user",
+    "category": "purchase"
+  },
+  {
+    "name": "purchase-jacket-pt",
+    "language": "pt",
+    "input": "Comprei uma jaqueta azul ontem.",
+    "expected": [
+      {
+        "pattern": "compr|adquiri",
+        "kind": "stated"
+      }
+    ],
+    "forbidden": [
+      "prefer.*(?:blue|red|green)|prefere.*(?:azul|vermelh|verde)"
+    ],
+    "attributedTo": "user",
+    "category": "purchase"
+  },
+  {
+    "name": "purchase-boots-en",
+    "language": "en",
+    "input": "I purchased leather ankle boots last week.",
+    "expected": [
+      {
+        "pattern": "boots",
+        "kind": "stated"
+      }
+    ],
+    "forbidden": [
+      "prefer.*(?:blue|red|green)|prefere.*(?:azul|vermelh|verde)"
+    ],
+    "attributedTo": "user",
+    "category": "purchase"
+  },
+  {
+    "name": "purchase-boots-pt",
+    "language": "pt",
+    "input": "Comprei botas de couro na semana passada.",
+    "expected": [
+      {
+        "pattern": "botas",
+        "kind": "stated"
+      }
+    ],
+    "forbidden": [
+      "prefer.*(?:blue|red|green)|prefere.*(?:azul|vermelh|verde)"
+    ],
+    "attributedTo": "user",
+    "category": "purchase"
+  },
+  {
+    "name": "purchase-dress-en",
+    "language": "en",
+    "input": "I bought a red cocktail dress for the event.",
+    "expected": [
+      {
+        "pattern": "dress",
+        "kind": "stated"
+      }
+    ],
+    "forbidden": [
+      "prefer.*(?:blue|red|green)|prefere.*(?:azul|vermelh|verde)"
+    ],
+    "attributedTo": "user",
+    "category": "purchase"
+  },
+  {
+    "name": "purchase-dress-pt",
+    "language": "pt",
+    "input": "Comprei um vestido vermelho para o evento.",
+    "expected": [
+      {
+        "pattern": "vestido",
+        "kind": "stated"
+      }
+    ],
+    "forbidden": [
+      "prefer.*(?:blue|red|green)|prefere.*(?:azul|vermelh|verde)"
+    ],
+    "attributedTo": "user",
+    "category": "purchase"
+  },
+  {
+    "name": "purchase-return-en",
+    "language": "en",
+    "input": "I returned the green shirt to the store.",
+    "expected": [
+      {
+        "pattern": "return",
+        "kind": "stated"
+      }
+    ],
+    "forbidden": [
+      "prefer.*(?:blue|red|green)|prefere.*(?:azul|vermelh|verde)"
+    ],
+    "attributedTo": "user",
+    "category": "purchase"
+  },
+  {
+    "name": "purchase-return-pt",
+    "language": "pt",
+    "input": "Devolvi a camisa verde à loja.",
+    "expected": [
+      {
+        "pattern": "devolv",
+        "kind": "stated"
+      }
+    ],
+    "forbidden": [
+      "prefer.*(?:blue|red|green)|prefere.*(?:azul|vermelh|verde)"
+    ],
+    "attributedTo": "user",
+    "category": "purchase"
+  },
+  {
+    "name": "changed-color-en",
+    "language": "en",
+    "input": "I used to prefer bright colors, but now I prefer dark colors.",
+    "expected": [
+      {
+        "pattern": "dark",
+        "kind": "stated"
+      }
+    ],
+    "forbidden": [],
+    "attributedTo": "user",
+    "category": "changed"
+  },
+  {
+    "name": "changed-color-pt",
+    "language": "pt",
+    "input": "Eu preferia cores vibrantes, mas agora prefiro cores escuras.",
+    "expected": [
+      {
+        "pattern": "escur",
+        "kind": "stated"
+      }
+    ],
+    "forbidden": [],
+    "attributedTo": "user",
+    "category": "changed"
+  },
+  {
+    "name": "changed-diet-en",
+    "language": "en",
+    "input": "I used to eat meat; I am now vegetarian.",
+    "expected": [
+      {
+        "pattern": "vegetarian",
+        "kind": "stated"
+      }
+    ],
+    "forbidden": [],
+    "attributedTo": "user",
+    "category": "changed"
+  },
+  {
+    "name": "changed-diet-pt",
+    "language": "pt",
+    "input": "Eu comia carne; agora sou vegetariano.",
+    "expected": [
+      {
+        "pattern": "vegetarian",
+        "kind": "stated"
+      }
+    ],
+    "forbidden": [],
+    "attributedTo": "user",
+    "category": "changed"
+  },
+  {
+    "name": "changed-location-en",
+    "language": "en",
+    "input": "I moved from Recife to São Paulo last month and now live in São Paulo.",
+    "expected": [
+      {
+        "pattern": "São Paulo",
+        "kind": "stated"
+      }
+    ],
+    "forbidden": [],
+    "attributedTo": "user",
+    "category": "changed"
+  },
+  {
+    "name": "changed-location-pt",
+    "language": "pt",
+    "input": "Mudei de Recife para São Paulo no mês passado e agora moro em São Paulo.",
+    "expected": [
+      {
+        "pattern": "São Paulo",
+        "kind": "stated"
+      }
+    ],
+    "forbidden": [],
+    "attributedTo": "user",
+    "category": "changed"
+  },
+  {
+    "name": "repeated-summary-en",
+    "language": "en",
+    "input": "Original user statement: I prefer simple clothing. Summary of the same statement: the user prefers simple clothing.",
+    "expected": [
+      {
+        "pattern": "simple",
+        "kind": "stated"
+      }
+    ],
+    "forbidden": [],
+    "attributedTo": "user",
+    "category": "repeated"
+  },
+  {
+    "name": "repeated-summary-pt",
+    "language": "pt",
+    "input": "Declaração original do usuário: prefiro roupas simples. Resumo da mesma declaração: o usuário prefere roupas simples.",
+    "expected": [
+      {
+        "pattern": "simpl",
+        "kind": "stated"
+      }
+    ],
+    "forbidden": [],
+    "attributedTo": "user",
+    "category": "repeated"
+  },
+  {
+    "name": "repeated-purchase-en",
+    "language": "en",
+    "input": "Original statement: I bought blue boots. Repeated summary of the same purchase: bought blue boots.",
+    "expected": [
+      {
+        "pattern": "boots",
+        "kind": "stated"
+      }
+    ],
+    "forbidden": [],
+    "attributedTo": "user",
+    "category": "repeated"
+  },
+  {
+    "name": "repeated-purchase-pt",
+    "language": "pt",
+    "input": "Declaração original: comprei botas azuis. Resumo repetido da mesma compra: comprou botas azuis.",
+    "expected": [
+      {
+        "pattern": "botas",
+        "kind": "stated"
+      }
+    ],
+    "forbidden": [],
+    "attributedTo": "user",
+    "category": "repeated"
+  },
+  {
+    "name": "repeated-comfort-en",
+    "language": "en",
+    "input": "User statement: I need comfortable shoes. This is a summary of that same statement: the user needs comfortable shoes.",
+    "expected": [
+      {
+        "pattern": "comfort",
+        "kind": "stated"
+      }
+    ],
+    "forbidden": [],
+    "attributedTo": "user",
+    "category": "repeated"
+  },
+  {
+    "name": "repeated-comfort-pt",
+    "language": "pt",
+    "input": "Declaração do usuário: preciso de sapatos confortáveis. Este é um resumo da mesma declaração: o usuário precisa de sapatos confortáveis.",
+    "expected": [
+      {
+        "pattern": "confort",
+        "kind": "stated"
+      }
+    ],
+    "forbidden": [],
+    "attributedTo": "user",
+    "category": "repeated"
+  }
+]

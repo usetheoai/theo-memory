@@ -48,6 +48,7 @@ import { Command, InvalidArgumentError, Option } from 'commander';
 // `--version` dizia 0.1.0-alpha enquanto o manifesto dizia outra coisa.
 const CLI_VERSION = '__CLI_VERSION__';
 
+import { registerCleanupWriteQualityCommand } from './run-cleanup-write-quality.js';
 import { registerConfigCommand } from './run-config.js';
 import { runForget } from './run-forget.js';
 import { runHealth } from './run-health.js';
@@ -60,7 +61,6 @@ import {
 import { runMigrate } from './run-migrate.js';
 import { runRecall } from './run-recall.js';
 import { runReflect } from './run-reflect.js';
-import { registerCleanupWriteQualityCommand } from './run-cleanup-write-quality.js';
 import { runRemember } from './run-remember.js';
 import { runServer } from './run-server.js';
 import type { RunServerOptions } from './run-server.js';
@@ -229,6 +229,16 @@ export function buildProgram(): Command {
         await runMcpServer(options);
       },
     );
+
+  program.command('worker')
+    .description('Process durable memory extraction jobs against a migrated database.')
+    .option('--once', 'Process at most one available job and exit.')
+    .option('--purge-expired', 'Physically erase expired memories, including their historical snapshots.')
+    .option('--concurrency <number>', 'Concurrent jobs (1..32)', parseIntInRange('--concurrency',1,32),2)
+    .action(async (opts:{once?:boolean;concurrency?:number;purgeExpired?:boolean})=>{
+      const {runWorker}=await import('./run-worker.js');
+      await runWorker(opts);
+    });
 
   program
     .command('server')

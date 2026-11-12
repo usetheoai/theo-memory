@@ -6,7 +6,7 @@
  * ImportanceScoringError on unparseable responses.
  *
  * Cache discipline: scores are persisted on the `memories.llm_importance_score`
- * column at write time. T5.2 adds the hash-keyed cache lookup that skips this
+ * column at write time, in [0, 1] (`normalizeImportanceRating`). T5.2 adds the hash-keyed cache lookup that skips this
  * function when an identical-content memory already has a cached score.
  *
  * EC-16 (cache invalidation on prompt version bump): out of scope for v0.4a.
@@ -71,8 +71,9 @@ export async function scoreImportance(text: string, llm: LLM): Promise<number> {
  * Hash-keyed importance score cache (T5.2 + ADR D8).
  *
  * Looks up `store.getImportanceByHash(hash)`; on hit returns the cached score
- * WITHOUT invoking the LLM. On miss, computes via `scoreImportance`, persists
- * via `store.setImportanceByHash`, returns the new score.
+ * WITHOUT invoking the LLM. On miss, rates via `scoreImportance`, maps the rating
+ * to [0, 1] with `normalizeImportanceRating`, persists it via
+ * `store.setImportanceByHash`, and returns it.
  *
  * CLAUDE.md Item 5 acceptance verbatim: "LLM-importance score persisted on
  * first write; second-write same content does NOT re-invoke LLM."
@@ -81,6 +82,17 @@ export async function scoreImportance(text: string, llm: LLM): Promise<number> {
  * DEFERRED to F-importance-pipeline-wiring followup — this helper is the
  * load-bearing primitive; pipeline integration is a downstream consumer.
  */
+/**
+ * Map a 1-10 rating onto the [0, 1] importance that `memories.llm_importance_score` holds and
+ * `TriadicScoringPolicy` reads (`MemoryItem.llmImportanceScore`). Ratings outside [1, 10] are
+ * clamped first. Storing the raw rating let importance outweigh recency and frequency together
+ * and stretched half-lives up to 29 times the base (#239).
+ */
+export function normalizeImportanceRating(rating: number): number {
+  return (Math.max(1, Math.min(10, rating)) - 1) / 9;
+}
+
+/** Stores importance in [0, 1] keyed by content hash. */
 export interface ImportanceCacheStore {
   getImportanceByHash(hash: string): Promise<number | null>;
   setImportanceByHash(hash: string, score: number): Promise<void>;
@@ -96,7 +108,7 @@ export async function scoreAndCacheImportance(
   if (cached !== null) {
     return cached;
   }
-  const score = await scoreImportance(text, llm);
+  const score = normalizeImportanceRating(await scoreImportance(text, llm));
   await store.setImportanceByHash(hash, score);
   return score;
 }

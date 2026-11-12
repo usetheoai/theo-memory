@@ -19,9 +19,12 @@
  * times brevity penalty.
  *
  */
-import natural from 'natural';
+// Deep imports: natural's entry point loads its storage plugins, which run dotenv on load,
+// and its typings pull in a .ts file that does not compile under verbatimModuleSyntax.
+import { NGrams } from 'natural/lib/natural/ngrams/index.js';
+import { WordTokenizer } from 'natural/lib/natural/tokenizers/index.js';
 
-const tokenizer = new natural.WordTokenizer();
+const tokenizer = new WordTokenizer();
 
 /** Lowercase + word-tokenize (drops punctuation; collapses whitespace). */
 export function tokenize(text: string): readonly string[] {
@@ -43,8 +46,8 @@ export function bleuScore(candidate: string, reference: string): number {
   const maxN = Math.min(4, cand.length, ref.length);
   const precisions: number[] = [];
   for (let n = 1; n <= maxN; n++) {
-    const candNgrams = natural.NGrams.ngrams(cand as string[], n).map((g) => g.join(' '));
-    const refNgrams = natural.NGrams.ngrams(ref as string[], n).map((g) => g.join(' '));
+    const candNgrams = NGrams.ngrams(cand as string[], n).map((g) => g.join(' '));
+    const refNgrams = NGrams.ngrams(ref as string[], n).map((g) => g.join(' '));
     if (candNgrams.length === 0) continue;
     const refCounts = new Map<string, number>();
     for (const g of refNgrams) refCounts.set(g, (refCounts.get(g) ?? 0) + 1);

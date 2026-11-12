@@ -76,11 +76,34 @@ wired to TheMemory. It is a **counter-proof**: an independent methodology that
 cross-validates the per-stage extraction eval.
 
 ```bash
-# .env.local: OPENAI_API_KEY=<sk-or-…> + OPENAI_BASE_URL=https://openrouter.ai/api/v1 + OPENAI_CHAT_MODEL=openai/gpt-4o-mini
+# .env.local: OPENAI_API_KEY=... + OPENAI_CHAT_MODEL=gpt-4o-mini-2024-07-18
 export THEOMEM_PG_URI=postgresql://themem:themem@localhost:5442/themem
 pnpm --filter @usetheo/memory-eval eval:e2e-qa   # SKIPs cleanly without a key or the dataset
 ```
 
-Key-gated (no keyless CI run), heavy (~2.5 min/example, LLM-bound), and NOT wired into the
+Key-gated (no keyless CI run), heavy and LLM-bound, and NOT wired into the
 automatic CI gate. Recorded result + honest disclosure: `docs/benchmarks/m21-e2e-qa-longmemeval.md`
 (75% / 9-of-12 on gpt-4o-mini — NOT comparable to any published leaderboard figure).
+
+### Dataset variants
+
+The runner's default is `longmemeval_oracle.json`, whose histories contain only evidence sessions.
+That is useful for diagnosis but is not comparable to standard LongMemEval-S results. For the
+cleaned S benchmark, download the official `longmemeval_s_cleaned.json` to the gitignored
+`benchmarks/data/` directory and set `E2E_QA_DATASET=benchmarks/data/longmemeval_s_cleaned.json`.
+The full-run script records the variant and dataset SHA-256, and the aggregator labels Oracle, S,
+and M separately.
+
+The runner uses the authors' published CoT answer template and category-specific judge
+templates, and routes every answer through the benchmark judge. The supplied context is still Theo's
+retrieved memory records rather than verbatim source chats, so report the retrieval method and do
+not claim an exact reproduction of the authors' end-to-end setup. For comparable reports, record
+prompt mode, answer/judge model versions, provider, dataset variant/hash, retrieval configuration,
+and raw per-question responses.
+
+Ingestion defaults to `E2E_QA_INGEST_MODE=turn`. `E2E_QA_INGEST_MODE=session` extracts each
+chronological source session in one call while preserving role labels and `source_date`; mixed-
+speaker batches explicitly ask the extractor to retain each fact's author. Session mode is
+experimental: local 12-example testing found regressions on multi-session retrieval and a large
+increase in table memories, so use it only for controlled ablations. The runner records the mode,
+and a capped run is marked invalid if it omits source turns.

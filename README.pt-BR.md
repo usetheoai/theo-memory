@@ -119,7 +119,7 @@ const facts = await memory.user('alice').recall('UI preferences');
 ```bash
 # 1. Suba Postgres + pgvector
 docker run -d --name pgvector -e POSTGRES_USER=themem -e POSTGRES_PASSWORD=themem \
-  -e POSTGRES_DB=themem -p 5432:5432 ankane/pgvector:v0.5.1
+  -e POSTGRES_DB=themem -p 5432:5432 pgvector/pgvector:0.8.7-pg18
 
 # 2. Suba o servidor — ele aplica as migrations pendentes antes de abrir a porta
 docker run -p 8080:8080 \
@@ -509,7 +509,7 @@ npm run lint                # Zero warnings
 |---|---|
 | Testes de contrato / unidade | ~970 passando |
 | Arquivos de teste | 400+ |
-| Testes de integração | 540+ (contra `ankane/pgvector:v0.5.1`) |
+| Testes de integração | 540+ (contra `pgvector/pgvector:0.8.7-pg18`) |
 | Linhas de código-fonte | ~20.000 |
 | Interfaces DIP | 13 |
 | Migrations | 29 |

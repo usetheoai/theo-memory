@@ -18,7 +18,6 @@ import type { Context } from 'hono';
 import type { AdminApiOptions, CreateServerOptions } from '../app.js';
 import { bearerAuth, requireRole, requireScopeOnPrincipal } from '../auth/middleware.js';
 import { requireScope } from '../auth/scope-verifier.js';
-import { workspaceScope } from '../middleware/workspace-scope.js';
 import {
   createKeyHandler,
   lineageKeyHandler,
@@ -37,6 +36,9 @@ import {
   removeMemberHandler,
   setMemberRoleHandler,
 } from '../handlers/members.js';
+import { memoryEvidenceHandler } from '../handlers/memory-evidence.js';
+import { getMemoryJob, submitMemoryJob, retryMemoryJob } from '../handlers/memory-jobs.js';
+import { messagesSearchHandler } from '../handlers/messages-search.js';
 import { metricsHandler } from '../handlers/metrics.js';
 import { recallTracesHandler } from '../handlers/recall-traces.js';
 import { recallHandler } from '../handlers/recall.js';
@@ -59,6 +61,7 @@ import {
 } from '../handlers/skills.js';
 import { versionHandler } from '../handlers/version.js';
 import { wellKnownOauthProtectedResourceHandler } from '../handlers/well-known.js';
+import { workspaceScope } from '../middleware/workspace-scope.js';
 import { createPostgresMembersRepository } from '../store/members-store-pg.js';
 import type { MembersRepository } from '../store/members-store.js';
 
@@ -153,8 +156,13 @@ function registerMemberRoutes(app: OpenAPIHono, membersRepo: MembersRepository):
 function registerScopeRoutes(app: OpenAPIHono, options: CreateServerOptions): void {
   const { memory, usageCounterStore, memoryEntityStore, memoryGraphStore, recallTraceStore, routingPolicyStore, routingAuditStore } =
     options;
+  if (options.memoryEvidenceStore !== undefined) {
+    const store = options.memoryEvidenceStore;
+    app.get('/v1/scopes/:type/:id/memories/:memoryId/evidence', requireScopeOnPrincipal('memory:read'), (c) => memoryEvidenceHandler(c, store));
+  }
   app.get('/v1/scopes/:type/:id/memories', requireScopeOnPrincipal('memory:read'), (c) => scopesHandler(c, memory));
   app.get('/v1/scopes/:type/:id/episodes', requireScopeOnPrincipal('memory:read'), (c) => episodesHandler(c, memory));
+  app.get('/v1/scopes/:type/:id/messages/search', requireScopeOnPrincipal('memory:read'), (c) => messagesSearchHandler(c, memory));
   // Session-separation fix (2026-07-23): enumerate a user's session sub-scopes.
   app.get('/v1/scopes/:type/:id/sessions', requireScopeOnPrincipal('memory:read'), (c) => sessionsHandler(c, memory));
   app.delete('/v1/scopes/:type/:id/memories/:memId', requireScopeOnPrincipal('memory:delete'), (c) => scopedForgetHandler(c, memory));
@@ -224,5 +232,11 @@ export function registerRoutes(app: OpenAPIHono, options: CreateServerOptions): 
   }
   registerScopeRoutes(app, options);
   registerSkillRoutes(app, options.memory);
+  if (options.memoryJobs !== undefined) {
+    const jobs = options.memoryJobs;
+    app.post('/v1/memory-jobs', requireScopeOnPrincipal('memory:write'), (c) => submitMemoryJob(c,jobs));
+    app.get('/v1/memory-jobs/:jobId', requireScopeOnPrincipal('memory:read'), (c) => getMemoryJob(c,jobs));
+    app.post('/v1/memory-jobs/:jobId/retry', requireScopeOnPrincipal('memory:write'), (c) => retryMemoryJob(c,jobs));
+  }
   registerVerbRoutes(app, options);
 }

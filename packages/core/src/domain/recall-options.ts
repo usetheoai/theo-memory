@@ -12,6 +12,14 @@
  */
 
 export interface RecallOptions {
+  /**
+   * ADR-0027 — return, with each memory, the raw messages that produced it
+   * (`MemoryItemWithScore.sources`, oldest first). Default `false`. A memory with no logged
+   * source (written before the log existed, with the log disabled, or whose source was erased
+   * by a hard forget of another memory) gets an empty list.
+   */
+  readonly includeSources?: boolean;
+
   /** Default `20` (upstream-pipeline parity). Upper bound on number of memories returned. */
   readonly topK?: number;
 

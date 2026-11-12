@@ -5,6 +5,10 @@
  * Unions the semantic and BM25 result sets into one `Candidate` map (semantic wins the payload on
  * overlap, BM25-only rows fill in), attaches the pre-computed entity boost, and returns the map
  * plus `maxScore = maxPossible(activeSignals)`.
+ *
+ * A BM25-only row carries the cosine similarity the store computed against the query vector
+ * (`VectorStoreResult.similarity`), so the semantic gate judges it on its real similarity. An
+ * adapter that does not report it leaves the row at 0, which the gate drops (the old behavior).
  */
 import type { VectorStoreResult } from '../../dip/vector-store.js';
 import { maxPossible } from '../../scoring.js';
@@ -39,7 +43,7 @@ export function assembleCandidates(
   if (bm25Results !== null) {
     for (const r of bm25Results) {
       if (!candidates.has(r.id)) {
-        candidates.set(r.id, toCandidate(r, 0, bm25NormalizedById, entityBoostById));
+        candidates.set(r.id, toCandidate(r, r.similarity ?? 0, bm25NormalizedById, entityBoostById));
       }
     }
   }

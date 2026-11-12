@@ -1,0 +1,646 @@
+{
+  "users": [
+    {
+      "id": "nf-thorvald",
+      "facts": [
+        {
+          "key": "job",
+          "text": "Thorvald works as a beekeeper.",
+          "observedAt": "2024-04-10",
+          "role": "distinct"
+        },
+        {
+          "key": "car",
+          "text": "Thorvald drives a green Volvo estate.",
+          "observedAt": "2024-04-11",
+          "role": "distinct"
+        },
+        {
+          "key": "sport",
+          "text": "Thorvald plays water polo on Tuesdays.",
+          "observedAt": "2024-04-12",
+          "role": "distinct"
+        },
+        {
+          "key": "pet",
+          "text": "Thorvald has a tortoise named Pumpernickel.",
+          "observedAt": "2024-04-13",
+          "role": "distinct"
+        },
+        {
+          "key": "food",
+          "text": "Thorvald cannot stand coriander.",
+          "observedAt": "2024-04-14",
+          "role": "distinct"
+        },
+        {
+          "key": "daughter",
+          "text": "Thorvald's daughter is named Signe.",
+          "observedAt": "2024-04-15",
+          "role": "distinct"
+        },
+        {
+          "key": "home",
+          "text": "Thorvald lives on a houseboat in Gouda.",
+          "observedAt": "2024-04-16",
+          "role": "distinct"
+        },
+        {
+          "key": "instrument",
+          "text": "Thorvald plays the bassoon in a community orchestra.",
+          "observedAt": "2024-04-17",
+          "role": "distinct"
+        },
+        {
+          "key": "language",
+          "text": "Thorvald is learning Icelandic.",
+          "observedAt": "2024-04-18",
+          "role": "distinct"
+        },
+        {
+          "key": "drink",
+          "text": "Thorvald drinks rooibos tea every evening.",
+          "observedAt": "2024-04-19",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What does Thorvald do for a living?",
+          "pattern": "beekeeper"
+        },
+        {
+          "query": "What car does Thorvald drive?",
+          "pattern": "Volvo"
+        },
+        {
+          "query": "Which sport does Thorvald play?",
+          "pattern": "water polo"
+        },
+        {
+          "query": "What pet does Thorvald have?",
+          "pattern": "tortoise"
+        },
+        {
+          "query": "Which herb does Thorvald dislike?",
+          "pattern": "coriander"
+        },
+        {
+          "query": "What is the name of Thorvald's daughter?",
+          "pattern": "Signe"
+        },
+        {
+          "query": "Where does Thorvald live?",
+          "pattern": "houseboat"
+        },
+        {
+          "query": "Which instrument does Thorvald play?",
+          "pattern": "bassoon"
+        },
+        {
+          "query": "Which language is Thorvald learning?",
+          "pattern": "Icelandic"
+        },
+        {
+          "query": "What does Thorvald drink in the evening?",
+          "pattern": "rooibos"
+        }
+      ]
+    },
+    {
+      "id": "nf-ermelinda",
+      "facts": [
+        {
+          "key": "job",
+          "text": "Ermelinda trabalha como agrimensora.",
+          "observedAt": "2024-04-10",
+          "role": "distinct"
+        },
+        {
+          "key": "car",
+          "text": "Ermelinda dirige um Fusca azul.",
+          "observedAt": "2024-04-11",
+          "role": "distinct"
+        },
+        {
+          "key": "sport",
+          "text": "Ermelinda joga vôlei de praia aos sábados.",
+          "observedAt": "2024-04-12",
+          "role": "distinct"
+        },
+        {
+          "key": "pet",
+          "text": "Ermelinda tem uma calopsita chamada Pitanga.",
+          "observedAt": "2024-04-13",
+          "role": "distinct"
+        },
+        {
+          "key": "food",
+          "text": "Ermelinda detesta jiló.",
+          "observedAt": "2024-04-14",
+          "role": "distinct"
+        },
+        {
+          "key": "son",
+          "text": "O filho de Ermelinda se chama Uelinton.",
+          "observedAt": "2024-04-15",
+          "role": "distinct"
+        },
+        {
+          "key": "home",
+          "text": "Ermelinda mora num sítio perto de Itu.",
+          "observedAt": "2024-04-16",
+          "role": "distinct"
+        },
+        {
+          "key": "instrument",
+          "text": "Ermelinda toca cavaquinho numa roda de samba.",
+          "observedAt": "2024-04-17",
+          "role": "distinct"
+        },
+        {
+          "key": "language",
+          "text": "Ermelinda está aprendendo japonês.",
+          "observedAt": "2024-04-18",
+          "role": "distinct"
+        },
+        {
+          "key": "drink",
+          "text": "Ermelinda toma chá de hibisco toda noite.",
+          "observedAt": "2024-04-19",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Qual é a profissão de Ermelinda?",
+          "pattern": "agrimensora"
+        },
+        {
+          "query": "Que carro Ermelinda dirige?",
+          "pattern": "Fusca"
+        },
+        {
+          "query": "Que esporte Ermelinda pratica?",
+          "pattern": "v[ôo]lei"
+        },
+        {
+          "query": "Que animal de estimação Ermelinda tem?",
+          "pattern": "calopsita"
+        },
+        {
+          "query": "Que comida Ermelinda detesta?",
+          "pattern": "jil[óo]"
+        },
+        {
+          "query": "Como se chama o filho de Ermelinda?",
+          "pattern": "Uelinton"
+        },
+        {
+          "query": "Onde Ermelinda mora?",
+          "pattern": "s[íi]tio"
+        },
+        {
+          "query": "Que instrumento Ermelinda toca?",
+          "pattern": "cavaquinho"
+        },
+        {
+          "query": "Que idioma Ermelinda está aprendendo?",
+          "pattern": "japon[êe]s"
+        },
+        {
+          "query": "O que Ermelinda toma à noite?",
+          "pattern": "hibisco"
+        }
+      ]
+    },
+    {
+      "id": "nf-saturnino",
+      "facts": [
+        {
+          "key": "job",
+          "text": "Saturnino trabaja como guarda forestal.",
+          "observedAt": "2024-04-10",
+          "role": "distinct"
+        },
+        {
+          "key": "car",
+          "text": "Saturnino conduce un Seat Panda amarillo.",
+          "observedAt": "2024-04-11",
+          "role": "distinct"
+        },
+        {
+          "key": "sport",
+          "text": "Saturnino juega a la pelota vasca los domingos.",
+          "observedAt": "2024-04-12",
+          "role": "distinct"
+        },
+        {
+          "key": "pet",
+          "text": "Saturnino tiene un hurón llamado Altramuz.",
+          "observedAt": "2024-04-13",
+          "role": "distinct"
+        },
+        {
+          "key": "food",
+          "text": "Saturnino no soporta el hígado.",
+          "observedAt": "2024-04-14",
+          "role": "distinct"
+        },
+        {
+          "key": "niece",
+          "text": "La sobrina de Saturnino se llama Brígida.",
+          "observedAt": "2024-04-15",
+          "role": "distinct"
+        },
+        {
+          "key": "home",
+          "text": "Saturnino vive en una masía cerca de Vic.",
+          "observedAt": "2024-04-16",
+          "role": "distinct"
+        },
+        {
+          "key": "instrument",
+          "text": "Saturnino toca la gaita en una banda.",
+          "observedAt": "2024-04-17",
+          "role": "distinct"
+        },
+        {
+          "key": "language",
+          "text": "Saturnino está aprendiendo euskera.",
+          "observedAt": "2024-04-18",
+          "role": "distinct"
+        },
+        {
+          "key": "drink",
+          "text": "Saturnino toma una infusión de poleo cada noche.",
+          "observedAt": "2024-04-19",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "¿A qué se dedica Saturnino?",
+          "pattern": "guarda forestal"
+        },
+        {
+          "query": "¿Qué coche conduce Saturnino?",
+          "pattern": "Panda"
+        },
+        {
+          "query": "¿Qué deporte practica Saturnino?",
+          "pattern": "pelota vasca"
+        },
+        {
+          "query": "¿Qué mascota tiene Saturnino?",
+          "pattern": "hur[óo]n"
+        },
+        {
+          "query": "¿Qué comida no soporta Saturnino?",
+          "pattern": "h[íi]gado"
+        },
+        {
+          "query": "¿Cómo se llama la sobrina de Saturnino?",
+          "pattern": "Br[íi]gida"
+        },
+        {
+          "query": "¿Dónde vive Saturnino?",
+          "pattern": "mas[íi]a"
+        },
+        {
+          "query": "¿Qué instrumento toca Saturnino?",
+          "pattern": "gaita"
+        },
+        {
+          "query": "¿Qué idioma está aprendiendo Saturnino?",
+          "pattern": "euskera"
+        },
+        {
+          "query": "¿Qué toma Saturnino por la noche?",
+          "pattern": "poleo"
+        }
+      ]
+    },
+    {
+      "id": "nf-ermenegilda",
+      "facts": [
+        {
+          "key": "job",
+          "text": "Ermenegilda lavora come casara.",
+          "observedAt": "2024-04-10",
+          "role": "distinct"
+        },
+        {
+          "key": "car",
+          "text": "Ermenegilda guida una Fiat Multipla grigia.",
+          "observedAt": "2024-04-11",
+          "role": "distinct"
+        },
+        {
+          "key": "sport",
+          "text": "Ermenegilda gioca a bocce il giovedì.",
+          "observedAt": "2024-04-12",
+          "role": "distinct"
+        },
+        {
+          "key": "pet",
+          "text": "Ermenegilda ha un pappagallo di nome Ciuffo.",
+          "observedAt": "2024-04-13",
+          "role": "distinct"
+        },
+        {
+          "key": "food",
+          "text": "Ermenegilda non sopporta i carciofi.",
+          "observedAt": "2024-04-14",
+          "role": "distinct"
+        },
+        {
+          "key": "nephew",
+          "text": "Il nipote di Ermenegilda si chiama Gianluigi.",
+          "observedAt": "2024-04-15",
+          "role": "distinct"
+        },
+        {
+          "key": "home",
+          "text": "Ermenegilda vive in un trullo vicino a Locorotondo.",
+          "observedAt": "2024-04-16",
+          "role": "distinct"
+        },
+        {
+          "key": "instrument",
+          "text": "Ermenegilda suona la fisarmonica in una banda di paese.",
+          "observedAt": "2024-04-17",
+          "role": "distinct"
+        },
+        {
+          "key": "language",
+          "text": "Ermenegilda sta imparando il gallese.",
+          "observedAt": "2024-04-18",
+          "role": "distinct"
+        },
+        {
+          "key": "drink",
+          "text": "Ermenegilda beve una tisana alla camomilla ogni sera.",
+          "observedAt": "2024-04-19",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Che lavoro fa Ermenegilda?",
+          "pattern": "casara"
+        },
+        {
+          "query": "Che macchina guida Ermenegilda?",
+          "pattern": "Multipla"
+        },
+        {
+          "query": "Che sport pratica Ermenegilda?",
+          "pattern": "bocce"
+        },
+        {
+          "query": "Che animale ha Ermenegilda?",
+          "pattern": "pappagallo"
+        },
+        {
+          "query": "Quale verdura non sopporta Ermenegilda?",
+          "pattern": "carciofi"
+        },
+        {
+          "query": "Come si chiama il nipote di Ermenegilda?",
+          "pattern": "Gianluigi"
+        },
+        {
+          "query": "Dove vive Ermenegilda?",
+          "pattern": "trullo"
+        },
+        {
+          "query": "Che strumento suona Ermenegilda?",
+          "pattern": "fisarmonica"
+        },
+        {
+          "query": "Che lingua sta imparando Ermenegilda?",
+          "pattern": "gallese"
+        },
+        {
+          "query": "Cosa beve Ermenegilda la sera?",
+          "pattern": "camomilla"
+        }
+      ]
+    },
+    {
+      "id": "nf-perrine",
+      "facts": [
+        {
+          "key": "job",
+          "text": "Perrine travaille comme apicultrice.",
+          "observedAt": "2024-04-10",
+          "role": "distinct"
+        },
+        {
+          "key": "car",
+          "text": "Perrine conduit une Renault 4 rouge.",
+          "observedAt": "2024-04-11",
+          "role": "distinct"
+        },
+        {
+          "key": "sport",
+          "text": "Perrine joue à la pétanque le dimanche.",
+          "observedAt": "2024-04-12",
+          "role": "distinct"
+        },
+        {
+          "key": "pet",
+          "text": "Perrine a un furet nommé Grignotin.",
+          "observedAt": "2024-04-13",
+          "role": "distinct"
+        },
+        {
+          "key": "food",
+          "text": "Perrine ne supporte pas l'andouillette.",
+          "observedAt": "2024-04-14",
+          "role": "distinct"
+        },
+        {
+          "key": "godson",
+          "text": "Le filleul de Perrine s'appelle Gatien.",
+          "observedAt": "2024-04-15",
+          "role": "distinct"
+        },
+        {
+          "key": "home",
+          "text": "Perrine habite une péniche près de Nevers.",
+          "observedAt": "2024-04-16",
+          "role": "distinct"
+        },
+        {
+          "key": "instrument",
+          "text": "Perrine joue de la vielle à roue dans un groupe folk.",
+          "observedAt": "2024-04-17",
+          "role": "distinct"
+        },
+        {
+          "key": "language",
+          "text": "Perrine apprend le breton.",
+          "observedAt": "2024-04-18",
+          "role": "distinct"
+        },
+        {
+          "key": "drink",
+          "text": "Perrine boit une infusion de verveine chaque soir.",
+          "observedAt": "2024-04-19",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Quel est le métier de Perrine ?",
+          "pattern": "apicultrice"
+        },
+        {
+          "query": "Quelle voiture conduit Perrine ?",
+          "pattern": "Renault"
+        },
+        {
+          "query": "Quel sport pratique Perrine ?",
+          "pattern": "p[ée]tanque"
+        },
+        {
+          "query": "Quel animal a Perrine ?",
+          "pattern": "furet"
+        },
+        {
+          "query": "Quel plat Perrine ne supporte-t-elle pas ?",
+          "pattern": "andouillette"
+        },
+        {
+          "query": "Comment s'appelle le filleul de Perrine ?",
+          "pattern": "Gatien"
+        },
+        {
+          "query": "Où habite Perrine ?",
+          "pattern": "p[ée]niche"
+        },
+        {
+          "query": "De quel instrument joue Perrine ?",
+          "pattern": "vielle"
+        },
+        {
+          "query": "Quelle langue apprend Perrine ?",
+          "pattern": "breton"
+        },
+        {
+          "query": "Que boit Perrine le soir ?",
+          "pattern": "verveine"
+        }
+      ]
+    },
+    {
+      "id": "nf-gottlieb",
+      "facts": [
+        {
+          "key": "job",
+          "text": "Gottlieb arbeitet als Förster.",
+          "observedAt": "2024-04-10",
+          "role": "distinct"
+        },
+        {
+          "key": "car",
+          "text": "Gottlieb fährt einen alten Trabant.",
+          "observedAt": "2024-04-11",
+          "role": "distinct"
+        },
+        {
+          "key": "sport",
+          "text": "Gottlieb spielt dienstags Faustball.",
+          "observedAt": "2024-04-12",
+          "role": "distinct"
+        },
+        {
+          "key": "pet",
+          "text": "Gottlieb hat einen Dackel namens Knödel.",
+          "observedAt": "2024-04-13",
+          "role": "distinct"
+        },
+        {
+          "key": "food",
+          "text": "Gottlieb mag keinen Rosenkohl.",
+          "observedAt": "2024-04-14",
+          "role": "distinct"
+        },
+        {
+          "key": "granddaughter",
+          "text": "Die Enkelin von Gottlieb heißt Mechthild.",
+          "observedAt": "2024-04-15",
+          "role": "distinct"
+        },
+        {
+          "key": "home",
+          "text": "Gottlieb wohnt in einer Mühle bei Celle.",
+          "observedAt": "2024-04-16",
+          "role": "distinct"
+        },
+        {
+          "key": "instrument",
+          "text": "Gottlieb spielt Tuba im Posaunenchor.",
+          "observedAt": "2024-04-17",
+          "role": "distinct"
+        },
+        {
+          "key": "language",
+          "text": "Gottlieb lernt Finnisch.",
+          "observedAt": "2024-04-18",
+          "role": "distinct"
+        },
+        {
+          "key": "drink",
+          "text": "Gottlieb trinkt jeden Abend Fencheltee.",
+          "observedAt": "2024-04-19",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Was ist Gottlieb von Beruf?",
+          "pattern": "F[öo]rster"
+        },
+        {
+          "query": "Welches Auto fährt Gottlieb?",
+          "pattern": "Trabant"
+        },
+        {
+          "query": "Welchen Sport spielt Gottlieb?",
+          "pattern": "Faustball"
+        },
+        {
+          "query": "Welches Haustier hat Gottlieb?",
+          "pattern": "Dackel"
+        },
+        {
+          "query": "Welches Gemüse mag Gottlieb nicht?",
+          "pattern": "Rosenkohl"
+        },
+        {
+          "query": "Wie heißt die Enkelin von Gottlieb?",
+          "pattern": "Mechthild"
+        },
+        {
+          "query": "Wo wohnt Gottlieb?",
+          "pattern": "M[üu]hle"
+        },
+        {
+          "query": "Welches Instrument spielt Gottlieb?",
+          "pattern": "Tuba"
+        },
+        {
+          "query": "Welche Sprache lernt Gottlieb?",
+          "pattern": "Finnisch"
+        },
+        {
+          "query": "Was trinkt Gottlieb am Abend?",
+          "pattern": "Fenchel"
+        }
+      ]
+    }
+  ]
+}

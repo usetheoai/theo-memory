@@ -1,0 +1,826 @@
+{
+  "users": [
+    {
+      "id": "svc-leopold",
+      "facts": [
+        {
+          "key": "vet-old",
+          "text": "Leopold's vet is Dr. Amsel.",
+          "observedAt": "2022-01-12",
+          "role": "old",
+          "update": "vet"
+        },
+        {
+          "key": "bank-old",
+          "text": "Leopold banks with Ravensworth Savings.",
+          "observedAt": "2022-03-02",
+          "role": "old",
+          "update": "bank"
+        },
+        {
+          "key": "sister",
+          "text": "Leopold's sister is named Cordelia.",
+          "observedAt": "2022-04-18",
+          "role": "distinct"
+        },
+        {
+          "key": "quiz-2022",
+          "text": "Leopold won the 2022 Harbourside pub quiz trophy.",
+          "observedAt": "2022-06-20",
+          "role": "distinct"
+        },
+        {
+          "key": "honey-2022",
+          "text": "Leopold harvested 14 jars of honey in 2022.",
+          "observedAt": "2022-10-30",
+          "role": "distinct"
+        },
+        {
+          "key": "neighbour",
+          "text": "Leopold's neighbour is named Peregrine Quill.",
+          "observedAt": "2023-01-09",
+          "role": "distinct"
+        },
+        {
+          "key": "race-a",
+          "text": "Leopold ran a half marathon in Tewkesbury.",
+          "observedAt": "2023-03-12",
+          "role": "distinct"
+        },
+        {
+          "key": "quiz-2023",
+          "text": "Leopold won the 2023 Harbourside pub quiz trophy.",
+          "observedAt": "2023-06-21",
+          "role": "distinct"
+        },
+        {
+          "key": "honey-2023",
+          "text": "Leopold harvested 21 jars of honey in 2023.",
+          "observedAt": "2023-10-29",
+          "role": "distinct"
+        },
+        {
+          "key": "race-b",
+          "text": "Leopold ran a half marathon in Ludlow.",
+          "observedAt": "2023-11-05",
+          "role": "distinct"
+        },
+        {
+          "key": "vet-new",
+          "text": "Leopold's vet is now Dr. Finch.",
+          "observedAt": "2024-02-14",
+          "role": "new",
+          "update": "vet"
+        },
+        {
+          "key": "bank-new",
+          "text": "Leopold now banks with Kestrel Mutual.",
+          "observedAt": "2024-04-01",
+          "role": "new",
+          "update": "bank"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What is the name of Leopold's sister?",
+          "pattern": "Cordelia"
+        },
+        {
+          "query": "What is the name of Leopold's neighbour?",
+          "pattern": "Peregrine"
+        },
+        {
+          "query": "How many jars of honey did Leopold harvest in 2022?",
+          "pattern": "\\b14\\b"
+        },
+        {
+          "query": "How many jars of honey did Leopold harvest in 2023?",
+          "pattern": "\\b21\\b"
+        },
+        {
+          "query": "Which pub quiz trophy did Leopold win in 2022?",
+          "pattern": "2022 Harbourside"
+        },
+        {
+          "query": "Which pub quiz trophy did Leopold win in 2023?",
+          "pattern": "2023 Harbourside"
+        },
+        {
+          "query": "Where did Leopold run a half marathon in Tewkesbury?",
+          "pattern": "Tewkesbury"
+        },
+        {
+          "query": "Where did Leopold run a half marathon in Ludlow?",
+          "pattern": "Ludlow"
+        },
+        {
+          "query": "Who is Leopold's vet?",
+          "pattern": "Finch",
+          "stalePattern": "Amsel"
+        },
+        {
+          "query": "Who was Leopold's vet?",
+          "pattern": "Amsel",
+          "stalePattern": "Finch",
+          "asOf": "2023-06-01"
+        },
+        {
+          "query": "Which bank does Leopold use?",
+          "pattern": "Kestrel",
+          "stalePattern": "Ravensworth"
+        },
+        {
+          "query": "Which bank did Leopold use?",
+          "pattern": "Ravensworth",
+          "stalePattern": "Kestrel",
+          "asOf": "2023-06-01"
+        }
+      ]
+    },
+    {
+      "id": "svc-iraci",
+      "facts": [
+        {
+          "key": "gym-old",
+          "text": "Iraci treina na academia Corpo Leve.",
+          "observedAt": "2022-01-20",
+          "role": "old",
+          "update": "gym"
+        },
+        {
+          "key": "boss-old",
+          "text": "O chefe de Iraci é o Sr. Valdecir.",
+          "observedAt": "2022-03-15",
+          "role": "old",
+          "update": "boss"
+        },
+        {
+          "key": "godson",
+          "text": "O afilhado de Iraci se chama Josias.",
+          "observedAt": "2022-05-04",
+          "role": "distinct"
+        },
+        {
+          "key": "festa-2022",
+          "text": "Iraci dançou na festa junina de Itabaiana de 2022.",
+          "observedAt": "2022-06-25",
+          "role": "distinct"
+        },
+        {
+          "key": "jam-2022",
+          "text": "Iraci fez 60 potes de doce de caju em 2022.",
+          "observedAt": "2022-11-20",
+          "role": "distinct"
+        },
+        {
+          "key": "cousin",
+          "text": "A prima de Iraci se chama Eunice.",
+          "observedAt": "2023-01-14",
+          "role": "distinct"
+        },
+        {
+          "key": "trip-a",
+          "text": "Iraci fez uma trilha na Chapada Diamantina.",
+          "observedAt": "2023-02-10",
+          "role": "distinct"
+        },
+        {
+          "key": "festa-2023",
+          "text": "Iraci dançou na festa junina de Itabaiana de 2023.",
+          "observedAt": "2023-06-24",
+          "role": "distinct"
+        },
+        {
+          "key": "jam-2023",
+          "text": "Iraci fez 85 potes de doce de caju em 2023.",
+          "observedAt": "2023-11-19",
+          "role": "distinct"
+        },
+        {
+          "key": "trip-b",
+          "text": "Iraci fez uma trilha no Jalapão.",
+          "observedAt": "2023-12-02",
+          "role": "distinct"
+        },
+        {
+          "key": "gym-new",
+          "text": "Iraci agora treina na academia Ritmo Forte.",
+          "observedAt": "2024-02-05",
+          "role": "new",
+          "update": "gym"
+        },
+        {
+          "key": "boss-new",
+          "text": "O chefe de Iraci agora é a Sra. Gildete.",
+          "observedAt": "2024-04-10",
+          "role": "new",
+          "update": "boss"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Como se chama o afilhado de Iraci?",
+          "pattern": "Josias"
+        },
+        {
+          "query": "Como se chama a prima de Iraci?",
+          "pattern": "Eunice"
+        },
+        {
+          "query": "Quantos potes de doce de caju Iraci fez em 2022?",
+          "pattern": "\\b60\\b"
+        },
+        {
+          "query": "Quantos potes de doce de caju Iraci fez em 2023?",
+          "pattern": "\\b85\\b"
+        },
+        {
+          "query": "Em qual festa junina Iraci dançou em 2022?",
+          "pattern": "Itabaiana de 2022"
+        },
+        {
+          "query": "Em qual festa junina Iraci dançou em 2023?",
+          "pattern": "Itabaiana de 2023"
+        },
+        {
+          "query": "Iraci fez trilha na Chapada Diamantina?",
+          "pattern": "Chapada"
+        },
+        {
+          "query": "Iraci fez trilha no Jalapão?",
+          "pattern": "Jalap[aã]o"
+        },
+        {
+          "query": "Em qual academia Iraci treina?",
+          "pattern": "Ritmo Forte",
+          "stalePattern": "Corpo Leve"
+        },
+        {
+          "query": "Em qual academia Iraci treinava?",
+          "pattern": "Corpo Leve",
+          "stalePattern": "Ritmo Forte",
+          "asOf": "2023-06-01"
+        },
+        {
+          "query": "Quem é o chefe de Iraci?",
+          "pattern": "Gildete",
+          "stalePattern": "Valdecir"
+        },
+        {
+          "query": "Quem era o chefe de Iraci?",
+          "pattern": "Valdecir",
+          "stalePattern": "Gildete",
+          "asOf": "2023-06-01"
+        }
+      ]
+    },
+    {
+      "id": "svc-anacleto",
+      "facts": [
+        {
+          "key": "club-old",
+          "text": "Anacleto juega en el club de pádel Las Encinas.",
+          "observedAt": "2022-01-08",
+          "role": "old",
+          "update": "club"
+        },
+        {
+          "key": "insurer-old",
+          "text": "La aseguradora de Anacleto es Pelícano Seguros.",
+          "observedAt": "2022-02-22",
+          "role": "old",
+          "update": "insurer"
+        },
+        {
+          "key": "nephew",
+          "text": "El sobrino de Anacleto se llama Ruperto.",
+          "observedAt": "2022-04-09",
+          "role": "distinct"
+        },
+        {
+          "key": "paella-2022",
+          "text": "Anacleto ganó el concurso de paellas de Sueca de 2022.",
+          "observedAt": "2022-07-16",
+          "role": "distinct"
+        },
+        {
+          "key": "olives-2022",
+          "text": "Anacleto recogió 300 kilos de aceitunas en 2022.",
+          "observedAt": "2022-11-27",
+          "role": "distinct"
+        },
+        {
+          "key": "godmother",
+          "text": "La madrina de Anacleto se llama Eufrasia.",
+          "observedAt": "2023-01-21",
+          "role": "distinct"
+        },
+        {
+          "key": "concert-a",
+          "text": "Anacleto fue a un concierto de jazz en Getxo.",
+          "observedAt": "2023-03-04",
+          "role": "distinct"
+        },
+        {
+          "key": "paella-2023",
+          "text": "Anacleto ganó el concurso de paellas de Sueca de 2023.",
+          "observedAt": "2023-07-15",
+          "role": "distinct"
+        },
+        {
+          "key": "olives-2023",
+          "text": "Anacleto recogió 420 kilos de aceitunas en 2023.",
+          "observedAt": "2023-11-26",
+          "role": "distinct"
+        },
+        {
+          "key": "concert-b",
+          "text": "Anacleto fue a un concierto de jazz en Albarracín.",
+          "observedAt": "2023-12-09",
+          "role": "distinct"
+        },
+        {
+          "key": "club-new",
+          "text": "Anacleto ahora juega en el club de pádel El Pinar.",
+          "observedAt": "2024-02-17",
+          "role": "new",
+          "update": "club"
+        },
+        {
+          "key": "insurer-new",
+          "text": "La aseguradora de Anacleto ahora es Tortuga Seguros.",
+          "observedAt": "2024-04-20",
+          "role": "new",
+          "update": "insurer"
+        }
+      ],
+      "questions": [
+        {
+          "query": "¿Cómo se llama el sobrino de Anacleto?",
+          "pattern": "Ruperto"
+        },
+        {
+          "query": "¿Cómo se llama la madrina de Anacleto?",
+          "pattern": "Eufrasia"
+        },
+        {
+          "query": "¿Cuántos kilos de aceitunas recogió Anacleto en 2022?",
+          "pattern": "\\b300\\b"
+        },
+        {
+          "query": "¿Cuántos kilos de aceitunas recogió Anacleto en 2023?",
+          "pattern": "\\b420\\b"
+        },
+        {
+          "query": "¿Qué concurso de paellas ganó Anacleto en 2022?",
+          "pattern": "Sueca de 2022"
+        },
+        {
+          "query": "¿Qué concurso de paellas ganó Anacleto en 2023?",
+          "pattern": "Sueca de 2023"
+        },
+        {
+          "query": "¿Fue Anacleto a un concierto de jazz en Getxo?",
+          "pattern": "Getxo"
+        },
+        {
+          "query": "¿Fue Anacleto a un concierto de jazz en Albarracín?",
+          "pattern": "Albarracín"
+        },
+        {
+          "query": "¿En qué club de pádel juega Anacleto?",
+          "pattern": "El Pinar",
+          "stalePattern": "Las Encinas"
+        },
+        {
+          "query": "¿En qué club de pádel jugaba Anacleto?",
+          "pattern": "Las Encinas",
+          "stalePattern": "El Pinar",
+          "asOf": "2023-06-01"
+        },
+        {
+          "query": "¿Cuál es la aseguradora de Anacleto?",
+          "pattern": "Tortuga",
+          "stalePattern": "Pel[ií]cano"
+        },
+        {
+          "query": "¿Cuál era la aseguradora de Anacleto?",
+          "pattern": "Pel[ií]cano",
+          "stalePattern": "Tortuga",
+          "asOf": "2023-06-01"
+        }
+      ]
+    },
+    {
+      "id": "svc-ortrud",
+      "facts": [
+        {
+          "key": "doctor-old",
+          "text": "Die Hausärztin von Ortrud ist Dr. Wendland.",
+          "observedAt": "2022-01-18",
+          "role": "old",
+          "update": "doctor"
+        },
+        {
+          "key": "choir-old",
+          "text": "Ortrud singt im Kirchenchor von Sankt Ansgar.",
+          "observedAt": "2022-03-08",
+          "role": "old",
+          "update": "choir"
+        },
+        {
+          "key": "grandson",
+          "text": "Der Enkel von Ortrud heißt Leander.",
+          "observedAt": "2022-05-12",
+          "role": "distinct"
+        },
+        {
+          "key": "cheese-2022",
+          "text": "Ortrud gewann den Käsepreis der Allgäuer Messe 2022.",
+          "observedAt": "2022-09-10",
+          "role": "distinct"
+        },
+        {
+          "key": "apples-2022",
+          "text": "Ortrud erntete 2022 120 Kilo Äpfel.",
+          "observedAt": "2022-10-22",
+          "role": "distinct"
+        },
+        {
+          "key": "brother-in-law",
+          "text": "Der Schwager von Ortrud heißt Reinald.",
+          "observedAt": "2023-01-28",
+          "role": "distinct"
+        },
+        {
+          "key": "hike-a",
+          "text": "Ortrud wanderte auf den Feldberg.",
+          "observedAt": "2023-04-15",
+          "role": "distinct"
+        },
+        {
+          "key": "cheese-2023",
+          "text": "Ortrud gewann den Käsepreis der Allgäuer Messe 2023.",
+          "observedAt": "2023-09-09",
+          "role": "distinct"
+        },
+        {
+          "key": "apples-2023",
+          "text": "Ortrud erntete 2023 155 Kilo Äpfel.",
+          "observedAt": "2023-10-21",
+          "role": "distinct"
+        },
+        {
+          "key": "hike-b",
+          "text": "Ortrud wanderte auf den Brocken.",
+          "observedAt": "2023-11-11",
+          "role": "distinct"
+        },
+        {
+          "key": "doctor-new",
+          "text": "Die Hausärztin von Ortrud ist jetzt Dr. Brettschneider.",
+          "observedAt": "2024-02-20",
+          "role": "new",
+          "update": "doctor"
+        },
+        {
+          "key": "choir-new",
+          "text": "Ortrud singt jetzt im Stadtchor Lüneburg.",
+          "observedAt": "2024-04-25",
+          "role": "new",
+          "update": "choir"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Wie heißt der Enkel von Ortrud?",
+          "pattern": "Leander"
+        },
+        {
+          "query": "Wie heißt der Schwager von Ortrud?",
+          "pattern": "Reinald"
+        },
+        {
+          "query": "Wie viele Kilo Äpfel erntete Ortrud 2022?",
+          "pattern": "\\b120\\b"
+        },
+        {
+          "query": "Wie viele Kilo Äpfel erntete Ortrud 2023?",
+          "pattern": "\\b155\\b"
+        },
+        {
+          "query": "Welchen Käsepreis gewann Ortrud 2022?",
+          "pattern": "Messe 2022"
+        },
+        {
+          "query": "Welchen Käsepreis gewann Ortrud 2023?",
+          "pattern": "Messe 2023"
+        },
+        {
+          "query": "Wanderte Ortrud auf den Feldberg?",
+          "pattern": "Feldberg"
+        },
+        {
+          "query": "Wanderte Ortrud auf den Brocken?",
+          "pattern": "Brocken"
+        },
+        {
+          "query": "Wer ist die Hausärztin von Ortrud?",
+          "pattern": "Brettschneider",
+          "stalePattern": "Wendland"
+        },
+        {
+          "query": "Wer war die Hausärztin von Ortrud?",
+          "pattern": "Wendland",
+          "stalePattern": "Brettschneider",
+          "asOf": "2023-06-01"
+        },
+        {
+          "query": "In welchem Chor singt Ortrud?",
+          "pattern": "Stadtchor",
+          "stalePattern": "Ansgar"
+        },
+        {
+          "query": "In welchem Chor sang Ortrud?",
+          "pattern": "Ansgar",
+          "stalePattern": "Stadtchor",
+          "asOf": "2023-06-01"
+        }
+      ]
+    },
+    {
+      "id": "svc-marisa",
+      "facts": [
+        {
+          "key": "landlord-old",
+          "text": "Marisa's landlord is Mr. Adeyemi.",
+          "observedAt": "2022-01-25",
+          "role": "old",
+          "update": "landlord"
+        },
+        {
+          "key": "phone-old",
+          "text": "Marisa uses a Nokia flip phone.",
+          "observedAt": "2022-03-30",
+          "role": "old",
+          "update": "phone"
+        },
+        {
+          "key": "aunt",
+          "text": "Marisa's aunt is named Philomena.",
+          "observedAt": "2022-04-27",
+          "role": "distinct"
+        },
+        {
+          "key": "regatta-2022",
+          "text": "Marisa's crew won the 2022 Coniston regatta.",
+          "observedAt": "2022-08-13",
+          "role": "distinct"
+        },
+        {
+          "key": "jam-2022",
+          "text": "Marisa sold 75 jars of damson jam in 2022.",
+          "observedAt": "2022-09-30",
+          "role": "distinct"
+        },
+        {
+          "key": "dentist",
+          "text": "Marisa's dentist is named Dr. Haverford.",
+          "observedAt": "2023-01-17",
+          "role": "distinct"
+        },
+        {
+          "key": "course-a",
+          "text": "Marisa took a pottery course in Totnes.",
+          "observedAt": "2023-02-25",
+          "role": "distinct"
+        },
+        {
+          "key": "regatta-2023",
+          "text": "Marisa's crew won the 2023 Coniston regatta.",
+          "observedAt": "2023-08-12",
+          "role": "distinct"
+        },
+        {
+          "key": "jam-2023",
+          "text": "Marisa sold 110 jars of damson jam in 2023.",
+          "observedAt": "2023-09-29",
+          "role": "distinct"
+        },
+        {
+          "key": "course-b",
+          "text": "Marisa took a pottery course in Frome.",
+          "observedAt": "2023-10-21",
+          "role": "distinct"
+        },
+        {
+          "key": "landlord-new",
+          "text": "Marisa's landlord is now Ms. Thistlewood.",
+          "observedAt": "2024-03-01",
+          "role": "new",
+          "update": "landlord"
+        },
+        {
+          "key": "phone-new",
+          "text": "Marisa now uses a Fairphone.",
+          "observedAt": "2024-05-06",
+          "role": "new",
+          "update": "phone"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What is the name of Marisa's aunt?",
+          "pattern": "Philomena"
+        },
+        {
+          "query": "What is the name of Marisa's dentist?",
+          "pattern": "Haverford"
+        },
+        {
+          "query": "How many jars of damson jam did Marisa sell in 2022?",
+          "pattern": "\\b75\\b"
+        },
+        {
+          "query": "How many jars of damson jam did Marisa sell in 2023?",
+          "pattern": "\\b110\\b"
+        },
+        {
+          "query": "Which regatta did Marisa's crew win in 2022?",
+          "pattern": "2022 Coniston"
+        },
+        {
+          "query": "Which regatta did Marisa's crew win in 2023?",
+          "pattern": "2023 Coniston"
+        },
+        {
+          "query": "Did Marisa take a pottery course in Totnes?",
+          "pattern": "Totnes"
+        },
+        {
+          "query": "Did Marisa take a pottery course in Frome?",
+          "pattern": "Frome"
+        },
+        {
+          "query": "Who is Marisa's landlord?",
+          "pattern": "Thistlewood",
+          "stalePattern": "Adeyemi"
+        },
+        {
+          "query": "Who was Marisa's landlord?",
+          "pattern": "Adeyemi",
+          "stalePattern": "Thistlewood",
+          "asOf": "2023-06-01"
+        },
+        {
+          "query": "What phone does Marisa use?",
+          "pattern": "Fairphone",
+          "stalePattern": "Nokia"
+        },
+        {
+          "query": "What phone did Marisa use?",
+          "pattern": "Nokia",
+          "stalePattern": "Fairphone",
+          "asOf": "2023-06-01"
+        }
+      ]
+    },
+    {
+      "id": "svc-ercolina",
+      "facts": [
+        {
+          "key": "teacher-old",
+          "text": "L'insegnante di violino di Ercolina è il maestro Tarcisio.",
+          "observedAt": "2022-01-29",
+          "role": "old",
+          "update": "teacher"
+        },
+        {
+          "key": "market-old",
+          "text": "Ercolina vende formaggi al mercato di Bra.",
+          "observedAt": "2022-03-19",
+          "role": "old",
+          "update": "market"
+        },
+        {
+          "key": "godfather",
+          "text": "Il padrino di Ercolina si chiama Evandro.",
+          "observedAt": "2022-05-21",
+          "role": "distinct"
+        },
+        {
+          "key": "palio-2022",
+          "text": "Ercolina ha sfilato al palio di Asti del 2022.",
+          "observedAt": "2022-08-16",
+          "role": "distinct"
+        },
+        {
+          "key": "wine-2022",
+          "text": "Ercolina ha imbottigliato 900 bottiglie di vino nel 2022.",
+          "observedAt": "2022-10-15",
+          "role": "distinct"
+        },
+        {
+          "key": "neighbour",
+          "text": "La vicina di Ercolina si chiama Venusta.",
+          "observedAt": "2023-02-04",
+          "role": "distinct"
+        },
+        {
+          "key": "climb-a",
+          "text": "Ercolina ha scalato il Monviso.",
+          "observedAt": "2023-05-13",
+          "role": "distinct"
+        },
+        {
+          "key": "palio-2023",
+          "text": "Ercolina ha sfilato al palio di Asti del 2023.",
+          "observedAt": "2023-08-15",
+          "role": "distinct"
+        },
+        {
+          "key": "wine-2023",
+          "text": "Ercolina ha imbottigliato 1.300 bottiglie di vino nel 2023.",
+          "observedAt": "2023-10-14",
+          "role": "distinct"
+        },
+        {
+          "key": "climb-b",
+          "text": "Ercolina ha scalato il Gran Sasso.",
+          "observedAt": "2023-11-18",
+          "role": "distinct"
+        },
+        {
+          "key": "teacher-new",
+          "text": "L'insegnante di violino di Ercolina ora è la maestra Clelia.",
+          "observedAt": "2024-02-24",
+          "role": "new",
+          "update": "teacher"
+        },
+        {
+          "key": "market-new",
+          "text": "Ercolina ora vende formaggi al mercato di Alba.",
+          "observedAt": "2024-05-11",
+          "role": "new",
+          "update": "market"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Come si chiama il padrino di Ercolina?",
+          "pattern": "Evandro"
+        },
+        {
+          "query": "Come si chiama la vicina di Ercolina?",
+          "pattern": "Venusta"
+        },
+        {
+          "query": "Quante bottiglie di vino ha imbottigliato Ercolina nel 2022?",
+          "pattern": "\\b900\\b"
+        },
+        {
+          "query": "Quante bottiglie di vino ha imbottigliato Ercolina nel 2023?",
+          "pattern": "1\\.300"
+        },
+        {
+          "query": "A quale palio ha sfilato Ercolina nel 2022?",
+          "pattern": "Asti del 2022"
+        },
+        {
+          "query": "A quale palio ha sfilato Ercolina nel 2023?",
+          "pattern": "Asti del 2023"
+        },
+        {
+          "query": "Ercolina ha scalato il Monviso?",
+          "pattern": "Monviso"
+        },
+        {
+          "query": "Ercolina ha scalato il Gran Sasso?",
+          "pattern": "Gran Sasso"
+        },
+        {
+          "query": "Chi è l'insegnante di violino di Ercolina?",
+          "pattern": "Clelia",
+          "stalePattern": "Tarcisio"
+        },
+        {
+          "query": "Chi era l'insegnante di violino di Ercolina?",
+          "pattern": "Tarcisio",
+          "stalePattern": "Clelia",
+          "asOf": "2023-06-01"
+        },
+        {
+          "query": "In quale mercato vende formaggi Ercolina?",
+          "pattern": "Alba",
+          "stalePattern": "\\bBra\\b"
+        },
+        {
+          "query": "In quale mercato vendeva formaggi Ercolina?",
+          "pattern": "\\bBra\\b",
+          "stalePattern": "Alba",
+          "asOf": "2023-06-01"
+        }
+      ]
+    }
+  ]
+}

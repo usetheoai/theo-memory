@@ -40,9 +40,17 @@ export async function rememberHandler(
   // agent-supplied user).
   const scoped = routeScopedMemory(deps.memoryFactory(), parsed.sessionId);
 
-  const finalOptions = buildRememberOptions(parsed.metadata, parsed.infer);
+  const baseOptions = buildRememberOptions(parsed.metadata, parsed.infer);
+  const evidenceOptions = parsed.evidence === undefined ? baseOptions : { ...baseOptions, evidence: parsed.evidence };
 
-  const items = await scoped.remember(parsed.content, finalOptions);
+  const finalOptions = parsed.strictExtraction === undefined ? evidenceOptions : { ...evidenceOptions, strictExtraction: parsed.strictExtraction };
+  const contextOptions = parsed.idempotencyKey === undefined && parsed.expiresAt === undefined && parsed.observedAt === undefined ? finalOptions : {
+    ...finalOptions,
+    ...(parsed.idempotencyKey !== undefined ? { idempotencyKey: parsed.idempotencyKey } : {}),
+    ...(parsed.expiresAt !== undefined ? { expiresAt: new Date(parsed.expiresAt) } : {}),
+    ...(parsed.observedAt !== undefined ? { observedAt: new Date(parsed.observedAt) } : {}),
+  };
+  const items = await scoped.remember(parsed.content, contextOptions);
 
   // Honest disclosure (Inquebrável Rule 3): propagate actual result instead of returning
   // silent "Memory persisted." regardless of outcome. items=[] happens when the LLM
@@ -60,10 +68,15 @@ export async function rememberHandler(
   }
 
   const ids = items.map((i) => i.id).join(', ');
+  // ADR-0029: the agent must know which earlier memories this write made no longer current.
+  const replaced = items.flatMap((i) => i.supersedes ?? []);
+  const replacedNote = replaced.length === 0
+    ? ''
+    : `. Replaced ${replaced.length} earlier memor${replaced.length === 1 ? 'y' : 'ies'}: ${replaced.join(', ')}`;
   return {
     content: [{
       type: 'text',
-      text: `Persisted ${items.length} memory item${items.length === 1 ? '' : 's'}: ${ids}`,
+      text: `Persisted ${items.length} memory item${items.length === 1 ? '' : 's'}: ${ids}${replacedNote}`,
     }],
     isError: false,
   };

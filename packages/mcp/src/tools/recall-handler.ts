@@ -27,6 +27,9 @@ function toWireResult(hit: MemoryItemWithScore): Record<string, unknown> {
     scope: hit.scope,
     createdAt: hit.createdAt.toISOString(),
     metadata: hit.metadata,
+    ...(hit.sources !== undefined
+      ? { sources: hit.sources.map((s) => ({ role: s.role, content: s.content, observedAt: s.observedAt?.toISOString() ?? null })) }
+      : {}),
   };
 }
 
@@ -54,6 +57,7 @@ export async function recallHandler(
     threshold: parsed.threshold,
     ...(graphExpand !== undefined ? { graphExpand } : {}),
     ...(parsed.asOf !== undefined ? { asOf: new Date(parsed.asOf) } : {}),
+    ...(parsed.includeSources !== undefined ? { includeSources: parsed.includeSources } : {}),
   });
 
   // EC-6: empty-recall shape lock

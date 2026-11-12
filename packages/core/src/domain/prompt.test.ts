@@ -24,8 +24,8 @@ function mockMemory(id: string, text: string, scope: Scope): MemoryItem {
 }
 
 describe('buildReflectionPrompt (T4.1)', () => {
-  test('PROMPT_VERSION constant is exported as "1.0"', () => {
-    expect(PROMPT_VERSION).toBe('1.0');
+  test('PROMPT_VERSION constant is exported as "1.1"', () => {
+    expect(PROMPT_VERSION).toBe('1.1');
   });
 
   test('includes "reflection helper" framing', () => {

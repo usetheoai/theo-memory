@@ -1,0 +1,64 @@
+{
+  "controls": [
+    {
+      "user": "dtr-osric",
+      "key": "tentative",
+      "pattern": "Harrogate"
+    },
+    {
+      "user": "dtr-osric",
+      "key": "mood",
+      "pattern": "grumpy"
+    },
+    {
+      "user": "dtr-joselita",
+      "key": "tentative",
+      "pattern": "Cunha"
+    },
+    {
+      "user": "dtr-joselita",
+      "key": "mood",
+      "pattern": "rabugent"
+    },
+    {
+      "user": "dtr-eulogio",
+      "key": "tentative",
+      "pattern": "Calatayud"
+    },
+    {
+      "user": "dtr-eulogio",
+      "key": "mood",
+      "pattern": "gruñón"
+    },
+    {
+      "user": "dtr-ottavia",
+      "key": "tentative",
+      "pattern": "Spoleto"
+    },
+    {
+      "user": "dtr-ottavia",
+      "key": "mood",
+      "pattern": "scontros"
+    },
+    {
+      "user": "dtr-barnabe",
+      "key": "tentative",
+      "pattern": "Lannion"
+    },
+    {
+      "user": "dtr-barnabe",
+      "key": "mood",
+      "pattern": "grognon"
+    },
+    {
+      "user": "dtr-waltraut",
+      "key": "tentative",
+      "pattern": "Wernigerode"
+    },
+    {
+      "user": "dtr-waltraut",
+      "key": "mood",
+      "pattern": "m[üu]rrisch"
+    }
+  ]
+}

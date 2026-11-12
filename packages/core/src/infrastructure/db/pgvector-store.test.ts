@@ -27,15 +27,28 @@ import type { Pool } from 'pg';
 import { describe, expect, test, vi } from 'vitest';
 
 import { MAX_EMBEDDING_DIM } from '../../domain/constants.js';
-import { EmbeddingMismatch } from '../../domain/errors.js';
+import { DerivedMemorySourcesUnavailableError, EmbeddingMismatch } from '../../domain/errors.js';
 
 import { PgvectorStore } from './pgvector-store.js';
+
+function transactionalPool(poolQuery: (sql: string, params?: unknown[]) => unknown): Pool {
+  return { query: poolQuery, connect: async () => ({
+    release: vi.fn(),
+    query: async (sql: string, params?: unknown[]) => {
+      const result = await poolQuery(sql, params) as { rows: { id?: string }[] };
+      if (sql.includes('INSERT INTO memories') && result.rows.length > 1) {
+        return { ...result, rows: result.rows.filter((row) => row.id === params?.[0]) };
+      }
+      return result;
+    },
+  }) } as unknown as Pool;
+}
 
 function buildPool(): { pool: Pool; poolQuery: ReturnType<typeof vi.fn> } {
   const poolQuery = vi.fn().mockImplementation(() => {
     throw new Error('pool.query should not be reached when the guard rejects');
   });
-  const pool = { query: poolQuery } as unknown as Pool;
+  const pool = transactionalPool(poolQuery);
   return { pool, poolQuery };
 }
 
@@ -117,6 +130,66 @@ describe('PgvectorStore.search dimension guard — parametric (T0.2)', () => {
   });
 });
 
+describe('PgvectorStore.insertDerivedMemory — source revalidation race', () => {
+  test('throws a typed source-conflict when sources became inactive before insert', async () => {
+    const clientQuery = vi.fn().mockImplementation((sql: string) => {
+      if (sql.includes('SELECT expires_at FROM memories')) return Promise.resolve({ rows: [] });
+      return Promise.resolve({ rows: [] });
+    });
+    const pool = {
+      query: vi.fn(),
+      connect: async () => ({ query: clientQuery, release: vi.fn() }),
+    } as unknown as Pool;
+    const store = new PgvectorStore(pool, { embeddingDim: 3 });
+
+    await expect(
+      store.insertDerivedMemory({
+        text: 'derived fact',
+        hash: 'derived-test',
+        embedding: [0.1, 0.2, 0.3],
+        derivedFrom: ['11111111-1111-4111-8111-111111111111'],
+        scope: { workspaceId: 'default', userId: 'alice' },
+      }),
+    ).rejects.toBeInstanceOf(DerivedMemorySourcesUnavailableError);
+    expect(clientQuery).toHaveBeenCalledWith('ROLLBACK');
+    expect(clientQuery).not.toHaveBeenCalledWith(expect.stringContaining('INSERT INTO memories'), expect.anything());
+  });
+
+  test('persists inherited speaker attribution on a derived memory', async () => {
+    const sourceId = '11111111-1111-4111-8111-111111111111';
+    const insertedId = '22222222-2222-4222-8222-222222222222';
+    const calls: { sql: string; params?: unknown[] }[] = [];
+    const poolQuery = vi.fn().mockImplementation((sql: string, params?: unknown[]) => {
+      calls.push({ sql, ...(params === undefined ? {} : { params }) });
+      if (sql.includes('SELECT expires_at FROM memories')) {
+        return Promise.resolve({ rows: [{ expires_at: null }] });
+      }
+      if (sql.includes('INSERT INTO memories')) {
+        return Promise.resolve({ rows: [{ id: insertedId }] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+    const store = new PgvectorStore(transactionalPool(poolQuery), { embeddingDim: 3 });
+
+    await expect(store.insertDerivedMemory({
+      text: 'user preference',
+      hash: 'derived-test',
+      embedding: [0.1, 0.2, 0.3],
+      derivedFrom: [sourceId],
+      attributedTo: 'user',
+      scope: { workspaceId: 'default', userId: 'alice' },
+    })).resolves.toBe(insertedId);
+
+    const insert = calls.find((call) => call.sql.includes('INSERT INTO memories'));
+    expect(insert?.sql).toContain('attributed_to');
+    expect(insert?.params?.[9]).toBe('user');
+  });
+});
+
+// These tests read the SQL only. The mocked pool returns no rows, which the store reports as a
+// failed insert (#231), so each call's rejection is expected and ignored.
+const ignoreFailedInsert = (): undefined => undefined;
+
 describe('PgvectorStore.insert — attributed_to column hoist (v1.1 T2.1)', () => {
   test('INSERT SQL includes attributed_to column in the column list', async () => {
     const captured: { sql: string; params: unknown[] }[] = [];
@@ -124,7 +197,7 @@ describe('PgvectorStore.insert — attributed_to column hoist (v1.1 T2.1)', () =
       captured.push({ sql, params: params ?? [] });
       return { rows: [] };
     });
-    const pool = { query: poolQuery } as unknown as Pool;
+    const pool = transactionalPool(poolQuery);
     const store = new PgvectorStore(pool, { embeddingDim: 3 });
 
     const vector: readonly number[] = [0.1, 0.2, 0.3];
@@ -135,7 +208,7 @@ describe('PgvectorStore.insert — attributed_to column hoist (v1.1 T2.1)', () =
       attributed_to: 'paulo',
     };
 
-    await store.insert([vector], ['id-1'], [payload]);
+    await store.insert([vector], ['id-1'], [payload]).catch(ignoreFailedInsert);
 
     expect(captured.length).toBeGreaterThan(0);
     const insertCall = captured.find((c) => c.sql.includes('INSERT INTO memories'));
@@ -151,7 +224,7 @@ describe('PgvectorStore.insert — attributed_to column hoist (v1.1 T2.1)', () =
       captured.push({ sql, params: params ?? [] });
       return { rows: [] };
     });
-    const pool = { query: poolQuery } as unknown as Pool;
+    const pool = transactionalPool(poolQuery);
     const store = new PgvectorStore(pool, { embeddingDim: 3 });
 
     // Verbatim-path callers route options.attributedTo into payload at the
@@ -164,7 +237,7 @@ describe('PgvectorStore.insert — attributed_to column hoist (v1.1 T2.1)', () =
       attributed_to: 'alice', // routed from RememberOptions.attributedTo
     };
 
-    await store.insert([[0.1, 0.2, 0.3]], ['id-verbatim'], [verbatimPayload]);
+    await store.insert([[0.1, 0.2, 0.3]], ['id-verbatim'], [verbatimPayload]).catch(ignoreFailedInsert);
 
     const insertCall = captured.find((c) => c.sql.includes('INSERT INTO memories'));
     expect(insertCall).toBeDefined();
@@ -177,7 +250,7 @@ describe('PgvectorStore.insert — attributed_to column hoist (v1.1 T2.1)', () =
       captured.push({ sql, params: params ?? [] });
       return { rows: [] };
     });
-    const pool = { query: poolQuery } as unknown as Pool;
+    const pool = transactionalPool(poolQuery);
     const store = new PgvectorStore(pool, { embeddingDim: 3 });
 
     const payload = {
@@ -187,12 +260,38 @@ describe('PgvectorStore.insert — attributed_to column hoist (v1.1 T2.1)', () =
       // no attributed_to key
     };
 
-    await store.insert([[0.1, 0.2, 0.3]], ['id-no-attr'], [payload]);
+    await store.insert([[0.1, 0.2, 0.3]], ['id-no-attr'], [payload]).catch(ignoreFailedInsert);
 
     const insertCall = captured.find((c) => c.sql.includes('INSERT INTO memories'));
     expect(insertCall).toBeDefined();
     // NULL should be in the params at the attributed_to slot.
     expect(insertCall!.params).toContain(null);
+  });
+});
+
+describe('PgvectorStore.recallConsolidationCandidates attribution projection', () => {
+  test('projects attributed_to so conflict consolidation can preserve speaker boundaries', async () => {
+    const poolQuery = vi.fn().mockResolvedValue({
+      rows: [{
+        id: '11111111-1111-4111-8111-111111111111',
+        text: 'assistant suggested a target',
+        created_at: new Date('2026-01-01T00:00:00Z'),
+        confirmation_count: 1,
+        distinct_source_count: 1,
+        expires_at: null,
+        embedding: '[1,0,0]',
+        attributed_to: 'assistant',
+      }],
+    });
+    const store = new PgvectorStore({ query: poolQuery } as unknown as Pool, { embeddingDim: 3 });
+
+    const rows = await store.recallConsolidationCandidates({
+      workspace_id: 'default',
+      user_id: 'alice',
+    });
+
+    expect(poolQuery.mock.calls[0]?.[0]).toContain('attributed_to FROM memories');
+    expect(rows[0]?.attributedTo).toBe('assistant');
   });
 });
 
@@ -203,7 +302,7 @@ describe('PgvectorStore.insert — composite ON CONFLICT + dedup_collision_confi
       captured.push({ sql, params: params ?? [] });
       return { rows: [{ id: 'id-1', confirmation_count: 1, user_id: 'alice', session_id: null, agent_id: null, inserted: true }] };
     });
-    const pool = { query: poolQuery } as unknown as Pool;
+    const pool = transactionalPool(poolQuery);
     const store = new PgvectorStore(pool, { embeddingDim: 3 });
 
     await store.insert(
@@ -239,7 +338,7 @@ describe('PgvectorStore.insert — composite ON CONFLICT + dedup_collision_confi
         { id: 'id-dup', confirmation_count: 2, user_id: 'bob', session_id: null, agent_id: null, inserted: false },
       ],
     }));
-    const pool = { query: poolQuery } as unknown as Pool;
+    const pool = transactionalPool(poolQuery);
     const store = new PgvectorStore(pool, { embeddingDim: 3, tracer: tracer as never });
 
     await store.insert(
@@ -267,7 +366,7 @@ describe('PgvectorStore.insert — composite ON CONFLICT + dedup_collision_confi
         { id: 'id-dup', confirmation_count: 2, user_id: 'alice', session_id: null, agent_id: null, inserted: false },
       ],
     }));
-    const pool = { query: poolQuery } as unknown as Pool;
+    const pool = transactionalPool(poolQuery);
     // Construct WITHOUT tracer — emitEvent must handle gracefully.
     const store = new PgvectorStore(pool, { embeddingDim: 3 });
 
@@ -287,7 +386,7 @@ describe('PgvectorStore.insert — composite ON CONFLICT + dedup_collision_confi
         { id: 'id-bumped', confirmation_count: 3, user_id: 'alice', session_id: null, agent_id: null, inserted: false },
       ],
     }));
-    const pool = { query: poolQuery } as unknown as Pool;
+    const pool = transactionalPool(poolQuery);
     const store = new PgvectorStore(pool, { embeddingDim: 3 });
 
     const outcomes = await store.insert(
@@ -313,7 +412,7 @@ describe('PgvectorStore.search — attributed_to recall WHERE filter (v1.1 T2.2)
       captured.push({ sql, params: params ?? [] });
       return { rows: [] };
     });
-    const pool = { query: poolQuery } as unknown as Pool;
+    const pool = transactionalPool(poolQuery);
     const store = new PgvectorStore(pool, { embeddingDim: 3 });
 
     await store.search([0.1, 0.2, 0.3], 5, { user_id: 'alice', attributed_to: 'paulo' });
@@ -330,7 +429,7 @@ describe('PgvectorStore.search — attributed_to recall WHERE filter (v1.1 T2.2)
       captured.push({ sql, params: params ?? [] });
       return { rows: [] };
     });
-    const pool = { query: poolQuery } as unknown as Pool;
+    const pool = transactionalPool(poolQuery);
     const store = new PgvectorStore(pool, { embeddingDim: 3 });
 
     await store.search([0.1, 0.2, 0.3], 5, { user_id: 'alice' });
@@ -346,7 +445,7 @@ describe('PgvectorStore.search — attributed_to recall WHERE filter (v1.1 T2.2)
       captured.push({ sql, params: params ?? [] });
       return { rows: [] };
     });
-    const pool = { query: poolQuery } as unknown as Pool;
+    const pool = transactionalPool(poolQuery);
     const store = new PgvectorStore(pool, { embeddingDim: 3 });
 
     // EC-7: when caller passes attributedTo='' through to filters.attributed_to,
@@ -368,7 +467,7 @@ describe('PgvectorStore.search — attributed_to SELECT projection (v1.1 T2.1)',
       captured.push({ sql, params: [] });
       return { rows: [] };
     });
-    const pool = { query: poolQuery } as unknown as Pool;
+    const pool = transactionalPool(poolQuery);
     const store = new PgvectorStore(pool, { embeddingDim: 3 });
 
     await store.search([0.1, 0.2, 0.3], 5);
@@ -394,7 +493,7 @@ describe('PgvectorStore.search — attributed_to SELECT projection (v1.1 T2.1)',
         },
       ],
     }));
-    const pool = { query: poolQuery } as unknown as Pool;
+    const pool = transactionalPool(poolQuery);
     const store = new PgvectorStore(pool, { embeddingDim: 3 });
 
     const results = await store.search([0.1, 0.2, 0.3], 5);
@@ -419,7 +518,7 @@ describe('PgvectorStore.search — attributed_to SELECT projection (v1.1 T2.1)',
         },
       ],
     }));
-    const pool = { query: poolQuery } as unknown as Pool;
+    const pool = transactionalPool(poolQuery);
     const store = new PgvectorStore(pool, { embeddingDim: 3 });
 
     const results = await store.search([0.1, 0.2, 0.3], 5);
@@ -437,7 +536,7 @@ describe('PgvectorStore.search — bi-temporal asOf SQL composition (v1.1 T3.1 +
       captured.push({ sql, params: params ?? [] });
       return { rows: [] };
     });
-    const pool = { query: poolQuery } as unknown as Pool;
+    const pool = transactionalPool(poolQuery);
     const store = new PgvectorStore(pool, { embeddingDim: 3 });
 
     await store.search([0.1, 0.2, 0.3], 5, { user_id: 'alice' });
@@ -456,7 +555,7 @@ describe('PgvectorStore.search — bi-temporal asOf SQL composition (v1.1 T3.1 +
       captured.push({ sql, params: params ?? [] });
       return { rows: [] };
     });
-    const pool = { query: poolQuery } as unknown as Pool;
+    const pool = transactionalPool(poolQuery);
     const store = new PgvectorStore(pool, { embeddingDim: 3 });
 
     const asOf = new Date('2026-03-15T10:00:00Z');
@@ -502,7 +601,7 @@ describe('PgvectorStore.search — EG-6 scoped exact path (recall-scoped-exact-s
       captured.push({ sql, params: params ?? [] });
       return { rows: [] };
     });
-    const pool = { query: poolQuery } as unknown as Pool;
+    const pool = transactionalPool(poolQuery);
     return { store: new PgvectorStore(pool, { embeddingDim: 3 }), captured };
   }
 
@@ -548,7 +647,7 @@ describe('PgvectorStore.listSkillsBySubject — EG cross-repo flat list (skills-
       // first call = COUNT, second = page
       return sql.includes('COUNT(*)') ? { rows: [{ total: 0 }] } : { rows: [] };
     });
-    const pool = { query: poolQuery } as unknown as Pool;
+    const pool = transactionalPool(poolQuery);
     return { store: new PgvectorStore(pool, { embeddingDim: 3 }), captured };
   }
 

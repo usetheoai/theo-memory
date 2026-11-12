@@ -1,0 +1,598 @@
+{
+  "users": [
+    {
+      "id": "dtr-osric",
+      "facts": [
+        {
+          "key": "trip",
+          "text": "Osric spent a weekend in Staithes in January 2024.",
+          "observedAt": "2024-01-29",
+          "role": "distinct"
+        },
+        {
+          "key": "cold",
+          "text": "Osric had a bad cold for a week in February 2024.",
+          "observedAt": "2024-03-03",
+          "role": "distinct"
+        },
+        {
+          "key": "course",
+          "text": "Osric took a three-day bookbinding course in March 2024.",
+          "observedAt": "2024-03-28",
+          "role": "distinct"
+        },
+        {
+          "key": "hospital",
+          "text": "Osric spent two nights in hospital with a broken collarbone in April 2024.",
+          "observedAt": "2024-05-02",
+          "role": "distinct"
+        },
+        {
+          "key": "party",
+          "text": "Osric threw a party for twenty-five guests in May 2024.",
+          "observedAt": "2024-05-30",
+          "role": "distinct"
+        },
+        {
+          "key": "brother",
+          "text": "Osric's brother is named Cuthbert.",
+          "observedAt": "2024-06-10",
+          "role": "distinct"
+        },
+        {
+          "key": "job",
+          "text": "Osric works as a glassblower.",
+          "observedAt": "2024-06-11",
+          "role": "distinct"
+        },
+        {
+          "key": "allergy",
+          "text": "Osric is allergic to sesame.",
+          "observedAt": "2024-06-12",
+          "role": "distinct"
+        },
+        {
+          "key": "tentative",
+          "text": "Osric might move to Harrogate in 2025, but nothing is decided.",
+          "observedAt": "2024-06-20",
+          "role": "distinct"
+        },
+        {
+          "key": "mood",
+          "text": "Osric is a little grumpy this morning.",
+          "observedAt": "2024-06-21",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Where did Osric spend a weekend in January 2024?",
+          "pattern": "Staithes"
+        },
+        {
+          "query": "What illness did Osric have in February 2024?",
+          "pattern": "\\bcold\\b"
+        },
+        {
+          "query": "What course did Osric take in March 2024?",
+          "pattern": "bookbinding"
+        },
+        {
+          "query": "Why was Osric in hospital in April 2024?",
+          "pattern": "collarbone"
+        },
+        {
+          "query": "How many guests came to the party Osric threw in May 2024?",
+          "pattern": "twenty-five"
+        },
+        {
+          "query": "What is the name of Osric's brother?",
+          "pattern": "Cuthbert"
+        },
+        {
+          "query": "What does Osric do for a living?",
+          "pattern": "glassblower"
+        },
+        {
+          "query": "What is Osric allergic to?",
+          "pattern": "sesame"
+        }
+      ]
+    },
+    {
+      "id": "dtr-joselita",
+      "facts": [
+        {
+          "key": "trip",
+          "text": "Joselita passou um fim de semana em Tiradentes em janeiro de 2024.",
+          "observedAt": "2024-01-29",
+          "role": "distinct"
+        },
+        {
+          "key": "cold",
+          "text": "Joselita teve uma gripe forte por uma semana em fevereiro de 2024.",
+          "observedAt": "2024-03-03",
+          "role": "distinct"
+        },
+        {
+          "key": "course",
+          "text": "Joselita fez um curso de cerâmica raku de três dias em março de 2024.",
+          "observedAt": "2024-03-28",
+          "role": "distinct"
+        },
+        {
+          "key": "hospital",
+          "text": "Joselita ficou duas noites internada por uma pedra no rim em abril de 2024.",
+          "observedAt": "2024-05-02",
+          "role": "distinct"
+        },
+        {
+          "key": "party",
+          "text": "Joselita deu uma festa para trinta e cinco convidados em maio de 2024.",
+          "observedAt": "2024-05-30",
+          "role": "distinct"
+        },
+        {
+          "key": "afilhada",
+          "text": "A afilhada de Joselita se chama Dalva.",
+          "observedAt": "2024-06-10",
+          "role": "distinct"
+        },
+        {
+          "key": "trabalho",
+          "text": "Joselita trabalha como encadernadora.",
+          "observedAt": "2024-06-11",
+          "role": "distinct"
+        },
+        {
+          "key": "alergia",
+          "text": "Joselita é alérgica a picada de formiga.",
+          "observedAt": "2024-06-12",
+          "role": "distinct"
+        },
+        {
+          "key": "tentative",
+          "text": "Talvez Joselita se mude para Cunha em 2025, mas nada está decidido.",
+          "observedAt": "2024-06-20",
+          "role": "distinct"
+        },
+        {
+          "key": "mood",
+          "text": "Joselita está meio rabugenta nesta manhã.",
+          "observedAt": "2024-06-21",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Onde Joselita passou um fim de semana em janeiro de 2024?",
+          "pattern": "Tiradentes"
+        },
+        {
+          "query": "Que doença Joselita teve em fevereiro de 2024?",
+          "pattern": "gripe"
+        },
+        {
+          "query": "Que curso Joselita fez em março de 2024?",
+          "pattern": "raku"
+        },
+        {
+          "query": "Por que Joselita ficou internada em abril de 2024?",
+          "pattern": "rim"
+        },
+        {
+          "query": "Quantos convidados foram à festa de Joselita em maio de 2024?",
+          "pattern": "trinta e cinco"
+        },
+        {
+          "query": "Como se chama a afilhada de Joselita?",
+          "pattern": "Dalva"
+        },
+        {
+          "query": "Qual é a profissão de Joselita?",
+          "pattern": "encadernadora"
+        },
+        {
+          "query": "A que Joselita é alérgica?",
+          "pattern": "formiga"
+        }
+      ]
+    },
+    {
+      "id": "dtr-eulogio",
+      "facts": [
+        {
+          "key": "trip",
+          "text": "Eulogio pasó un fin de semana en Sigüenza en enero de 2024.",
+          "observedAt": "2024-01-29",
+          "role": "distinct"
+        },
+        {
+          "key": "cold",
+          "text": "Eulogio tuvo un resfriado fuerte durante una semana en febrero de 2024.",
+          "observedAt": "2024-03-03",
+          "role": "distinct"
+        },
+        {
+          "key": "course",
+          "text": "Eulogio hizo un curso de encuadernación de tres días en marzo de 2024.",
+          "observedAt": "2024-03-28",
+          "role": "distinct"
+        },
+        {
+          "key": "hospital",
+          "text": "Eulogio estuvo dos noches en el hospital por una fractura de muñeca en abril de 2024.",
+          "observedAt": "2024-05-02",
+          "role": "distinct"
+        },
+        {
+          "key": "party",
+          "text": "Eulogio organizó una fiesta para cuarenta invitados en mayo de 2024.",
+          "observedAt": "2024-05-30",
+          "role": "distinct"
+        },
+        {
+          "key": "hermana",
+          "text": "La hermana de Eulogio se llama Visitación.",
+          "observedAt": "2024-06-10",
+          "role": "distinct"
+        },
+        {
+          "key": "trabajo",
+          "text": "Eulogio trabaja como relojero.",
+          "observedAt": "2024-06-11",
+          "role": "distinct"
+        },
+        {
+          "key": "alergia",
+          "text": "Eulogio es alérgico a la penicilina.",
+          "observedAt": "2024-06-12",
+          "role": "distinct"
+        },
+        {
+          "key": "tentative",
+          "text": "Quizás Eulogio se mude a Calatayud en 2025, pero no hay nada decidido.",
+          "observedAt": "2024-06-20",
+          "role": "distinct"
+        },
+        {
+          "key": "mood",
+          "text": "Eulogio está un poco gruñón esta mañana.",
+          "observedAt": "2024-06-21",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "¿Dónde pasó Eulogio un fin de semana en enero de 2024?",
+          "pattern": "Sig[üu]enza"
+        },
+        {
+          "query": "¿Qué enfermedad tuvo Eulogio en febrero de 2024?",
+          "pattern": "resfriado"
+        },
+        {
+          "query": "¿Qué curso hizo Eulogio en marzo de 2024?",
+          "pattern": "encuadernaci"
+        },
+        {
+          "query": "¿Por qué estuvo Eulogio en el hospital en abril de 2024?",
+          "pattern": "muñeca"
+        },
+        {
+          "query": "¿Cuántos invitados fueron a la fiesta de Eulogio en mayo de 2024?",
+          "pattern": "cuarenta"
+        },
+        {
+          "query": "¿Cómo se llama la hermana de Eulogio?",
+          "pattern": "Visitación"
+        },
+        {
+          "query": "¿A qué se dedica Eulogio?",
+          "pattern": "relojero"
+        },
+        {
+          "query": "¿A qué es alérgico Eulogio?",
+          "pattern": "penicilina"
+        }
+      ]
+    },
+    {
+      "id": "dtr-ottavia",
+      "facts": [
+        {
+          "key": "trip",
+          "text": "Ottavia ha passato un fine settimana a Orvieto a gennaio 2024.",
+          "observedAt": "2024-01-29",
+          "role": "distinct"
+        },
+        {
+          "key": "cold",
+          "text": "Ottavia ha avuto un brutto raffreddore per una settimana a febbraio 2024.",
+          "observedAt": "2024-03-03",
+          "role": "distinct"
+        },
+        {
+          "key": "course",
+          "text": "Ottavia ha seguito un corso di legatoria di tre giorni a marzo 2024.",
+          "observedAt": "2024-03-28",
+          "role": "distinct"
+        },
+        {
+          "key": "hospital",
+          "text": "Ottavia è stata due notti in ospedale per un'appendicite ad aprile 2024.",
+          "observedAt": "2024-05-02",
+          "role": "distinct"
+        },
+        {
+          "key": "party",
+          "text": "Ottavia ha dato una festa per trentadue invitati a maggio 2024.",
+          "observedAt": "2024-05-30",
+          "role": "distinct"
+        },
+        {
+          "key": "cugino",
+          "text": "Il cugino di Ottavia si chiama Ermanno.",
+          "observedAt": "2024-06-10",
+          "role": "distinct"
+        },
+        {
+          "key": "lavoro",
+          "text": "Ottavia lavora come orologiaia.",
+          "observedAt": "2024-06-11",
+          "role": "distinct"
+        },
+        {
+          "key": "allergia",
+          "text": "Ottavia è allergica al nichel.",
+          "observedAt": "2024-06-12",
+          "role": "distinct"
+        },
+        {
+          "key": "tentative",
+          "text": "Forse Ottavia si trasferirà a Spoleto nel 2025, ma non è deciso nulla.",
+          "observedAt": "2024-06-20",
+          "role": "distinct"
+        },
+        {
+          "key": "mood",
+          "text": "Ottavia è un po' scontrosa stamattina.",
+          "observedAt": "2024-06-21",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Dove ha passato un fine settimana Ottavia a gennaio 2024?",
+          "pattern": "Orvieto"
+        },
+        {
+          "query": "Che malattia ha avuto Ottavia a febbraio 2024?",
+          "pattern": "raffreddore"
+        },
+        {
+          "query": "Che corso ha seguito Ottavia a marzo 2024?",
+          "pattern": "legatoria"
+        },
+        {
+          "query": "Perché Ottavia è stata in ospedale ad aprile 2024?",
+          "pattern": "appendicite"
+        },
+        {
+          "query": "Quanti invitati sono venuti alla festa di Ottavia a maggio 2024?",
+          "pattern": "trentadue"
+        },
+        {
+          "query": "Come si chiama il cugino di Ottavia?",
+          "pattern": "Ermanno"
+        },
+        {
+          "query": "Che lavoro fa Ottavia?",
+          "pattern": "orologiaia"
+        },
+        {
+          "query": "A cosa è allergica Ottavia?",
+          "pattern": "nichel"
+        }
+      ]
+    },
+    {
+      "id": "dtr-barnabe",
+      "facts": [
+        {
+          "key": "trip",
+          "text": "Barnabé a passé un week-end à Honfleur en janvier 2024.",
+          "observedAt": "2024-01-29",
+          "role": "distinct"
+        },
+        {
+          "key": "cold",
+          "text": "Barnabé a eu un gros rhume pendant une semaine en février 2024.",
+          "observedAt": "2024-03-03",
+          "role": "distinct"
+        },
+        {
+          "key": "course",
+          "text": "Barnabé a suivi un stage de vitrail de trois jours en mars 2024.",
+          "observedAt": "2024-03-28",
+          "role": "distinct"
+        },
+        {
+          "key": "hospital",
+          "text": "Barnabé a passé deux nuits à l'hôpital pour une entorse grave à la cheville en avril 2024.",
+          "observedAt": "2024-05-02",
+          "role": "distinct"
+        },
+        {
+          "key": "party",
+          "text": "Barnabé a organisé une fête pour quarante-cinq invités en mai 2024.",
+          "observedAt": "2024-05-30",
+          "role": "distinct"
+        },
+        {
+          "key": "marraine",
+          "text": "La marraine de Barnabé s'appelle Bérengère.",
+          "observedAt": "2024-06-10",
+          "role": "distinct"
+        },
+        {
+          "key": "travail",
+          "text": "Barnabé travaille comme horloger.",
+          "observedAt": "2024-06-11",
+          "role": "distinct"
+        },
+        {
+          "key": "allergie",
+          "text": "Barnabé est allergique aux fruits de mer.",
+          "observedAt": "2024-06-12",
+          "role": "distinct"
+        },
+        {
+          "key": "tentative",
+          "text": "Barnabé déménagera peut-être à Lannion en 2025, mais rien n'est décidé.",
+          "observedAt": "2024-06-20",
+          "role": "distinct"
+        },
+        {
+          "key": "mood",
+          "text": "Barnabé est un peu grognon ce matin.",
+          "observedAt": "2024-06-21",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Où Barnabé a-t-il passé un week-end en janvier 2024 ?",
+          "pattern": "Honfleur"
+        },
+        {
+          "query": "Quelle maladie Barnabé a-t-il eue en février 2024 ?",
+          "pattern": "rhume"
+        },
+        {
+          "query": "Quel stage Barnabé a-t-il suivi en mars 2024 ?",
+          "pattern": "vitrail"
+        },
+        {
+          "query": "Pourquoi Barnabé était-il à l'hôpital en avril 2024 ?",
+          "pattern": "cheville"
+        },
+        {
+          "query": "Combien d'invités sont venus à la fête de Barnabé en mai 2024 ?",
+          "pattern": "quarante-cinq"
+        },
+        {
+          "query": "Comment s'appelle la marraine de Barnabé ?",
+          "pattern": "B[ée]reng"
+        },
+        {
+          "query": "Quel est le métier de Barnabé ?",
+          "pattern": "horloger"
+        },
+        {
+          "query": "À quoi Barnabé est-il allergique ?",
+          "pattern": "fruits de mer"
+        }
+      ]
+    },
+    {
+      "id": "dtr-waltraut",
+      "facts": [
+        {
+          "key": "trip",
+          "text": "Waltraut verbrachte im Januar 2024 ein Wochenende in Quedlinburg.",
+          "observedAt": "2024-01-29",
+          "role": "distinct"
+        },
+        {
+          "key": "cold",
+          "text": "Waltraut hatte im Februar 2024 eine Woche lang eine starke Erkältung.",
+          "observedAt": "2024-03-03",
+          "role": "distinct"
+        },
+        {
+          "key": "course",
+          "text": "Waltraut besuchte im März 2024 einen dreitägigen Buchbinderkurs.",
+          "observedAt": "2024-03-28",
+          "role": "distinct"
+        },
+        {
+          "key": "hospital",
+          "text": "Waltraut lag im April 2024 wegen einer Gallenkolik zwei Nächte im Krankenhaus.",
+          "observedAt": "2024-05-02",
+          "role": "distinct"
+        },
+        {
+          "key": "party",
+          "text": "Waltraut gab im Mai 2024 ein Fest für zweiundzwanzig Gäste.",
+          "observedAt": "2024-05-30",
+          "role": "distinct"
+        },
+        {
+          "key": "neffe",
+          "text": "Der Neffe von Waltraut heißt Gotthold.",
+          "observedAt": "2024-06-10",
+          "role": "distinct"
+        },
+        {
+          "key": "beruf",
+          "text": "Waltraut arbeitet als Uhrmacherin.",
+          "observedAt": "2024-06-11",
+          "role": "distinct"
+        },
+        {
+          "key": "allergie",
+          "text": "Waltraut ist gegen Katzenhaare allergisch.",
+          "observedAt": "2024-06-12",
+          "role": "distinct"
+        },
+        {
+          "key": "tentative",
+          "text": "Vielleicht zieht Waltraut 2025 nach Wernigerode, aber es ist nichts entschieden.",
+          "observedAt": "2024-06-20",
+          "role": "distinct"
+        },
+        {
+          "key": "mood",
+          "text": "Waltraut ist heute Morgen etwas mürrisch.",
+          "observedAt": "2024-06-21",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Wo verbrachte Waltraut im Januar 2024 ein Wochenende?",
+          "pattern": "Quedlinburg"
+        },
+        {
+          "query": "Welche Krankheit hatte Waltraut im Februar 2024?",
+          "pattern": "Erk[äa]ltung"
+        },
+        {
+          "query": "Welchen Kurs besuchte Waltraut im März 2024?",
+          "pattern": "Buchbinder"
+        },
+        {
+          "query": "Warum lag Waltraut im April 2024 im Krankenhaus?",
+          "pattern": "Galle"
+        },
+        {
+          "query": "Wie viele Gäste kamen im Mai 2024 zu Waltrauts Fest?",
+          "pattern": "zweiundzwanzig"
+        },
+        {
+          "query": "Wie heißt der Neffe von Waltraut?",
+          "pattern": "Gotthold"
+        },
+        {
+          "query": "Was ist Waltraut von Beruf?",
+          "pattern": "Uhrmacherin"
+        },
+        {
+          "query": "Wogegen ist Waltraut allergisch?",
+          "pattern": "Katzen"
+        }
+      ]
+    }
+  ]
+}

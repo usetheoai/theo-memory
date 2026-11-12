@@ -47,7 +47,7 @@ export class PgGraphExpansionStore implements GraphExpansionStore {
     // NOT expand the entity set. Reuse the SAME predicate with the `ee.` alias,
     // sharing the SAME asOf param positions ($6/$7) as `temporal` — so its params
     // are added to `params2` ONCE (edgeTemporal.params is identical, discarded).
-    const edgeTemporal = composeTemporalWhere(filters.asOf, 6, 'ee.');
+    const edgeTemporal = composeTemporalWhere(filters.asOf, 6, 'ee.', false);
     const params2 = [
       seedMemoryIds,
       ws,
@@ -77,6 +77,7 @@ export class PgGraphExpansionStore implements GraphExpansionStore {
                 AND COALESCE(ee.session_id,'') = COALESCE($4::text,'')
                 AND COALESCE(ee.agent_id,'') = COALESCE($5::text,'')
                 AND ${edgeTemporal.sql}
+                AND EXISTS (SELECT 1 FROM memories sm WHERE sm.id=ee.source_memory_id AND ${composeTemporalWhere(filters.asOf, 6, 'sm.').sql})
              UNION
              SELECT ee.source_entity_id AS entity_id
                FROM entity_edges ee JOIN seed_entities s ON ee.target_entity_id = s.entity_id
@@ -85,6 +86,7 @@ export class PgGraphExpansionStore implements GraphExpansionStore {
                 AND COALESCE(ee.session_id,'') = COALESCE($4::text,'')
                 AND COALESCE(ee.agent_id,'') = COALESCE($5::text,'')
                 AND ${edgeTemporal.sql}
+                AND EXISTS (SELECT 1 FROM memories sm WHERE sm.id=ee.source_memory_id AND ${composeTemporalWhere(filters.asOf, 6, 'sm.').sql})
            )`
         : `expanded_entities AS (SELECT entity_id FROM seed_entities)`;
 
@@ -95,7 +97,7 @@ export class PgGraphExpansionStore implements GraphExpansionStore {
       ${expandedEntitiesCte}
       SELECT m.id, m.text, m.hash, m.payload, m.workspace_id, m.user_id, m.session_id, m.agent_id,
              m.attributed_to, m.category, m.kind, m.code, m.description, m.code_language,
-             m.derived_from, m.superseded_by, m.confirmation_count,
+             m.derived_from, m.superseded_by, m.t_valid, m.t_invalid, m.expires_at, m.distinct_source_count, m.confirmation_count,
              count(DISTINCT me.entity_id) AS shared_entities
         FROM memory_entities me
         JOIN expanded_entities xe ON xe.entity_id = me.entity_id

@@ -77,6 +77,10 @@
       "types": "./dist/infrastructure/embedders/openai.d.ts",
       "default": "./dist/infrastructure/embedders/openai.js"
     },
+    "./embedders/openai-compatible": {
+      "types": "./dist/infrastructure/embedders/openai-compatible.d.ts",
+      "default": "./dist/infrastructure/embedders/openai-compatible.js"
+    },
     "./embedders/local": {
       "types": "./dist/infrastructure/embedders/local.d.ts",
       "default": "./dist/infrastructure/embedders/local.js"

@@ -31,7 +31,7 @@ export interface RoutingAuditRecord {
   readonly attribution: Attribution;
   /** Who decided (agent id, user id, or a sentinel like `policy-default` / `m9-promotion`). */
   readonly decidedBy: string;
-  /** The reason (e.g. `agent-explicit`, `policy-default`, `promotion-confirmation-threshold`). */
+  /** The reason (e.g. `agent-explicit`, `policy-default`, `promotion-distinct-source-threshold`). */
   readonly why: string;
   /** When the decision was made. */
   readonly at: Date;

@@ -1,0 +1,170 @@
+{
+  "description": "Second hand-written set for the consolidation judge, written before any change to how the judge answers. Each user holds three updates of different attributes (one written newest first) in a scope small enough to form one cluster, so resolving all of them takes more than one decision per cluster, plus pairs of distinct facts that share wording, some about the same subject (the same band seen in two cities).",
+  "users": [
+    {
+      "id": "cjm-hana",
+      "facts": [
+        { "key": "concert-seoul", "text": "Hana saw Coldplay live in Seoul in March 2023.", "observedAt": "2023-03-18", "role": "distinct" },
+        { "key": "concert-tokyo", "text": "Hana saw Coldplay live in Tokyo in November 2024.", "observedAt": "2024-11-06", "role": "distinct" },
+        { "key": "loaves-2022", "text": "Hana baked 30 loaves of sourdough in 2022.", "observedAt": "2022-12-31", "role": "distinct" },
+        { "key": "loaves-2023", "text": "Hana baked 45 loaves of sourdough in 2023.", "observedAt": "2023-12-31", "role": "distinct" },
+        { "key": "sister-older", "text": "Hana's older sister is called Mina.", "observedAt": "2019-01-05", "role": "distinct" },
+        { "key": "sister-younger", "text": "Hana's younger sister is called Yuna.", "observedAt": "2019-01-05", "role": "distinct" },
+        { "key": "phone-old", "text": "Hana's phone is an iPhone 12.", "observedAt": "2021-02-01", "role": "old", "update": "phone" },
+        { "key": "phone-new", "text": "Hana now uses a Pixel 8 phone.", "observedAt": "2024-01-20", "role": "new", "update": "phone" },
+        { "key": "dentist-old", "text": "Hana's dentist is Dr. Lee.", "observedAt": "2019-06-01", "role": "old", "update": "dentist" },
+        { "key": "dentist-new", "text": "Hana's dentist is now Dr. Park.", "observedAt": "2023-05-10", "role": "new", "update": "dentist" },
+        { "key": "school-new", "text": "Hana now teaches at Westbrook High School.", "observedAt": "2024-08-26", "role": "new", "update": "school", "loggedOutOfOrder": true },
+        { "key": "school-old", "text": "Hana teaches at Lincoln Middle School.", "observedAt": "2018-09-03", "role": "old", "update": "school", "loggedOutOfOrder": true },
+        { "key": "heights", "text": "Hana is afraid of heights.", "observedAt": "2017-01-01", "role": "distinct" },
+        { "key": "knitting", "text": "Hana knits scarves in winter.", "observedAt": "2020-12-01", "role": "distinct" }
+      ],
+      "questions": [
+        { "query": "Where did Hana see Coldplay in 2023?", "pattern": "Seoul" },
+        { "query": "Where did Hana see Coldplay in 2024?", "pattern": "Tokyo" },
+        { "query": "How many loaves of sourdough did Hana bake in 2022?", "pattern": "30 loaves" },
+        { "query": "How many loaves of sourdough did Hana bake in 2023?", "pattern": "45 loaves" },
+        { "query": "What is the name of Hana's older sister?", "pattern": "Mina" },
+        { "query": "What is the name of Hana's younger sister?", "pattern": "Yuna" },
+        { "query": "What phone does Hana use?", "pattern": "Pixel 8", "stalePattern": "iPhone 12" },
+        { "query": "Who is Hana's dentist?", "pattern": "Dr\\. Park", "stalePattern": "Dr\\. Lee" },
+        { "query": "Which school does Hana teach at?", "pattern": "Westbrook", "stalePattern": "Lincoln" },
+        { "query": "What phone did Hana use in mid 2024?", "asOf": "2024-06-01", "pattern": "Pixel 8", "stalePattern": "iPhone 12" },
+        { "query": "Who was Hana's dentist in 2024?", "asOf": "2024-03-01", "pattern": "Dr\\. Park", "stalePattern": "Dr\\. Lee" },
+        { "query": "Which school did Hana teach at in late 2024?", "asOf": "2024-11-01", "pattern": "Westbrook", "stalePattern": "Lincoln" }
+      ]
+    },
+    {
+      "id": "cjm-oscar",
+      "facts": [
+        { "key": "trek-inca", "text": "Oscar hiked the Inca Trail in June 2019.", "observedAt": "2019-06-14", "role": "distinct" },
+        { "key": "trek-torres", "text": "Oscar hiked the W trek in Torres del Paine in January 2023.", "observedAt": "2023-01-22", "role": "distinct" },
+        { "key": "blood-2023", "text": "Oscar donated blood 3 times in 2023.", "observedAt": "2023-12-31", "role": "distinct" },
+        { "key": "blood-2024", "text": "Oscar donated blood 5 times in 2024.", "observedAt": "2024-12-31", "role": "distinct" },
+        { "key": "guitar-first", "text": "Oscar's first guitar was a Yamaha acoustic.", "observedAt": "2010-05-01", "role": "distinct" },
+        { "key": "guitar-second", "text": "Oscar's second guitar was a Fender Stratocaster.", "observedAt": "2014-08-01", "role": "distinct" },
+        { "key": "isp-old", "text": "Oscar's internet provider is Comcast.", "observedAt": "2020-02-01", "role": "old", "update": "isp" },
+        { "key": "isp-new", "text": "Oscar's internet provider is now Sonic.", "observedAt": "2024-03-12", "role": "new", "update": "isp" },
+        { "key": "commute-old", "text": "Oscar's commute takes 45 minutes.", "observedAt": "2021-01-11", "role": "old", "update": "commute" },
+        { "key": "commute-new", "text": "Oscar's commute now takes 20 minutes.", "observedAt": "2024-06-03", "role": "new", "update": "commute" },
+        { "key": "bank-new", "text": "Oscar now banks with Ally.", "observedAt": "2023-09-15", "role": "new", "update": "bank", "loggedOutOfOrder": true },
+        { "key": "bank-old", "text": "Oscar banks with Wells Fargo.", "observedAt": "2017-04-01", "role": "old", "update": "bank", "loggedOutOfOrder": true },
+        { "key": "colorblind", "text": "Oscar is colorblind.", "observedAt": "2016-01-01", "role": "distinct" },
+        { "key": "shelter", "text": "Oscar volunteers at the animal shelter.", "observedAt": "2022-03-01", "role": "distinct" }
+      ],
+      "questions": [
+        { "query": "Which trek did Oscar hike in 2019?", "pattern": "Inca Trail" },
+        { "query": "Which trek did Oscar hike in 2023?", "pattern": "Torres del Paine" },
+        { "query": "How many times did Oscar donate blood in 2023?", "pattern": "3 times" },
+        { "query": "How many times did Oscar donate blood in 2024?", "pattern": "5 times" },
+        { "query": "What was Oscar's first guitar?", "pattern": "Yamaha" },
+        { "query": "What was Oscar's second guitar?", "pattern": "Stratocaster" },
+        { "query": "Who is Oscar's internet provider?", "pattern": "Sonic", "stalePattern": "Comcast" },
+        { "query": "How long is Oscar's commute?", "pattern": "20 minutes", "stalePattern": "45 minutes" },
+        { "query": "Which bank does Oscar use?", "pattern": "Ally", "stalePattern": "Wells Fargo" },
+        { "query": "Who was Oscar's internet provider in late 2024?", "asOf": "2024-10-01", "pattern": "Sonic", "stalePattern": "Comcast" },
+        { "query": "How long was Oscar's commute in late 2024?", "asOf": "2024-09-01", "pattern": "20 minutes", "stalePattern": "45 minutes" },
+        { "query": "Which bank did Oscar use in 2024?", "asOf": "2024-03-01", "pattern": "Ally", "stalePattern": "Wells Fargo" }
+      ]
+    },
+    {
+      "id": "cjm-lucia",
+      "facts": [
+        { "key": "translation-novel", "text": "Lucia translated a novel from Italian in 2021.", "observedAt": "2021-10-01", "role": "distinct" },
+        { "key": "translation-poetry", "text": "Lucia translated a poetry collection from Spanish in 2023.", "observedAt": "2023-04-01", "role": "distinct" },
+        { "key": "swim-may", "text": "Lucia swam 12 km in May 2024.", "observedAt": "2024-05-31", "role": "distinct" },
+        { "key": "swim-june", "text": "Lucia swam 18 km in June 2024.", "observedAt": "2024-06-30", "role": "distinct" },
+        { "key": "grandmother", "text": "Lucia's grandmother was born in Naples.", "observedAt": "2018-01-01", "role": "distinct" },
+        { "key": "grandfather", "text": "Lucia's grandfather was born in Palermo.", "observedAt": "2018-01-01", "role": "distinct" },
+        { "key": "bookclub-old", "text": "Lucia's book club meets on Tuesdays.", "observedAt": "2022-03-01", "role": "old", "update": "bookclub" },
+        { "key": "bookclub-new", "text": "Lucia's book club now meets on Thursdays.", "observedAt": "2024-02-05", "role": "new", "update": "bookclub" },
+        { "key": "gymfee-old", "text": "Lucia's monthly gym fee is 40 dollars.", "observedAt": "2021-01-01", "role": "old", "update": "gymfee" },
+        { "key": "gymfee-new", "text": "Lucia's monthly gym fee rose to 55 dollars.", "observedAt": "2024-01-01", "role": "new", "update": "gymfee" },
+        { "key": "car-new", "text": "Lucia's car is now a Kia EV6.", "observedAt": "2024-05-20", "role": "new", "update": "car", "loggedOutOfOrder": true },
+        { "key": "car-old", "text": "Lucia's car is a Ford Focus.", "observedAt": "2016-07-01", "role": "old", "update": "car", "loggedOutOfOrder": true },
+        { "key": "chess", "text": "Lucia plays chess online.", "observedAt": "2020-04-01", "role": "distinct" },
+        { "key": "pork", "text": "Lucia does not eat pork.", "observedAt": "2015-01-01", "role": "distinct" }
+      ],
+      "questions": [
+        { "query": "What did Lucia translate in 2021?", "pattern": "novel from Italian" },
+        { "query": "What did Lucia translate in 2023?", "pattern": "poetry collection" },
+        { "query": "How far did Lucia swim in May 2024?", "pattern": "12 km" },
+        { "query": "How far did Lucia swim in June 2024?", "pattern": "18 km" },
+        { "query": "Where was Lucia's grandmother born?", "pattern": "Naples" },
+        { "query": "Where was Lucia's grandfather born?", "pattern": "Palermo" },
+        { "query": "On which day does Lucia's book club meet?", "pattern": "Thursdays", "stalePattern": "Tuesdays" },
+        { "query": "How much is Lucia's monthly gym fee?", "pattern": "55 dollars", "stalePattern": "40 dollars" },
+        { "query": "What car does Lucia drive?", "pattern": "Kia EV6", "stalePattern": "Ford Focus" },
+        { "query": "On which day did Lucia's book club meet in mid 2024?", "asOf": "2024-07-01", "pattern": "Thursdays", "stalePattern": "Tuesdays" },
+        { "query": "How much was Lucia's gym fee in mid 2024?", "asOf": "2024-06-01", "pattern": "55 dollars", "stalePattern": "40 dollars" },
+        { "query": "What car did Lucia drive in late 2024?", "asOf": "2024-10-01", "pattern": "Kia EV6", "stalePattern": "Ford Focus" }
+      ]
+    },
+    {
+      "id": "cjm-femi",
+      "facts": [
+        { "key": "run-5k", "text": "Femi ran a 5K race in 24 minutes in February 2024.", "observedAt": "2024-02-17", "role": "distinct" },
+        { "key": "run-10k", "text": "Femi ran a 10K race in 52 minutes in May 2024.", "observedAt": "2024-05-11", "role": "distinct" },
+        { "key": "papers-2022", "text": "Femi published 2 research papers in 2022.", "observedAt": "2022-12-31", "role": "distinct" },
+        { "key": "papers-2023", "text": "Femi published 4 research papers in 2023.", "observedAt": "2023-12-31", "role": "distinct" },
+        { "key": "daughter", "text": "Femi's daughter Ada plays the violin.", "observedAt": "2021-09-01", "role": "distinct" },
+        { "key": "son", "text": "Femi's son Tobi plays the drums.", "observedAt": "2022-09-01", "role": "distinct" },
+        { "key": "office-old", "text": "Femi's office is on the 3rd floor.", "observedAt": "2022-01-10", "role": "old", "update": "office" },
+        { "key": "office-new", "text": "Femi's office moved to the 7th floor.", "observedAt": "2024-04-08", "role": "new", "update": "office" },
+        { "key": "doctor-old", "text": "Femi's doctor is Dr. Mensah.", "observedAt": "2018-03-01", "role": "old", "update": "doctor" },
+        { "key": "doctor-new", "text": "Femi's doctor is now Dr. Clarke.", "observedAt": "2023-10-02", "role": "new", "update": "doctor" },
+        { "key": "team-new", "text": "Femi now leads the payments team.", "observedAt": "2024-01-15", "role": "new", "update": "team", "loggedOutOfOrder": true },
+        { "key": "team-old", "text": "Femi leads the search team.", "observedAt": "2020-06-01", "role": "old", "update": "team", "loggedOutOfOrder": true },
+        { "key": "lactose", "text": "Femi is lactose intolerant.", "observedAt": "2016-01-01", "role": "distinct" },
+        { "key": "records", "text": "Femi collects jazz records.", "observedAt": "2019-05-01", "role": "distinct" }
+      ],
+      "questions": [
+        { "query": "How fast did Femi run the 5K race?", "pattern": "24 minutes" },
+        { "query": "How fast did Femi run the 10K race?", "pattern": "52 minutes" },
+        { "query": "How many research papers did Femi publish in 2022?", "pattern": "2 research papers" },
+        { "query": "How many research papers did Femi publish in 2023?", "pattern": "4 research papers" },
+        { "query": "Which instrument does Femi's daughter play?", "pattern": "violin" },
+        { "query": "Which instrument does Femi's son play?", "pattern": "drums" },
+        { "query": "Which floor is Femi's office on?", "pattern": "7th floor", "stalePattern": "3rd floor" },
+        { "query": "Who is Femi's doctor?", "pattern": "Dr\\. Clarke", "stalePattern": "Dr\\. Mensah" },
+        { "query": "Which team does Femi lead?", "pattern": "payments team", "stalePattern": "search team" },
+        { "query": "Which floor was Femi's office on in late 2024?", "asOf": "2024-10-01", "pattern": "7th floor", "stalePattern": "3rd floor" },
+        { "query": "Who was Femi's doctor in 2024?", "asOf": "2024-05-01", "pattern": "Dr\\. Clarke", "stalePattern": "Dr\\. Mensah" },
+        { "query": "Which team did Femi lead in mid 2024?", "asOf": "2024-07-01", "pattern": "payments team", "stalePattern": "search team" }
+      ]
+    },
+    {
+      "id": "cjm-greta",
+      "facts": [
+        { "key": "exhibit-berlin", "text": "Greta exhibited her photographs in Berlin in 2022.", "observedAt": "2022-09-10", "role": "distinct" },
+        { "key": "exhibit-vienna", "text": "Greta exhibited her photographs in Vienna in 2024.", "observedAt": "2024-04-20", "role": "distinct" },
+        { "key": "customers-jan", "text": "Greta's shop had 800 customers in January 2024.", "observedAt": "2024-01-31", "role": "distinct" },
+        { "key": "customers-feb", "text": "Greta's shop had 1,100 customers in February 2024.", "observedAt": "2024-02-29", "role": "distinct" },
+        { "key": "dog-bruno", "text": "Greta adopted a dog named Bruno in 2020.", "observedAt": "2020-07-01", "role": "distinct" },
+        { "key": "dog-luna", "text": "Greta adopted a dog named Luna in 2023.", "observedAt": "2023-03-01", "role": "distinct" },
+        { "key": "yoga-old", "text": "Greta's yoga class is at 6 pm.", "observedAt": "2022-01-15", "role": "old", "update": "yoga" },
+        { "key": "yoga-new", "text": "Greta's yoga class moved to 7 pm.", "observedAt": "2024-02-12", "role": "new", "update": "yoga" },
+        { "key": "landlord-old", "text": "Greta's landlord is Mr. Weber.", "observedAt": "2019-05-01", "role": "old", "update": "landlord" },
+        { "key": "landlord-new", "text": "Greta's landlord is now Ms. Hoffmann.", "observedAt": "2023-07-01", "role": "new", "update": "landlord" },
+        { "key": "mail-new", "text": "Greta now uses Fastmail for her email.", "observedAt": "2024-06-01", "role": "new", "update": "mail", "loggedOutOfOrder": true },
+        { "key": "mail-old", "text": "Greta uses Gmail for her email.", "observedAt": "2015-03-01", "role": "old", "update": "mail", "loggedOutOfOrder": true },
+        { "key": "swedish", "text": "Greta speaks Swedish.", "observedAt": "2014-01-01", "role": "distinct" },
+        { "key": "herbs", "text": "Greta grows herbs on her balcony.", "observedAt": "2021-05-01", "role": "distinct" }
+      ],
+      "questions": [
+        { "query": "Where did Greta exhibit her photographs in 2022?", "pattern": "Berlin" },
+        { "query": "Where did Greta exhibit her photographs in 2024?", "pattern": "Vienna" },
+        { "query": "How many customers did Greta's shop have in January 2024?", "pattern": "\\b800 customers" },
+        { "query": "How many customers did Greta's shop have in February 2024?", "pattern": "1,100 customers" },
+        { "query": "What was the name of the dog Greta adopted in 2020?", "pattern": "Bruno" },
+        { "query": "What was the name of the dog Greta adopted in 2023?", "pattern": "Luna" },
+        { "query": "What time is Greta's yoga class?", "pattern": "7 pm", "stalePattern": "6 pm" },
+        { "query": "Who is Greta's landlord?", "pattern": "Hoffmann", "stalePattern": "Weber" },
+        { "query": "Which email service does Greta use?", "pattern": "Fastmail", "stalePattern": "Gmail" },
+        { "query": "What time was Greta's yoga class in mid 2024?", "asOf": "2024-07-01", "pattern": "7 pm", "stalePattern": "6 pm" },
+        { "query": "Who was Greta's landlord in 2024?", "asOf": "2024-01-15", "pattern": "Hoffmann", "stalePattern": "Weber" },
+        { "query": "Which email service did Greta use in late 2024?", "asOf": "2024-10-01", "pattern": "Fastmail", "stalePattern": "Gmail" }
+      ]
+    }
+  ]
+}

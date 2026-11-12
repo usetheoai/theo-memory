@@ -34,7 +34,7 @@ class InMemoryHistoryManager implements HistoryManager {
     memoryId: string,
     previousValue: string | null,
     newValue: string | null,
-    action: 'remember' | 'forget' | 'reflect',
+    action: 'remember' | 'forget' | 'reflect' | 'supersede',
     createdAt?: Date,
   ): Promise<void> {
     await Promise.resolve();

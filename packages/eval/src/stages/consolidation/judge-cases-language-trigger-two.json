@@ -1,0 +1,450 @@
+{
+  "users": [
+    {
+      "id": "lng2-oluwaseun",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Oluwaseun is lactose intolerant.",
+          "observedAt": "2024-02-05",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What intolerance does Oluwaseun have?",
+          "pattern": "lactose"
+        }
+      ]
+    },
+    {
+      "id": "lng2-katarzyna",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Katarzyna dislikes beetroot.",
+          "observedAt": "2024-02-05",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Katarzyna owns a Fiat Panda.",
+          "observedAt": "2024-02-16",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Katarzyna keeps chickens.",
+          "observedAt": "2024-02-27",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Katarzyna reads Wisława Szymborska.",
+          "observedAt": "2024-03-09",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Katarzyna's uncle Wojciech is a priest.",
+          "observedAt": "2024-03-20",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Katarzyna supports Legia Warszawa.",
+          "observedAt": "2024-03-31",
+          "role": "distinct"
+        },
+        {
+          "key": "f6",
+          "text": "Katarzyna walked to Oadby.",
+          "observedAt": "2024-04-11",
+          "role": "distinct"
+        },
+        {
+          "key": "f7",
+          "text": "Katarzyna paints icons.",
+          "observedAt": "2024-04-22",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What vegetable does Katarzyna dislike?",
+          "pattern": "beetroot"
+        },
+        {
+          "query": "What car does Katarzyna own?",
+          "pattern": "Panda"
+        },
+        {
+          "query": "What animals does Katarzyna keep?",
+          "pattern": "chickens"
+        },
+        {
+          "query": "Which poet does Katarzyna read?",
+          "pattern": "Szymborska"
+        },
+        {
+          "query": "What is Katarzyna's uncle?",
+          "pattern": "priest"
+        },
+        {
+          "query": "Which club does Katarzyna support?",
+          "pattern": "Legia"
+        },
+        {
+          "query": "Where did Katarzyna walk to?",
+          "pattern": "Oadby"
+        },
+        {
+          "query": "What does Katarzyna paint?",
+          "pattern": "icons"
+        }
+      ]
+    },
+    {
+      "id": "lng2-tiago",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Tiago hates sardines.",
+          "observedAt": "2024-02-05",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Tiago owns a Seat Ibiza.",
+          "observedAt": "2024-02-16",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Tiago keeps pigeons.",
+          "observedAt": "2024-02-27",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Tiago reads José Saramago.",
+          "observedAt": "2024-03-09",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Tiago's cousin Inês sings fado.",
+          "observedAt": "2024-03-20",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Tiago supports Benfica.",
+          "observedAt": "2024-03-31",
+          "role": "distinct"
+        },
+        {
+          "key": "f6",
+          "text": "Tiago grows kale.",
+          "observedAt": "2024-04-11",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What food does Tiago hate?",
+          "pattern": "sardines"
+        },
+        {
+          "query": "What car does Tiago own?",
+          "pattern": "Ibiza"
+        },
+        {
+          "query": "What birds does Tiago keep?",
+          "pattern": "pigeons"
+        },
+        {
+          "query": "Which author does Tiago read?",
+          "pattern": "Saramago"
+        },
+        {
+          "query": "What does Tiago's cousin sing?",
+          "pattern": "fado"
+        },
+        {
+          "query": "Which club does Tiago support?",
+          "pattern": "Benfica"
+        },
+        {
+          "query": "What does Tiago grow?",
+          "pattern": "kale"
+        }
+      ]
+    },
+    {
+      "id": "lng2-yerlan",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Yerlan dislikes cucumber.",
+          "observedAt": "2024-02-05",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Yerlan owns a Lada Niva.",
+          "observedAt": "2024-02-16",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Yerlan keeps falcons.",
+          "observedAt": "2024-02-27",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What does Yerlan dislike?",
+          "pattern": "cucumber"
+        },
+        {
+          "query": "What car does Yerlan own?",
+          "pattern": "Niva"
+        },
+        {
+          "query": "What birds does Yerlan keep?",
+          "pattern": "falcons"
+        }
+      ]
+    },
+    {
+      "id": "lng2-larissa",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Larissa Moura trabalha como farmacêutica em Fortaleza.",
+          "observedAt": "2024-02-05",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "O irmão de Larissa se chama Caio e mora em Natal.",
+          "observedAt": "2024-02-16",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Larissa faz aulas de natação toda terça-feira.",
+          "observedAt": "2024-02-27",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Larissa tem uma cachorra chamada Pipoca.",
+          "observedAt": "2024-03-09",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Larissa não come carne vermelha desde a faculdade.",
+          "observedAt": "2024-03-20",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Qual é a profissão de Larissa?",
+          "pattern": "farmac"
+        },
+        {
+          "query": "Onde mora o irmão de Larissa?",
+          "pattern": "Natal"
+        },
+        {
+          "query": "Que aula Larissa faz às terças?",
+          "pattern": "nata[cç][aã]o"
+        },
+        {
+          "query": "Como se chama a cachorra de Larissa?",
+          "pattern": "Pipoca"
+        },
+        {
+          "query": "Que tipo de carne Larissa não come?",
+          "pattern": "vermelha"
+        }
+      ]
+    },
+    {
+      "id": "lng2-ignacio",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Ignacio Herrera trabaja como electricista en Valladolid.",
+          "observedAt": "2024-02-05",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "La madre de Ignacio se llama Rosa y vive en León.",
+          "observedAt": "2024-02-16",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Ignacio toca la guitarra en un grupo de rock.",
+          "observedAt": "2024-02-27",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Ignacio tiene una tortuga que se llama Lenta.",
+          "observedAt": "2024-03-09",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Ignacio corre por el parque todas las mañanas.",
+          "observedAt": "2024-03-20",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "¿En qué trabaja Ignacio?",
+          "pattern": "electricista"
+        },
+        {
+          "query": "¿Dónde vive la madre de Ignacio?",
+          "pattern": "Le[oó]n"
+        },
+        {
+          "query": "¿Qué instrumento toca Ignacio?",
+          "pattern": "guitarra"
+        },
+        {
+          "query": "¿Cómo se llama la tortuga de Ignacio?",
+          "pattern": "Lenta"
+        },
+        {
+          "query": "¿Dónde corre Ignacio?",
+          "pattern": "parque"
+        }
+      ]
+    },
+    {
+      "id": "lng2-chiara",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Chiara Romano lavora come insegnante a Bologna.",
+          "observedAt": "2024-02-05",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Il fratello di Chiara si chiama Luca e vive a Napoli.",
+          "observedAt": "2024-02-16",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Chiara suona il pianoforte ogni sera dopo cena.",
+          "observedAt": "2024-02-27",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Chiara ha un gatto nero che si chiama Ombra.",
+          "observedAt": "2024-03-09",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Chiara non beve caffè dopo le cinque del pomeriggio.",
+          "observedAt": "2024-03-20",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Che lavoro fa Chiara?",
+          "pattern": "insegnante"
+        },
+        {
+          "query": "Dove vive il fratello di Chiara?",
+          "pattern": "Napoli"
+        },
+        {
+          "query": "Che strumento suona Chiara?",
+          "pattern": "pianoforte"
+        },
+        {
+          "query": "Come si chiama il gatto di Chiara?",
+          "pattern": "Ombra"
+        },
+        {
+          "query": "Cosa non beve Chiara dopo le cinque?",
+          "pattern": "caff"
+        }
+      ]
+    },
+    {
+      "id": "lng2-henrik",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Henrik Weber arbeitet als Bäcker in Münster.",
+          "observedAt": "2024-02-05",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Die Schwester von Henrik heißt Lena und wohnt in Kiel.",
+          "observedAt": "2024-02-16",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Henrik spielt jeden Samstag Fußball im Verein.",
+          "observedAt": "2024-02-27",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Henrik hat einen Hund, der Bello heißt.",
+          "observedAt": "2024-03-09",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Henrik trinkt morgens immer grünen Tee.",
+          "observedAt": "2024-03-20",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Als was arbeitet Henrik?",
+          "pattern": "B[äa]cker"
+        },
+        {
+          "query": "Wo wohnt die Schwester von Henrik?",
+          "pattern": "Kiel"
+        },
+        {
+          "query": "Was spielt Henrik am Samstag?",
+          "pattern": "Fu[ßs]+ball"
+        },
+        {
+          "query": "Wie heißt der Hund von Henrik?",
+          "pattern": "Bello"
+        },
+        {
+          "query": "Was trinkt Henrik morgens?",
+          "pattern": "Tee"
+        }
+      ]
+    }
+  ]
+}

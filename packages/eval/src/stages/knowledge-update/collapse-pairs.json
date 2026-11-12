@@ -1,0 +1,26 @@
+{
+  "updates": [
+    { "older": "User has two cats.", "newer": "User has three cats." },
+    { "older": "User's monthly rent is 1200 dollars.", "newer": "User's monthly rent is 1350 dollars." },
+    { "older": "User's half marathon best is 1:58.", "newer": "User's half marathon best is 1:51." },
+    { "older": "User reads about 10 books a year.", "newer": "User reads about 15 books a year." },
+    { "older": "User's daughter is 6 years old.", "newer": "User's daughter is 7 years old." },
+    { "older": "User has visited 12 countries.", "newer": "User has visited 13 countries." },
+    { "older": "User's commute takes 40 minutes.", "newer": "User's commute takes 25 minutes." },
+    { "older": "User sleeps around 6 hours a night.", "newer": "User sleeps around 7 hours a night." },
+    { "older": "User's team has 8 engineers.", "newer": "User's team has 11 engineers." },
+    { "older": "User drinks 3 cups of coffee a day.", "newer": "User drinks 1 cup of coffee a day." }
+  ],
+  "distinct": [
+    { "older": "User ran a 5K in 27:12.", "newer": "User ran a 10K in 55:40." },
+    { "older": "User visited Lisbon in 2019.", "newer": "User visited Lisbon in 2022." },
+    { "older": "User fixed the fence three weeks ago.", "newer": "User fixed the fence yesterday." },
+    { "older": "User likes coffee.", "newer": "User does not like coffee." },
+    { "older": "User bought 2 tickets for the Friday concert.", "newer": "User bought 4 tickets for the Saturday match." },
+    { "older": "User's son scored 8 in math.", "newer": "User's son scored 9 in history." },
+    { "older": "User paid 30 dollars for the blue shirt.", "newer": "User paid 45 dollars for the red jacket." },
+    { "older": "User moved to Porto on March 3.", "newer": "User moved to Porto on March 30." },
+    { "older": "User walked 5 km on Monday.", "newer": "User walked 8 km on Tuesday." },
+    { "older": "User has 2 brothers.", "newer": "User has 2 sisters." }
+  ]
+}

@@ -5,7 +5,7 @@
 # Boots TWO services:
 # - `themory` — REST API server image from GHCR (T3.1 + T3.3); runs
 #   Drizzle migrations on startup per ADR D8 + T2.3.
-# - `pgvector` — Postgres + pgvector extension (`ankane/pgvector:v0.5.1`
+# - `pgvector` — Postgres + pgvector extension (`pgvector/pgvector:0.8.7-pg18`
 #   convergent across + blueprint Q7).
 #
 # Reverse proxy (Nginx / Caddy / Cloudflare) is NOT bundled — consumer
@@ -75,7 +75,7 @@ services:
       start_period: 30s
 
   pgvector:
-    image: ankane/pgvector:v0.5.1
+    image: pgvector/pgvector:0.8.7-pg18@sha256:c29f30688a9ad961691bdf0ec1650717cc132a5814619d80f80463d6e4c42e47
     container_name: themory_pgvector
     restart: unless-stopped
     environment:
@@ -83,7 +83,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-themem}
       POSTGRES_DB: ${POSTGRES_DB:-themem}
     volumes:
-      - themory_pgdata:/var/lib/postgresql/data
+      # Postgres 18 keeps its data under /var/lib/postgresql/18/docker; mount the parent.
+      - themory_pgdata:/var/lib/postgresql
     healthcheck:
       test:
         - "CMD-SHELL"
@@ -95,4 +96,5 @@ services:
 
 volumes:
   themory_pgdata:
-    name: themory_pgdata
+    # New name for the Postgres 18 layout; the old `themory_pgdata` volume is left untouched.
+    name: themory_pgdata_pg18

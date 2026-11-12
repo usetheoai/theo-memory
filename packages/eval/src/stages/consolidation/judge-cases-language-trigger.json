@@ -1,0 +1,363 @@
+{
+  "users": [
+    {
+      "id": "lng-ngozi",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Ngozi drives a Kia Picanto.",
+          "observedAt": "2024-01-03",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Ngozi hates coriander.",
+          "observedAt": "2024-01-12",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Ngozi's cat Obi is ginger.",
+          "observedAt": "2024-01-21",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What car does Ngozi drive?",
+          "pattern": "Picanto"
+        },
+        {
+          "query": "What food does Ngozi hate?",
+          "pattern": "coriander"
+        },
+        {
+          "query": "What colour is Ngozi's cat?",
+          "pattern": "ginger"
+        }
+      ]
+    },
+    {
+      "id": "lng-bjorn",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Bjørn Halvorsen fixes boats in Hull.",
+          "observedAt": "2024-01-03",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Bjørn owns a Volvo V70.",
+          "observedAt": "2024-01-12",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Bjørn grew up in Tromsø.",
+          "observedAt": "2024-01-21",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What does Bjørn fix?",
+          "pattern": "boats"
+        },
+        {
+          "query": "What car does Bjørn own?",
+          "pattern": "Volvo"
+        },
+        {
+          "query": "Where did Bjørn grow up?",
+          "pattern": "Troms"
+        }
+      ]
+    },
+    {
+      "id": "lng-mateusz",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Mateusz Kowalczyk drives a tram in Glasgow.",
+          "observedAt": "2024-01-03",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Mateusz has a Skoda Fabia.",
+          "observedAt": "2024-01-12",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Mateusz supports Lech Poznań.",
+          "observedAt": "2024-01-21",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Mateusz's hamster is Kluska.",
+          "observedAt": "2024-01-30",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What does Mateusz drive?",
+          "pattern": "tram"
+        },
+        {
+          "query": "Which car does Mateusz have?",
+          "pattern": "Fabia"
+        },
+        {
+          "query": "Which club does Mateusz support?",
+          "pattern": "Lech"
+        },
+        {
+          "query": "What is Mateusz's hamster called?",
+          "pattern": "Kluska"
+        }
+      ]
+    },
+    {
+      "id": "lng-aiko",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Aiko Tanaka teaches piano in Bath.",
+          "observedAt": "2024-01-03",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Aiko rides a Honda Cub.",
+          "observedAt": "2024-01-12",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Aiko dislikes natto.",
+          "observedAt": "2024-01-21",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Aiko reads Haruki Murakami.",
+          "observedAt": "2024-01-30",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What does Aiko teach?",
+          "pattern": "piano"
+        },
+        {
+          "query": "What does Aiko ride?",
+          "pattern": "Cub"
+        },
+        {
+          "query": "What food does Aiko dislike?",
+          "pattern": "natto"
+        },
+        {
+          "query": "Which author does Aiko read?",
+          "pattern": "Murakami"
+        }
+      ]
+    },
+    {
+      "id": "lng-ioana",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Ioana Popescu is a vet in Exeter.",
+          "observedAt": "2024-01-03",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Ioana drives a Dacia Duster.",
+          "observedAt": "2024-01-12",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Ioana keeps bees.",
+          "observedAt": "2024-01-21",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Ioana hates olives.",
+          "observedAt": "2024-01-30",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Ioana reads Mircea Cărtărescu.",
+          "observedAt": "2024-02-08",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What is Ioana's job?",
+          "pattern": "\\bvet\\b"
+        },
+        {
+          "query": "What car does Ioana drive?",
+          "pattern": "Duster"
+        },
+        {
+          "query": "What does Ioana keep?",
+          "pattern": "bees"
+        },
+        {
+          "query": "What food does Ioana hate?",
+          "pattern": "olives"
+        },
+        {
+          "query": "Which author does Ioana read?",
+          "pattern": "rtărescu"
+        }
+      ]
+    },
+    {
+      "id": "lng-fernanda",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Fernanda Lima trabalha como dentista em Curitiba.",
+          "observedAt": "2024-01-03",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "O marido de Fernanda se chama Rodrigo.",
+          "observedAt": "2024-01-12",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Fernanda tem uma bicicleta elétrica.",
+          "observedAt": "2024-01-21",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Fernanda adora cozinhar feijoada aos sábados.",
+          "observedAt": "2024-01-30",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "A filha de Fernanda estuda medicina em Porto Alegre.",
+          "observedAt": "2024-02-08",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Fernanda pratica ioga todas as manhãs.",
+          "observedAt": "2024-02-17",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Qual é a profissão de Fernanda?",
+          "pattern": "dentista"
+        },
+        {
+          "query": "Como se chama o marido de Fernanda?",
+          "pattern": "Rodrigo"
+        },
+        {
+          "query": "Que tipo de bicicleta Fernanda tem?",
+          "pattern": "el[eé]trica"
+        },
+        {
+          "query": "O que Fernanda cozinha aos sábados?",
+          "pattern": "feijoada"
+        },
+        {
+          "query": "O que a filha de Fernanda estuda?",
+          "pattern": "medicina"
+        },
+        {
+          "query": "O que Fernanda pratica de manhã?",
+          "pattern": "ioga"
+        }
+      ]
+    },
+    {
+      "id": "lng-alejandro",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Alejandro Ruiz trabaja como cocinero en Sevilla.",
+          "observedAt": "2024-01-03",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "La novia de Alejandro se llama Lucía.",
+          "observedAt": "2024-01-12",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Alejandro tiene un perro que se llama Canelo.",
+          "observedAt": "2024-01-21",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Alejandro juega al pádel los jueves por la tarde.",
+          "observedAt": "2024-01-30",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "El hermano de Alejandro vive en Bilbao desde hace años.",
+          "observedAt": "2024-02-08",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Alejandro colecciona discos de vinilo de flamenco.",
+          "observedAt": "2024-02-17",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "¿En qué trabaja Alejandro?",
+          "pattern": "cocinero"
+        },
+        {
+          "query": "¿Cómo se llama la novia de Alejandro?",
+          "pattern": "Luc[ií]a"
+        },
+        {
+          "query": "¿Cómo se llama el perro de Alejandro?",
+          "pattern": "Canelo"
+        },
+        {
+          "query": "¿A qué juega Alejandro los jueves?",
+          "pattern": "p[aá]del"
+        },
+        {
+          "query": "¿Dónde vive el hermano de Alejandro?",
+          "pattern": "Bilbao"
+        },
+        {
+          "query": "¿Qué colecciona Alejandro?",
+          "pattern": "vinilo"
+        }
+      ]
+    }
+  ]
+}

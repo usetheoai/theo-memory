@@ -1,13 +1,16 @@
 /**
- * e2e-qa — LongMemEval 4-phase QA harness wired to TheMemory.
+ * e2e-qa — LongMemEval-inspired 4-phase QA harness wired to TheMemory.
  *
- * Faithfully replicates the published LongMemEval
- * end-to-end QA methodology, but the memory layer is TheMemory
+ * Uses the benchmark's session-history/answer/judge structure, with a
+ * Theo-specific extractor, retriever, answer prompt and judge prompt. This is
+ * a diagnostic harness, not a verbatim reproduction of the official protocol;
+ * scores must not be presented as directly comparable leaderboard results.
+ * The memory layer is TheMemory
  * (`createLocalMemory` + real pgvector + LocalTransformerEmbedder + OpenAILLM
  * harness. See this stage's README section.
  *
  *   Phase 1 — Ingest    haystack turns via `remember` (scoped per example,
- *                       chronological, capped at TURN_CAP total turns).
+ *                       chronological; the full run uses every source turn).
  *   Phase 2 — Search    `recall(question)` top-k.
  *   Phase 3 — Generate  answer prompt, temperature=0.
  *   Phase 4 — Judge     judge prompt, temperature=0 → binary yes/no.
@@ -15,15 +18,17 @@
  * Metric: accuracy = fraction judged 'yes' (overall + per question_type +
  * abstention subset). ABSOLUTE binary — no partial credit.
  *
- * Model: openai/gpt-4o-mini via OpenRouter (a small/cheap model — scores are NOT
- * leaderboard-comparable; this measures whether TheMemory answers LongMemEval).
+ * Generation/judging use OPENAI_CHAT_MODEL via OPENAI_BASE_URL. The default is
+ * a small model; scores are diagnostic and not leaderboard-comparable.
  *
  * Run (key-gated — SKIPs cleanly without a key or the dataset):
- *   # .env.local: OPENAI_API_KEY=<sk-or-…> + OPENAI_BASE_URL=https://openrouter.ai/api/v1 + OPENAI_CHAT_MODEL=openai/gpt-4o-mini
+ *   # .env.local: OPENAI_API_KEY=... + OPENAI_CHAT_MODEL=gpt-4o-mini-2024-07-18
  *   export THEOMEM_PG_URI=postgresql://themem:themem@localhost:5442/themem
  *   pnpm --filter @usetheo/memory-eval eval:e2e-qa
  */
 import { appendFileSync, existsSync } from 'node:fs';
+import { basename } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import pg from 'pg';
 import OpenAI from 'openai';
@@ -34,16 +39,20 @@ import { LocalTransformerEmbedder } from '@usetheo/memory/embedders/local';
 import { OpenAILLM } from '@usetheo/memory/llms/openai';
 
 import {
-  loadOracleDataset,
+  loadLongMemEvalDataset,
   selectRunSubset,
   isAbstention,
+  chronologicalSessions,
+  parseHaystackDate,
   type LongMemEvalExample,
 } from './longmemeval-loader.js';
-import { shouldAbstain } from './coverage-gate.js';
-import { abstentionIsMiss } from './scoring.js';
 import { mapWithConcurrency, runSafely } from './concurrency.js';
-import { buildAnswerPrompt, buildJudgePrompt, parseJudgeVerdict } from './prompts.js';
-import { report, failedResult, type ExampleResult } from './report.js';
+import {
+  buildLongMemEvalAnswerPrompt,
+  buildLongMemEvalJudgePrompt,
+  parseJudgeVerdict,
+} from './prompts.js';
+import { assessRunIntegrity, describeIngestError, failedResult, report, type ExampleResult } from './report.js';
 
 // ---- Config -----------------------------------------------------------------
 
@@ -51,21 +60,24 @@ const ADMIN_PG_URI =
   process.env['THEOMEM_PG_URI'] ??
   'postgresql://themem:themem@localhost:5442/themem';
 const ISOLATED_DB = process.env['E2E_QA_DB'] ?? 'themem_e2e_qa'; // overridable → distinct DB per run
+// Answer again over a database an earlier run already ingested: no re-creation, no ingestion.
+// Recall and answering can then be compared without the extraction noise of a second ingest.
+const REUSE_DB = process.env['E2E_QA_REUSE_DB'] === '1';
 // Scope-isolated examples → safe to parallelise (default 1 = serial); >1 makes the full run feasible.
 const CONCURRENCY = Math.max(1, Number.parseInt(process.env['E2E_QA_CONCURRENCY'] ?? '1', 10) || 1);
 const EMBEDDING_DIM = 384; // Xenova/all-MiniLM-L6-v2
-const TURN_CAP = 40; // max turns ingested per example (cost bound)
-const RECALL_TOP_K = 10;
-// #140 — conservative pre-answer coverage gate: abstain when the best recalled
-// memory scores below this. Provisional (blueprint: the abstention subset is too
-// small to tune τ with confidence); env-overridable for experiments.
-const COVERAGE_TAU = Number(process.env['E2E_QA_COVERAGE_TAU'] ?? '0.15');
-const ABSTAIN_ANSWER = "I don't have that information.";
-const CHAT_MODEL = process.env['OPENAI_CHAT_MODEL'] ?? 'openai/gpt-4o-mini';
-// LongMemEval_oracle is NOT vendored (license + size). Drop the file at the default
-// path below, or point E2E_QA_DATASET at your own copy. Absent => the stage SKIPs.
+const TURN_CAP = Number(process.env['E2E_QA_TURN_CAP'] ?? '40'); // 0 means all source turns
+if (!Number.isInteger(TURN_CAP) || TURN_CAP < 0 || TURN_CAP > 1_000_000) {
+  throw new Error('E2E_QA_TURN_CAP must be an integer in 0..1000000 (0 means unlimited)');
+}
+const RECALL_TOP_K = Math.max(1, Number.parseInt(process.env['E2E_QA_TOP_K'] ?? '20', 10) || 20);
+const INGEST_MODE = process.env['E2E_QA_INGEST_MODE'] === 'session' ? 'session' : 'turn';
+const CHAT_MODEL = process.env['OPENAI_CHAT_MODEL'] ?? 'gpt-4o-mini-2024-07-18';
+// Dataset files are NOT vendored. The default is Oracle; point E2E_QA_DATASET
+// to the official S/M file for those variants. Absent => the stage SKIPs.
 const DATASET_PATH =
-  process.env['E2E_QA_DATASET'] ?? 'benchmarks/data/longmemeval_oracle.json';
+  process.env['E2E_QA_DATASET'] ??
+  fileURLToPath(new URL('../../../../../benchmarks/data/longmemeval_oracle.json', import.meta.url));
 // Incremental per-example persistence so an interrupted run is salvageable.
 const OUT_JSONL = process.env['E2E_QA_JSONL'] ?? '';
 
@@ -87,34 +99,6 @@ async function provisionIsolatedDb(): Promise<void> {
   }
 }
 
-/** Parse a LongMemEval date string like "2023/04/10 (Mon) 23:07" → epoch ms. */
-function parseHaystackDate(s: string): number {
-  const cleaned = s.replace(/\([A-Za-z]{3}\)/, '').replace(/\s+/g, ' ').trim();
-  const t = Date.parse(cleaned);
-  return Number.isNaN(t) ? Number.MAX_SAFE_INTEGER : t;
-}
-
-/** Flatten sessions chronologically (by haystack_dates) into a capped turn list. */
-function chronologicalTurns(
-  example: LongMemEvalExample,
-): { role: string; content: string }[] {
-  const indexed = example.haystack_sessions.map((session, i) => ({
-    session,
-    date: parseHaystackDate(example.haystack_dates[i] ?? ''),
-    order: i,
-  }));
-  indexed.sort((a, b) => (a.date === b.date ? a.order - b.order : a.date - b.date));
-
-  const turns: { role: string; content: string }[] = [];
-  for (const { session } of indexed) {
-    for (const turn of session) {
-      if (turns.length >= TURN_CAP) return turns;
-      turns.push({ role: turn.role, content: turn.content });
-    }
-  }
-  return turns;
-}
-
 function extractAnswerText(raw: string): string {
   const after = raw.split(/<\/mem_thinking>/i).pop() ?? raw;
   const cleaned = after.replace(/<\/?mem_thinking>/gi, '').trim();
@@ -131,6 +115,12 @@ async function chatComplete(client: OpenAI, prompt: string): Promise<string> {
   return resp.choices[0]?.message.content ?? '';
 }
 
+/** The session date as `observedAt`, or nothing when the dataset gives no parseable date. */
+function observedAtOption(sourceDate: string): { observedAt?: Date } {
+  const ms = parseHaystackDate(sourceDate);
+  return ms === Number.MAX_SAFE_INTEGER ? {} : { observedAt: new Date(ms) };
+}
+
 // ---- Per-example pipeline ---------------------------------------------------
 
 async function runExample(
@@ -140,24 +130,56 @@ async function runExample(
   conflictPolicy: ConflictResolutionPolicy,
 ): Promise<ExampleResult> {
   const scoped = memory.user(`lme_${ex.question_id}`);
-  const turns = chronologicalTurns(ex);
+  const availableTurns = ex.haystack_sessions.reduce((sum, session) => sum + session.length, 0);
+  const sessions = chronologicalSessions(ex, TURN_CAP);
+  const turns = sessions.flatMap((session) => session.turns.map((turn) => ({ ...turn, sourceDate: session.sourceDate })));
 
   // Phase 1 — Ingest (chronological; fail-soft per turn).
   let ingestErrors = 0;
-  for (const turn of turns) {
+  let ingestedMemories = 0;
+  const ingestErrorTypes: string[] = [];
+  const batches = INGEST_MODE === 'turn'
+    ? turns.map((turn) => ({ turns: [turn], sourceDate: turn.sourceDate }))
+    : sessions;
+  for (const batch of REUSE_DB ? [] : batches) {
     try {
-      await scoped.remember(`${turn.role}: ${turn.content}`);
-    } catch {
+      // Preserve the source speaker as authoritative attribution. Without this,
+      // assistant hallucinations in the benchmark transcript are ingested as
+      // user assertions and can later contaminate profile facts/reflection.
+      const roles = new Set(batch.turns.map((turn) => turn.role));
+      if (batch.turns.some((turn) => turn.role !== 'user' && turn.role !== 'assistant')) {
+        throw new Error('LongMemEval contains a role unsupported by memory ingestion');
+      }
+      const options = {
+        ...(roles.size === 1 ? { attributedTo: batch.turns[0]!.role } : {}),
+        strictExtraction: true,
+        ...(batch.sourceDate !== '' ? { metadata: { source_date: batch.sourceDate } } : {}),
+        // When the session was said, so relative dates and replaced facts anchor to it (ADR-0028).
+        ...observedAtOption(batch.sourceDate),
+      };
+      const messages = batch.turns.map((turn) => ({ role: turn.role as 'user' | 'assistant', content: turn.content }));
+      // Builds without `rememberMessages` (older commits measured as a baseline) get the same
+      // turns as role-labelled text, the form their own runner used, with the same options.
+      const canRememberMessages = typeof (scoped as Partial<typeof scoped>).rememberMessages === 'function';
+      ingestedMemories += (
+        canRememberMessages
+          ? await scoped.rememberMessages(messages, options)
+          : await scoped.remember(messages.map((m) => `${m.role}: ${m.content}`).join('\n'), options)
+      ).length;
+    } catch (err) {
       ingestErrors += 1;
+      ingestErrorTypes.push(describeIngestError(err));
     }
   }
 
   // Phase 1.5 — Consolidate (#144, M24): OPT-IN reflect before recall (bounded
   // per-anchor consolidation supersedes stale values). See docs/benchmarks/m24-*.md.
+  let reflectionError: string | undefined;
   if (process.env['E2E_QA_REFLECT'] === '1') {
     try {
       await scoped.reflect({ conflictResolution: conflictPolicy });
     } catch (err) {
+      reflectionError = err instanceof Error ? `${err.name}: ${err.message}` : 'UnknownError';
       console.error(`[e2e-qa] reflect failed for ${ex.question_id}:`, err);
     }
   }
@@ -172,41 +194,38 @@ async function runExample(
       ? '(no memories found)'
       : [...recalled]
           .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-          .map((m) => `- ${m.text}`)
+          .map((m) => {
+            const sourceDate = m.metadata['source_date'];
+            const sourceTag = typeof sourceDate === 'string' ? ` source_date=${sourceDate}` : '';
+            return `- [source=${m.attributedTo ?? 'unknown'}${sourceTag}] ${m.text}`;
+          })
           .join('\n');
 
-  // Phase 3 — Generate. #140: abstain deterministically when recall coverage is
-  // thin (empty OR best score < τ) BEFORE the LLM call, so the answerer cannot
-  // fabricate an answer from insufficient evidence (recall was honest; the
-  // answerer discipline is the fix — blueprint D2).
-  const modelAnswer = shouldAbstain(recalled, COVERAGE_TAU)
-    ? ABSTAIN_ANSWER
-    : extractAnswerText(
-        await chatComplete(
-          client,
-          buildAnswerPrompt({
-            question: ex.question,
-            questionDate: ex.question_date,
-            memories: memoriesBlock,
-          }),
-        ),
-      );
+  // Phase 3 — Generate, with the published LongMemEval answer template.
+  const modelAnswer = extractAnswerText(
+    await chatComplete(
+      client,
+      buildLongMemEvalAnswerPrompt({
+        question: ex.question,
+        questionDate: ex.question_date,
+        memories: memoriesBlock,
+      }),
+    ),
+  );
 
-  // Phase 4 — Judge. #148: an abstention on a NON-abstention question is a miss
-  // by definition (the model did not produce the gold value) — score it NO
-  // deterministically, WITHOUT the demonstrably-lenient LLM judge.
-  const correct = abstentionIsMiss(isAbstention(ex), modelAnswer, ABSTAIN_ANSWER)
-    ? false
-    : parseJudgeVerdict(
-        await chatComplete(
-          client,
-          buildJudgePrompt({
-            question: ex.question,
-            answer: ex.answer,
-            response: modelAnswer,
-          }),
-        ),
-      );
+  // Phase 4 — Judge, with the published category-specific judge templates.
+  const correct = parseJudgeVerdict(
+    await chatComplete(
+      client,
+      buildLongMemEvalJudgePrompt({
+        questionType: ex.question_type,
+        question: ex.question,
+        answer: ex.answer,
+        response: modelAnswer,
+        abstention: isAbstention(ex),
+      }),
+    ),
+  );
 
   return {
     questionId: ex.question_id,
@@ -217,20 +236,23 @@ async function runExample(
     modelAnswer,
     correct,
     ingestedTurns: turns.length,
+    availableTurns,
+    ingestedMemories,
     recalledCount: recalled.length,
+    recallEvidence: recalled.map((m) => ({ id: m.id, text: m.text, score: m.score })),
     ingestErrors,
+    ingestErrorTypes,
+    ...(reflectionError === undefined ? {} : { reflectionError }),
   };
 }
 
 // ---- Main -------------------------------------------------------------------
 
 async function main(): Promise<void> {
-  // Key-gated (like the LLM-measured tier): honest SKIP (exit 0), never a
-  // fabricated result and never a keyless CI failure. Set OPENAI_API_KEY via
-  // `.env.local` (env-shift an OpenRouter key: OPENAI_API_KEY=<sk-or-…>,
-  // OPENAI_BASE_URL=https://openrouter.ai/api/v1, OPENAI_CHAT_MODEL=openai/gpt-4o-mini).
-  const openrouterKey = process.env['OPENAI_API_KEY'] ?? '';
-  if (openrouterKey === '') {
+  // Key-gated: honest SKIP (exit 0), never a fabricated result or keyless CI failure.
+  // Set OPENAI_API_KEY; OPENAI_BASE_URL may point to a compatible provider.
+  const apiKey = process.env['OPENAI_API_KEY'] ?? '';
+  if (apiKey === '') {
     console.log('[e2e-qa] SKIP: OPENAI_API_KEY not set (key-gated eval; no keyless run).');
     return;
   }
@@ -241,22 +263,29 @@ async function main(): Promise<void> {
     return;
   }
 
-  const dataset = loadOracleDataset(DATASET_PATH);
+  const dataset = loadLongMemEvalDataset(DATASET_PATH);
   const limitEnv = process.env['E2E_QA_LIMIT'] ?? '';
-  const subset = selectRunSubset(dataset, limitEnv);
-  const mode = limitEnv.trim() === '' ? 'subset-12' : limitEnv.trim().toLowerCase();
+  const idsEnv = process.env['E2E_QA_IDS'] ?? '';
+  const subset = selectRunSubset(dataset, limitEnv, idsEnv);
+  const mode = idsEnv.trim() !== ''
+    ? `ids:${String(subset.length)}`
+    : limitEnv.trim() === '' ? 'subset-12' : limitEnv.trim().toLowerCase();
   const absN = subset.filter(isAbstention).length;
   console.log(
-    `[e2e-qa] loaded ${String(dataset.length)} examples; selected ${String(subset.length)} (${String(absN)} abstention) [mode=${mode}] model=${CHAT_MODEL} dim=${String(EMBEDDING_DIM)} turn_cap=${String(TURN_CAP)} top_k=${String(RECALL_TOP_K)} conc=${String(CONCURRENCY)}`,
+    `[e2e-qa] dataset=${basename(DATASET_PATH)} loaded ${String(dataset.length)} examples; selected ${String(subset.length)} (${String(absN)} abstention) [mode=${mode}] prompt_mode=official-longmemeval ingest_mode=${INGEST_MODE} model=${CHAT_MODEL} dim=${String(EMBEDDING_DIM)} turn_cap=${TURN_CAP === 0 ? 'unlimited' : String(TURN_CAP)} top_k=${String(RECALL_TOP_K)} conc=${String(CONCURRENCY)}`,
   );
 
-  await provisionIsolatedDb();
+  if (REUSE_DB) {
+    console.error(`[e2e-qa] E2E_QA_REUSE_DB=1: reusing ${ISOLATED_DB}; ingestion skipped`);
+  } else {
+    await provisionIsolatedDb();
+  }
   const pool = new pg.Pool({ connectionString: isolatedUri(), max: CONCURRENCY + 4 });
   await runMigrations(pool, { embeddingDim: EMBEDDING_DIM });
 
   const client = new OpenAI({
-    apiKey: openrouterKey,
-    baseURL: process.env['OPENAI_BASE_URL'] ?? 'https://openrouter.ai/api/v1',
+    apiKey,
+    baseURL: process.env['OPENAI_BASE_URL'] ?? 'https://api.openai.com/v1',
   });
 
   const memory = (await createLocalMemory({
@@ -294,6 +323,13 @@ async function main(): Promise<void> {
   await pool.end();
 
   report(results);
+  const integrity = assessRunIntegrity(results);
+  if (!integrity.valid) {
+    console.error(
+      `[e2e-qa] INVALID RUN: ${String(integrity.invalidExamples)} examples had ingestion, reflection, or pipeline errors. Do not use the aggregate as a benchmark score.`,
+    );
+    process.exitCode = 2;
+  }
 }
 
 main().catch((err: unknown) => {

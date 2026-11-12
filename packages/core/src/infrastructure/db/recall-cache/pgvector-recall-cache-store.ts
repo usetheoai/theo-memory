@@ -194,6 +194,11 @@ export class PgvectorRecallCacheStore implements RecallCacheStore {
     ttlSeconds: number,
     workspaceId?: string,
   ): Promise<void> {
+    const deadlines = results.flatMap((item) => item.expiresAt == null ? [] : [new Date(item.expiresAt).getTime()]);
+    if (deadlines.length > 0) {
+      ttlSeconds = Math.min(ttlSeconds, (Math.min(...deadlines) - Date.now()) / 1000);
+      if (ttlSeconds <= 0) return;
+    }
     const scopeKey = deriveScopeKey(scope, workspaceId);
     const vectorLiteral = embeddingToVectorLiteral(queryEmbedding);
     const resultSetJson = JSON.stringify(results);

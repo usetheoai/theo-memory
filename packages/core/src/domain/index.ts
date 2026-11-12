@@ -78,13 +78,14 @@ export type {
   MemoryConfig,
   MemoryStore,
   ScopedMemory,
+  SearchMessagesOptions,
 } from './memory-store.js';
 
 /**
  * Audit-trail row shape (`memory.history(memoryId)` consumer).
  *
  */
-export type { HistoryEntry } from './history-entry.js';
+export type { HistoryAction, HistoryEntry } from './history-entry.js';
 
 /**
  * Result shape returned by `memory.reflect()` — counts of derived facts +
@@ -125,6 +126,7 @@ export {
   InvalidScope,
   InvalidSkillError,
   ContentTooLargeError,
+  DerivedMemorySourcesUnavailableError,
   EmbedderError,
   EmbedderUnavailableError,
   EmptyScopeError,
@@ -132,6 +134,7 @@ export {
   MemoryStoreError,
   MissingScopeError,
   ReflectionNotConfigured,
+  MessageLogNotConfigured,
   RerankerConflict,
   SkillAlreadyExists,
   SkillExecutionNotConfiguredError,
@@ -178,6 +181,7 @@ export type {
  *
  */
 export type { Embedder } from './dip/embedder.js';
+export type { LoggedMessage, ScoredLoggedMessage, SurroundingTurns } from './dip/message-log.js';
 
 /**
  * `Reranker` DIP — optional post-threshold relevance re-scoring port (Item 23).
@@ -649,3 +653,14 @@ export { runRetrievalPipeline } from './retrieval/pipeline.js';
  *
  */
 export type { RetrievalDeps } from './retrieval/pipeline.js';
+
+/** Evidence classification for contextual memory. @see docs/memory-semantics.md */
+export { MemoryEvidenceSchema } from './memory-evidence.js';
+export type { MemoryEvidence } from './memory-evidence.js';
+
+export { IdempotencyConflict } from './errors.js';
+
+export type { MemoryEvidencePage, MemoryEvidenceReader } from './memory-evidence.js';
+
+export { MemoryJobInputSchema, MemoryJobLeaseLost, MemoryJobUnavailable } from './memory-job.js';
+export type { MemoryJobInput, MemoryJobActor, MemoryJobSummary, MemoryJobService } from './memory-job.js';

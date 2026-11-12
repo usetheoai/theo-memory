@@ -153,7 +153,7 @@ export THEOMEM_PG_URI="postgresql://themem:themem@localhost:5432/themem"
 npm run eval:forgetting
 ```
 
-Requires `ankane/pgvector:v0.5.1` (or compatible) reachable at the URI
+Requires `pgvector/pgvector:0.8.7-pg18` (or compatible) reachable at the URI
 and the v0.4b migrations applied (`0003_eviction_columns.sql` + `0004_eviction_half_life_trigger.sql`).
 
 Runtime: ~25-40 seconds per invocation (most spent on seeding 1000 memories

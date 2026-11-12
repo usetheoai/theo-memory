@@ -12,4 +12,4 @@
  *
  */
 export { DeterministicStubLLM } from './stub.js';
-export { OpenAILLM } from './openai.js';
+export { OpenAILLM, type OpenAILLMOptions } from './openai.js';

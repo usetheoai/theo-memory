@@ -94,11 +94,14 @@ function parseDraftsResponse(raw: string): DerivedMemoryDraft[] {
     if (typeof candidate.text !== 'string') {
       throw new ReflectionLLMResponseError(raw, `draft[${String(i)}].text is not a string`);
     }
-    if (!Array.isArray(candidate.derived_from)) {
+    const rawDerivedFrom = typeof candidate.derived_from === 'string'
+      ? [candidate.derived_from]
+      : candidate.derived_from;
+    if (!Array.isArray(rawDerivedFrom)) {
       throw new ReflectionLLMResponseError(raw, `draft[${String(i)}].derived_from is not an array`);
     }
     const ids: string[] = [];
-    const derivedFromArray = candidate.derived_from as unknown[];
+    const derivedFromArray = rawDerivedFrom as unknown[];
     for (let j = 0; j < derivedFromArray.length; j++) {
       const id = derivedFromArray[j];
       if (typeof id !== 'string') {

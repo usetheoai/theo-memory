@@ -49,6 +49,8 @@ vi.mock('@usetheo/memory', () => ({
   PgvectorStore: class MockPgvectorStore {},
   PgMemoryEntityStore: class MockPgMemoryEntityStore {},
   PgMemoryGraphStore: class MockPgMemoryGraphStore {},
+  PgMemoryEvidenceStore: class MockPgMemoryEvidenceStore {},
+  PgMemoryJobStore: class MockPgMemoryJobStore {},
   PgUsageCounterStore: class MockPgUsageCounterStore {},
   // M11/M13 full-suite fix: run-server.ts also imports these two — the mock
   // must mirror the import list or vitest fails the whole file at load.

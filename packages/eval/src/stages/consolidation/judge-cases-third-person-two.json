@@ -1,0 +1,741 @@
+{
+  "users": [
+    {
+      "id": "tp2-ferdinand",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Ferdinand owns a Morgan roadster.",
+          "observedAt": "2025-04-07",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Ferdinand's sister Marisol is a vet.",
+          "observedAt": "2025-04-10",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Ferdinand's uncle Tobiah lives in Carlisle.",
+          "observedAt": "2025-04-13",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Ferdinand works as a locksmith.",
+          "observedAt": "2025-04-16",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Ferdinand keeps ferrets.",
+          "observedAt": "2025-04-19",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Ferdinand plays the cello.",
+          "observedAt": "2025-04-22",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What car does Ferdinand own?",
+          "pattern": "Morgan"
+        },
+        {
+          "query": "What is Ferdinand's sister?",
+          "pattern": "\\bvet"
+        },
+        {
+          "query": "Where does Ferdinand's uncle live?",
+          "pattern": "Carlisle"
+        },
+        {
+          "query": "What is Ferdinand's job?",
+          "pattern": "locksmith"
+        },
+        {
+          "query": "What pets does Ferdinand keep?",
+          "pattern": "ferrets"
+        },
+        {
+          "query": "What instrument does Ferdinand play?",
+          "pattern": "cello"
+        }
+      ]
+    },
+    {
+      "id": "tp2-olamide",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Olamide's mother Folake is a judge.",
+          "observedAt": "2025-04-25",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Olamide's cousin Kehinde runs a gym.",
+          "observedAt": "2025-04-28",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Olamide drives a Rivian truck.",
+          "observedAt": "2025-05-01",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Olamide studies architecture.",
+          "observedAt": "2025-05-04",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Olamide is lactose intolerant.",
+          "observedAt": "2025-05-07",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Olamide climbs on Sundays.",
+          "observedAt": "2025-05-10",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What is Olamide's mother?",
+          "pattern": "judge"
+        },
+        {
+          "query": "What does Olamide's cousin run?",
+          "pattern": "\\bgym"
+        },
+        {
+          "query": "What car does Olamide drive?",
+          "pattern": "Rivian"
+        },
+        {
+          "query": "What does Olamide study?",
+          "pattern": "architecture"
+        },
+        {
+          "query": "What is Olamide intolerant to?",
+          "pattern": "lactose"
+        },
+        {
+          "query": "What does Olamide do on Sundays?",
+          "pattern": "climb"
+        }
+      ]
+    },
+    {
+      "id": "tp2-ingeborg",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Ingeborg's husband Edvard is a pilot.",
+          "observedAt": "2025-05-13",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Ingeborg's neighbour Prue grows dahlias.",
+          "observedAt": "2025-05-16",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Ingeborg teaches yoga.",
+          "observedAt": "2025-05-19",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Ingeborg owns an Infiniti coupe.",
+          "observedAt": "2025-05-22",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Ingeborg dislikes olives.",
+          "observedAt": "2025-05-25",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Ingeborg knits scarves.",
+          "observedAt": "2025-05-28",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What is Ingeborg's husband?",
+          "pattern": "pilot"
+        },
+        {
+          "query": "What does Ingeborg's neighbour grow?",
+          "pattern": "dahlias"
+        },
+        {
+          "query": "What does Ingeborg teach?",
+          "pattern": "yoga"
+        },
+        {
+          "query": "What car does Ingeborg own?",
+          "pattern": "Infiniti"
+        },
+        {
+          "query": "What does Ingeborg dislike?",
+          "pattern": "olives"
+        },
+        {
+          "query": "What does Ingeborg knit?",
+          "pattern": "scarves"
+        }
+      ]
+    },
+    {
+      "id": "tp2-teodoro",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "A esposa de Teodoro, Graciete, é enfermeira.",
+          "observedAt": "2025-05-31",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "O filho de Teodoro, Wanderley, estuda medicina.",
+          "observedAt": "2025-06-03",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Teodoro tem um Chery Tiggo.",
+          "observedAt": "2025-06-06",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Teodoro trabalha como padeiro.",
+          "observedAt": "2025-06-09",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Teodoro pesca aos sábados.",
+          "observedAt": "2025-06-12",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Teodoro é hipertenso.",
+          "observedAt": "2025-06-15",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "O que é a esposa de Teodoro?",
+          "pattern": "enfermeira"
+        },
+        {
+          "query": "O que estuda o filho de Teodoro?",
+          "pattern": "medicina"
+        },
+        {
+          "query": "Que carro Teodoro tem?",
+          "pattern": "Tiggo"
+        },
+        {
+          "query": "Qual é a profissão de Teodoro?",
+          "pattern": "padeiro"
+        },
+        {
+          "query": "O que Teodoro faz aos sábados?",
+          "pattern": "pesca"
+        },
+        {
+          "query": "Que condição Teodoro tem?",
+          "pattern": "hipertens"
+        }
+      ]
+    },
+    {
+      "id": "tp2-eulalia",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "La hermana de Eulalia, Begoña, es arquitecta.",
+          "observedAt": "2025-06-18",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "El abuelo de Eulalia, Anselmo, vive en Tarazona.",
+          "observedAt": "2025-06-21",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Eulalia tiene un Ssangyong Tivoli.",
+          "observedAt": "2025-06-24",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Eulalia trabaja como fisioterapeuta.",
+          "observedAt": "2025-06-27",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Eulalia colecciona dedales.",
+          "observedAt": "2025-06-30",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Eulalia es alérgica al polen.",
+          "observedAt": "2025-07-03",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "¿Qué es la hermana de Eulalia?",
+          "pattern": "arquitecta"
+        },
+        {
+          "query": "¿Dónde vive el abuelo de Eulalia?",
+          "pattern": "Tarazona"
+        },
+        {
+          "query": "¿Qué coche tiene Eulalia?",
+          "pattern": "Tivoli"
+        },
+        {
+          "query": "¿En qué trabaja Eulalia?",
+          "pattern": "fisioterapeuta"
+        },
+        {
+          "query": "¿Qué colecciona Eulalia?",
+          "pattern": "dedales"
+        },
+        {
+          "query": "¿A qué es alérgica Eulalia?",
+          "pattern": "polen"
+        }
+      ]
+    },
+    {
+      "id": "tp2-gottfried",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Die Frau von Gottfried, Hiltrud, ist Ärztin.",
+          "observedAt": "2025-07-06",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Der Enkel von Gottfried, Jannik, spielt Handball.",
+          "observedAt": "2025-07-09",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Gottfried fährt einen Mercedes Vito.",
+          "observedAt": "2025-07-12",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Gottfried arbeitet als Metzger.",
+          "observedAt": "2025-07-15",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Gottfried sammelt Münzen.",
+          "observedAt": "2025-07-18",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Gottfried isst kein Schweinefleisch.",
+          "observedAt": "2025-07-21",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Was ist die Frau von Gottfried?",
+          "pattern": "[ÄA]rztin"
+        },
+        {
+          "query": "Welchen Sport spielt der Enkel von Gottfried?",
+          "pattern": "Handball"
+        },
+        {
+          "query": "Welches Auto fährt Gottfried?",
+          "pattern": "Vito"
+        },
+        {
+          "query": "Als was arbeitet Gottfried?",
+          "pattern": "Metzger"
+        },
+        {
+          "query": "Was sammelt Gottfried?",
+          "pattern": "M[üu]nzen"
+        },
+        {
+          "query": "Was isst Gottfried nicht?",
+          "pattern": "Schweinefleisch"
+        }
+      ]
+    },
+    {
+      "id": "tp2-heloise",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "La mère d'Héloïse, Ghislaine, est pharmacienne.",
+          "observedAt": "2025-07-24",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Le cousin d'Héloïse, Thibault, est boulanger.",
+          "observedAt": "2025-07-27",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Héloïse conduit une Cadillac Lyriq.",
+          "observedAt": "2025-07-30",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Héloïse travaille comme architecte.",
+          "observedAt": "2025-08-02",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Héloïse fait de l'escalade.",
+          "observedAt": "2025-08-05",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Héloïse est végétalienne.",
+          "observedAt": "2025-08-08",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Que fait la mère d'Héloïse ?",
+          "pattern": "pharmacienne"
+        },
+        {
+          "query": "Que fait le cousin d'Héloïse ?",
+          "pattern": "boulanger"
+        },
+        {
+          "query": "Quelle voiture conduit Héloïse ?",
+          "pattern": "Lyriq"
+        },
+        {
+          "query": "Quel est le métier d'Héloïse ?",
+          "pattern": "architecte"
+        },
+        {
+          "query": "Quel sport pratique Héloïse ?",
+          "pattern": "escalade"
+        },
+        {
+          "query": "Quel régime suit Héloïse ?",
+          "pattern": "v[ée]g[ée]talienne"
+        }
+      ]
+    },
+    {
+      "id": "tp2-ruairi",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Ruairi's daughter Saoirse is a dentist.",
+          "observedAt": "2025-08-11",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Ruairi's brother Cathal fixes boats.",
+          "observedAt": "2025-08-14",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Ruairi owns an Isuzu pickup.",
+          "observedAt": "2025-08-17",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Ruairi works as a plumber.",
+          "observedAt": "2025-08-20",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Ruairi keeps bees.",
+          "observedAt": "2025-08-23",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Ruairi hates mushrooms.",
+          "observedAt": "2025-08-26",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What is Ruairi's daughter?",
+          "pattern": "dentist"
+        },
+        {
+          "query": "What does Ruairi's brother fix?",
+          "pattern": "boats"
+        },
+        {
+          "query": "What car does Ruairi own?",
+          "pattern": "Isuzu"
+        },
+        {
+          "query": "What is Ruairi's job?",
+          "pattern": "plumber"
+        },
+        {
+          "query": "What does Ruairi keep?",
+          "pattern": "bees"
+        },
+        {
+          "query": "What does Ruairi hate?",
+          "pattern": "mushrooms"
+        }
+      ]
+    },
+    {
+      "id": "tp2-self-en",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "My aunt Philippa is a lawyer.",
+          "observedAt": "2025-08-29",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "My son Barnaby plays rugby.",
+          "observedAt": "2025-09-01",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "I drive a Polestar.",
+          "observedAt": "2025-09-04",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "I work as a surveyor.",
+          "observedAt": "2025-09-07",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "I keep goldfish.",
+          "observedAt": "2025-09-10",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "I am allergic to wasps.",
+          "observedAt": "2025-09-13",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What is the user's aunt?",
+          "pattern": "lawyer"
+        },
+        {
+          "query": "What sport does the user's son play?",
+          "pattern": "rugby"
+        },
+        {
+          "query": "What car does the user drive?",
+          "pattern": "Polestar"
+        },
+        {
+          "query": "What is the user's job?",
+          "pattern": "surveyor"
+        },
+        {
+          "query": "What pets does the user keep?",
+          "pattern": "goldfish"
+        },
+        {
+          "query": "What is the user allergic to?",
+          "pattern": "wasps"
+        }
+      ]
+    },
+    {
+      "id": "tp2-self-pt",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Meu cunhado Edivaldo é motorista.",
+          "observedAt": "2025-09-16",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Minha avó Benedita mora em Sobral.",
+          "observedAt": "2025-09-19",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Eu tenho um Troller.",
+          "observedAt": "2025-09-22",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Eu trabalho como contadora.",
+          "observedAt": "2025-09-25",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Eu crio coelhos.",
+          "observedAt": "2025-09-28",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Eu sou intolerante a glúten.",
+          "observedAt": "2025-10-01",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "O que é o cunhado do usuário?",
+          "pattern": "motorista"
+        },
+        {
+          "query": "Onde mora a avó do usuário?",
+          "pattern": "Sobral"
+        },
+        {
+          "query": "Que carro o usuário tem?",
+          "pattern": "Troller"
+        },
+        {
+          "query": "Qual é a profissão do usuário?",
+          "pattern": "contadora"
+        },
+        {
+          "query": "O que o usuário cria?",
+          "pattern": "coelhos"
+        },
+        {
+          "query": "A que o usuário é intolerante?",
+          "pattern": "gl[úu]ten"
+        }
+      ]
+    },
+    {
+      "id": "tp2-self-fr",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Mon oncle Aurélien est menuisier.",
+          "observedAt": "2025-10-04",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Ma fille Capucine fait du violon.",
+          "observedAt": "2025-10-07",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Je conduis une Lotus Elise.",
+          "observedAt": "2025-10-10",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Je travaille comme infirmier.",
+          "observedAt": "2025-10-13",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "J'élève des chèvres.",
+          "observedAt": "2025-10-16",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Je suis allergique aux arachides.",
+          "observedAt": "2025-10-19",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Que fait l'oncle de l'utilisateur ?",
+          "pattern": "menuisier"
+        },
+        {
+          "query": "De quel instrument joue la fille de l'utilisateur ?",
+          "pattern": "violon"
+        },
+        {
+          "query": "Quelle voiture conduit l'utilisateur ?",
+          "pattern": "Elise"
+        },
+        {
+          "query": "Quel est le métier de l'utilisateur ?",
+          "pattern": "infirmier"
+        },
+        {
+          "query": "Qu'élève l'utilisateur ?",
+          "pattern": "ch[èe]vres"
+        },
+        {
+          "query": "À quoi l'utilisateur est-il allergique ?",
+          "pattern": "arachides"
+        }
+      ]
+    }
+  ]
+}
