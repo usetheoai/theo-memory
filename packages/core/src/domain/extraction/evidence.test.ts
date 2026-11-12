@@ -168,3 +168,17 @@ describe('contextual evidence through the memory SDK', () => {
     }, { strictExtraction: true })).rejects.toThrow('persistence was incomplete');
   });
 });
+
+describe('remember — a fact about a named person keeps that person (#257)', () => {
+  test('stores the person the draft relation names, not user', async () => {
+    const { memory } = await fixture({
+      memory: [{ id: '1', text: 'user travaille comme apicultrice', evidence: { kind: 'stated', durability: 'durable', sourceQuote: 'Perrine travaille comme apicultrice.' } }],
+      entities: [{ name: 'Perrine', type: 'PERSON' }, { name: 'apicultrice', type: 'CONCEPT' }],
+      relations: [{ source: 'Perrine', relationship: 'travaille comme', destination: 'apicultrice' }],
+    });
+
+    const items = await memory.user('alice').remember('Perrine travaille comme apicultrice.');
+
+    expect(items.map((i) => i.text)).toEqual(['Perrine travaille comme apicultrice']);
+  });
+});

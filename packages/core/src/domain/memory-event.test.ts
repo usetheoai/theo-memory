@@ -8,8 +8,9 @@ import { MEMORY_EVENTS, emitEvent } from './memory-event.js';
 import type { MemoryEvent } from './memory-event.js';
 
 describe('MEMORY_EVENTS', () => {
-  test('has 66 values including evidence drop, downgrade, retry, message log, supersession and importance decisions', () => {
-    expect(MEMORY_EVENTS).toHaveLength(67);
+  test('has 68 values including evidence drop, downgrade, retry, message log, supersession and importance decisions', () => {
+    expect(MEMORY_EVENTS).toHaveLength(68);
+    expect(MEMORY_EVENTS).toContain('extraction_subject_restored');
     expect(MEMORY_EVENTS).toContain('importance_scored');
     expect(MEMORY_EVENTS).toContain('importance_scoring_failed');
     for (const event of ['memory_superseded', 'supersession_rejected', 'supersession_skipped', 'supersession_failed']) {

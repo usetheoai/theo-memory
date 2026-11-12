@@ -42,6 +42,7 @@ import { coerceExtractionResponse } from './normalize.js';
 import { applyOntologyToEntities, boundedAutoCategory, buildPayload, embedBatchWithFallback, extractResponseText, patchItemsWithOutcomes, persistWithFallback, runInferFalsePath, scopeFromFilters, toMemoryItem } from './pipeline-helpers.js';
 import type { ExtractionDeps, Payload } from './pipeline-helpers.js';
 import { AdditiveExtractionSchema, generateAdditiveExtractionPrompt, type AdditiveExtractionResponse } from './prompt.js';
+import { restoreNamedSubject } from './subject-restore.js';
 import { applySupersessions } from './supersession.js';
 import { DEFAULT_CATEGORY_TAXONOMY, classifyCategorySource } from './taxonomy.js';
 
@@ -362,6 +363,10 @@ async function extractAndPersist(
       // degrade to raw entities (fail-soft); coercion is best-effort enrichment.
     }
   }
+
+  // A third-person fact sometimes comes back with `user` in place of the person its own
+  // relation names, which would record that person's attribute as the user's (#257).
+  extracted = [...restoreNamedSubject(extracted, llmEntities, relations, tracer)];
 
   // M27 T2.1 — deterministic durable-fact backstop gate (infer:true only; audit per drop).
   const extractedCount = extracted.length;
