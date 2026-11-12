@@ -25,6 +25,7 @@ import type { HistoryBatchRecord } from './dip/history-manager.js';
 import type { LLM } from './dip/llm.js';
 import type { InsertOutcome, VectorStore, VectorStoreResult } from './dip/vector-store.js';
 import { runExtractionPipeline } from './extraction/pipeline.js';
+import { LANGUAGE_IDENTIFICATION_PROMPT } from './extraction/language-identification.js';
 import { InMemoryMessageLog } from '../infrastructure/db/in-memory-message-log.js';
 import { InMemoryVectorStore } from '../infrastructure/db/in-memory-store.js';
 import { BUILTIN_ONTOLOGIES } from './ontology.js';
@@ -103,6 +104,31 @@ const makeLlm = (response: unknown): LLM => ({
   generateResponse: vi.fn(async () => response),
   generateChat: vi.fn(async () => ({ role: 'assistant' as const, content: '' })),
 });
+
+const isIdentification = (messages: readonly { content: string }[]): boolean =>
+  messages[0]?.content === LANGUAGE_IDENTIFICATION_PROMPT;
+
+/** The LLM calls other than the input-language identification that precedes extraction. */
+const extractionCalls = (llm: LLM) =>
+  vi.mocked(llm.generateResponse).mock.calls.filter(([messages]) => !isIdentification(messages));
+
+/** Answers the identification call with `language`, and every other call through `answer`. */
+const languageAwareLlm = (language: unknown, answer: (call: number) => unknown): LLM => {
+  let call = 0;
+  return {
+    generateResponse: vi.fn(async (messages: readonly { role: string; content: string }[]) => {
+      if (isIdentification(messages)) {
+        if (language instanceof Error) throw language;
+        return language;
+      }
+      call += 1;
+      const value = answer(call);
+      if (value instanceof Error) throw value;
+      return value;
+    }),
+    generateChat: vi.fn(async () => ({ role: 'assistant' as const, content: '' })),
+  };
+};
 
 const setupTracer = () => {
   const exporter = new InMemorySpanExporter();
@@ -423,6 +449,7 @@ describe('runExtractionPipeline (8-phase write)', () => {
       const captured = { system: '' };
       const llm: LLM = {
         generateResponse: vi.fn(async (messages: readonly { role: string; content: string }[]) => {
+          if (isIdentification(messages)) return { language: 'en' };
           captured.system = messages.find((m) => m.role === 'system')?.content ?? '';
           return response;
         }),
@@ -449,19 +476,12 @@ describe('runExtractionPipeline (8-phase write)', () => {
       // Call-aware stub: the EXTRACTION call ({type:'json'}) returns a Portuguese
       // fact for the English input (the residual EG-4 leak); the CORRECTION call
       // (plain text) returns the English rewrite.
-      let call = 0;
-      const llm: LLM = {
-        generateResponse: vi.fn(async () => {
-          call += 1;
-          // call 1 = extraction (json object); call 2 = correction. The real OpenAILLM
-          // text-mode returns a `{ text }` OBJECT (not a bare string) — use that exact
-          // shape so the guard's response-text extraction is tested against reality.
-          return call === 1
-            ? { memory: [{ id: '0', text: 'Sarah trabalha como cientista de dados e adora escalada' }] }
-            : { text: 'Sarah works as a data scientist and loves rock climbing' };
-        }),
-        generateChat: vi.fn(async () => ({ role: 'assistant' as const, content: '' })),
-      };
+      // call 1 = extraction (json object); call 2 = correction. The real OpenAILLM
+      // text-mode returns a `{ text }` OBJECT (not a bare string) — use that exact
+      // shape so the guard's response-text extraction is tested against reality.
+      const llm = languageAwareLlm({ language: 'en' }, (call) => (call === 1
+        ? { memory: [{ id: '0', text: 'Sarah trabalha como cientista de dados e adora escalada' }] }
+        : { text: 'Sarah works as a data scientist and loves rock climbing' }));
       const result = await runExtractionPipeline(
         [{ role: 'user', content: 'My name is Sarah and I work as a data scientist and I love rock climbing' }],
         { user_id: 'alice' },
@@ -482,15 +502,9 @@ describe('runExtractionPipeline (8-phase write)', () => {
       const { tracer, exporter } = setupTracer();
       const store = new StubVectorStore();
       // Extraction returns a PT fact (mismatch); the correction call throws.
-      let call = 0;
-      const llm: LLM = {
-        generateResponse: vi.fn(async () => {
-          call += 1;
-          if (call === 1) return { memory: [{ id: '0', text: 'Sarah trabalha como cientista de dados' }] };
-          throw new Error('correction LLM unavailable');
-        }),
-        generateChat: vi.fn(async () => ({ role: 'assistant' as const, content: '' })),
-      };
+      const llm = languageAwareLlm({ language: 'en' }, (call) => (call === 1
+        ? { memory: [{ id: '0', text: 'Sarah trabalha como cientista de dados' }] }
+        : new Error('correction LLM unavailable')));
       const result = await runExtractionPipeline(
         [{ role: 'user', content: 'My name is Sarah and I work as a data scientist and I love rock climbing' }],
         { user_id: 'alice' },
@@ -520,15 +534,57 @@ describe('runExtractionPipeline (8-phase write)', () => {
       expect(spans).not.toContain('extraction_language_mismatch');
     });
 
-    test('undetermined/short input injects no directive (byte-unchanged behavior)', async () => {
+    test('names the input language from the text with its proper names masked (#254)', async () => {
+      const llm = languageAwareLlm({ language: 'en' }, () => ({ memory: [{ id: '0', text: "Mihaela's nephew Sorin is a pilot" }] }));
+      await runExtractionPipeline(
+        [{ role: 'user', content: "Mihaela's nephew Sorin is a pilot." }],
+        { user_id: 'alice' },
+        { vectorStore: new StubVectorStore(), embedder: makeEmbedder(), llm },
+      );
+      const identification = vi.mocked(llm.generateResponse).mock.calls.find(([messages]) => isIdentification(messages));
+      expect(identification?.[0][1]?.content).toBe("X's nephew X is a pilot.");
+      expect(extractionCalls(llm)[0]?.[0][0]?.content).toMatch(/LANGUAGE DIRECTIVE: the input language is English/);
+    });
+
+    test('a failed identification injects no directive and emits extraction_language_identification_failed (#254)', async () => {
+      const { tracer, exporter } = setupTracer();
+      const llm = languageAwareLlm(new Error('identification LLM unavailable'), () => ({ memory: [{ id: '0', text: 'Sarah works as a data scientist' }] }));
+      const result = await runExtractionPipeline(
+        [{ role: 'user', content: 'My name is Sarah and I work as a data scientist' }],
+        { user_id: 'alice' },
+        { vectorStore: new StubVectorStore(), embedder: makeEmbedder(), llm, tracer },
+      );
+      expect(result).toHaveLength(1);
+      expect(extractionCalls(llm)[0]?.[0][0]?.content).not.toMatch(/LANGUAGE DIRECTIVE/);
+      const span = exporter.getFinishedSpans().find((sp) => sp.name === 'extraction_language_identification_failed');
+      expect(span?.attributes['reason']).toBe('llm_error');
+      expect(span?.attributes['error']).toBe('Error');
+    });
+
+    test('an unsupported input language is reported with its code and injects no directive (#254)', async () => {
+      const { tracer, exporter } = setupTracer();
+      const llm = languageAwareLlm({ language: 'pl' }, () => ({ memory: [{ id: '0', text: 'Ola mieszka w Krakowie' }] }));
+      await runExtractionPipeline(
+        [{ role: 'user', content: 'Ola mieszka w Krakowie od dawna' }],
+        { user_id: 'alice' },
+        { vectorStore: new StubVectorStore(), embedder: makeEmbedder(), llm, tracer },
+      );
+      expect(extractionCalls(llm)[0]?.[0][0]?.content).not.toMatch(/LANGUAGE DIRECTIVE/);
+      const span = exporter.getFinishedSpans().find((sp) => sp.name === 'extraction_language_identification_failed');
+      expect(span?.attributes['reason']).toBe('unsupported_language');
+      expect(span?.attributes['language']).toBe('pl');
+    });
+
+    test('a message with no text makes no identification call and injects no directive', async () => {
       const store = new StubVectorStore();
       const { llm, captured } = makeCapturingLlm({ memory: [{ id: '0', text: 'ok' }] });
       await runExtractionPipeline(
-        [{ role: 'user', content: 'hi' }],
+        [{ role: 'user', content: '   ' }],
         { user_id: 'alice' },
         { vectorStore: store, embedder: makeEmbedder(), llm },
       );
       expect(captured.system).not.toMatch(/LANGUAGE DIRECTIVE/);
+      expect(vi.mocked(llm.generateResponse).mock.calls.some(([messages]) => isIdentification(messages))).toBe(false);
     });
   });
 
@@ -537,20 +593,13 @@ describe('runExtractionPipeline (8-phase write)', () => {
       const { tracer, exporter } = setupTracer();
       const store = new StubVectorStore();
       // call 1 = extraction (EN fact + PT entity/relation labels); call 2 = the label map.
-      let call = 0;
-      const llm: LLM = {
-        generateResponse: vi.fn(async () => {
-          call += 1;
-          return call === 1
-            ? {
-                memory: [{ id: '0', text: 'User enjoys surfing on weekends.' }],
-                entities: [{ name: 'surfar' }, { name: 'fins de semana' }],
-                relations: [{ source: 'user', relationship: 'gosta de', destination: 'surfar' }],
-              }
-            : { surfar: 'surfing', 'fins de semana': 'weekends', 'gosta de': 'enjoys' };
-        }),
-        generateChat: vi.fn(async () => ({ role: 'assistant' as const, content: '' })),
-      };
+      const llm = languageAwareLlm({ language: 'en' }, (call) => (call === 1
+        ? {
+            memory: [{ id: '0', text: 'User enjoys surfing on weekends.' }],
+            entities: [{ name: 'surfar' }, { name: 'fins de semana' }],
+            relations: [{ source: 'user', relationship: 'gosta de', destination: 'surfar' }],
+          }
+        : { surfar: 'surfing', 'fins de semana': 'weekends', 'gosta de': 'enjoys' }));
       const result = await runExtractionPipeline(
         [{ role: 'user', content: 'My name is Daniel and I enjoy surfing on weekends' }],
         { user_id: 'alice' },
@@ -565,21 +614,13 @@ describe('runExtractionPipeline (8-phase write)', () => {
 
     test('the label guard is fail-soft: a map-call error never fails remember', async () => {
       const store = new StubVectorStore();
-      let call = 0;
-      const llm: LLM = {
-        generateResponse: vi.fn(async () => {
-          call += 1;
-          if (call === 1) {
-            return {
-              memory: [{ id: '0', text: 'User enjoys surfing on weekends.' }],
-              entities: [{ name: 'surfar' }],
-              relations: [{ source: 'user', relationship: 'gosta de', destination: 'surfar' }],
-            };
+      const llm = languageAwareLlm({ language: 'en' }, (call) => (call === 1
+        ? {
+            memory: [{ id: '0', text: 'User enjoys surfing on weekends.' }],
+            entities: [{ name: 'surfar' }],
+            relations: [{ source: 'user', relationship: 'gosta de', destination: 'surfar' }],
           }
-          throw new Error('label map LLM unavailable');
-        }),
-        generateChat: vi.fn(async () => ({ role: 'assistant' as const, content: '' })),
-      };
+        : new Error('label map LLM unavailable')));
       const result = await runExtractionPipeline(
         [{ role: 'user', content: 'My name is Daniel and I enjoy surfing on weekends' }],
         { user_id: 'alice' },
@@ -602,7 +643,7 @@ describe('runExtractionPipeline observedAt', () => {
       { vectorStore: new StubVectorStore(), embedder: makeEmbedder(), llm },
       { observedAt: OBSERVED },
     );
-    const firstCall = vi.mocked(llm.generateResponse).mock.calls[0]?.[0] ?? [];
+    const firstCall = extractionCalls(llm)[0]?.[0] ?? [];
     expect(firstCall[0]?.content).toContain('2023-07-23 (Sunday)');
   });
 
@@ -660,7 +701,7 @@ describe('runExtractionPipeline message log', () => {
     const llm = makeLlm({ memory: [] });
     await runExtractionPipeline([{ role: 'user', content: 'She loved it' }], SCOPE,
       { vectorStore: new StubVectorStore(), embedder: makeEmbedder(), llm, messageLog });
-    const system = vi.mocked(llm.generateResponse).mock.calls[0]?.[0]?.[0]?.content ?? '';
+    const system = extractionCalls(llm)[0]?.[0]?.[0]?.content ?? '';
     expect(system).toContain('## Previous Messages');
     expect(system).toContain('user: I took my sister Anna to the pottery class');
     // The current turn is a New Message, never its own context.
@@ -673,7 +714,7 @@ describe('runExtractionPipeline message log', () => {
     const llm = makeLlm({ memory: [] });
     await runExtractionPipeline([{ role: 'user', content: 'now' }], SCOPE,
       { vectorStore: new StubVectorStore(), embedder: makeEmbedder(), llm, messageLog, contextMessageCount: 2 });
-    const system = vi.mocked(llm.generateResponse).mock.calls[0]?.[0]?.[0]?.content ?? '';
+    const system = extractionCalls(llm)[0]?.[0]?.[0]?.content ?? '';
     expect(system).not.toContain('user: t1');
     expect(system).toContain('user: t2');
     expect(system).toContain('user: t3');
@@ -791,7 +832,7 @@ describe('runExtractionPipeline supersession on write', () => {
     expect((await store.list(SCOPE, 5))[0].map((r) => r.payload['text'])).not.toContain('user lives in Porto');
     const llm = makeLlm({ memory: [] });
     await runExtractionPipeline([{ role: 'user', content: 'I moved to Lisbon' }], SCOPE, { vectorStore: store, embedder: topicEmbedder(), llm });
-    const system = vi.mocked(llm.generateResponse).mock.calls[0]?.[0]?.[0]?.content ?? '';
+    const system = extractionCalls(llm)[0]?.[0]?.[0]?.content ?? '';
     expect(system).toContain('user lives in Porto');
   });
 
@@ -827,7 +868,7 @@ describe('runExtractionPipeline supersession on write', () => {
       { vectorStore: store, embedder: topicEmbedder(), llm, supersedeOnWrite: false });
     expect(item?.supersedes ?? []).toEqual([]);
     expect((await store.list(SCOPE, 10))[0].map((r) => r.id)).toContain(porto);
-    const system = vi.mocked(llm.generateResponse).mock.calls[0]?.[0]?.[0]?.content ?? '';
+    const system = extractionCalls(llm)[0]?.[0]?.[0]?.content ?? '';
     expect(system).not.toContain('supersedes_memory_ids');
   });
 });

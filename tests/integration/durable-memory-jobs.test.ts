@@ -17,6 +17,7 @@ import { transactionPool } from '../../packages/core/src/infrastructure/db/trans
 import { PreparedMemoryBatchSchema } from '../../packages/core/src/infrastructure/db/pg-memory-job-processor.js';
 import { withWorkspaceScope } from '../../packages/core/src/infrastructure/db/workspace-scope.js';
 import { createIsolatedDb, type IsolatedDb } from './_helpers/isolated-db.js';
+import { ENGLISH, isLanguageIdentification } from './_helpers/language-identification.js';
 
 const vector=[1,0,0];
 const embedder:Embedder={embed:async()=>vector,embedBatch:async texts=>texts.map(()=>vector)};
@@ -28,7 +29,9 @@ describe.skipIf(!process.env['THEOMEM_PG_URI'])('durable extraction jobs on enfo
   let jobs:PgMemoryJobStore;
   let processor:PgMemoryJobProcessor;
   let worker:MemoryJobWorker;
-  const llm:LLM={generateResponse:vi.fn(async()=>({memory:[{id:'1',text:'user prefers dark colors',evidence:{kind:'stated',durability:'durable',sourceQuote:'I prefer dark colors'}}]})),generateChat:vi.fn()};
+  // `extract` answers the extraction calls; `llm` also answers the language identification call that precedes them.
+  const extract=vi.fn(async(..._args:Parameters<LLM['generateResponse']>):Promise<unknown>=>({memory:[{id:'1',text:'user prefers dark colors',evidence:{kind:'stated',durability:'durable',sourceQuote:'I prefer dark colors'}}]}));
+  const llm:LLM={generateResponse:vi.fn(async(...args:Parameters<LLM['generateResponse']>)=>isLanguageIdentification(args[0])?ENGLISH:extract(...args)),generateChat:vi.fn()};
   beforeAll(async()=>{
     db=await createIsolatedDb({embeddingDim:3});
     await db.setupPool.query(readFileSync(resolve('examples/wishlist/schema.sql'),'utf8'));
@@ -38,7 +41,7 @@ describe.skipIf(!process.env['THEOMEM_PG_URI'])('durable extraction jobs on enfo
     worker=new MemoryJobWorker(jobs,processor);
   });
   afterAll(async()=>{if(db!==undefined)await db.dropDb();});
-  beforeEach(async()=>{await db.setupPool.query('TRUNCATE wishlist_items,memory_jobs,memory_messages,memories CASCADE');vi.mocked(llm.generateResponse).mockClear();});
+  beforeEach(async()=>{await db.setupPool.query('TRUNCATE wishlist_items,memory_jobs,memory_messages,memories CASCADE');vi.mocked(llm.generateResponse).mockClear();extract.mockClear();});
   const memory=()=>createLocalMemory({vectorStore:new PgvectorStore(tenantScopedPool(db.pool),{embeddingDim:3}),embedder,llm,embeddingDim:3,entityBoost:false});
 
   test('acknowledges committed enqueue, processes and exposes persisted memory IDs',async()=>{
@@ -94,7 +97,7 @@ describe.skipIf(!process.env['THEOMEM_PG_URI'])('durable extraction jobs on enfo
 
   test('transient failures use backoff while validation failures become terminal',async()=>{
     const job=await jobs.submit(input,actor,'retrying');
-    vi.mocked(llm.generateResponse).mockRejectedValueOnce(new Error('Provider unavailable'));
+    extract.mockRejectedValueOnce(new Error('Provider unavailable'));
     expect(await worker.runOnce()).toBe('retrying');
     const queued=await jobs.get(job.jobId,actor);expect(queued.status).toBe('queued');expect(queued.attempts).toBe(1);
     expect(await worker.runOnce()).toBe('idle');
@@ -239,7 +242,7 @@ describe.skipIf(!process.env['THEOMEM_PG_URI'])('durable extraction jobs on enfo
     expect(command.stdout).toContain('Durably accepted');
     const facts=createWishlistStore(tenantScopedPool(db.pool),actor);
     expect(await facts.lookup({itemId:'blue-jacket'})).toEqual([{recordId:'blue-jacket',description:'Blue jacket'}]);
-    vi.mocked(llm.generateResponse).mockResolvedValueOnce({memory:[{id:'1',text:'user usually prefers dark colors',
+    extract.mockResolvedValueOnce({memory:[{id:'1',text:'user usually prefers dark colors',
       evidence:{kind:'stated',durability:'durable',sourceQuote:'I usually prefer dark colors.'}}]});
     expect(await worker.runOnce()).toBe('succeeded');
     const sdk=await memory();
@@ -364,7 +367,7 @@ describe.skipIf(!process.env['THEOMEM_PG_URI'])('durable extraction jobs on enfo
   });
 
   test('a job whose input yields no fact still logs the input',async()=>{
-    vi.mocked(llm.generateResponse).mockResolvedValueOnce({memory:[]});
+    extract.mockResolvedValueOnce({memory:[]});
     await jobs.submit({...input,text:'Try chamomile tea before bed',sourceId:'session-a:no-fact'},actor,'log-no-fact');
     expect(await worker.runOnce()).toBe('succeeded');
     const {rows}=await db.setupPool.query<{content:string;embedded:boolean}>(
@@ -373,7 +376,7 @@ describe.skipIf(!process.env['THEOMEM_PG_URI'])('durable extraction jobs on enfo
   });
 
   test('an input that yields no fact links no memory to its logged message',async()=>{
-    vi.mocked(llm.generateResponse).mockResolvedValueOnce({memory:[]});
+    extract.mockResolvedValueOnce({memory:[]});
     await jobs.submit({...input,text:'Try chamomile tea before bed',sourceId:'session-a:no-fact-links'},actor,'log-no-fact-links');
     expect(await worker.runOnce()).toBe('succeeded');
     const {rows}=await db.setupPool.query<{count:number}>('SELECT COUNT(*)::int AS count FROM memory_message_sources');
@@ -385,7 +388,7 @@ describe.skipIf(!process.env['THEOMEM_PG_URI'])('durable extraction jobs on enfo
     expect(await worker.runOnce()).toBe('succeeded');
     await jobs.submit({...input,text:'Mostly navy, actually',sourceId:'session-a:turn-2'},actor,'context-2');
     expect(await worker.runOnce()).toBe('succeeded');
-    const prompt=vi.mocked(llm.generateResponse).mock.calls[1]?.[0]?.[0]?.content??'';
+    const prompt=extract.mock.calls[1]?.[0]?.[0]?.content??'';
     expect(prompt).toContain('## Previous Messages');
     expect(prompt).toContain('user: I prefer dark colors');
   });

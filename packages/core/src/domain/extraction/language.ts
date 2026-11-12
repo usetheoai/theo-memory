@@ -133,3 +133,10 @@ export function detectInputLanguage(text: string): DetectedLanguage | null {
   }
   return { iso6391: code, name };
 }
+
+/** The supported language for an ISO 639-1 code, or `null` when the code is not one of them. */
+export function languageFromCode(code: string): DetectedLanguage | null {
+  const iso6391 = code.trim().toLowerCase();
+  const name = ISO6391_TO_NAME[iso6391];
+  return name === undefined ? null : { iso6391, name };
+}

@@ -217,6 +217,12 @@ export const MEMORY_EVENTS = [
   // facts already match the input language (no-op discipline).
   // @see CLAUDE.md § IMPORTANTE Princípio 3
   'extraction_language_mismatch',
+  // #254: the input language could not be named before extraction, so no language
+  // directive was injected. Attributes `{reason, language?, error?}`: `reason` is
+  // `unsupported_language` (with the ISO 639-1 code given), `malformed_answer`, or
+  // `llm_error` (with the error class name). remember() continues.
+  // @see CLAUDE.md § IMPORTANTE Princípio 3
+  'extraction_language_identification_failed',
   // entity-label-language-determinism EG-5 — the post-extraction label guard rewrote N
   // entity/relation LABELS into the input language (the live-test showed `entities[]`
   // names + `relations[]` labels drift to a different language than the input even when

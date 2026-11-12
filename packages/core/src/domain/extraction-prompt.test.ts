@@ -84,7 +84,11 @@ describe('generateAdditiveExtractionPrompt', () => {
     expect(prompt).toMatch(/SAME language/i);
     expect(prompt).toMatch(/never translate/i);
     // No regression: the existing entity/relation language rule + "user" exception remain.
-    expect(prompt).toMatch(/entity name AND every `relationship`/);
+    expect(prompt).toMatch(/entity name and `relationship` label/);
+    // #254: one label example per language, so no language is the implied default.
+    expect(prompt).toContain('with the label "works as"');
+    expect(prompt).toContain('with the label "mora em"');
+    expect(prompt).not.toContain('"trabalha em" not "works at"');
     expect(prompt).toMatch(/literal token "user"/);
   });
 

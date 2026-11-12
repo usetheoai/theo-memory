@@ -34,6 +34,7 @@ import { createLocalMemory, PgvectorStore, runMigrations } from '@usetheo/memory
 import { LocalTransformerEmbedder } from '@usetheo/memory/embedders/local';
 import { CrossEncoderReranker } from '@usetheo/memory/reranker-local';
 import type { LLM } from '@usetheo/memory';
+import { ENGLISH, isLanguageIdentification } from './_helpers/language-identification.js';
 
 const ROOT_PG_URI = process.env['THEOMEM_PG_URI'] ?? '';
 const ISOLATED_DB = 'themem_reranker_goal';
@@ -49,7 +50,8 @@ const QUERY = 'what programming language should I learn for data science';
 function makeQueueLlm(facts: readonly string[]): LLM {
   let i = 0;
   return {
-    generateResponse: async () => {
+    generateResponse: async (messages) => {
+      if (isLanguageIdentification(messages)) return ENGLISH;
       const text = facts[Math.min(i, facts.length - 1)] ?? '';
       i += 1;
       return { memory: [{ id: String(i), text }] };

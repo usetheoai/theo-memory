@@ -39,7 +39,8 @@ describe('extraction prompt — durable-fact discipline (M27)', () => {
 
   test('preserves the language/accent directive (regression guard)', () => {
     // The existing per-input-language + accent block must not be dropped by the new few-shot.
-    expect(composed()).toContain('NEVER translate or transliterate');
+    expect(composed()).toContain('NEVER translate,');
+    expect(composed()).toContain('transliterate or mix languages');
   });
 });
 

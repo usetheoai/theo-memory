@@ -36,7 +36,8 @@ import { prepareExtractedEvidence, extractedMemoryEvidence } from './evidence.js
 import { applyFactGate } from './fact-gate.js';
 import { scoreNewFacts } from './importance-scoring.js';
 import { correctEntityRelationLanguage } from './label-language.js';
-import { detectInputLanguage } from './language.js';
+import { identifyInputLanguage } from './language-identification.js';
+import { detectInputLanguage, type DetectedLanguage } from './language.js';
 import { coerceExtractionResponse } from './normalize.js';
 import { applyOntologyToEntities, boundedAutoCategory, buildPayload, embedBatchWithFallback, extractResponseText, patchItemsWithOutcomes, persistWithFallback, runInferFalsePath, scopeFromFilters, toMemoryItem } from './pipeline-helpers.js';
 import type { ExtractionDeps, Payload } from './pipeline-helpers.js';
@@ -189,11 +190,26 @@ async function extractAndPersist(
   // ============================================================
   // Phase 2: LLM extraction (single call; Zod parse with EC-10 fallback)
   // ============================================================
-  // EG-4 fixes-cycle-1 (D1): deterministically detect the input language and inject
-  // the EXPLICIT target-language name into the extraction prompt. A concrete "write in
-  // English" instruction is followed far more reliably than the model self-detecting
-  // (live-test 2026-06-23: self-detect stored English inputs as Portuguese facts).
-  const detectedLanguage = detectInputLanguage(messages.map((m) => m.content).join('\n'));
+  // EG-4 fixes-cycle-1 (D1): name the input language and inject it into the extraction
+  // prompt; a concrete "write in English" instruction is followed more reliably than the
+  // model self-detecting. #254: the language is named by the LLM on the input with its
+  // proper names and numbers masked, because a character-statistics detector (and the model
+  // on the raw text) names "Mihaela's nephew Sorin is a pilot." Romanian. When it cannot be
+  // named, no directive is injected and `extraction_language_identification_failed` says why.
+  const inputText = messages.map((m) => m.content).join('\n');
+  let detectedLanguage: DetectedLanguage | null = null;
+  if (inputText.trim().length > 0) {
+    const identification = await identifyInputLanguage(deps.llm, inputText);
+    if (identification.ok) {
+      detectedLanguage = identification.language;
+    } else {
+      emitEvent(tracer, 'extraction_language_identification_failed', {
+        reason: identification.reason,
+        ...(identification.code === undefined ? {} : { language: identification.code }),
+        ...(identification.error === undefined ? {} : { error: identification.error }),
+      });
+    }
+  }
   // auto-categorization-write-pipeline T3.1 — default-on (ADR D3). When enabled, the
   // taxonomy is injected into the prompt so the LLM emits a per-fact category.
   const autoCategorizeEnabled = deps.autoCategorize?.enabled !== false;

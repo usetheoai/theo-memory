@@ -11,6 +11,7 @@ import { createLocalMemory, MAX_EMBEDDING_DIM, PgMessageLog, PgvectorStore } fro
 import type { Embedder, LLM, Memory } from '@usetheo/memory';
 
 import { createIsolatedDb, type IsolatedDb } from './_helpers/isolated-db.js';
+import { ENGLISH, isLanguageIdentification } from './_helpers/language-identification.js';
 
 const PG_URI = process.env['THEOMEM_PG_URI'];
 
@@ -33,6 +34,7 @@ function echoLlm(): LLM & { prompts: string[] } {
   return {
     prompts,
     generateResponse: (messages) => {
+      if (isLanguageIdentification(messages)) return Promise.resolve(ENGLISH);
       const system = messages[0]?.content ?? '';
       prompts.push(system);
       const newPart = system.slice(system.lastIndexOf('## New Messages'));
