@@ -596,7 +596,7 @@ async function extractAndPersist(
   // ============================================================
   if (detectedLanguage !== null && (llmEntities !== undefined || relations !== undefined)) {
     try {
-      const labelFix = await correctEntityRelationLanguage(deps.llm, llmEntities, relations, detectedLanguage);
+      const labelFix = await correctEntityRelationLanguage(deps.llm, llmEntities, relations, detectedLanguage, messages.map((m) => m.content).join('\n'));
       llmEntities = labelFix.entities;
       relations = labelFix.relations;
       if (labelFix.corrected > 0) {
