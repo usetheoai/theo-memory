@@ -93,3 +93,34 @@ describe('TriadicScoringPolicy.selectVictims with a distance-only provider', () 
     expect([...victims].sort()).toEqual(['a', 'b']);
   });
 });
+
+describe('TriadicScoringPolicy.selectVictims when the rule cannot fill the quota', () => {
+  /**
+   * Three copies of one fact and three unrelated memories. The unrelated ones are far from
+   * everything, so their nearest neighbour is an arbitrary tie; here it is copy3, which the
+   * rule evicts first. Every unrelated memory is then skipped, and the quota is filled from
+   * the remaining candidates.
+   */
+  const ties: Record<string, { id: string; distance: number }> = {
+    copy1: { id: 'copy2', distance: 0 },
+    copy2: { id: 'copy1', distance: 0 },
+    copy3: { id: 'copy2', distance: 0 },
+    far1: { id: 'copy3', distance: 1 },
+    far2: { id: 'copy3', distance: 1 },
+    far3: { id: 'copy3', distance: 1 },
+  };
+  const provider: NearestNeighborProvider = {
+    distance: (id) => Promise.resolve(ties[id]!.distance),
+    nearest: (id) => Promise.resolve(ties[id] ?? null),
+  };
+  const scopeOfSix = ['copy1', 'copy2', 'copy3', 'far1', 'far2', 'far3'].map(memory);
+
+  it('fills the quota from unprotected candidates before the last copy of a fact', async () => {
+    const policy = new TriadicScoringPolicy({ neighborProvider: provider, evictor });
+
+    const victims = await policy.selectVictims(scopeOfSix, 0.5, context);
+
+    expect(victims).toHaveLength(3);
+    expect(['copy1', 'copy2', 'copy3'].filter((id) => !victims.includes(id)).length).toBeGreaterThanOrEqual(1);
+  });
+});

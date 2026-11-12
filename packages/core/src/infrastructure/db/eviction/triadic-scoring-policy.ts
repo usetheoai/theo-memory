@@ -432,7 +432,12 @@ export class TriadicScoringPolicy implements EvictionPolicy {
       victims.add(id);
       if (neighbour !== undefined) protectedIds.add(neighbour);
     }
-    for (const { id } of order) {
+    // Fill the rest of the quota. Unprotected memories go first: a memory skipped above because
+    // its nearest neighbour is a victim may be far from everything (an arbitrary tie at the
+    // maximum distance), while a protected memory is the copy kept for a victim's fact. Taking
+    // the protected ones in plain score order evicted the last copy (#240).
+    const fill = [...order.filter(({ id }) => !protectedIds.has(id)), ...order.filter(({ id }) => protectedIds.has(id))];
+    for (const { id } of fill) {
       if (victims.size >= victimCount) break;
       victims.add(id);
     }
