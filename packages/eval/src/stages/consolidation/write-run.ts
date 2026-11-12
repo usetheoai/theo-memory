@@ -61,6 +61,7 @@ try {
   const questions: { user: string; query: string; asOf: string | undefined; kind: QuestionKind; answer: boolean; stale: boolean; top: string[] }[] = [];
   const supersessions: { user: string; replaced: string; by: string; replacedKind: string | null; byKind: string | null }[] = [];
   const memories: { user: string; text: string; factKind: string | null; current: boolean }[] = [];
+  const relations: { user: string; relation: string }[] = [];
   const stored: { user: string; facts: number; memories: number; current: number }[] = [];
 
   const ask = async (scope: ReturnType<typeof memory.user>, q: JudgeQuestion) => {
@@ -96,6 +97,9 @@ try {
       [user.id],
     );
     for (const m of mems) memories.push({ user: user.id, text: m.text, factKind: m.fact_kind, current: m.current });
+    // Relation labels carry the language of the input too (#254); entity names are proper names and do not.
+    const { rows: rels } = await pool.query<{ relation: string }>(`SELECT relation FROM entity_edges WHERE user_id = $1 ORDER BY created_at`, [user.id]);
+    for (const r of rels) relations.push({ user: user.id, relation: r.relation });
     for (const q of user.questions) {
       const result = await ask(scope, q);
       questions.push({ user: user.id, query: q.query, asOf: q.asOf, kind: questionKind(user, q), ...result });
@@ -120,7 +124,7 @@ try {
     stored,
   };
   mkdirSync(dirname(outPath), { recursive: true });
-  writeFileSync(outPath, JSON.stringify({ caseFile, model: process.env['OPENAI_CHAT_MODEL'], factListSize: FACT_LIST_SIZE, summary, supersessions, memories, questions }, null, 2));
+  writeFileSync(outPath, JSON.stringify({ caseFile, model: process.env['OPENAI_CHAT_MODEL'], factListSize: FACT_LIST_SIZE, summary, supersessions, memories, relations, questions }, null, 2));
   console.log(JSON.stringify(summary, null, 2));
 } finally {
   await pool.end();
