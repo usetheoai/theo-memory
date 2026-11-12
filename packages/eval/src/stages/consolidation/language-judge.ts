@@ -48,8 +48,11 @@ async function judge(texts: readonly string[], model: string): Promise<string[]>
   if (!response.ok) throw new Error(`Judge request to ${model} failed: HTTP ${response.status}`);
   const body = (await response.json()) as { choices: { message: { content: string } }[] };
   const languages = verdictSchema.parse(JSON.parse(body.choices[0]?.message.content ?? '{}')).languages;
-  if (languages.length !== texts.length) throw new Error(`Judge ${model} returned ${languages.length} codes for ${texts.length} texts`);
-  return languages.map((l) => l.toLowerCase());
+  if (languages.length === texts.length) return languages.map((l) => l.toLowerCase());
+  // A model can answer a batch with fewer codes than texts; judge that batch one text per call.
+  if (texts.length === 1) throw new Error(`Judge ${model} returned ${languages.length} codes for 1 text`);
+  const single = await Promise.all(texts.map((t) => judge([t], model)));
+  return single.map((codes) => codes[0]!);
 }
 
 function majority(votes: readonly string[]): string | null {
