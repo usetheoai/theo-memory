@@ -1,0 +1,741 @@
+{
+  "users": [
+    {
+      "id": "tp3-cornelius",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Cornelius's niece Tamsin is a geologist.",
+          "observedAt": "2025-06-02",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Cornelius's landlord Barnabas owns a pub.",
+          "observedAt": "2025-06-05",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Cornelius rides a Ducati.",
+          "observedAt": "2025-06-08",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Cornelius works as a roofer.",
+          "observedAt": "2025-06-11",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Cornelius keeps parrots.",
+          "observedAt": "2025-06-14",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Cornelius dislikes jazz.",
+          "observedAt": "2025-06-17",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What is Cornelius's niece?",
+          "pattern": "geologist"
+        },
+        {
+          "query": "What does Cornelius's landlord own?",
+          "pattern": "\\bpub"
+        },
+        {
+          "query": "What motorbike does Cornelius ride?",
+          "pattern": "Ducati"
+        },
+        {
+          "query": "What is Cornelius's job?",
+          "pattern": "roofer"
+        },
+        {
+          "query": "What birds does Cornelius keep?",
+          "pattern": "parrots"
+        },
+        {
+          "query": "What music does Cornelius dislike?",
+          "pattern": "jazz"
+        }
+      ]
+    },
+    {
+      "id": "tp3-josefina",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "O irmão de Josefina, Valdomiro, é pedreiro.",
+          "observedAt": "2025-06-20",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "A madrinha de Josefina, Conceição, mora em Caruaru.",
+          "observedAt": "2025-06-23",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Josefina tem uma Kombi.",
+          "observedAt": "2025-06-26",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Josefina trabalha como costureira.",
+          "observedAt": "2025-06-29",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Josefina cria porquinhos-da-índia.",
+          "observedAt": "2025-07-02",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Josefina é asmática.",
+          "observedAt": "2025-07-05",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "O que é o irmão de Josefina?",
+          "pattern": "pedreiro"
+        },
+        {
+          "query": "Onde mora a madrinha de Josefina?",
+          "pattern": "Caruaru"
+        },
+        {
+          "query": "Que carro Josefina tem?",
+          "pattern": "Kombi"
+        },
+        {
+          "query": "Qual é a profissão de Josefina?",
+          "pattern": "costureira"
+        },
+        {
+          "query": "O que Josefina cria?",
+          "pattern": "porquinhos"
+        },
+        {
+          "query": "Que condição Josefina tem?",
+          "pattern": "asm[áa]tica"
+        }
+      ]
+    },
+    {
+      "id": "tp3-leocadio",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "La nieta de Leocadio, Ainhoa, estudia química.",
+          "observedAt": "2025-07-08",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "El socio de Leocadio, Casimiro, tiene una imprenta.",
+          "observedAt": "2025-07-11",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Leocadio conduce un Tata Nano.",
+          "observedAt": "2025-07-14",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Leocadio trabaja como relojero.",
+          "observedAt": "2025-07-17",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Leocadio cría canarios.",
+          "observedAt": "2025-07-20",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Leocadio es diabético.",
+          "observedAt": "2025-07-23",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "¿Qué estudia la nieta de Leocadio?",
+          "pattern": "qu[íi]mica"
+        },
+        {
+          "query": "¿Qué tiene el socio de Leocadio?",
+          "pattern": "imprenta"
+        },
+        {
+          "query": "¿Qué coche conduce Leocadio?",
+          "pattern": "Nano"
+        },
+        {
+          "query": "¿En qué trabaja Leocadio?",
+          "pattern": "relojero"
+        },
+        {
+          "query": "¿Qué cría Leocadio?",
+          "pattern": "canarios"
+        },
+        {
+          "query": "¿Qué condición tiene Leocadio?",
+          "pattern": "diab[ée]tico"
+        }
+      ]
+    },
+    {
+      "id": "tp3-wolfram",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Der Schwager von Wolfram, Detlef, ist Zahnarzt.",
+          "observedAt": "2025-07-26",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Die Nichte von Wolfram, Mareike, wohnt in Husum.",
+          "observedAt": "2025-07-29",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Wolfram fährt einen Trabant.",
+          "observedAt": "2025-08-01",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Wolfram arbeitet als Dachdecker.",
+          "observedAt": "2025-08-04",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Wolfram hält Wellensittiche.",
+          "observedAt": "2025-08-07",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Wolfram ist Linkshänder.",
+          "observedAt": "2025-08-10",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Was ist der Schwager von Wolfram?",
+          "pattern": "Zahnarzt"
+        },
+        {
+          "query": "Wo wohnt die Nichte von Wolfram?",
+          "pattern": "Husum"
+        },
+        {
+          "query": "Welches Auto fährt Wolfram?",
+          "pattern": "Trabant"
+        },
+        {
+          "query": "Als was arbeitet Wolfram?",
+          "pattern": "Dachdecker"
+        },
+        {
+          "query": "Was hält Wolfram?",
+          "pattern": "Wellensittich"
+        },
+        {
+          "query": "Welche Hand benutzt Wolfram?",
+          "pattern": "Linksh[äa]nder"
+        }
+      ]
+    },
+    {
+      "id": "tp3-apolline",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Le parrain d'Apolline, Gonzague, est notaire.",
+          "observedAt": "2025-08-13",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "La sœur d'Apolline, Bérénice, vit à Morlaix.",
+          "observedAt": "2025-08-16",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Apolline conduit une Simca.",
+          "observedAt": "2025-08-19",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Apolline travaille comme fleuriste.",
+          "observedAt": "2025-08-22",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Apolline élève des canards.",
+          "observedAt": "2025-08-25",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Apolline est daltonienne.",
+          "observedAt": "2025-08-28",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Que fait le parrain d'Apolline ?",
+          "pattern": "notaire"
+        },
+        {
+          "query": "Où vit la sœur d'Apolline ?",
+          "pattern": "Morlaix"
+        },
+        {
+          "query": "Quelle voiture conduit Apolline ?",
+          "pattern": "Simca"
+        },
+        {
+          "query": "Quel est le métier d'Apolline ?",
+          "pattern": "fleuriste"
+        },
+        {
+          "query": "Qu'élève Apolline ?",
+          "pattern": "canards"
+        },
+        {
+          "query": "Quelle condition a Apolline ?",
+          "pattern": "daltonien"
+        }
+      ]
+    },
+    {
+      "id": "tp3-gianluca",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "La moglie di Gianluca, Rosaria, fa la maestra.",
+          "observedAt": "2025-08-31",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Il nonno di Gianluca, Ercole, vive a Matera.",
+          "observedAt": "2025-09-03",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Gianluca guida un Ape Piaggio.",
+          "observedAt": "2025-09-06",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Gianluca lavora come sarto.",
+          "observedAt": "2025-09-09",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Gianluca alleva conigli.",
+          "observedAt": "2025-09-12",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Gianluca è astemio.",
+          "observedAt": "2025-09-15",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Che lavoro fa la moglie di Gianluca?",
+          "pattern": "maestra"
+        },
+        {
+          "query": "Dove vive il nonno di Gianluca?",
+          "pattern": "Matera"
+        },
+        {
+          "query": "Che cosa guida Gianluca?",
+          "pattern": "Ape"
+        },
+        {
+          "query": "Che lavoro fa Gianluca?",
+          "pattern": "sarto"
+        },
+        {
+          "query": "Che cosa alleva Gianluca?",
+          "pattern": "conigli"
+        },
+        {
+          "query": "Che cosa è Gianluca?",
+          "pattern": "astemio"
+        }
+      ]
+    },
+    {
+      "id": "tp3-self-pt",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Minha sogra Iracema é dentista.",
+          "observedAt": "2025-09-18",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Meu primo Josué conserta bicicletas.",
+          "observedAt": "2025-09-21",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Eu tenho uma Brasília amarela.",
+          "observedAt": "2025-09-24",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Eu trabalho como vidraceiro.",
+          "observedAt": "2025-09-27",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Eu sou alérgico a abelha.",
+          "observedAt": "2025-09-30",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Eu crio codornas.",
+          "observedAt": "2025-10-03",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "O que é a sogra do usuário?",
+          "pattern": "dentista"
+        },
+        {
+          "query": "O que conserta o primo do usuário?",
+          "pattern": "bicicletas"
+        },
+        {
+          "query": "Que carro o usuário tem?",
+          "pattern": "Bras[íi]lia"
+        },
+        {
+          "query": "Qual é a profissão do usuário?",
+          "pattern": "vidraceiro"
+        },
+        {
+          "query": "A que o usuário é alérgico?",
+          "pattern": "abelha"
+        },
+        {
+          "query": "O que o usuário cria?",
+          "pattern": "codornas"
+        }
+      ]
+    },
+    {
+      "id": "tp3-self-es",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Mi suegro Evaristo es carpintero.",
+          "observedAt": "2025-10-06",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Mi prima Nieves vive en Lugo.",
+          "observedAt": "2025-10-09",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Yo conduzco un Seiscientos.",
+          "observedAt": "2025-10-12",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Trabajo como cartero.",
+          "observedAt": "2025-10-15",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Soy alérgica al marisco.",
+          "observedAt": "2025-10-18",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Tengo dos tortugas.",
+          "observedAt": "2025-10-21",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "¿Qué es el suegro del usuario?",
+          "pattern": "carpintero"
+        },
+        {
+          "query": "¿Dónde vive la prima del usuario?",
+          "pattern": "Lugo"
+        },
+        {
+          "query": "¿Qué coche conduce el usuario?",
+          "pattern": "Seiscientos"
+        },
+        {
+          "query": "¿En qué trabaja el usuario?",
+          "pattern": "cartero"
+        },
+        {
+          "query": "¿A qué es alérgico el usuario?",
+          "pattern": "marisco"
+        },
+        {
+          "query": "¿Qué mascotas tiene el usuario?",
+          "pattern": "tortugas"
+        }
+      ]
+    },
+    {
+      "id": "tp3-self-de",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Meine Tante Gerlinde ist Hebamme.",
+          "observedAt": "2025-10-24",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Mein Neffe Malte spielt Tuba.",
+          "observedAt": "2025-10-27",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Ich fahre einen Wartburg.",
+          "observedAt": "2025-10-30",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Ich arbeite als Glaser.",
+          "observedAt": "2025-11-02",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Ich bin gegen Gräser allergisch.",
+          "observedAt": "2025-11-05",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Ich halte Hühner.",
+          "observedAt": "2025-11-08",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Was ist die Tante des Nutzers?",
+          "pattern": "Hebamme"
+        },
+        {
+          "query": "Welches Instrument spielt der Neffe des Nutzers?",
+          "pattern": "Tuba"
+        },
+        {
+          "query": "Welches Auto fährt der Nutzer?",
+          "pattern": "Wartburg"
+        },
+        {
+          "query": "Als was arbeitet der Nutzer?",
+          "pattern": "Glaser"
+        },
+        {
+          "query": "Wogegen ist der Nutzer allergisch?",
+          "pattern": "Gr[äa]ser"
+        },
+        {
+          "query": "Welche Tiere hält der Nutzer?",
+          "pattern": "H[üu]hner"
+        }
+      ]
+    },
+    {
+      "id": "tp3-self-fr",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Ma tante Solange est fromagère.",
+          "observedAt": "2025-11-11",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Mon fils Philibert joue du hautbois.",
+          "observedAt": "2025-11-14",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Je conduis une Facel Vega.",
+          "observedAt": "2025-11-17",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Je travaille comme couvreur.",
+          "observedAt": "2025-11-20",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Je suis allergique aux noix.",
+          "observedAt": "2025-11-23",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "J'élève des oies.",
+          "observedAt": "2025-11-26",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Que fait la tante de l'utilisateur ?",
+          "pattern": "fromag[èe]re"
+        },
+        {
+          "query": "De quel instrument joue le fils de l'utilisateur ?",
+          "pattern": "hautbois"
+        },
+        {
+          "query": "Quelle voiture conduit l'utilisateur ?",
+          "pattern": "Vega"
+        },
+        {
+          "query": "Quel est le métier de l'utilisateur ?",
+          "pattern": "couvreur"
+        },
+        {
+          "query": "À quoi l'utilisateur est-il allergique ?",
+          "pattern": "noix"
+        },
+        {
+          "query": "Qu'élève l'utilisateur ?",
+          "pattern": "oies"
+        }
+      ]
+    },
+    {
+      "id": "tp3-self-it",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Mia cognata Assunta fa la parrucchiera.",
+          "observedAt": "2025-11-29",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Mio zio Pasquale vive a Avellino.",
+          "observedAt": "2025-12-02",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Guido una Bianchina.",
+          "observedAt": "2025-12-05",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Lavoro come falegname.",
+          "observedAt": "2025-12-08",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Sono allergico alle fragole.",
+          "observedAt": "2025-12-11",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Allevo galline.",
+          "observedAt": "2025-12-14",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Che lavoro fa la cognata dell'utente?",
+          "pattern": "parrucchiera"
+        },
+        {
+          "query": "Dove vive lo zio dell'utente?",
+          "pattern": "Avellino"
+        },
+        {
+          "query": "Che auto guida l'utente?",
+          "pattern": "Bianchina"
+        },
+        {
+          "query": "Che lavoro fa l'utente?",
+          "pattern": "falegname"
+        },
+        {
+          "query": "A che cosa è allergico l'utente?",
+          "pattern": "fragole"
+        },
+        {
+          "query": "Che cosa alleva l'utente?",
+          "pattern": "galline"
+        }
+      ]
+    }
+  ]
+}
