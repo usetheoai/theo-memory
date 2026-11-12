@@ -2,8 +2,10 @@
  * Static-shape validation for `.github/workflows/publish.yml` + `.trivyignore`.
  *
  * The image build/scan/sign/push logic lives in the org's shared reusable
- * `usetheoai/theo/.github/workflows/build-publish.yml`, pinned by commit SHA; `publish.yml` is a
- * thin caller. From 2026-07-27 (#156) to 2026-09-29 it called a VENDORED local copy instead,
+ * `usetheoai/.github/.github/workflows/build-publish.yml`, pinned by commit SHA; `publish.yml` is a
+ * thin caller. It moved out of the private `usetheoai/theo` on 2026-11-12, when this repository
+ * became public: GitHub refuses, at load time and with no log, a call from a public repository to
+ * a reusable workflow in a private one. From 2026-07-27 (#156) to 2026-09-29 it called a VENDORED local copy instead,
  * because the reusable lived under another owner and GitHub does not share a private reusable
  * across owners. The engine moved to `usetheoai`, the copy was deleted, and the tests that
  * guarded the copy's own internals went with it: this repository can no longer read them.
@@ -40,7 +42,10 @@ describe('publish workflow (caller of the reusable build-publish) + .trivyignore
     // Pinned by a full commit SHA, not by a branch: a moving `@develop` would change how this
     // image is built without a commit in this repository.
     expect(yaml).toMatch(
-      /uses:\s*usetheoai\/theo\/\.github\/workflows\/build-publish\.yml@[0-9a-f]{40}\b/,
+      /uses:\s*usetheoai\/\.github\/\.github\/workflows\/build-publish\.yml@[0-9a-f]{40}\b/,
+    );
+    expect(yaml, 'a public repository cannot call the reusable in the private usetheoai/theo').not.toMatch(
+      /uses:\s*usetheoai\/theo\/\.github\/workflows\//,
     );
     expect(yaml, 'the vendored copy must not come back as the reference').not.toMatch(
       /uses:\s*\.\/\.github\/workflows\/build-publish\.yml/,

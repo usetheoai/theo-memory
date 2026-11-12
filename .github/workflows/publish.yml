@@ -155,7 +155,11 @@ jobs:
       packages: write
       id-token: write
       attestations: write
-    uses: usetheoai/theo/.github/workflows/build-publish.yml@1596e81f2ab64a4eb08a7d180e33639138f96b7f # develop
+    # The shared reusable lives in the PUBLIC usetheoai/.github. This repository is public, and
+    # GitHub refuses, at load time and with no log, a call from a public repository to a reusable
+    # in a private one: the develop publish of 31655b0 died that way against usetheoai/theo. The
+    # file there is a copy of usetheoai/theo at 1596e81, with no change to its steps.
+    uses: usetheoai/.github/.github/workflows/build-publish.yml@d6c4912d02a37fda477644c0b8f83cb3a317c0f3 # main
     with:
       # `theo-memory`, not `themory`: the repository name, which is the sibling convention
       # (theo-lens -> theo-lens, theo-rag -> theo-rag). It is also the name of the ECR repository.
@@ -180,12 +184,14 @@ jobs:
       # (`github.com/${github.repository}/.github/workflows/build-publish.yml@`), while a
       # certificate signed inside a reusable workflow carries the REUSABLE's path. Measured
       # 2026-09-29 on the Rekor entry of theo-cloud's image signed by this same reusable at this
-      # same SHA: SAN = `https://github.com/usetheoai/theo/.github/workflows/build-publish.yml@1596e81…`.
+      # same SHA: SAN = `https://github.com/usetheoai/theo/.github/workflows/build-publish.yml@1596e81…`
+      # (the reusable then lived in usetheoai/theo; it is now usetheoai/.github, so the SAN names
+      # that path).
       # With `verify: true` every run would fail AFTER the push, reporting red for an image that
       # was published. The signature itself is still produced. Verify it by pinning BOTH the
       # reusable (the SAN) and this repository (the caller claim), or any org repo calling the same
       # reusable would satisfy the check:
-      #   --certificate-identity-regexp '^https://github\.com/usetheoai/theo/\.github/workflows/build-publish\.yml@'
+      #   --certificate-identity-regexp '^https://github\.com/usetheoai/\.github/\.github/workflows/build-publish\.yml@'
       #   --certificate-github-workflow-repository usetheoai/theo-memory
       verify: false
       # Amazon ECR, the registry the platform pulls from, by the full commit SHA tag
