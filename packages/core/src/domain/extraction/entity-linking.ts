@@ -15,6 +15,7 @@ import type { Embedder } from '../dip/embedder.js';
 import type { EntityExtractor } from '../dip/entity-extractor.js';
 import type { EntityToLink, MemoryEntityStore } from '../dip/memory-entity-store.js';
 import type { EdgeToLink, MemoryGraphStore } from '../dip/memory-graph-store.js';
+import { entityKeysNamedIn, normalizeEntityKey } from '../entity-key.js';
 import { emitEvent } from '../memory-event.js';
 import type { MemoryItem } from '../memory-item.js';
 import { ONTOLOGY_FALLBACK_TYPE } from '../ontology.js';
@@ -45,10 +46,7 @@ export interface EntityLinkingDeps {
   readonly memoryGraphStore?: MemoryGraphStore;
 }
 
-/** Lowercase + underscore the surface name → the per-scope dedup key (EC-1). */
-export function normalizeEntityKey(name: string): string {
-  return name.trim().toLowerCase().replace(/\s+/g, '_');
-}
+export { normalizeEntityKey };
 
 /** One named entity as the LLM emits it — multilingual surface name (original
  *  language/script, diacritics preserved) + a coarse type hint. */
@@ -72,6 +70,16 @@ export interface LlmEntity {
  *  full MemoryItem envelope. Full MemoryItem satisfies the Pick structurally. */
 export type LinkableItem = Pick<MemoryItem, 'id' | 'text'>;
 
+/**
+ * The facts of one write that name `key`, by the same word rule recall uses to decide which
+ * entities a query names. One extraction call returns its entities for the whole input, not
+ * per fact; linking all of them to the first fact left the other facts without the entities
+ * they name, and gave the first fact entities it does not name.
+ */
+function factsNaming(key: string, items: readonly LinkableItem[]): string[] {
+  return items.filter((item) => entityKeysNamedIn(item.text, [key]).length > 0).map((item) => item.id);
+}
+
 export async function linkEntities(
   items: readonly LinkableItem[],
   filters: Filters,
@@ -92,11 +100,12 @@ export async function linkEntities(
   // missing endpoints (EC-5), avoiding duplicate rows.
   const linkedKeys = new Set<string>();
 
-  /** Embed + upsert candidate names as nodes linked to ONE memory. Drops EC-2
-   *  short names, relation-verb noise, in-batch dups, and F-M2 empty embeddings. */
+  /** Embed + upsert candidate names as nodes, each linked to the memories `targetsOf`
+   *  names for its key. Drops EC-2 short names, relation-verb noise, in-batch dups, and
+   *  F-M2 empty embeddings. Each name is embedded once, however many memories it links to. */
   const upsertNodes = async (
     candidates: readonly { type: EntityToLink['type']; name: string; normalizedKey: string }[],
-    memoryId: string,
+    targetsOf: (normalizedKey: string) => readonly string[],
   ): Promise<void> => {
     const seen = new Set<string>();
     const sized = candidates.filter((e) => e.name.length >= 2 && e.normalizedKey.length >= 2); // EC-2
@@ -120,12 +129,20 @@ export async function linkEntities(
       .map((e, i) => ({ type: e.type, name: e.name, normalizedKey: e.normalizedKey, embedding: embeddings[i] ?? [] }))
       .filter((e) => e.embedding.length > 0); // F-M2: no zero-dim '[]'::vector
     if (entities.length === 0) return;
-    await memoryEntityStore.upsertAndLink({
-      memoryId,
-      workspaceId: filters.workspace_id ?? 'default',
-      filters,
-      entities,
-    });
+    const byMemory = new Map<string, EntityToLink[]>();
+    for (const entity of entities) {
+      for (const memoryId of targetsOf(entity.normalizedKey)) {
+        byMemory.set(memoryId, [...(byMemory.get(memoryId) ?? []), entity]);
+      }
+    }
+    for (const [memoryId, linked] of byMemory) {
+      await memoryEntityStore.upsertAndLink({
+        memoryId,
+        workspaceId: filters.workspace_id ?? 'default',
+        filters,
+        entities: linked,
+      });
+    }
     for (const e of entities) linkedKeys.add(e.normalizedKey);
   };
 
@@ -135,8 +152,9 @@ export async function linkEntities(
 
   try {
     if (useLlmEntities && anchorId !== undefined) {
-      // PRIMARY (multilingual): LLM-extracted nodes, anchored to the call's
-      // representative memory (mirrors EC-5 edge-endpoint anchoring).
+      // PRIMARY (multilingual): LLM-extracted nodes, linked to every fact of the call that
+      // names them. A name no fact contains (the model normalized or translated it) stays
+      // on the first fact, as before, so no extracted entity loses its only link.
       await upsertNodes(
         llmEntities.map((e) => ({
           // M13 T1.1 (ADR D1, #111) — the SEMANTIC type is honored on EVERY path:
@@ -150,7 +168,10 @@ export async function linkEntities(
           name: e.name.trim(),
           normalizedKey: normalizeEntityKey(e.name),
         })),
-        anchorId,
+        (key) => {
+          const naming = factsNaming(key, items);
+          return naming.length > 0 ? naming : [anchorId];
+        },
       );
     } else if (entityExtractor !== undefined) {
       // FALLBACK (English-only): compromise, per-item. Used on the infer:false
@@ -163,7 +184,7 @@ export async function linkEntities(
             // (PROPER/COMPOUND/QUOTED); they carry no domain semantics and the
             // M13 DoD zeroes them, so fallback entities persist as OTHER.
             .map((e) => ({ type: ONTOLOGY_FALLBACK_TYPE, name: e.name.trim(), normalizedKey: normalizeEntityKey(e.name) })),
-          item.id,
+          () => [item.id],
         );
       }
     }
@@ -183,10 +204,11 @@ export async function linkEntities(
 }
 
 /**
- * Link relation EDGES for the call. Provenance `source_memory_id = items[0].id`
- * (the representative memory of THIS remember() call — the same triple from a
- * separate call yields a different first-memory → `memoryCount` aggregates per
- * EC-1). Endpoints are resolved by name in the store; unresolved → skipped (D5).
+ * Link relation EDGES for the call. Provenance `source_memory_id` is the first fact of the
+ * call that names both ends of the edge; failing that, the first that names either end;
+ * failing that, the call's first fact. The same triple from a separate call has a different
+ * source memory, so `memoryCount` aggregates per EC-1. Endpoints are resolved by name in the
+ * store; unresolved → skipped (D5).
  */
 async function linkEdges(
   items: readonly LinkableItem[],
@@ -223,18 +245,36 @@ async function linkEdges(
       }));
     if (edges.length === 0) return;
 
+    const provenanceOf = (edge: EdgeToLink): string => {
+      const source = new Set(factsNaming(edge.normalizedSourceKey, items));
+      const target = new Set(factsNaming(edge.normalizedTargetKey, items));
+      const both = items.find((item) => source.has(item.id) && target.has(item.id));
+      const either = items.find((item) => source.has(item.id) || target.has(item.id));
+      return (both ?? either)?.id ?? anchorId;
+    };
+    const edgesByMemory = new Map<string, EdgeToLink[]>();
+    for (const edge of edges) {
+      const memoryId = provenanceOf(edge);
+      edgesByMemory.set(memoryId, [...(edgesByMemory.get(memoryId) ?? []), edge]);
+    }
+
     // EC-5: the LLM's relation endpoints are authoritative entities. compromise
     // may have missed some (e.g. single-token "NASA"); without the node the edge
     // cannot resolve (D5 skip) — the live test showed this drops most edges. For
     // every endpoint NOT already a node, upsert it as a node (embedded via the
-    // SAME embedder) linked to the anchor memory, so the edge resolves. Endpoints
-    // compromise already extracted (in linkedKeys) are skipped to avoid dup rows.
+    // SAME embedder) linked to the facts that name it, or to the provenance fact of
+    // the first edge that needs it, so the edge resolves. Endpoints already linked
+    // (in linkedKeys) are skipped to avoid dup rows.
     const memoryEntityStore = deps.memoryEntityStore;
     if (memoryEntityStore !== undefined) {
       const missing = new Map<string, string>(); // normalizedKey -> surface name
+      const fallbackFor = new Map<string, string>(); // normalizedKey -> provenance memory
       for (const e of edges) {
-        if (!linkedKeys.has(e.normalizedSourceKey)) missing.set(e.normalizedSourceKey, e.sourceName.trim());
-        if (!linkedKeys.has(e.normalizedTargetKey)) missing.set(e.normalizedTargetKey, e.targetName.trim());
+        for (const [key, name] of [[e.normalizedSourceKey, e.sourceName], [e.normalizedTargetKey, e.targetName]] as const) {
+          if (linkedKeys.has(key) || missing.has(key)) continue;
+          missing.set(key, name.trim());
+          fallbackFor.set(key, provenanceOf(e));
+        }
       }
       const names = [...missing.values()].filter((n) => n.length >= 2);
       if (names.length > 0) {
@@ -250,24 +290,33 @@ async function linkEdges(
             embedding: embeddings[i] ?? [],
           }))
           .filter((e) => e.embedding.length > 0 && e.normalizedKey.length >= 2);
-        if (endpointEntities.length > 0) {
+        const byMemory = new Map<string, EntityToLink[]>();
+        for (const entity of endpointEntities) {
+          const naming = factsNaming(entity.normalizedKey, items);
+          for (const memoryId of naming.length > 0 ? naming : [fallbackFor.get(entity.normalizedKey) ?? anchorId]) {
+            byMemory.set(memoryId, [...(byMemory.get(memoryId) ?? []), entity]);
+          }
+        }
+        for (const [memoryId, linked] of byMemory) {
           await memoryEntityStore.upsertAndLink({
-            memoryId: anchorId,
+            memoryId,
             workspaceId: filters.workspace_id ?? 'default',
             filters,
-            entities: endpointEntities,
+            entities: linked,
           });
-          for (const e of endpointEntities) linkedKeys.add(e.normalizedKey);
         }
+        for (const e of endpointEntities) linkedKeys.add(e.normalizedKey);
       }
     }
 
-    await memoryGraphStore.upsertEdges({
-      memoryId: anchorId,
-      workspaceId: filters.workspace_id ?? 'default',
-      filters,
-      edges,
-    });
+    for (const [memoryId, grouped] of edgesByMemory) {
+      await memoryGraphStore.upsertEdges({
+        memoryId,
+        workspaceId: filters.workspace_id ?? 'default',
+        filters,
+        edges: grouped,
+      });
+    }
     emitEvent(tracer, 'entity_edge_linked', { edge_count: edges.length });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
