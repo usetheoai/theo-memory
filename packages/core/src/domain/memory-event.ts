@@ -277,6 +277,8 @@ export const MEMORY_EVENTS = [
   'reflection_draft_quarantined',
   'extraction_evidence_dropped',
   'extraction_evidence_downgraded',
+  // A fact written about `user` got back the person its own relation names (#257).
+  'extraction_subject_restored',
 ] as const;
 
 export type MemoryEvent = (typeof MEMORY_EVENTS)[number];
