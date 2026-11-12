@@ -17,7 +17,6 @@ import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 
 import type { McpServer } from '../server.js';
 
@@ -176,10 +175,7 @@ export class McpSessionRegistry {
       if (id !== undefined) this.sessions.delete(id);
       this.evict(session);
     };
-    // The SDK's `onclose` type is `(() => void) | undefined`, which does not
-    // satisfy Transport's strict `() => void` under exactOptionalPropertyTypes.
-    // Cast at the boundary — the runtime contract is the SDK's, not the stub's.
-    await server.start(transport as unknown as Transport);
+    await server.start(transport);
     return transport;
   }
 }

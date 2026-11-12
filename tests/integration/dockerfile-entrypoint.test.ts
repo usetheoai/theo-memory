@@ -94,6 +94,6 @@ describe('T3.4 — ENTRYPOINT direct Node binary per ADR D13', () => {
   test('54. Dockerfile exists + uses distroless nodejs base image (D13)', () => {
     const text = readFileSync(DOCKERFILE, 'utf-8');
     expect(existsSync(DOCKERFILE)).toBe(true);
-    expect(text).toMatch(/gcr\.io\/distroless\/nodejs22-debian12:nonroot/);
+    expect(text).toMatch(/gcr\.io\/distroless\/nodejs22-debian13:nonroot/);
   });
 });

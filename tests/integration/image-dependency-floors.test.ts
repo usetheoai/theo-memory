@@ -24,6 +24,11 @@ const FIXED_FLOORS: Record<string, { floor: string; cve: string }> = {
   'ip-address': { floor: '10.3.1', cve: 'CVE-2026-69192' },
   // Not in the 2026-08-17 run: published after it, and it would have refused the next one.
   sharp: { floor: '0.35.4', cve: 'GHSA-rgj7-g3m4-5g8c (bundled libheif)' },
+  // Refused by the develop publish of 2026-11-12 (run 43223320813, #260).
+  mongoose: { floor: '9.11.4', cve: 'CVE-2026-125120, CVE-2026-125117, CVE-2026-125119' },
+  'proxy-addr': { floor: '2.0.8', cve: 'CVE-2026-90711' },
+  'body-parser': { floor: '2.4.0', cve: 'CVE-2026-111181' },
+  '@modelcontextprotocol/sdk': { floor: '1.32.0', cve: 'CVE-2026-104850, CVE-2026-111767, CVE-2026-111768' },
 };
 
 function resolvedVersions(name: string): string[] {
