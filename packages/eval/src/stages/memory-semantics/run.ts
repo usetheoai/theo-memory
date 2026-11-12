@@ -1,3 +1,4 @@
+import { CallBudget } from './call-budget.js';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
@@ -35,6 +36,7 @@ let calls=resumed?.previous.calls??0,inputTokens=resumed?.previous.inputTokens??
 let primaryDrafts:unknown;
 const promptDigests=new Set<string>(resumed?.previous.promptDigests??[]);
 const started = Date.now();
+const budget=new CallBudget(4);
 const llm: LLM = {
   async generateResponse(messages: readonly Message[], format?: { readonly type: 'json'|'text' }) {
     const system=messages[0]?.content??'';
@@ -44,7 +46,7 @@ const llm: LLM = {
       if(resumed!==undefined&&!promptDigests.has(promptHash))throw new Error('Resume refused because the extraction prompt changed.');
       promptDigests.add(promptHash);
     }
-    if (++calls>360) throw new Error('Provider call budget exceeded.');
+    budget.spend();calls++;
     const response = await fetch(`${base.replace(/\/$/,'')}/chat/completions`, {
       method:'POST',headers:{Authorization:`Bearer ${apiKey}`,'content-type':'application/json'},
       body:JSON.stringify({model,messages,temperature:0,max_tokens:1200,response_format:{type:format?.type==='json'?'json_object':'text'}}),
@@ -67,6 +69,7 @@ for(let repetition=0;repetition<3;repetition++) {
     const transportAttempts=resumed===undefined?1:2;
     const memory=await createLocalMemory({vectorStore:new InMemoryVectorStore(),embedder:{embed:async()=>[1,0,0],embedBatch:async(texts)=>texts.map(()=>[1,0,0])},llm,embeddingDim:3,entityBoost:false});
     primaryDrafts=undefined;
+    budget.startCase();
     try {
       const items=await memory.user('evaluation').remember(fixture.input,{strictExtraction:true,attributedTo:fixture.attributedTo,evidence:{kind:'stated',sourceId:fixture.name}});
       rows.push({name:fixture.name,language:fixture.language,repetition,transportAttempts,...scoreCase(fixture,items),texts:items.map(item=>item.text),evidence:items.map(item=>item.evidence),primaryDrafts});
