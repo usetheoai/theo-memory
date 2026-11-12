@@ -1,6 +1,6 @@
 # ADR-0034: A stated fact dated to a calendar period is kept by the durability gate
 
-Status: Proposed
+Status: Withdrawn (2026-11-12, the defect did not reproduce on its validation sets; see Outcome)
 
 ## Context
 
@@ -67,3 +67,17 @@ before the first run.
   user.
 - A relative anchor ("today", "on Thursday") as the signal. Passing moods carry relative anchors as
   often as plans do ("just for this morning"), so it does not separate them.
+
+## Outcome
+
+Withdrawn before implementation. The validation required the current code to lose dated facts
+first. On two case sets committed before any run, it did not: `judge-cases-dated.json` (events
+months or years before the observation) and `judge-cases-dated-recent.json` (events observed a few
+days after they happened, as in the failing case). Three runs each, 30 dated questions per run,
+answered 30 of 30 in every run. The extractor labelled every dated event `durable`.
+
+The two failing facts in `judge-cases-period.json` are the only ones measured, and that user has
+other memories that the extractor sees in its prompt. A fix for a defect that two case sets of its
+own could not reproduce would not be validated by anything. #245 stays open for the plans, ongoing
+states and advice it lists.
+
