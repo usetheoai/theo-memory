@@ -325,3 +325,37 @@ async function linkEdges(
     console.warn(`[themory] entity edge linking failed: ${msg}`);
   }
 }
+
+/**
+ * The graph annotations of a call that its surviving facts can carry, after the evidence
+ * filter or the fact gate dropped some drafts.
+ *
+ * The model returns `entities` and `relations` for the whole input, so an annotation that
+ * only a dropped draft named would otherwise be attached to a surviving fact. An entity is
+ * kept when a surviving fact names it; a relation is kept when a surviving fact names both
+ * of its ends. The rest are dropped, and the drop is reported with its counts.
+ */
+export function keepAnnotationsNamedBy(
+  survivors: readonly Pick<LinkableItem, 'text'>[],
+  entities: readonly LlmEntity[] | undefined,
+  relations: readonly RelationTriple[] | undefined,
+  tracer: Tracer | undefined,
+): { readonly entities: readonly LlmEntity[] | undefined; readonly relations: readonly RelationTriple[] | undefined } {
+  const named = (name: string): boolean =>
+    survivors.some((fact) => entityKeysNamedIn(fact.text, [normalizeEntityKey(name)]).length > 0);
+  const keptEntities = entities?.filter((e) => named(e.name));
+  const keptRelations = relations?.filter((r) =>
+    survivors.some((fact) => entityKeysNamedIn(fact.text, [normalizeEntityKey(r.source), normalizeEntityKey(r.destination)]).length === 2),
+  );
+  const droppedEntities = (entities?.length ?? 0) - (keptEntities?.length ?? 0);
+  const droppedRelations = (relations?.length ?? 0) - (keptRelations?.length ?? 0);
+  if (droppedEntities > 0 || droppedRelations > 0) {
+    emitEvent(tracer, 'extraction_evidence_dropped', {
+      reason: 'unassignable_graph_annotations',
+      target: 'graph',
+      dropped_entities: droppedEntities,
+      dropped_relations: droppedRelations,
+    });
+  }
+  return { entities: keptEntities, relations: keptRelations };
+}
