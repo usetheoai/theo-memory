@@ -6,7 +6,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Sunniva: Heads up for Friday dinner, I'm allergic to shellfish, so please keep the prawns off my plate."
+        "content": "Heads up for Friday dinner, I'm allergic to shellfish, so please keep the prawns off my plate.",
+        "name": "Sunniva"
       }
     ],
     "expected": [
@@ -26,7 +27,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Ines: I drive a Peugeot 208, so parking near the venue should be easy enough for me."
+        "content": "I drive a Peugeot 208, so parking near the venue should be easy enough for me.",
+        "name": "Ines"
       }
     ],
     "expected": [
@@ -46,7 +48,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Darius: I'm studying soil chemistry this term, which explains the jars of dirt on my desk."
+        "content": "I'm studying soil chemistry this term, which explains the jars of dirt on my desk.",
+        "name": "Darius"
       }
     ],
     "expected": [
@@ -66,7 +69,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Clementine: I live in Valparaíso, so the hills give my legs a workout every single morning."
+        "content": "I live in Valparaíso, so the hills give my legs a workout every single morning.",
+        "name": "Clementine"
       }
     ],
     "expected": [
@@ -86,7 +90,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Odalys: I drive a Dacia Duster, which handles the muddy track to the campsite without any trouble."
+        "content": "I drive a Dacia Duster, which handles the muddy track to the campsite without any trouble.",
+        "name": "Odalys"
       }
     ],
     "expected": [
@@ -106,7 +111,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Kenji: Happy to give people a lift on Saturday, I drive a Peugeot 208 with room for three."
+        "content": "Happy to give people a lift on Saturday, I drive a Peugeot 208 with room for three.",
+        "name": "Kenji"
       }
     ],
     "expected": [
@@ -126,7 +132,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Ines: I work as a cartographer, so yes, I really do get paid to stare at maps."
+        "content": "I work as a cartographer, so yes, I really do get paid to stare at maps.",
+        "name": "Ines"
       }
     ],
     "expected": [
@@ -146,7 +153,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Clementine: I'm studying woodturning at evening class, and my first bowl came out surprisingly round."
+        "content": "I'm studying woodturning at evening class, and my first bowl came out surprisingly round.",
+        "name": "Clementine"
       }
     ],
     "expected": [
@@ -166,7 +174,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Yusuf: I play the banjo, mostly on the porch after dinner when the neighbours are out."
+        "content": "I play the banjo, mostly on the porch after dinner when the neighbours are out.",
+        "name": "Yusuf"
       }
     ],
     "expected": [
@@ -186,7 +195,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Farah: Just so everyone's aware, I'm allergic to penicillin, it's written on my medical bracelet too."
+        "content": "Just so everyone's aware, I'm allergic to penicillin, it's written on my medical bracelet too.",
+        "name": "Farah"
       }
     ],
     "expected": [
@@ -206,7 +216,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Maeve: I work as a court stenographer, so my fingers are exhausted by the end of each week."
+        "content": "I work as a court stenographer, so my fingers are exhausted by the end of each week.",
+        "name": "Maeve"
       }
     ],
     "expected": [
@@ -226,7 +237,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Delphine: I live in Dunedin, and the wind off the harbour is brutal this time of year."
+        "content": "I live in Dunedin, and the wind off the harbour is brutal this time of year.",
+        "name": "Delphine"
       }
     ],
     "expected": [
@@ -246,7 +258,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Darius: My commute is short because I drive a Peugeot 208 and it slips through traffic nicely."
+        "content": "My commute is short because I drive a Peugeot 208 and it slips through traffic nicely.",
+        "name": "Darius"
       }
     ],
     "expected": [
@@ -266,7 +279,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Saoirse: I play the mandolin, usually for an hour after work to clear my head."
+        "content": "I play the mandolin, usually for an hour after work to clear my head.",
+        "name": "Saoirse"
       }
     ],
     "expected": [
@@ -286,7 +300,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Marisol: Please check the buns for me, I'm allergic to sesame and it hides in everything."
+        "content": "Please check the buns for me, I'm allergic to sesame and it hides in everything.",
+        "name": "Marisol"
       }
     ],
     "expected": [
@@ -306,7 +321,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Delphine: I drive a Peugeot 208, and honestly the fuel economy is the best thing about it."
+        "content": "I drive a Peugeot 208, and honestly the fuel economy is the best thing about it.",
+        "name": "Delphine"
       }
     ],
     "expected": [
@@ -326,7 +342,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Kenji: I play the accordion at family gatherings, whether or not anybody actually asks me to."
+        "content": "I play the accordion at family gatherings, whether or not anybody actually asks me to.",
+        "name": "Kenji"
       }
     ],
     "expected": [
@@ -346,7 +363,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Maeve: I live in Graz, so I can walk to the old town market on Saturdays."
+        "content": "I live in Graz, so I can walk to the old town market on Saturdays.",
+        "name": "Maeve"
       }
     ],
     "expected": [
@@ -366,7 +384,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Maeve: I play the trombone, which my downstairs neighbours have very politely learned to tolerate."
+        "content": "I play the trombone, which my downstairs neighbours have very politely learned to tolerate.",
+        "name": "Maeve"
       }
     ],
     "expected": [
@@ -386,7 +405,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Darius: I'm studying actuarial science, and the probability exams are eating all of my weekends."
+        "content": "I'm studying actuarial science, and the probability exams are eating all of my weekends.",
+        "name": "Darius"
       }
     ],
     "expected": [
@@ -406,7 +426,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Farah: Did you hear that Maeve plays the cello? She practises every evening in the spare room."
+        "content": "Did you hear that Maeve plays the cello? She practises every evening in the spare room.",
+        "name": "Farah"
       }
     ],
     "expected": [
@@ -427,7 +448,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Callum: Our friend Anneliese plays the oboe, and she brought it along to the picnic last weekend."
+        "content": "Our friend Anneliese plays the oboe, and she brought it along to the picnic last weekend.",
+        "name": "Callum"
       }
     ],
     "expected": [
@@ -448,7 +470,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Kenji: If we need a lift, Marisol drives a Subaru Outback with plenty of space in the back."
+        "content": "If we need a lift, Marisol drives a Subaru Outback with plenty of space in the back.",
+        "name": "Kenji"
       }
     ],
     "expected": [
@@ -469,7 +492,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Bram: I heard Osgood is studying soil chemistry, he spends most afternoons in the lab."
+        "content": "I heard Osgood is studying soil chemistry, he spends most afternoons in the lab.",
+        "name": "Bram"
       }
     ],
     "expected": [
@@ -490,7 +514,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Farah: Ask Maeve about the music for the party, she plays the mandolin really beautifully."
+        "content": "Ask Maeve about the music for the party, she plays the mandolin really beautifully.",
+        "name": "Farah"
       }
     ],
     "expected": [
@@ -511,7 +536,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Wendell: Careful with the fruit salad, Saoirse is allergic to kiwi and it makes her lips swell."
+        "content": "Careful with the fruit salad, Saoirse is allergic to kiwi and it makes her lips swell.",
+        "name": "Wendell"
       }
     ],
     "expected": [
@@ -532,7 +558,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Osgood: Spring is rough on Emeka because he is allergic to birch pollen and sneezes all day."
+        "content": "Spring is rough on Emeka because he is allergic to birch pollen and sneezes all day.",
+        "name": "Osgood"
       }
     ],
     "expected": [
@@ -553,7 +580,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Anneliese: From what I gather, Ravi lives in Dunedin and loves how close the beach is."
+        "content": "From what I gather, Ravi lives in Dunedin and loves how close the beach is.",
+        "name": "Anneliese"
       }
     ],
     "expected": [
@@ -574,7 +602,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Kenji: It turns out Clementine lives in Tromsø, where she gets to see the northern lights often."
+        "content": "It turns out Clementine lives in Tromsø, where she gets to see the northern lights often.",
+        "name": "Kenji"
       }
     ],
     "expected": [
@@ -595,7 +624,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Emeka: I found out Marisol works as an orthoptist, she helps kids with their eye exercises."
+        "content": "I found out Marisol works as an orthoptist, she helps kids with their eye exercises.",
+        "name": "Emeka"
       }
     ],
     "expected": [
@@ -616,7 +646,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Maeve: By the way, Marisol plays the oboe, and her tone is lovely in the quiet pieces."
+        "content": "By the way, Marisol plays the oboe, and her tone is lovely in the quiet pieces.",
+        "name": "Maeve"
       }
     ],
     "expected": [
@@ -637,7 +668,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Emeka: We should visit Anneliese, she lives in Kraków right beside a lovely little bakery."
+        "content": "We should visit Anneliese, she lives in Kraków right beside a lovely little bakery.",
+        "name": "Emeka"
       }
     ],
     "expected": [
@@ -658,7 +690,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Delphine: Apparently Saoirse lives in Tromsø, and the dark winters there do not bother her at all."
+        "content": "Apparently Saoirse lives in Tromsø, and the dark winters there do not bother her at all.",
+        "name": "Delphine"
       }
     ],
     "expected": [
@@ -679,7 +712,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Odalys: For the concert, remember that Delphine plays the mandolin and would happily join in."
+        "content": "For the concert, remember that Delphine plays the mandolin and would happily join in.",
+        "name": "Odalys"
       }
     ],
     "expected": [
@@ -700,7 +734,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Thaddeus: My cousin Bram is studying Old Norse, he reads sagas on the train every morning."
+        "content": "My cousin Bram is studying Old Norse, he reads sagas on the train every morning.",
+        "name": "Thaddeus"
       }
     ],
     "expected": [
@@ -1291,11 +1326,13 @@
     "messages": [
       {
         "role": "user",
-        "content": "Darius: I work as a marine surveyor, so I'm down at the docks by six most mornings."
+        "content": "I work as a marine surveyor, so I'm down at the docks by six most mornings.",
+        "name": "Darius"
       },
       {
         "role": "user",
-        "content": "Saoirse: I'm studying woodturning in my garage, and the shavings get absolutely everywhere."
+        "content": "I'm studying woodturning in my garage, and the shavings get absolutely everywhere.",
+        "name": "Saoirse"
       }
     ],
     "expected": [
@@ -1320,11 +1357,13 @@
     "messages": [
       {
         "role": "user",
-        "content": "Linnea: I live in Kraków, a few minutes from the main square, so come by anytime."
+        "content": "I live in Kraków, a few minutes from the main square, so come by anytime.",
+        "name": "Linnea"
       },
       {
         "role": "user",
-        "content": "Emeka: I'm allergic to penicillin, so the pharmacy always double checks my prescriptions."
+        "content": "I'm allergic to penicillin, so the pharmacy always double checks my prescriptions.",
+        "name": "Emeka"
       }
     ],
     "expected": [
@@ -1349,11 +1388,13 @@
     "messages": [
       {
         "role": "user",
-        "content": "Darius: I drive a Dacia Duster, so I can bring the tents and the cooler on Saturday."
+        "content": "I drive a Dacia Duster, so I can bring the tents and the cooler on Saturday.",
+        "name": "Darius"
       },
       {
         "role": "user",
-        "content": "Rhys: I'm allergic to sesame, so I'll skip the hummus and stick with the salad."
+        "content": "I'm allergic to sesame, so I'll skip the hummus and stick with the salad.",
+        "name": "Rhys"
       }
     ],
     "expected": [
@@ -1378,11 +1419,13 @@
     "messages": [
       {
         "role": "user",
-        "content": "Emeka: I drive a 2011 Skoda Fabia, and it still starts first time on cold mornings."
+        "content": "I drive a 2011 Skoda Fabia, and it still starts first time on cold mornings.",
+        "name": "Emeka"
       },
       {
         "role": "user",
-        "content": "Farah: I play the harp, and tuning all those strings takes me longer than actually practising."
+        "content": "I play the harp, and tuning all those strings takes me longer than actually practising.",
+        "name": "Farah"
       }
     ],
     "expected": [
@@ -1407,11 +1450,13 @@
     "messages": [
       {
         "role": "user",
-        "content": "Rhys: I'm studying Old Norse, and the grammar tables are giving me a proper headache this week."
+        "content": "I'm studying Old Norse, and the grammar tables are giving me a proper headache this week.",
+        "name": "Rhys"
       },
       {
         "role": "user",
-        "content": "Osgood: I live in Graz, up near the castle hill, and the view is worth the climb."
+        "content": "I live in Graz, up near the castle hill, and the view is worth the climb.",
+        "name": "Osgood"
       }
     ],
     "expected": [
@@ -1436,11 +1481,13 @@
     "messages": [
       {
         "role": "user",
-        "content": "Maeve: I work as a piano tuner, so my ears are pretty tired by the evening."
+        "content": "I work as a piano tuner, so my ears are pretty tired by the evening.",
+        "name": "Maeve"
       },
       {
         "role": "user",
-        "content": "Rhys: I'm allergic to buckwheat, so those pancakes are sadly off the menu for me."
+        "content": "I'm allergic to buckwheat, so those pancakes are sadly off the menu for me.",
+        "name": "Rhys"
       }
     ],
     "expected": [
@@ -1465,11 +1512,13 @@
     "messages": [
       {
         "role": "user",
-        "content": "Clementine: I live in Kraków, and the winters here make me grateful for a good coat."
+        "content": "I live in Kraków, and the winters here make me grateful for a good coat.",
+        "name": "Clementine"
       },
       {
         "role": "user",
-        "content": "Callum: I work as a piano tuner, and today's job was a dusty old upright in a school hall."
+        "content": "I work as a piano tuner, and today's job was a dusty old upright in a school hall.",
+        "name": "Callum"
       }
     ],
     "expected": [
@@ -1494,11 +1543,13 @@
     "messages": [
       {
         "role": "user",
-        "content": "Linnea: I'm allergic to latex, so I always carry my own gloves to the clinic."
+        "content": "I'm allergic to latex, so I always carry my own gloves to the clinic.",
+        "name": "Linnea"
       },
       {
         "role": "user",
-        "content": "Tobias: I'm studying actuarial science, and tonight is all mortality tables and cold pizza."
+        "content": "I'm studying actuarial science, and tonight is all mortality tables and cold pizza.",
+        "name": "Tobias"
       }
     ],
     "expected": [
@@ -1523,11 +1574,13 @@
     "messages": [
       {
         "role": "user",
-        "content": "Ravi: I'm allergic to sesame, so could we pick a restaurant with a clear ingredients list?"
+        "content": "I'm allergic to sesame, so could we pick a restaurant with a clear ingredients list?",
+        "name": "Ravi"
       },
       {
         "role": "user",
-        "content": "Yusuf: I drive an old Volvo 240, and the heater takes forever to warm up in winter."
+        "content": "I drive an old Volvo 240, and the heater takes forever to warm up in winter.",
+        "name": "Yusuf"
       }
     ],
     "expected": [
@@ -1552,11 +1605,13 @@
     "messages": [
       {
         "role": "user",
-        "content": "Maeve: I'm studying bookbinding, and I just finished sewing the pages of a small notebook."
+        "content": "I'm studying bookbinding, and I just finished sewing the pages of a small notebook.",
+        "name": "Maeve"
       },
       {
         "role": "user",
-        "content": "Rhys: I live in Halifax, close enough to the harbour to hear the ferries in the morning."
+        "content": "I live in Halifax, close enough to the harbour to hear the ferries in the morning.",
+        "name": "Rhys"
       }
     ],
     "expected": [
@@ -1581,11 +1636,13 @@
     "messages": [
       {
         "role": "user",
-        "content": "Thaddeus: I live in Kraków, and my flat is above a noisy but wonderful pierogi place."
+        "content": "I live in Kraków, and my flat is above a noisy but wonderful pierogi place.",
+        "name": "Thaddeus"
       },
       {
         "role": "user",
-        "content": "Kenji: I'm allergic to wool, so that lovely scarf would have me itching within minutes."
+        "content": "I'm allergic to wool, so that lovely scarf would have me itching within minutes.",
+        "name": "Kenji"
       }
     ],
     "expected": [
@@ -1610,11 +1667,13 @@
     "messages": [
       {
         "role": "user",
-        "content": "Anneliese: I drive a Toyota Hilux, so hauling the firewood up the hill is no problem."
+        "content": "I drive a Toyota Hilux, so hauling the firewood up the hill is no problem.",
+        "name": "Anneliese"
       },
       {
         "role": "user",
-        "content": "Darius: I work as a wind turbine technician, so I spend a lot of time very high up."
+        "content": "I work as a wind turbine technician, so I spend a lot of time very high up.",
+        "name": "Darius"
       }
     ],
     "expected": [
@@ -1639,7 +1698,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Gilda: Eu moro em Lençóis, então trilha e cachoeira fazem parte do meu fim de semana."
+        "content": "Eu moro em Lençóis, então trilha e cachoeira fazem parte do meu fim de semana.",
+        "name": "Gilda"
       }
     ],
     "expected": [
@@ -1659,7 +1719,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Cauã: Eu toco violoncelo e ensaio toda noite, para desespero dos vizinhos do andar de baixo."
+        "content": "Eu toco violoncelo e ensaio toda noite, para desespero dos vizinhos do andar de baixo.",
+        "name": "Cauã"
       }
     ],
     "expected": [
@@ -1679,7 +1740,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Valdir: Trabalho como ortoptista, passo o dia ajudando crianças com exercícios para os olhos."
+        "content": "Trabalho como ortoptista, passo o dia ajudando crianças com exercícios para os olhos.",
+        "name": "Valdir"
       }
     ],
     "expected": [
@@ -1699,7 +1761,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Nivaldo: Gente, tenho alergia a látex, então preciso de luvas de outro material na limpeza."
+        "content": "Gente, tenho alergia a látex, então preciso de luvas de outro material na limpeza.",
+        "name": "Nivaldo"
       }
     ],
     "expected": [
@@ -1719,7 +1782,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Valdir: Eu toco harpa desde pequena, e afinar todas as cordas leva uma eternidade."
+        "content": "Eu toco harpa desde pequena, e afinar todas as cordas leva uma eternidade.",
+        "name": "Valdir"
       }
     ],
     "expected": [
@@ -1739,7 +1803,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Otávio: Toco oboé na orquestra da igreja e passo horas preparando as palhetas."
+        "content": "Toco oboé na orquestra da igreja e passo horas preparando as palhetas.",
+        "name": "Otávio"
       }
     ],
     "expected": [
@@ -1759,7 +1824,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Cauã: Eu dirijo um Corsa antigo, ele faz barulho mas me leva para todo lado."
+        "content": "Eu dirijo um Corsa antigo, ele faz barulho mas me leva para todo lado.",
+        "name": "Cauã"
       }
     ],
     "expected": [
@@ -1779,7 +1845,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Tainá: Trabalho como chaveiro, então podem me chamar se alguém ficar trancado para fora de casa."
+        "content": "Trabalho como chaveiro, então podem me chamar se alguém ficar trancado para fora de casa.",
+        "name": "Tainá"
       }
     ],
     "expected": [
@@ -1799,7 +1866,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Cauã: Posso dar carona no sábado, dirijo um Corsa antigo e cabem mais três pessoas."
+        "content": "Posso dar carona no sábado, dirijo um Corsa antigo e cabem mais três pessoas.",
+        "name": "Cauã"
       }
     ],
     "expected": [
@@ -1819,7 +1887,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Yara: Só para avisar sobre a sobremesa, tenho alergia a kiwi e minha boca incha na hora."
+        "content": "Só para avisar sobre a sobremesa, tenho alergia a kiwi e minha boca incha na hora.",
+        "name": "Yara"
       }
     ],
     "expected": [
@@ -1839,7 +1908,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Aluísio: Pessoal, tenho alergia a amendoim, então vou passar longe da paçoca na festa junina."
+        "content": "Pessoal, tenho alergia a amendoim, então vou passar longe da paçoca na festa junina.",
+        "name": "Aluísio"
       }
     ],
     "expected": [
@@ -1859,7 +1929,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Wagner: Na salada de frutas eu passo, porque tenho alergia a kiwi e fico toda empolada."
+        "content": "Na salada de frutas eu passo, porque tenho alergia a kiwi e fico toda empolada.",
+        "name": "Wagner"
       }
     ],
     "expected": [
@@ -1879,7 +1950,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Nivaldo: Eu moro em Sobral, e o calor daqui não dá trégua nem de madrugada."
+        "content": "Eu moro em Sobral, e o calor daqui não dá trégua nem de madrugada.",
+        "name": "Nivaldo"
       }
     ],
     "expected": [
@@ -1899,7 +1971,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Valdir: Eu toco pandeiro na roda de samba do bairro toda sexta à noite."
+        "content": "Eu toco pandeiro na roda de samba do bairro toda sexta à noite.",
+        "name": "Valdir"
       }
     ],
     "expected": [
@@ -1919,7 +1992,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Cauã: Preciso sempre ler os rótulos no mercado porque tenho alergia a amendoim desde criança."
+        "content": "Preciso sempre ler os rótulos no mercado porque tenho alergia a amendoim desde criança.",
+        "name": "Cauã"
       }
     ],
     "expected": [
@@ -1939,7 +2013,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Jorge: Moro em Sobral, pertinho da praça, então é fácil me encontrar no fim da tarde."
+        "content": "Moro em Sobral, pertinho da praça, então é fácil me encontrar no fim da tarde.",
+        "name": "Jorge"
       }
     ],
     "expected": [
@@ -1959,7 +2034,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Wagner: Eu estudo Libras duas vezes por semana e já consigo conversar um pouquinho com as mãos."
+        "content": "Eu estudo Libras duas vezes por semana e já consigo conversar um pouquinho com as mãos.",
+        "name": "Wagner"
       }
     ],
     "expected": [
@@ -1979,7 +2055,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Gilda: Eu toco oboé e amanhã tenho ensaio cedo, então vou dormir daqui a pouco."
+        "content": "Eu toco oboé e amanhã tenho ensaio cedo, então vou dormir daqui a pouco.",
+        "name": "Gilda"
       }
     ],
     "expected": [
@@ -1999,7 +2076,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Dandara: Eu moro em Itacaré, então acordo com o barulho do mar todos os dias."
+        "content": "Eu moro em Itacaré, então acordo com o barulho do mar todos os dias.",
+        "name": "Dandara"
       }
     ],
     "expected": [
@@ -2019,7 +2097,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Gilda: Moro em Itacaré e adoro caminhar na praia quando o sol está se pondo."
+        "content": "Moro em Itacaré e adoro caminhar na praia quando o sol está se pondo.",
+        "name": "Gilda"
       }
     ],
     "expected": [
@@ -2039,7 +2118,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Dandara: Cuidado com o cardápio do almoço, porque a Jussara tem alergia a camarão e passa muito mal."
+        "content": "Cuidado com o cardápio do almoço, porque a Jussara tem alergia a camarão e passa muito mal.",
+        "name": "Dandara"
       }
     ],
     "expected": [
@@ -2060,7 +2140,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Cauã: Fiquei sabendo que o Wagner dirige um Corsa antigo e cuida dele com o maior carinho."
+        "content": "Fiquei sabendo que o Wagner dirige um Corsa antigo e cuida dele com o maior carinho.",
+        "name": "Cauã"
       }
     ],
     "expected": [
@@ -2081,7 +2162,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Thaís: Pelo que me contaram, a Rosângela mora em Itacaré e vai à praia quase todo dia."
+        "content": "Pelo que me contaram, a Rosângela mora em Itacaré e vai à praia quase todo dia.",
+        "name": "Thaís"
       }
     ],
     "expected": [
@@ -2102,7 +2184,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Aluísio: Vocês sabiam que a Simone mora em Garanhuns e adora o friozinho do inverno de lá?"
+        "content": "Vocês sabiam que a Simone mora em Garanhuns e adora o friozinho do inverno de lá?",
+        "name": "Aluísio"
       }
     ],
     "expected": [
@@ -2123,7 +2206,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Hélio: A Gilda mora em Garanhuns, numa casa com um jardim lindo cheio de flores."
+        "content": "A Gilda mora em Garanhuns, numa casa com um jardim lindo cheio de flores.",
+        "name": "Hélio"
       }
     ],
     "expected": [
@@ -2144,7 +2228,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Otávio: Para levar as caixas, falem com o Edson, ele dirige uma Fiorino com bastante espaço."
+        "content": "Para levar as caixas, falem com o Edson, ele dirige uma Fiorino com bastante espaço.",
+        "name": "Otávio"
       }
     ],
     "expected": [
@@ -2165,7 +2250,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Jorge: Descobri que a Gilda trabalha como taquígrafa e digita numa velocidade impressionante."
+        "content": "Descobri que a Gilda trabalha como taquígrafa e digita numa velocidade impressionante.",
+        "name": "Jorge"
       }
     ],
     "expected": [
@@ -2186,7 +2272,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Yara: Semana passada soube que a Gilda mora em Pelotas e ama os doces da região."
+        "content": "Semana passada soube que a Gilda mora em Pelotas e ama os doces da região.",
+        "name": "Yara"
       }
     ],
     "expected": [
@@ -2207,7 +2294,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Raul: Minha amiga Thaís mora em Paraty, numa ruazinha de pedra bem perto do cais."
+        "content": "Minha amiga Thaís mora em Paraty, numa ruazinha de pedra bem perto do cais.",
+        "name": "Raul"
       }
     ],
     "expected": [
@@ -2228,7 +2316,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Jorge: Não coloquem nada com semente no pão, o Otávio tem alergia a gergelim e pode passar mal."
+        "content": "Não coloquem nada com semente no pão, o Otávio tem alergia a gergelim e pode passar mal.",
+        "name": "Jorge"
       }
     ],
     "expected": [
@@ -2249,7 +2338,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Otávio: No forró de sábado a Lorena toca sanfona, e ela anima qualquer festa em minutos."
+        "content": "No forró de sábado a Lorena toca sanfona, e ela anima qualquer festa em minutos.",
+        "name": "Otávio"
       }
     ],
     "expected": [
@@ -2270,7 +2360,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Ícaro: Olha, a Marlene dirige um Corsa antigo e jura que ele nunca a deixou na mão."
+        "content": "Olha, a Marlene dirige um Corsa antigo e jura que ele nunca a deixou na mão.",
+        "name": "Ícaro"
       }
     ],
     "expected": [
@@ -2291,7 +2382,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Jorge: Chamem o Hélio para a roda, ele toca pandeiro como ninguém nesse bairro."
+        "content": "Chamem o Hélio para a roda, ele toca pandeiro como ninguém nesse bairro.",
+        "name": "Jorge"
       }
     ],
     "expected": [
@@ -2312,7 +2404,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Edson: Achei incrível saber que a Simone trabalha como restauradora de livros numa biblioteca bem antiga."
+        "content": "Achei incrível saber que a Simone trabalha como restauradora de livros numa biblioteca bem antiga.",
+        "name": "Edson"
       }
     ],
     "expected": [
@@ -2333,7 +2426,8 @@
     "messages": [
       {
         "role": "user",
-        "content": "Hélio: Quem entende de terreno é a Jussara, ela trabalha como topógrafa e vive medindo lotes."
+        "content": "Quem entende de terreno é a Jussara, ela trabalha como topógrafa e vive medindo lotes.",
+        "name": "Hélio"
       }
     ],
     "expected": [
@@ -2924,11 +3018,13 @@
     "messages": [
       {
         "role": "user",
-        "content": "Aluísio: Eu moro em Paraty, então quando chove forte as ruas de pedra viram um rio."
+        "content": "Eu moro em Paraty, então quando chove forte as ruas de pedra viram um rio.",
+        "name": "Aluísio"
       },
       {
         "role": "user",
-        "content": "Edson: Eu dirijo uma Kombi, cabe a turma toda e ainda sobra lugar para as mochilas."
+        "content": "Eu dirijo uma Kombi, cabe a turma toda e ainda sobra lugar para as mochilas.",
+        "name": "Edson"
       }
     ],
     "expected": [
@@ -2953,11 +3049,13 @@
     "messages": [
       {
         "role": "user",
-        "content": "Rosângela: Eu toco violoncelo e hoje o ensaio durou três horas, estou com os dedos doendo."
+        "content": "Eu toco violoncelo e hoje o ensaio durou três horas, estou com os dedos doendo.",
+        "name": "Rosângela"
       },
       {
         "role": "user",
-        "content": "Valdir: Eu estudo química do solo e amanhã tenho aula prática no laboratório bem cedo."
+        "content": "Eu estudo química do solo e amanhã tenho aula prática no laboratório bem cedo.",
+        "name": "Valdir"
       }
     ],
     "expected": [
@@ -2982,11 +3080,13 @@
     "messages": [
       {
         "role": "user",
-        "content": "Gilda: Trabalho como soldador naval, passo o dia no estaleiro e chego em casa exausto."
+        "content": "Trabalho como soldador naval, passo o dia no estaleiro e chego em casa exausto.",
+        "name": "Gilda"
       },
       {
         "role": "user",
-        "content": "Tainá: Eu toco bandolim para relaxar depois do expediente, geralmente na varanda de casa."
+        "content": "Eu toco bandolim para relaxar depois do expediente, geralmente na varanda de casa.",
+        "name": "Tainá"
       }
     ],
     "expected": [
@@ -3011,11 +3111,13 @@
     "messages": [
       {
         "role": "user",
-        "content": "Valdir: Eu toco trombone na banda da cidade e domingo temos apresentação no coreto."
+        "content": "Eu toco trombone na banda da cidade e domingo temos apresentação no coreto.",
+        "name": "Valdir"
       },
       {
         "role": "user",
-        "content": "Mirela: Tenho alergia a gergelim, então sempre pergunto o que vai no pão do hambúrguer."
+        "content": "Tenho alergia a gergelim, então sempre pergunto o que vai no pão do hambúrguer.",
+        "name": "Mirela"
       }
     ],
     "expected": [
@@ -3040,11 +3142,13 @@
     "messages": [
       {
         "role": "user",
-        "content": "Hélio: Eu trabalho como topógrafa e hoje caminhei quilômetros carregando equipamento no mato."
+        "content": "Eu trabalho como topógrafa e hoje caminhei quilômetros carregando equipamento no mato.",
+        "name": "Hélio"
       },
       {
         "role": "user",
-        "content": "Lorena: Eu estudo latim por conta própria e as declinações estão me dando um nó na cabeça."
+        "content": "Eu estudo latim por conta própria e as declinações estão me dando um nó na cabeça.",
+        "name": "Lorena"
       }
     ],
     "expected": [
@@ -3069,11 +3173,13 @@
     "messages": [
       {
         "role": "user",
-        "content": "Hélio: Trabalho como restauradora de livros, e o cheiro de papel velho é meu perfume diário."
+        "content": "Trabalho como restauradora de livros, e o cheiro de papel velho é meu perfume diário.",
+        "name": "Hélio"
       },
       {
         "role": "user",
-        "content": "Gilda: Tenho alergia a pólen, então piquenique no parque florido para mim é sofrimento garantido."
+        "content": "Tenho alergia a pólen, então piquenique no parque florido para mim é sofrimento garantido.",
+        "name": "Gilda"
       }
     ],
     "expected": [
@@ -3098,11 +3204,13 @@
     "messages": [
       {
         "role": "user",
-        "content": "Ícaro: Eu trabalho como soldador naval e esta semana estamos reparando o casco de um navio enorme."
+        "content": "Eu trabalho como soldador naval e esta semana estamos reparando o casco de um navio enorme.",
+        "name": "Ícaro"
       },
       {
         "role": "user",
-        "content": "Nivaldo: Eu toco harpa e sempre preciso de ajuda para levar o instrumento até o carro."
+        "content": "Eu toco harpa e sempre preciso de ajuda para levar o instrumento até o carro.",
+        "name": "Nivaldo"
       }
     ],
     "expected": [
@@ -3127,11 +3235,13 @@
     "messages": [
       {
         "role": "user",
-        "content": "Gilda: Eu estudo islandês pela internet e a pronúncia é o que mais me dá trabalho."
+        "content": "Eu estudo islandês pela internet e a pronúncia é o que mais me dá trabalho.",
+        "name": "Gilda"
       },
       {
         "role": "user",
-        "content": "Marlene: Moro em Itacaré e sempre que posso dou um mergulho no fim da tarde."
+        "content": "Moro em Itacaré e sempre que posso dou um mergulho no fim da tarde.",
+        "name": "Marlene"
       }
     ],
     "expected": [
@@ -3156,11 +3266,13 @@
     "messages": [
       {
         "role": "user",
-        "content": "Dandara: Eu moro em Itacaré, pertinho do centro, então faço quase tudo a pé."
+        "content": "Eu moro em Itacaré, pertinho do centro, então faço quase tudo a pé.",
+        "name": "Dandara"
       },
       {
         "role": "user",
-        "content": "Mirela: Eu toco cavaquinho e levo ele para qualquer churrasco que me convidam."
+        "content": "Eu toco cavaquinho e levo ele para qualquer churrasco que me convidam.",
+        "name": "Mirela"
       }
     ],
     "expected": [
@@ -3185,11 +3297,13 @@
     "messages": [
       {
         "role": "user",
-        "content": "Gilda: Tenho alergia a látex, então nem posso encher os balões da festa, desculpem."
+        "content": "Tenho alergia a látex, então nem posso encher os balões da festa, desculpem.",
+        "name": "Gilda"
       },
       {
         "role": "user",
-        "content": "Otávio: Eu dirijo um Fusca 1974 azul, e todo mundo sorri quando passo na rua."
+        "content": "Eu dirijo um Fusca 1974 azul, e todo mundo sorri quando passo na rua.",
+        "name": "Otávio"
       }
     ],
     "expected": [
@@ -3214,11 +3328,13 @@
     "messages": [
       {
         "role": "user",
-        "content": "Cauã: Dirijo uma Kombi, então deixem comigo o transporte das caixas de som no sábado."
+        "content": "Dirijo uma Kombi, então deixem comigo o transporte das caixas de som no sábado.",
+        "name": "Cauã"
       },
       {
         "role": "user",
-        "content": "Edson: Eu trabalho como soldador naval, por isso vivo com cheiro de fumaça na roupa."
+        "content": "Eu trabalho como soldador naval, por isso vivo com cheiro de fumaça na roupa.",
+        "name": "Edson"
       }
     ],
     "expected": [
@@ -3243,11 +3359,13 @@
     "messages": [
       {
         "role": "user",
-        "content": "Rosângela: Eu moro em Cáceres, e o pôr do sol na beira do rio é sempre um espetáculo."
+        "content": "Eu moro em Cáceres, e o pôr do sol na beira do rio é sempre um espetáculo.",
+        "name": "Rosângela"
       },
       {
         "role": "user",
-        "content": "Raul: Eu tenho alergia a látex e sempre levo minhas próprias luvas quando ajudo na cozinha."
+        "content": "Eu tenho alergia a látex e sempre levo minhas próprias luvas quando ajudo na cozinha.",
+        "name": "Raul"
       }
     ],
     "expected": [

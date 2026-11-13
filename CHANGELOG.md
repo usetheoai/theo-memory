@@ -3,6 +3,10 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
+### Added
+
+- `Message.name`: the person who wrote a message, for group chats and transcripts. Facts the author states about themself are stored with that name: a fact the extractor writes about `user` takes the name of the author of the message its source quote comes from, and the event `extraction_author_named` counts the rewrites. The name is also written into the text shown to the extractor and kept in the message log as `Name: text`. With the name only written into the text by the caller, 9 to 17 of 264 extractions used the wrong subject; with the field, none did. A message with no `name` is handled as before. In a scope with named authors a first-person question no longer reaches those facts through `user`. (#244)
+
 ## [0.58.0] - 2026-11-13
 
 ### Added

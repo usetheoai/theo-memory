@@ -11,6 +11,12 @@ export type Role = 'system' | 'user' | 'assistant';
 export interface Message {
   readonly role: Role;
   readonly content: string;
+  /**
+   * The name of the person who wrote the message, when the caller knows it (a group chat, a
+   * transcript with several speakers). Facts the author states about themself are then written
+   * with this name. Leave it out in a one-to-one chat: the author stays the speaker `user`.
+   */
+  readonly name?: string;
 }
 
 export interface LLMResponse {

@@ -695,6 +695,38 @@ describe('runExtractionPipeline message log', () => {
     expect((await messageLog.sourcesOf(SCOPE, items[0]!.id)).map((m) => m.content)).toEqual(['I took my sister Anna to the pottery class']);
   });
 
+  test('names the author the caller gave when the extractor writes the speaker token (#244)', async () => {
+    const messageLog = new InMemoryMessageLog();
+    const llm = makeLlm({
+      memory: [
+        { id: '0', text: 'user plays the banjo', evidence: { kind: 'stated', durability: 'durable', sourceQuote: 'I play the banjo' } },
+        { id: '1', text: 'user lives in Graz', evidence: { kind: 'stated', durability: 'durable', sourceQuote: 'Bram: I live in Graz.' } },
+      ],
+    });
+    const items = await runExtractionPipeline(
+      [
+        { role: 'user', name: 'Maeve', content: 'I play the banjo on the porch.' },
+        { role: 'user', name: 'Bram', content: 'I live in Graz.' },
+      ],
+      SCOPE,
+      { vectorStore: new StubVectorStore(), embedder: makeEmbedder(), llm, messageLog },
+    );
+    expect(items.map((item) => item.text)).toEqual(['Maeve plays the banjo', 'Bram lives in Graz']);
+    const prompt = extractionCalls(llm)[0]?.[0].map((m) => m.content).join('\n') ?? '';
+    expect(prompt).toContain('user: Maeve: I play the banjo on the porch.');
+    expect((await messageLog.recent(SCOPE, 10)).map((m) => m.content)).toEqual(['Maeve: I play the banjo on the porch.', 'Bram: I live in Graz.']);
+  });
+
+  test('keeps the speaker token when the message has no author name', async () => {
+    const llm = makeLlm({ memory: [{ id: '0', text: 'user plays the banjo', evidence: { kind: 'stated', durability: 'durable', sourceQuote: 'I play the banjo' } }] });
+    const items = await runExtractionPipeline(
+      [{ role: 'user', content: 'I play the banjo on the porch.' }],
+      SCOPE,
+      { vectorStore: new StubVectorStore(), embedder: makeEmbedder(), llm },
+    );
+    expect(items.map((item) => item.text)).toEqual(['user plays the banjo']);
+  });
+
   test('gives the extractor the preceding turns of the scope as context', async () => {
     const messageLog = new InMemoryMessageLog();
     await messageLog.append(SCOPE, [{ role: 'user', content: 'I took my sister Anna to the pottery class' }]);

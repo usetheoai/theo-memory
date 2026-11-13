@@ -17,6 +17,14 @@ describe('scoreSubject', () => {
     expect(scoreSubject(named, [], ['user works as a piano tuner'])).toBe('wrong');
   });
 
+  it('lets a detail that names nobody stand beside a fact that names the author', () => {
+    expect(scoreSubject(named, [], ['Maeve works as a piano tuner', 'Being a piano tuner means long drives'])).toBe('correct');
+  });
+
+  it('reports a value kept only in facts that name nobody as unattributed', () => {
+    expect(scoreSubject(named, [], ['Being a piano tuner means long drives'])).toBe('unattributed');
+  });
+
   it('rejects when one of two facts with the value loses the name', () => {
     expect(scoreSubject(named, [], ['Maeve works as a piano tuner', 'user is a piano tuner'])).toBe('wrong');
   });
@@ -35,7 +43,7 @@ describe('scoreSubject', () => {
   });
 
   it('does not read a name inside a longer word', () => {
-    expect(scoreSubject({ value: 'Graz', subject: 'Ana' }, [], ['Anabela lives in Graz'])).toBe('wrong');
+    expect(scoreSubject({ value: 'Graz', subject: 'Ana' }, [], ['Anabela lives in Graz'])).toBe('unattributed');
   });
 
   it('rejects the author as subject of a fact about a third person', () => {
@@ -50,8 +58,8 @@ describe('scoreAuthorSubjectCase', () => {
     language: 'en',
     family: 'two-authors',
     messages: [
-      { role: 'user', content: 'Maeve: I tune pianos for a living, a piano tuner.' },
-      { role: 'user', content: 'Bram: I live in Graz.' },
+      { role: 'user', name: 'Maeve', content: 'I tune pianos for a living, a piano tuner.' },
+      { role: 'user', name: 'Bram', content: 'I live in Graz.' },
     ],
     expected: [named, { value: 'Graz', subject: 'Bram' }],
     notSubjects: ['Maeve', 'Bram'],

@@ -10,13 +10,15 @@
  *
  * Environment: OPENAI_API_KEY, OPENAI_BASE_URL (optional, e.g. a cost proxy),
  * OPENAI_CHAT_MODEL (default gpt-4o-mini), AUTHOR_SUBJECT_OUTPUT (report path),
- * AUTHOR_SUBJECT_CONCURRENCY (default 6).
+ * AUTHOR_SUBJECT_CONCURRENCY (default 6), AUTHOR_SUBJECT_NAME (`field` sends the author's name as
+ * the message's `name`; the default `prefix` writes it into the text as `Name: `),
+ * AUTHOR_SUBJECT_CASES (`cases.json`, the development set, or `cases-held-out.json`).
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { createLocalMemory, InMemoryVectorStore } from '@usetheo/memory';
+import { createLocalMemory, InMemoryVectorStore, MemoryStoreError } from '@usetheo/memory';
 import { OpenAILLM } from '@usetheo/memory/llms/openai';
 import { z } from 'zod';
 
@@ -24,7 +26,7 @@ import { AuthorSubjectCaseSchema, scoreAuthorSubjectCase, type AuthorSubjectCase
 
 const REPETITIONS = 3;
 const here = dirname(fileURLToPath(import.meta.url));
-const cases = z.array(AuthorSubjectCaseSchema).parse(JSON.parse(readFileSync(resolve(here, 'cases.json'), 'utf8')));
+const cases = z.array(AuthorSubjectCaseSchema).parse(JSON.parse(readFileSync(resolve(here, process.env['AUTHOR_SUBJECT_CASES'] ?? 'cases.json'), 'utf8')));
 if (process.env['OPENAI_API_KEY'] === undefined) throw new Error('OPENAI_API_KEY must be set for the live evaluation');
 const concurrency = Number(process.env['AUTHOR_SUBJECT_CONCURRENCY'] ?? '6');
 if (!Number.isInteger(concurrency) || concurrency < 1) throw new Error('AUTHOR_SUBJECT_CONCURRENCY must be a positive integer');
@@ -34,6 +36,8 @@ interface Row {
   readonly family: string;
   readonly language: string;
   readonly repetition: number;
+  /** The write threw because the extraction response was invalid. */
+  readonly failed: boolean;
   readonly facts: readonly string[];
   /** The excerpt each fact was read from, in the order of `facts`; empty when the fact has none. */
   readonly sourceQuotes: readonly string[];
@@ -50,11 +54,21 @@ async function extract(fixture: AuthorSubjectCase): Promise<readonly { text: str
     entityBoost: false,
   });
   try {
-    const items = await memory.user('author-subject').rememberMessages(fixture.messages, { strictExtraction: true });
+    const items = await memory.user('author-subject').rememberMessages(messagesOf(fixture), { strictExtraction: true });
     return items.map((item) => ({ text: item.text, sourceQuote: item.evidence?.sourceQuote ?? '' }));
   } finally {
     await memory.dispose();
   }
+}
+
+const nameAs = process.env['AUTHOR_SUBJECT_NAME'] ?? 'prefix';
+if (nameAs !== 'field' && nameAs !== 'prefix') throw new Error('AUTHOR_SUBJECT_NAME must be `field` or `prefix`');
+
+function messagesOf(fixture: AuthorSubjectCase): { role: 'user'; content: string; name?: string }[] {
+  return fixture.messages.map((m) => {
+    if (m.name === undefined) return { role: m.role, content: m.content };
+    return nameAs === 'field' ? { role: m.role, content: m.content, name: m.name } : { role: m.role, content: `${m.name}: ${m.content}` };
+  });
 }
 
 const rows: Row[] = [];
@@ -62,10 +76,16 @@ for (let repetition = 0; repetition < REPETITIONS; repetition += 1) {
   const queue = [...cases];
   const worker = async (): Promise<void> => {
     for (let fixture = queue.shift(); fixture !== undefined; fixture = queue.shift()) {
-      const extracted = await extract(fixture);
+      // A write whose extraction response is invalid stores nothing; it is counted, not hidden.
+      let failed = false;
+      const extracted = await extract(fixture).catch((error: unknown) => {
+        if (!(error instanceof MemoryStoreError)) throw error;
+        failed = true;
+        return [];
+      });
       const facts = extracted.map((fact) => fact.text);
       const sourceQuotes = extracted.map((fact) => fact.sourceQuote);
-      rows.push({ id: fixture.id, family: fixture.family, language: fixture.language, repetition, facts, sourceQuotes, ...scoreAuthorSubjectCase(fixture, facts) });
+      rows.push({ id: fixture.id, family: fixture.family, language: fixture.language, repetition, failed, facts, sourceQuotes, ...scoreAuthorSubjectCase(fixture, facts) });
     }
   };
   await Promise.all(Array.from({ length: concurrency }, worker));
@@ -74,14 +94,14 @@ for (let repetition = 0; repetition < REPETITIONS; repetition += 1) {
 
 const byFamily: Record<string, Record<SubjectOutcome, number>> = {};
 for (const row of rows) {
-  const counts = (byFamily[row.family] ??= { correct: 0, wrong: 0, missing: 0 });
+  const counts = (byFamily[row.family] ??= { correct: 0, wrong: 0, unattributed: 0, missing: 0 });
   for (const outcome of row.outcomes) counts[outcome] += 1;
 }
-const report = { model: process.env['OPENAI_CHAT_MODEL'] ?? 'gpt-4o-mini', repetitions: REPETITIONS, cases: cases.length, byFamily, rows };
+const report = { nameAs, failedWrites: rows.filter((row) => row.failed).length, model: process.env['OPENAI_CHAT_MODEL'] ?? 'gpt-4o-mini', repetitions: REPETITIONS, cases: cases.length, byFamily, rows };
 const output = resolve(process.env['AUTHOR_SUBJECT_OUTPUT'] ?? resolve(here, '../../../../../benchmarks/results/author-subject.json'));
 mkdirSync(dirname(output), { recursive: true });
 writeFileSync(output, `${JSON.stringify(report, null, 2)}\n`);
 for (const [family, counts] of Object.entries(byFamily)) {
-  console.log(`[author-subject] ${family}: correct ${String(counts.correct)}, wrong ${String(counts.wrong)}, missing ${String(counts.missing)}`);
+  console.log(`[author-subject] ${family}: correct ${String(counts.correct)}, wrong ${String(counts.wrong)}, unattributed ${String(counts.unattributed)}, missing ${String(counts.missing)}`);
 }
-console.log(`[author-subject] -> ${output}`);
+console.log(`[author-subject] failed writes ${String(report.failedWrites)} -> ${output}`);
