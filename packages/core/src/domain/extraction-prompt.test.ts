@@ -92,20 +92,7 @@ describe('generateAdditiveExtractionPrompt', () => {
     expect(prompt).toMatch(/literal token "user"/);
   });
 
-  test('with supersession on, the output format carries supersedes_memory_ids and linked ids exclude replaced memories', () => {
-    const { prompt } = generateAdditiveExtractionPrompt(
-      [fixtureMemory('uuid-a', 'user lives in Porto')],
-      [{ role: 'user', content: 'I moved to Lisbon.' }],
-      undefined, undefined, undefined, undefined, undefined, undefined, undefined, true,
-    );
-    const format = prompt.slice(prompt.indexOf('Output format'));
-    expect(format).toMatch(/"supersedes_memory_ids"\?: \["1"\]/);
-    expect(prompt).toMatch(/SUPERSESSION:/);
-    // A replaced memory belongs in supersedes_memory_ids, never only in linked_memory_ids.
-    expect(prompt).toMatch(/`linked_memory_ids`[^.]*stays true/);
-  });
-
-  test('with supersession off, the prompt does not ask for supersedes_memory_ids', () => {
+  test('the prompt does not ask the extractor which memories a fact replaces (ADR-0036)', () => {
     const { prompt } = generateAdditiveExtractionPrompt(
       [fixtureMemory('uuid-a', 'user lives in Porto')],
       [{ role: 'user', content: 'I moved to Lisbon.' }],

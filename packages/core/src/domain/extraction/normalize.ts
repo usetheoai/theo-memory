@@ -27,16 +27,12 @@ export function coerceExtractionResponse(raw: unknown): unknown {
         text?: unknown;
         fact?: unknown;
         linked_memory_ids?: unknown;
-        supersedes_memory_ids?: unknown;
         evidence?: unknown;
       };
       if (typeof rec.text !== 'string' && typeof rec.fact === 'string') rec.text = rec.fact;
       if (typeof rec.id !== 'string') rec.id = String(idx + 1);
       if (Array.isArray(rec.linked_memory_ids)) {
         rec.linked_memory_ids = rec.linked_memory_ids.map(String);
-      }
-      if (Array.isArray(rec.supersedes_memory_ids)) {
-        rec.supersedes_memory_ids = rec.supersedes_memory_ids.map(String);
       }
       // LLMs sometimes place a durability value in `evidence.kind` (e.g.
       // kind="tentative"), although the schema keeps epistemic status

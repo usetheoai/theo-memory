@@ -289,6 +289,10 @@ export const MEMORY_EVENTS = [
   'short_lived_expiry_set',
   // #253: a new fact arrived after a newer value of the same thing and was stored as already ended.
   'memory_ended_on_arrival',
+  // ADR-0036: how many pairs of one write went to the update judge, and how many it said replace.
+  'update_judged',
+  // ADR-0036: the update judge gave no verdict for a pair; the pair is left alone.
+  'update_judge_failed',
 ] as const;
 
 export type MemoryEvent = (typeof MEMORY_EVENTS)[number];

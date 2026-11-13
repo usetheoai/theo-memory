@@ -48,6 +48,10 @@ class StagingStore extends InMemoryVectorStore {
   override search(query:readonly number[],topK?:number,filters?:Filters):Promise<readonly VectorStoreResult[]>{
     return this.existing.search(query,topK,filters);
   }
+  /** A committed memory is read from the real store, so the update judge can see when it began (ADR-0036). */
+  override async get(vectorId:string):Promise<VectorStoreResult|null>{
+    return (await super.get(vectorId))??this.existing.get(vectorId);
+  }
   /** Record the replacement for apply's transaction; the store decides there what really changes. */
   override supersede(_filters:Filters,memoryIds:readonly string[],by:{readonly memoryId:string;readonly at:Date}):Promise<readonly string[]>{
     this.supersessions.push({memoryId:by.memoryId,supersededIds:[...memoryIds]});

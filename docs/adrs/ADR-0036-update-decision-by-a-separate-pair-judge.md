@@ -1,7 +1,7 @@
 # ADR-0036: A separate judge decides, pair by pair, whether a fact updates a memory
 
-Status: Proposed (2026-11-13). Accepted when the end-to-end run in the write path passes the
-criteria written before it; withdrawn when it fails.
+Status: Accepted (2026-11-13). The end-to-end run in the write path passed every criterion written
+before it; the numbers are under "Result in the write path".
 
 ## Context
 
@@ -95,6 +95,37 @@ in and out of order and controls that are not updates. The criteria are fixed in
 before the first run and cover: current answers without the old value, controls still answered,
 answers as of a date before the change, the 223 pairs through the real write path, and the earlier
 case sets as guards.
+
+## Result in the write path
+
+Base (the commit before the judge) and arm in the same batch, three runs each, `gpt-4o-mini`
+(Observed):
+
+| Measure | Base | Arm | Paired reading |
+|---|---|---|---|
+| Current-value questions with no old value in the top five (48) | 22, 22, 24 | 47, 48, 47 | arm 29, base 0, p < 0.0001 |
+| Control questions answered (80) | 75, 76, 76 | 76, 77, 77 | arm 4, base 5, p = 1.0 |
+| Questions as of a date before the change, answered (48) | 48, 48, 48 | 47, 47, 47 | arm 0, base 2, p = 0.5 |
+| Real updates ended, of 63 pairs, majority of three | 54 | 63 | arm 9, base 0, p = 0.004 |
+| Notes that stay true and were kept, of 160 pairs | 155 | 159 | arm 5, base 1, p = 0.22 |
+| `judge-cases-supersession-check.json` answered (72) | 63, 64, 63 | 72, 72, 72 | arm 10, base 0, p = 0.002 |
+
+The other guard sets (`judge-cases`, `judge-cases-multi`, `judge-cases-late-arrival`,
+`judge-cases-period`) show no significant difference in answered questions. In the late-arrival
+set the old value left the top five in 16 more questions (p = 0.0003). Memory-semantics passes
+with no forbidden fact, the small-talk controls of the fidelity evaluation store nothing, and the
+frozen date set is unchanged (141 against 140 correct of 156).
+
+Limits of this result:
+
+- Through the real write path the judge still ends one or two of the 160 notes that stay true in
+  each repetition, always one more value of an attribute that admits several. The isolated
+  measurement had shown none.
+- In the end-to-end set, the count of ended memories that are not an old value is the same on both
+  sides (10 in three runs). The judge does not lower it there.
+- One question as of an earlier date is lost in all three arm runs.
+- A run of the end-to-end set took about a third longer on a loaded machine. Judge calls were not
+  counted separately.
 
 ## Alternatives considered
 
