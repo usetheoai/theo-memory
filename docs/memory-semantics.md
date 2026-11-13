@@ -111,7 +111,9 @@ erases the memory's source messages, including their citations of other memories
 forget keeps them. `Memory.reset(scope)` deletes the scope's memories and every message logged
 for it, including turns that produced no memory; a session reset leaves the user's global
 memories alone. `recall(query, { includeSources: true })` returns each memory with those
-messages, so the caller can check the fact against what was said.
+messages, so the caller can check the fact against what was said. The MCP `recall` tool does
+this by default, because a model answers a question about a detail more often with the source
+in view; `includeSources: false` returns the facts alone.
 `searchMessages(query)` searches those messages directly (BM25 fused with embedding
 similarity, five by default), which reaches a turn extraction kept no fact of, also when the
 question is a paraphrase. The list is ranked, not filtered. With `surroundingTurns: 1`, each

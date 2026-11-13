@@ -58,7 +58,11 @@ export const INPUT_SCHEMA = z.object({
     })
     .strict()
     .optional(),
-  /** ADR-0027 — return each result's raw source messages (what was actually said). Default off. */
+  /**
+   * Return each result's source messages (what was actually said) beside the extracted fact.
+   * Default on: a reader answers a question about a detail more often with the source in view.
+   * Pass `false` to get the facts alone, at about half the tokens.
+   */
   includeSources: z.boolean().optional(),
 });
 
@@ -109,7 +113,7 @@ export const OUTPUT_SCHEMA = z.object({
       durability: z.enum(['durable', 'temporary', 'tentative']).optional(),
       /** Flat key/value payload set at write time. */
       metadata: z.record(z.union([z.string(), z.number(), z.boolean(), z.null()])),
-      /** Raw messages that produced the memory, oldest first; present only with `includeSources`. */
+      /** Raw messages that produced the memory, oldest first; absent when `includeSources` is `false`. */
       sources: z
         .array(z.object({ role: z.string(), content: z.string(), observedAt: z.string().nullable() }))
         .optional(),

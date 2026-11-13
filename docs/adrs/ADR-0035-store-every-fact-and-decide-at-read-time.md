@@ -1,6 +1,7 @@
 # ADR-0035: Every extracted fact is stored, and event time decides what recall shows
 
-Status: Stage 1 accepted (2026-11-12, see Outcome of stage 1); stages 2 to 4 proposed. Each stage
+Status: Stage 1 accepted (2026-11-12, see Outcome of stage 1); stage 4 accepted (2026-11-13, see
+Outcome of stage 4); stages 2 and 3 proposed. Each stage
 becomes Accepted when its experiment passes and is withdrawn when it fails; the criteria are written
 before each run and do not change after it.
 
@@ -92,6 +93,30 @@ when the event is, and how long the statement is expected to hold. Recall decide
   production extractor. Three studies report a loss when only the fact reaches the reader
   (Reported: LongMemEval sections 5.2 and 5.3, TriMem, arXiv 2603.02473); none used our extractor,
   and none reports an interval.
+
+## Outcome of stage 4
+
+The ablation ran with the production extractor on a case set written for it: 16 people, eight
+messages each with a main fact and two incidental details, 384 questions whose answer is a value
+written in a message. The same write and the same recall (top five) fed a reader twice, with the
+facts alone and with the facts and their source messages. Three repetitions, `gpt-4o-mini` as
+reader, held-out set (Observed):
+
+| Questions | Facts alone | Facts and sources | Paired reading |
+|---|---|---|---|
+| About a detail (256) | 230, 229, 226 | 250, 251, 249 | sources win 28, facts win 4, p < 0.0001 |
+| About the main fact (128) | 123, 122, 122 | 125, 124, 126 | sources win 5, facts win 0, p = 0.06 |
+
+The extractor had kept the detail in a recalled fact in 738 of 768 cases. The reader still missed
+it more often from the facts: a detail stored in a fact of its own loses what it is a detail of.
+Input tokens per question went from 135 to 253.
+
+Decision: the MCP `recall` tool returns the source messages by default, and `includeSources: false`
+turns them off. The SDK and the REST surface keep their default: a caller in code decides what it
+shows. The fact stays the unit of search, deduplication and validity.
+
+Limits: small scopes (eight messages), so recall nearly always found the right memory; questions
+with an exact value; one reader model; sentences written and checked by the same model family.
 
 ## How each stage is approved
 

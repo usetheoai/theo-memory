@@ -61,7 +61,9 @@ export async function recallHandler(
     threshold: parsed.threshold,
     ...(graphExpand !== undefined ? { graphExpand } : {}),
     ...(parsed.asOf !== undefined ? { asOf: new Date(parsed.asOf) } : {}),
-    ...(parsed.includeSources !== undefined ? { includeSources: parsed.includeSources } : {}),
+    // The reader of this tool is a model, and it answers a question about a detail more often
+    // when it sees what was said beside the extracted fact (ADR-0035, stage 4).
+    includeSources: parsed.includeSources ?? true,
   });
 
   // EC-6: empty-recall shape lock
