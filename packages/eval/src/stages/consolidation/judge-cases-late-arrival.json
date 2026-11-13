@@ -1,0 +1,1804 @@
+{
+ "users": [
+  {
+   "id": "ooo-ottilie",
+   "facts": [
+    {
+     "key": "u2-old",
+     "text": "Ottilie drives a Škoda Fabia.",
+     "observedAt": "2021-10-25",
+     "role": "old",
+     "update": "u2"
+    },
+    {
+     "key": "u2-new",
+     "text": "Ottilie's car is a Volvo V60.",
+     "observedAt": "2023-06-01",
+     "role": "new",
+     "update": "u2"
+    },
+    {
+     "key": "u1-new",
+     "text": "Ottilie's family doctor is Dr. Aurelia Voss.",
+     "observedAt": "2023-09-19",
+     "role": "new",
+     "update": "u1"
+    },
+    {
+     "key": "u1-old",
+     "text": "The family doctor Ottilie sees is Dr. Okonkwo.",
+     "observedAt": "2021-06-21",
+     "role": "old",
+     "update": "u1",
+     "loggedOutOfOrder": true
+    },
+    {
+     "key": "u0-new",
+     "text": "Ottilie works out at The Granary Gym.",
+     "observedAt": "2023-09-27",
+     "role": "new",
+     "update": "u0"
+    },
+    {
+     "key": "u0-old",
+     "text": "Ottilie's gym is Marlin Athletic.",
+     "observedAt": "2020-03-09",
+     "role": "old",
+     "update": "u0",
+     "loggedOutOfOrder": true
+    },
+    {
+     "key": "c1-later",
+     "text": "Ottilie went camping near Lake Bled in May 2024.",
+     "observedAt": "2024-05-05",
+     "role": "distinct"
+    },
+    {
+     "key": "c1-earlier",
+     "text": "In December 2021, Ottilie went camping near Mount Cook.",
+     "observedAt": "2021-12-02",
+     "role": "distinct"
+    },
+    {
+     "key": "c0-later",
+     "text": "Ottilie gave 5 conference talks in 2024.",
+     "observedAt": "2024-12-27",
+     "role": "distinct"
+    },
+    {
+     "key": "c0-earlier",
+     "text": "In 2022, Ottilie gave 4 conference talks.",
+     "observedAt": "2022-12-28",
+     "role": "distinct"
+    }
+   ],
+   "questions": [
+    {
+     "query": "Which gym does Ottilie go to?",
+     "pattern": "The\\ Granary\\ Gym",
+     "stalePattern": "Marlin\\ Athletic"
+    },
+    {
+     "query": "Where did Ottilie work out in September 2020?",
+     "pattern": "Marlin\\ Athletic",
+     "stalePattern": "The\\ Granary\\ Gym",
+     "asOf": "2020-09-25"
+    },
+    {
+     "query": "Who is Ottilie's family doctor?",
+     "pattern": "Dr\\.\\ Aurelia\\ Voss",
+     "stalePattern": "Dr\\.\\ Okonkwo"
+    },
+    {
+     "query": "Which family doctor did Ottilie see in January 2022?",
+     "pattern": "Dr\\.\\ Okonkwo",
+     "stalePattern": "Dr\\.\\ Aurelia\\ Voss",
+     "asOf": "2022-01-07"
+    },
+    {
+     "query": "What car does Ottilie drive?",
+     "pattern": "Volvo\\ V60",
+     "stalePattern": "Škoda\\ Fabia"
+    },
+    {
+     "query": "Which car did Ottilie own in May 2022?",
+     "pattern": "Škoda\\ Fabia",
+     "stalePattern": "Volvo\\ V60",
+     "asOf": "2022-05-13"
+    },
+    {
+     "query": "How many conference talks did Ottilie give in 2022?",
+     "pattern": "(?<!\\d)4(?!\\d)"
+    },
+    {
+     "query": "How many conference talks did Ottilie give in 2024?",
+     "pattern": "(?<!\\d)5(?!\\d)"
+    },
+    {
+     "query": "Near which place did Ottilie go camping in 2021?",
+     "pattern": "Mount\\ Cook"
+    },
+    {
+     "query": "Near which place did Ottilie go camping in 2024?",
+     "pattern": "Lake\\ Bled"
+    }
+   ]
+  },
+  {
+   "id": "ooo-ludmila",
+   "facts": [
+    {
+     "key": "c1-later",
+     "text": "Ludmila went on a camping trip near Mount Cook in September 2023.",
+     "observedAt": "2023-09-15",
+     "role": "distinct"
+    },
+    {
+     "key": "c1-earlier",
+     "text": "In June 2020, Ludmila went camping near Torres del Paine.",
+     "observedAt": "2020-06-21",
+     "role": "distinct"
+    },
+    {
+     "key": "c0-later",
+     "text": "Ludmila read 12 novels in 2024.",
+     "observedAt": "2024-12-27",
+     "role": "distinct"
+    },
+    {
+     "key": "c0-earlier",
+     "text": "Over the course of 2022, Ludmila read 10 novels.",
+     "observedAt": "2022-12-28",
+     "role": "distinct"
+    },
+    {
+     "key": "u1-new",
+     "text": "Ludmila works for Pembry Logistics.",
+     "observedAt": "2023-04-27",
+     "role": "new",
+     "update": "u1"
+    },
+    {
+     "key": "u1-old",
+     "text": "Ludmila's employer is Bexley Robotics.",
+     "observedAt": "2019-02-10",
+     "role": "old",
+     "update": "u1",
+     "loggedOutOfOrder": true
+    },
+    {
+     "key": "u0-new",
+     "text": "Ludmila's mobile carrier is Tellura.",
+     "observedAt": "2023-06-22",
+     "role": "new",
+     "update": "u0"
+    },
+    {
+     "key": "u0-old",
+     "text": "Ludmila uses Ombra Mobile as mobile carrier.",
+     "observedAt": "2021-09-08",
+     "role": "old",
+     "update": "u0",
+     "loggedOutOfOrder": true
+    },
+    {
+     "key": "u2-old",
+     "text": "Dr. Yamane is Ludmila's family doctor.",
+     "observedAt": "2021-04-19",
+     "role": "old",
+     "update": "u2"
+    },
+    {
+     "key": "u2-new",
+     "text": "Ludmila is a patient of the family doctor Dr. Aurelia Voss.",
+     "observedAt": "2023-03-01",
+     "role": "new",
+     "update": "u2"
+    }
+   ],
+   "questions": [
+    {
+     "query": "Who is Ludmila's mobile carrier?",
+     "pattern": "Tellura",
+     "stalePattern": "Ombra\\ Mobile"
+    },
+    {
+     "query": "Which mobile carrier did Ludmila use in March 2022?",
+     "pattern": "Ombra\\ Mobile",
+     "stalePattern": "Tellura",
+     "asOf": "2022-03-27"
+    },
+    {
+     "query": "Who does Ludmila work for?",
+     "pattern": "Pembry\\ Logistics",
+     "stalePattern": "Bexley\\ Robotics"
+    },
+    {
+     "query": "Who was Ludmila's employer in August 2019?",
+     "pattern": "Bexley\\ Robotics",
+     "stalePattern": "Pembry\\ Logistics",
+     "asOf": "2019-08-29"
+    },
+    {
+     "query": "Which family doctor does Ludmila see?",
+     "pattern": "Dr\\.\\ Aurelia\\ Voss",
+     "stalePattern": "Dr\\.\\ Yamane"
+    },
+    {
+     "query": "Who was Ludmila's family doctor in November 2021?",
+     "pattern": "Dr\\.\\ Yamane",
+     "stalePattern": "Dr\\.\\ Aurelia\\ Voss",
+     "asOf": "2021-11-05"
+    },
+    {
+     "query": "How many novels did Ludmila read in 2022?",
+     "pattern": "(?<!\\d)10(?!\\d)"
+    },
+    {
+     "query": "How many novels did Ludmila read in 2024?",
+     "pattern": "(?<!\\d)12(?!\\d)"
+    },
+    {
+     "query": "Near which place did Ludmila go camping in 2020?",
+     "pattern": "Torres\\ del\\ Paine"
+    },
+    {
+     "query": "Near which place did Ludmila go camping in 2023?",
+     "pattern": "Mount\\ Cook"
+    }
+   ]
+  },
+  {
+   "id": "ooo-mirela",
+   "facts": [
+    {
+     "key": "u1-new",
+     "text": "Ombra Mobile is Mirela's mobile carrier.",
+     "observedAt": "2024-07-11",
+     "role": "new",
+     "update": "u1"
+    },
+    {
+     "key": "u1-old",
+     "text": "Mirela gets mobile service from the carrier Tellura.",
+     "observedAt": "2021-06-21",
+     "role": "old",
+     "update": "u1",
+     "loggedOutOfOrder": true
+    },
+    {
+     "key": "u0-new",
+     "text": "Mirela lives in Cuenca.",
+     "observedAt": "2024-02-08",
+     "role": "new",
+     "update": "u0"
+    },
+    {
+     "key": "u0-old",
+     "text": "Mirela's home is in the city of Halifax.",
+     "observedAt": "2021-11-25",
+     "role": "old",
+     "update": "u0",
+     "loggedOutOfOrder": true
+    },
+    {
+     "key": "c0-later",
+     "text": "Mirela volunteers at the Saltmarsh Bird Rescue.",
+     "observedAt": "2024-06-03",
+     "role": "distinct"
+    },
+    {
+     "key": "c0-earlier",
+     "text": "Mirela is employed by Wrenfield Architects.",
+     "observedAt": "2021-10-16",
+     "role": "distinct"
+    },
+    {
+     "key": "u2-old",
+     "text": "Mirela trains at Altitude Club, a gym.",
+     "observedAt": "2020-03-19",
+     "role": "old",
+     "update": "u2"
+    },
+    {
+     "key": "u2-new",
+     "text": "The gym Mirela goes to is Kettle & Row.",
+     "observedAt": "2023-02-12",
+     "role": "new",
+     "update": "u2"
+    },
+    {
+     "key": "c1-later",
+     "text": "Mirela donated blood 2 times in 2024.",
+     "observedAt": "2024-12-27",
+     "role": "distinct"
+    },
+    {
+     "key": "c1-earlier",
+     "text": "In 2022, Mirela made 3 blood donations.",
+     "observedAt": "2022-12-28",
+     "role": "distinct"
+    }
+   ],
+   "questions": [
+    {
+     "query": "Which city does Mirela live in?",
+     "pattern": "Cuenca",
+     "stalePattern": "Halifax"
+    },
+    {
+     "query": "What was Mirela's city of residence in June 2022?",
+     "pattern": "Halifax",
+     "stalePattern": "Cuenca",
+     "asOf": "2022-06-13"
+    },
+    {
+     "query": "Which mobile carrier does Mirela use?",
+     "pattern": "Ombra\\ Mobile",
+     "stalePattern": "Tellura"
+    },
+    {
+     "query": "Who was Mirela's mobile carrier in January 2022?",
+     "pattern": "Tellura",
+     "stalePattern": "Ombra\\ Mobile",
+     "asOf": "2022-01-07"
+    },
+    {
+     "query": "Which gym does Mirela go to?",
+     "pattern": "Kettle\\ \\&\\ Row",
+     "stalePattern": "Altitude\\ Club"
+    },
+    {
+     "query": "Where did Mirela work out in October 2020?",
+     "pattern": "Altitude\\ Club",
+     "stalePattern": "Kettle\\ \\&\\ Row",
+     "asOf": "2020-10-05"
+    },
+    {
+     "query": "Which company employs Mirela?",
+     "pattern": "Wrenfield\\ Architects"
+    },
+    {
+     "query": "Which organization does Mirela volunteer with?",
+     "pattern": "Saltmarsh\\ Bird\\ Rescue"
+    },
+    {
+     "query": "How many times did Mirela donate blood in 2022?",
+     "pattern": "(?<!\\d)3(?!\\d)"
+    },
+    {
+     "query": "How many times did Mirela donate blood in 2024?",
+     "pattern": "(?<!\\d)2(?!\\d)"
+    }
+   ]
+  },
+  {
+   "id": "ooo-delphine",
+   "facts": [
+    {
+     "key": "c0-later",
+     "text": "Delphine visited 7 countries in 2024.",
+     "observedAt": "2024-12-27",
+     "role": "distinct"
+    },
+    {
+     "key": "c0-earlier",
+     "text": "Delphine's travels in 2022 took in 6 countries.",
+     "observedAt": "2022-12-28",
+     "role": "distinct"
+    },
+    {
+     "key": "u2-old",
+     "text": "Delphine owns a Fiat Panda.",
+     "observedAt": "2019-08-19",
+     "role": "old",
+     "update": "u2"
+    },
+    {
+     "key": "u2-new",
+     "text": "The car Delphine drives is a Mazda CX-30.",
+     "observedAt": "2023-07-31",
+     "role": "new",
+     "update": "u2"
+    },
+    {
+     "key": "c1-later",
+     "text": "Delphine took a cooking course in Bologna in July 2024.",
+     "observedAt": "2024-07-20",
+     "role": "distinct"
+    },
+    {
+     "key": "c1-earlier",
+     "text": "In February 2020, Delphine took a cooking course in Chiang Mai.",
+     "observedAt": "2020-02-22",
+     "role": "distinct"
+    },
+    {
+     "key": "u0-new",
+     "text": "At work, Delphine is on the billing team.",
+     "observedAt": "2023-08-20",
+     "role": "new",
+     "update": "u0"
+    },
+    {
+     "key": "u0-old",
+     "text": "Delphine works in the data platform group.",
+     "observedAt": "2020-10-30",
+     "role": "old",
+     "update": "u0",
+     "loggedOutOfOrder": true
+    },
+    {
+     "key": "u1-new",
+     "text": "Delphine has a membership at The Granary Gym.",
+     "observedAt": "2024-10-17",
+     "role": "new",
+     "update": "u1"
+    },
+    {
+     "key": "u1-old",
+     "text": "Delphine goes to the gym at Kettle & Row.",
+     "observedAt": "2021-04-01",
+     "role": "old",
+     "update": "u1",
+     "loggedOutOfOrder": true
+    }
+   ],
+   "questions": [
+    {
+     "query": "What team is Delphine part of at work?",
+     "pattern": "billing\\ team",
+     "stalePattern": "data\\ platform\\ group"
+    },
+    {
+     "query": "Which team did Delphine work on in May 2021?",
+     "pattern": "data\\ platform\\ group",
+     "stalePattern": "billing\\ team",
+     "asOf": "2021-05-18"
+    },
+    {
+     "query": "What gym is Delphine a member of?",
+     "pattern": "The\\ Granary\\ Gym",
+     "stalePattern": "Kettle\\ \\&\\ Row"
+    },
+    {
+     "query": "Which gym did Delphine go to in October 2021?",
+     "pattern": "Kettle\\ \\&\\ Row",
+     "stalePattern": "The\\ Granary\\ Gym",
+     "asOf": "2021-10-18"
+    },
+    {
+     "query": "Which car does Delphine own?",
+     "pattern": "Mazda\\ CX\\-30",
+     "stalePattern": "Fiat\\ Panda"
+    },
+    {
+     "query": "What car did Delphine drive in March 2020?",
+     "pattern": "Fiat\\ Panda",
+     "stalePattern": "Mazda\\ CX\\-30",
+     "asOf": "2020-03-06"
+    },
+    {
+     "query": "How many countries did Delphine visit in 2022?",
+     "pattern": "(?<!\\d)6(?!\\d)"
+    },
+    {
+     "query": "How many countries did Delphine visit in 2024?",
+     "pattern": "(?<!\\d)7(?!\\d)"
+    },
+    {
+     "query": "Where did Delphine take a cooking course in 2020?",
+     "pattern": "Chiang\\ Mai"
+    },
+    {
+     "query": "Where did Delphine take a cooking course in 2024?",
+     "pattern": "Bologna"
+    }
+   ]
+  },
+  {
+   "id": "ooo-zenon",
+   "facts": [
+    {
+     "key": "u0-new",
+     "text": "Zenon's city of residence is Cuenca.",
+     "observedAt": "2023-05-01",
+     "role": "new",
+     "update": "u0"
+    },
+    {
+     "key": "u0-old",
+     "text": "Zenon resides in Ljubljana.",
+     "observedAt": "2020-07-19",
+     "role": "old",
+     "update": "u0",
+     "loggedOutOfOrder": true
+    },
+    {
+     "key": "c1-later",
+     "text": "Zenon's total of conference talks given in 2024 was 4.",
+     "observedAt": "2024-12-27",
+     "role": "distinct"
+    },
+    {
+     "key": "c1-earlier",
+     "text": "In 2022, Zenon delivered 6 conference talks.",
+     "observedAt": "2022-12-28",
+     "role": "distinct"
+    },
+    {
+     "key": "c0-later",
+     "text": "Zenon gets home internet from Fibranet.",
+     "observedAt": "2023-01-19",
+     "role": "distinct"
+    },
+    {
+     "key": "c0-earlier",
+     "text": "Zenon's mobile carrier is Halo Mobile.",
+     "observedAt": "2020-03-29",
+     "role": "distinct"
+    },
+    {
+     "key": "u1-new",
+     "text": "Zenon works at Northmoor Dairy.",
+     "observedAt": "2024-10-09",
+     "role": "new",
+     "update": "u1"
+    },
+    {
+     "key": "u1-old",
+     "text": "Pembry Logistics is Zenon's employer.",
+     "observedAt": "2021-02-10",
+     "role": "old",
+     "update": "u1",
+     "loggedOutOfOrder": true
+    },
+    {
+     "key": "u2-old",
+     "text": "Zenon's family doctor is Dr. Okonkwo.",
+     "observedAt": "2021-06-17",
+     "role": "old",
+     "update": "u2"
+    },
+    {
+     "key": "u2-new",
+     "text": "Zenon goes to Dr. Aurelia Voss as family doctor.",
+     "observedAt": "2024-03-01",
+     "role": "new",
+     "update": "u2"
+    }
+   ],
+   "questions": [
+    {
+     "query": "Which city does Zenon live in?",
+     "pattern": "Cuenca",
+     "stalePattern": "Ljubljana"
+    },
+    {
+     "query": "What was Zenon's city of residence in February 2021?",
+     "pattern": "Ljubljana",
+     "stalePattern": "Cuenca",
+     "asOf": "2021-02-04"
+    },
+    {
+     "query": "Who does Zenon work for?",
+     "pattern": "Northmoor\\ Dairy",
+     "stalePattern": "Pembry\\ Logistics"
+    },
+    {
+     "query": "Who was Zenon's employer in August 2021?",
+     "pattern": "Pembry\\ Logistics",
+     "stalePattern": "Northmoor\\ Dairy",
+     "asOf": "2021-08-29"
+    },
+    {
+     "query": "Who is Zenon's family doctor?",
+     "pattern": "Dr\\.\\ Aurelia\\ Voss",
+     "stalePattern": "Dr\\.\\ Okonkwo"
+    },
+    {
+     "query": "Which family doctor did Zenon see in January 2022?",
+     "pattern": "Dr\\.\\ Okonkwo",
+     "stalePattern": "Dr\\.\\ Aurelia\\ Voss",
+     "asOf": "2022-01-03"
+    },
+    {
+     "query": "Which mobile carrier does Zenon use?",
+     "pattern": "Halo\\ Mobile"
+    },
+    {
+     "query": "Who is Zenon's home internet provider?",
+     "pattern": "Fibranet"
+    },
+    {
+     "query": "How many conference talks did Zenon give in 2022?",
+     "pattern": "(?<!\\d)6(?!\\d)"
+    },
+    {
+     "query": "How many conference talks did Zenon give in 2024?",
+     "pattern": "(?<!\\d)4(?!\\d)"
+    }
+   ]
+  },
+  {
+   "id": "ooo-rosalind",
+   "facts": [
+    {
+     "key": "u2-old",
+     "text": "Rosalind keeps the main account at Coldharbour Credit Union.",
+     "observedAt": "2020-06-08",
+     "role": "old",
+     "update": "u2"
+    },
+    {
+     "key": "u2-new",
+     "text": "Rosalind's main bank account is with Maré Bank.",
+     "observedAt": "2024-04-22",
+     "role": "new",
+     "update": "u2"
+    },
+    {
+     "key": "c1-later",
+     "text": "Rosalind took a cooking course in Chiang Mai in April 2023.",
+     "observedAt": "2023-04-14",
+     "role": "distinct"
+    },
+    {
+     "key": "c1-earlier",
+     "text": "In April 2021, Rosalind attended a cooking course in Bologna.",
+     "observedAt": "2021-04-23",
+     "role": "distinct"
+    },
+    {
+     "key": "u0-new",
+     "text": "Rosalind is part of the data platform group at work.",
+     "observedAt": "2024-06-20",
+     "role": "new",
+     "update": "u0"
+    },
+    {
+     "key": "u0-old",
+     "text": "Rosalind's team at work is the onboarding squad.",
+     "observedAt": "2021-07-07",
+     "role": "old",
+     "update": "u0",
+     "loggedOutOfOrder": true
+    },
+    {
+     "key": "c0-later",
+     "text": "Rosalind sold 15 pottery pieces in 2024.",
+     "observedAt": "2024-12-27",
+     "role": "distinct"
+    },
+    {
+     "key": "c0-earlier",
+     "text": "In 2022, Rosalind sold 16 pottery pieces.",
+     "observedAt": "2022-12-28",
+     "role": "distinct"
+    },
+    {
+     "key": "u1-new",
+     "text": "Rosalind rents from the Greaves family.",
+     "observedAt": "2023-02-15",
+     "role": "new",
+     "update": "u1"
+    },
+    {
+     "key": "u1-old",
+     "text": "Mr. Fonseca is Rosalind's landlord.",
+     "observedAt": "2020-04-05",
+     "role": "old",
+     "update": "u1",
+     "loggedOutOfOrder": true
+    }
+   ],
+   "questions": [
+    {
+     "query": "What team is Rosalind part of at work?",
+     "pattern": "data\\ platform\\ group",
+     "stalePattern": "onboarding\\ squad"
+    },
+    {
+     "query": "Which team did Rosalind work on in January 2022?",
+     "pattern": "onboarding\\ squad",
+     "stalePattern": "data\\ platform\\ group",
+     "asOf": "2022-01-23"
+    },
+    {
+     "query": "Who does Rosalind rent from?",
+     "pattern": "Greaves\\ family",
+     "stalePattern": "Mr\\.\\ Fonseca"
+    },
+    {
+     "query": "Who was Rosalind's landlord in October 2020?",
+     "pattern": "Mr\\.\\ Fonseca",
+     "stalePattern": "Greaves\\ family",
+     "asOf": "2020-10-22"
+    },
+    {
+     "query": "Where does Rosalind hold the main bank account?",
+     "pattern": "Maré\\ Bank",
+     "stalePattern": "Coldharbour\\ Credit\\ Union"
+    },
+    {
+     "query": "Which bank did Rosalind use for the main account in December 2020?",
+     "pattern": "Coldharbour\\ Credit\\ Union",
+     "stalePattern": "Maré\\ Bank",
+     "asOf": "2020-12-25"
+    },
+    {
+     "query": "How many pottery pieces did Rosalind sell in 2022?",
+     "pattern": "(?<!\\d)16(?!\\d)"
+    },
+    {
+     "query": "How many pottery pieces did Rosalind sell in 2024?",
+     "pattern": "(?<!\\d)15(?!\\d)"
+    },
+    {
+     "query": "Where did Rosalind take a cooking course in 2021?",
+     "pattern": "Bologna"
+    },
+    {
+     "query": "Where did Rosalind take a cooking course in 2023?",
+     "pattern": "Chiang\\ Mai"
+    }
+   ]
+  },
+  {
+   "id": "ooo-anselm",
+   "facts": [
+    {
+     "key": "u1-new",
+     "text": "Anselm's family doctor is Dr. Hargreave.",
+     "observedAt": "2023-10-27",
+     "role": "new",
+     "update": "u1"
+    },
+    {
+     "key": "u1-old",
+     "text": "Anselm is registered with Dr. Aurelia Voss as family doctor.",
+     "observedAt": "2019-10-05",
+     "role": "old",
+     "update": "u1",
+     "loggedOutOfOrder": true
+    },
+    {
+     "key": "u2-old",
+     "text": "Anselm's weekly language class is Swahili.",
+     "observedAt": "2021-12-23",
+     "role": "old",
+     "update": "u2"
+    },
+    {
+     "key": "u2-new",
+     "text": "Every week Anselm attends a Turkish language class.",
+     "observedAt": "2023-04-13",
+     "role": "new",
+     "update": "u2"
+    },
+    {
+     "key": "c0-later",
+     "text": "Anselm read 13 novels in 2024.",
+     "observedAt": "2024-12-27",
+     "role": "distinct"
+    },
+    {
+     "key": "c0-earlier",
+     "text": "The number of novels Anselm read in 2022 was 9.",
+     "observedAt": "2022-12-28",
+     "role": "distinct"
+    },
+    {
+     "key": "c1-later",
+     "text": "Anselm went camping near Mount Cook in May 2023.",
+     "observedAt": "2023-05-25",
+     "role": "distinct"
+    },
+    {
+     "key": "c1-earlier",
+     "text": "In December 2021, Anselm camped near Torres del Paine.",
+     "observedAt": "2021-12-25",
+     "role": "distinct"
+    },
+    {
+     "key": "u0-new",
+     "text": "Anselm exercises at Marlin Athletic, a gym.",
+     "observedAt": "2024-06-18",
+     "role": "new",
+     "update": "u0"
+    },
+    {
+     "key": "u0-old",
+     "text": "Anselm's gym is Altitude Club.",
+     "observedAt": "2020-08-29",
+     "role": "old",
+     "update": "u0",
+     "loggedOutOfOrder": true
+    }
+   ],
+   "questions": [
+    {
+     "query": "Which gym does Anselm go to?",
+     "pattern": "Marlin\\ Athletic",
+     "stalePattern": "Altitude\\ Club"
+    },
+    {
+     "query": "Where did Anselm work out in March 2021?",
+     "pattern": "Altitude\\ Club",
+     "stalePattern": "Marlin\\ Athletic",
+     "asOf": "2021-03-17"
+    },
+    {
+     "query": "Who is Anselm's family doctor?",
+     "pattern": "Dr\\.\\ Hargreave",
+     "stalePattern": "Dr\\.\\ Aurelia\\ Voss"
+    },
+    {
+     "query": "Which family doctor did Anselm see in April 2020?",
+     "pattern": "Dr\\.\\ Aurelia\\ Voss",
+     "stalePattern": "Dr\\.\\ Hargreave",
+     "asOf": "2020-04-22"
+    },
+    {
+     "query": "Which language does Anselm study in the weekly class?",
+     "pattern": "Turkish",
+     "stalePattern": "Swahili"
+    },
+    {
+     "query": "Which language did Anselm study in the weekly class in July 2022?",
+     "pattern": "Swahili",
+     "stalePattern": "Turkish",
+     "asOf": "2022-07-11"
+    },
+    {
+     "query": "How many novels did Anselm read in 2022?",
+     "pattern": "(?<!\\d)9(?!\\d)"
+    },
+    {
+     "query": "How many novels did Anselm read in 2024?",
+     "pattern": "(?<!\\d)13(?!\\d)"
+    },
+    {
+     "query": "Near which place did Anselm go camping in 2021?",
+     "pattern": "Torres\\ del\\ Paine"
+    },
+    {
+     "query": "Near which place did Anselm go camping in 2023?",
+     "pattern": "Mount\\ Cook"
+    }
+   ]
+  },
+  {
+   "id": "ooo-baltasar",
+   "facts": [
+    {
+     "key": "u2-old",
+     "text": "Baltasar's landlord is Ms. Kowalczyk.",
+     "observedAt": "2019-07-27",
+     "role": "old",
+     "update": "u2"
+    },
+    {
+     "key": "u2-new",
+     "text": "Baltasar pays rent to the Greaves family, the landlord.",
+     "observedAt": "2023-02-18",
+     "role": "new",
+     "update": "u2"
+    },
+    {
+     "key": "u0-new",
+     "text": "Baltasar's phone plan is with the mobile carrier Kestrel Wireless.",
+     "observedAt": "2023-11-20",
+     "role": "new",
+     "update": "u0"
+    },
+    {
+     "key": "u0-old",
+     "text": "Tellura is the mobile carrier Baltasar uses.",
+     "observedAt": "2020-08-08",
+     "role": "old",
+     "update": "u0",
+     "loggedOutOfOrder": true
+    },
+    {
+     "key": "c1-later",
+     "text": "Baltasar read 13 novels in 2024.",
+     "observedAt": "2024-12-27",
+     "role": "distinct"
+    },
+    {
+     "key": "c1-earlier",
+     "text": "In 2022, Baltasar read 14 novels.",
+     "observedAt": "2022-12-28",
+     "role": "distinct"
+    },
+    {
+     "key": "u1-new",
+     "text": "Baltasar is a member of the gym Kettle & Row.",
+     "observedAt": "2024-03-20",
+     "role": "new",
+     "update": "u1"
+    },
+    {
+     "key": "u1-old",
+     "text": "Baltasar's gym is Altitude Club.",
+     "observedAt": "2020-11-25",
+     "role": "old",
+     "update": "u1",
+     "loggedOutOfOrder": true
+    }
+   ],
+   "questions": [
+    {
+     "query": "Who is Baltasar's mobile carrier?",
+     "pattern": "Kestrel\\ Wireless",
+     "stalePattern": "Tellura"
+    },
+    {
+     "query": "Which mobile carrier did Baltasar use in February 2021?",
+     "pattern": "Tellura",
+     "stalePattern": "Kestrel\\ Wireless",
+     "asOf": "2021-02-24"
+    },
+    {
+     "query": "Which gym does Baltasar go to?",
+     "pattern": "Kettle\\ \\&\\ Row",
+     "stalePattern": "Altitude\\ Club"
+    },
+    {
+     "query": "Where did Baltasar work out in June 2021?",
+     "pattern": "Altitude\\ Club",
+     "stalePattern": "Kettle\\ \\&\\ Row",
+     "asOf": "2021-06-13"
+    },
+    {
+     "query": "Who does Baltasar rent from?",
+     "pattern": "Greaves\\ family",
+     "stalePattern": "Ms\\.\\ Kowalczyk"
+    },
+    {
+     "query": "Who was Baltasar's landlord in February 2020?",
+     "pattern": "Ms\\.\\ Kowalczyk",
+     "stalePattern": "Greaves\\ family",
+     "asOf": "2020-02-12"
+    },
+    {
+     "query": "How many novels did Baltasar read in 2022?",
+     "pattern": "(?<!\\d)14(?!\\d)"
+    },
+    {
+     "query": "How many novels did Baltasar read in 2024?",
+     "pattern": "(?<!\\d)13(?!\\d)"
+    }
+   ]
+  },
+  {
+   "id": "ooo-casimir",
+   "facts": [
+    {
+     "key": "u1-new",
+     "text": "Casimir banks with Tidewell Bank for the main account.",
+     "observedAt": "2023-03-31",
+     "role": "new",
+     "update": "u1"
+    },
+    {
+     "key": "u1-old",
+     "text": "Banco Lume holds Casimir's main account.",
+     "observedAt": "2020-10-10",
+     "role": "old",
+     "update": "u1",
+     "loggedOutOfOrder": true
+    },
+    {
+     "key": "c1-later",
+     "text": "Casimir ran a 10k race in Porto Alegre in September 2024.",
+     "observedAt": "2024-09-27",
+     "role": "distinct"
+    },
+    {
+     "key": "c1-earlier",
+     "text": "In June 2020, Casimir ran a 10k race in Leiden.",
+     "observedAt": "2020-06-08",
+     "role": "distinct"
+    },
+    {
+     "key": "u2-old",
+     "text": "Casimir's family doctor is Dr. Yamane.",
+     "observedAt": "2021-04-30",
+     "role": "old",
+     "update": "u2"
+    },
+    {
+     "key": "u2-new",
+     "text": "Dr. Hargreave is the family doctor Casimir sees.",
+     "observedAt": "2023-01-29",
+     "role": "new",
+     "update": "u2"
+    },
+    {
+     "key": "u0-new",
+     "text": "Casimir's team at work is the data platform group.",
+     "observedAt": "2024-06-20",
+     "role": "new",
+     "update": "u0"
+    },
+    {
+     "key": "u0-old",
+     "text": "At work, Casimir's team is the fraud desk.",
+     "observedAt": "2019-03-29",
+     "role": "old",
+     "update": "u0",
+     "loggedOutOfOrder": true
+    }
+   ],
+   "questions": [
+    {
+     "query": "Which team does Casimir work on?",
+     "pattern": "data\\ platform\\ group",
+     "stalePattern": "fraud\\ desk"
+    },
+    {
+     "query": "What team was Casimir part of at work in October 2019?",
+     "pattern": "fraud\\ desk",
+     "stalePattern": "data\\ platform\\ group",
+     "asOf": "2019-10-15"
+    },
+    {
+     "query": "Which bank does Casimir use for the main account?",
+     "pattern": "Tidewell\\ Bank",
+     "stalePattern": "Banco\\ Lume"
+    },
+    {
+     "query": "Where did Casimir hold the main bank account in April 2021?",
+     "pattern": "Banco\\ Lume",
+     "stalePattern": "Tidewell\\ Bank",
+     "asOf": "2021-04-28"
+    },
+    {
+     "query": "Who is Casimir's family doctor?",
+     "pattern": "Dr\\.\\ Hargreave",
+     "stalePattern": "Dr\\.\\ Yamane"
+    },
+    {
+     "query": "Which family doctor did Casimir see in November 2021?",
+     "pattern": "Dr\\.\\ Yamane",
+     "stalePattern": "Dr\\.\\ Hargreave",
+     "asOf": "2021-11-16"
+    },
+    {
+     "query": "Where did Casimir run a 10k race in 2020?",
+     "pattern": "Leiden"
+    },
+    {
+     "query": "Where did Casimir run a 10k race in 2024?",
+     "pattern": "Porto\\ Alegre"
+    }
+   ]
+  },
+  {
+   "id": "ooo-philippa",
+   "facts": [
+    {
+     "key": "u2-old",
+     "text": "Philippa drives a Renault Zoe.",
+     "observedAt": "2021-10-11",
+     "role": "old",
+     "update": "u2"
+    },
+    {
+     "key": "u2-new",
+     "text": "Philippa's car is a Fiat Panda.",
+     "observedAt": "2024-09-03",
+     "role": "new",
+     "update": "u2"
+    },
+    {
+     "key": "u1-new",
+     "text": "Philippa's main account is at Coldharbour Credit Union.",
+     "observedAt": "2024-05-14",
+     "role": "new",
+     "update": "u1"
+    },
+    {
+     "key": "u1-old",
+     "text": "For the main account, Philippa banks with Fennick Savings.",
+     "observedAt": "2021-06-14",
+     "role": "old",
+     "update": "u1",
+     "loggedOutOfOrder": true
+    },
+    {
+     "key": "u0-new",
+     "text": "Philippa is a customer of the mobile carrier Ombra Mobile.",
+     "observedAt": "2023-12-10",
+     "role": "new",
+     "update": "u0"
+    },
+    {
+     "key": "u0-old",
+     "text": "Philippa's mobile carrier is Tellura.",
+     "observedAt": "2020-05-21",
+     "role": "old",
+     "update": "u0",
+     "loggedOutOfOrder": true
+    },
+    {
+     "key": "c1-later",
+     "text": "Philippa gave blood 3 times in 2024.",
+     "observedAt": "2024-12-27",
+     "role": "distinct"
+    },
+    {
+     "key": "c1-earlier",
+     "text": "Philippa's blood donations in 2022 came to 2.",
+     "observedAt": "2022-12-28",
+     "role": "distinct"
+    },
+    {
+     "key": "c0-later",
+     "text": "Philippa takes classes at Quiet Heron Yoga, a yoga studio.",
+     "observedAt": "2024-03-24",
+     "role": "distinct"
+    },
+    {
+     "key": "c0-earlier",
+     "text": "Philippa's gym is Basalt Gym.",
+     "observedAt": "2019-12-09",
+     "role": "distinct"
+    }
+   ],
+   "questions": [
+    {
+     "query": "Who is Philippa's mobile carrier?",
+     "pattern": "Ombra\\ Mobile",
+     "stalePattern": "Tellura"
+    },
+    {
+     "query": "Which mobile carrier did Philippa use in December 2020?",
+     "pattern": "Tellura",
+     "stalePattern": "Ombra\\ Mobile",
+     "asOf": "2020-12-07"
+    },
+    {
+     "query": "Where does Philippa hold the main bank account?",
+     "pattern": "Coldharbour\\ Credit\\ Union",
+     "stalePattern": "Fennick\\ Savings"
+    },
+    {
+     "query": "Which bank did Philippa use for the main account in December 2021?",
+     "pattern": "Fennick\\ Savings",
+     "stalePattern": "Coldharbour\\ Credit\\ Union",
+     "asOf": "2021-12-31"
+    },
+    {
+     "query": "Which car does Philippa own?",
+     "pattern": "Fiat\\ Panda",
+     "stalePattern": "Renault\\ Zoe"
+    },
+    {
+     "query": "What car did Philippa drive in April 2022?",
+     "pattern": "Renault\\ Zoe",
+     "stalePattern": "Fiat\\ Panda",
+     "asOf": "2022-04-29"
+    },
+    {
+     "query": "Which gym does Philippa go to?",
+     "pattern": "Basalt\\ Gym"
+    },
+    {
+     "query": "Which yoga studio does Philippa go to?",
+     "pattern": "Quiet\\ Heron\\ Yoga"
+    },
+    {
+     "query": "How many times did Philippa donate blood in 2022?",
+     "pattern": "(?<!\\d)2(?!\\d)"
+    },
+    {
+     "query": "How many times did Philippa donate blood in 2024?",
+     "pattern": "(?<!\\d)3(?!\\d)"
+    }
+   ]
+  },
+  {
+   "id": "ooo-thaddeus",
+   "facts": [
+    {
+     "key": "c1-later",
+     "text": "Thaddeus attended a wedding in Bergen in July 2024.",
+     "observedAt": "2024-07-21",
+     "role": "distinct"
+    },
+    {
+     "key": "c1-earlier",
+     "text": "In April 2021, Thaddeus was a guest at a wedding in Galway.",
+     "observedAt": "2021-04-21",
+     "role": "distinct"
+    },
+    {
+     "key": "c0-later",
+     "text": "Thaddeus ran 2 half marathons in 2024.",
+     "observedAt": "2024-12-27",
+     "role": "distinct"
+    },
+    {
+     "key": "c0-earlier",
+     "text": "In 2022, Thaddeus completed 4 half marathons.",
+     "observedAt": "2022-12-28",
+     "role": "distinct"
+    },
+    {
+     "key": "u0-new",
+     "text": "Thaddeus works on the onboarding squad.",
+     "observedAt": "2024-08-24",
+     "role": "new",
+     "update": "u0"
+    },
+    {
+     "key": "u0-old",
+     "text": "Thaddeus's team at work is the data platform group.",
+     "observedAt": "2020-06-11",
+     "role": "old",
+     "update": "u0",
+     "loggedOutOfOrder": true
+    },
+    {
+     "key": "u2-old",
+     "text": "Thaddeus has the main bank account at Banco Lume.",
+     "observedAt": "2019-09-05",
+     "role": "old",
+     "update": "u2"
+    },
+    {
+     "key": "u2-new",
+     "text": "Maré Bank is the bank Thaddeus uses for the main account.",
+     "observedAt": "2023-04-18",
+     "role": "new",
+     "update": "u2"
+    },
+    {
+     "key": "u1-new",
+     "text": "Thaddeus is employed at Northmoor Dairy.",
+     "observedAt": "2024-05-07",
+     "role": "new",
+     "update": "u1"
+    },
+    {
+     "key": "u1-old",
+     "text": "Thaddeus's employer is Halvorsen Marine.",
+     "observedAt": "2020-09-30",
+     "role": "old",
+     "update": "u1",
+     "loggedOutOfOrder": true
+    }
+   ],
+   "questions": [
+    {
+     "query": "Which team does Thaddeus work on?",
+     "pattern": "onboarding\\ squad",
+     "stalePattern": "data\\ platform\\ group"
+    },
+    {
+     "query": "What team was Thaddeus part of at work in December 2020?",
+     "pattern": "data\\ platform\\ group",
+     "stalePattern": "onboarding\\ squad",
+     "asOf": "2020-12-28"
+    },
+    {
+     "query": "Who does Thaddeus work for?",
+     "pattern": "Northmoor\\ Dairy",
+     "stalePattern": "Halvorsen\\ Marine"
+    },
+    {
+     "query": "Who was Thaddeus's employer in April 2021?",
+     "pattern": "Halvorsen\\ Marine",
+     "stalePattern": "Northmoor\\ Dairy",
+     "asOf": "2021-04-18"
+    },
+    {
+     "query": "Which bank does Thaddeus use for the main account?",
+     "pattern": "Maré\\ Bank",
+     "stalePattern": "Banco\\ Lume"
+    },
+    {
+     "query": "Where did Thaddeus hold the main bank account in March 2020?",
+     "pattern": "Banco\\ Lume",
+     "stalePattern": "Maré\\ Bank",
+     "asOf": "2020-03-23"
+    },
+    {
+     "query": "How many half marathons did Thaddeus run in 2022?",
+     "pattern": "(?<!\\d)4(?!\\d)"
+    },
+    {
+     "query": "How many half marathons did Thaddeus run in 2024?",
+     "pattern": "(?<!\\d)2(?!\\d)"
+    },
+    {
+     "query": "Where did Thaddeus attend a wedding in 2021?",
+     "pattern": "Galway"
+    },
+    {
+     "query": "Where did Thaddeus attend a wedding in 2024?",
+     "pattern": "Bergen"
+    }
+   ]
+  },
+  {
+   "id": "ooo-leopoldo",
+   "facts": [
+    {
+     "key": "c1-later",
+     "text": "Leopoldo read 9 novels in 2024.",
+     "observedAt": "2024-12-27",
+     "role": "distinct"
+    },
+    {
+     "key": "c1-earlier",
+     "text": "Leopoldo's count of novels read in 2022 was 13.",
+     "observedAt": "2022-12-28",
+     "role": "distinct"
+    },
+    {
+     "key": "u2-old",
+     "text": "Leopoldo owns a Renault Zoe.",
+     "observedAt": "2021-11-12",
+     "role": "old",
+     "update": "u2"
+    },
+    {
+     "key": "u2-new",
+     "text": "Leopoldo's car is a Volvo V60.",
+     "observedAt": "2023-07-27",
+     "role": "new",
+     "update": "u2"
+    },
+    {
+     "key": "u0-new",
+     "text": "Leopoldo's landlord is the Greaves family.",
+     "observedAt": "2023-08-08",
+     "role": "new",
+     "update": "u0"
+    },
+    {
+     "key": "u0-old",
+     "text": "Leopoldo rents from Mrs. Abernathy, the landlord.",
+     "observedAt": "2019-03-25",
+     "role": "old",
+     "update": "u0",
+     "loggedOutOfOrder": true
+    },
+    {
+     "key": "u1-new",
+     "text": "Leopoldo's family doctor is Dr. Lindqvist.",
+     "observedAt": "2024-08-26",
+     "role": "new",
+     "update": "u1"
+    },
+    {
+     "key": "u1-old",
+     "text": "Dr. Yamane serves as Leopoldo's family doctor.",
+     "observedAt": "2020-05-08",
+     "role": "old",
+     "update": "u1",
+     "loggedOutOfOrder": true
+    },
+    {
+     "key": "c0-later",
+     "text": "Leopoldo's yoga studio is Quiet Heron Yoga.",
+     "observedAt": "2023-07-17",
+     "role": "distinct"
+    },
+    {
+     "key": "c0-earlier",
+     "text": "Leopoldo trains at Basalt Gym.",
+     "observedAt": "2021-10-22",
+     "role": "distinct"
+    }
+   ],
+   "questions": [
+    {
+     "query": "Who does Leopoldo rent from?",
+     "pattern": "Greaves\\ family",
+     "stalePattern": "Mrs\\.\\ Abernathy"
+    },
+    {
+     "query": "Who was Leopoldo's landlord in October 2019?",
+     "pattern": "Mrs\\.\\ Abernathy",
+     "stalePattern": "Greaves\\ family",
+     "asOf": "2019-10-11"
+    },
+    {
+     "query": "Which family doctor does Leopoldo see?",
+     "pattern": "Dr\\.\\ Lindqvist",
+     "stalePattern": "Dr\\.\\ Yamane"
+    },
+    {
+     "query": "Who was Leopoldo's family doctor in November 2020?",
+     "pattern": "Dr\\.\\ Yamane",
+     "stalePattern": "Dr\\.\\ Lindqvist",
+     "asOf": "2020-11-24"
+    },
+    {
+     "query": "Which car does Leopoldo own?",
+     "pattern": "Volvo\\ V60",
+     "stalePattern": "Renault\\ Zoe"
+    },
+    {
+     "query": "What car did Leopoldo drive in May 2022?",
+     "pattern": "Renault\\ Zoe",
+     "stalePattern": "Volvo\\ V60",
+     "asOf": "2022-05-31"
+    },
+    {
+     "query": "What gym is Leopoldo a member of?",
+     "pattern": "Basalt\\ Gym"
+    },
+    {
+     "query": "Which yoga studio does Leopoldo go to?",
+     "pattern": "Quiet\\ Heron\\ Yoga"
+    },
+    {
+     "query": "How many novels did Leopoldo read in 2022?",
+     "pattern": "(?<!\\d)13(?!\\d)"
+    },
+    {
+     "query": "How many novels did Leopoldo read in 2024?",
+     "pattern": "(?<!\\d)9(?!\\d)"
+    }
+   ]
+  },
+  {
+   "id": "ooo-cornelius",
+   "facts": [
+    {
+     "key": "c0-later",
+     "text": "Cornelius is a member of the Thursday Readers book club.",
+     "observedAt": "2023-01-20",
+     "role": "distinct"
+    },
+    {
+     "key": "c0-earlier",
+     "text": "Cornelius is on the pricing team at work.",
+     "observedAt": "2020-01-06",
+     "role": "distinct"
+    },
+    {
+     "key": "c1-later",
+     "text": "Cornelius attended a wedding in Sintra in January 2023.",
+     "observedAt": "2023-01-06",
+     "role": "distinct"
+    },
+    {
+     "key": "c1-earlier",
+     "text": "In January 2020, Cornelius went to a wedding in Galway.",
+     "observedAt": "2020-01-13",
+     "role": "distinct"
+    },
+    {
+     "key": "u0-new",
+     "text": "Cornelius's landlord is Mr. Tanaka.",
+     "observedAt": "2023-12-11",
+     "role": "new",
+     "update": "u0"
+    },
+    {
+     "key": "u0-old",
+     "text": "Cornelius rents through the Delacroix agency, the landlord.",
+     "observedAt": "2021-12-14",
+     "role": "old",
+     "update": "u0",
+     "loggedOutOfOrder": true
+    },
+    {
+     "key": "u1-new",
+     "text": "Cornelius works for Castellane Optics.",
+     "observedAt": "2024-11-25",
+     "role": "new",
+     "update": "u1"
+    },
+    {
+     "key": "u1-old",
+     "text": "Halvorsen Marine employs Cornelius.",
+     "observedAt": "2020-11-22",
+     "role": "old",
+     "update": "u1",
+     "loggedOutOfOrder": true
+    },
+    {
+     "key": "u2-old",
+     "text": "Cornelius goes to The Granary Gym.",
+     "observedAt": "2021-10-22",
+     "role": "old",
+     "update": "u2"
+    },
+    {
+     "key": "u2-new",
+     "text": "Cornelius has a gym membership at Marlin Athletic.",
+     "observedAt": "2023-11-30",
+     "role": "new",
+     "update": "u2"
+    }
+   ],
+   "questions": [
+    {
+     "query": "Who is Cornelius's landlord?",
+     "pattern": "Mr\\.\\ Tanaka",
+     "stalePattern": "Delacroix\\ agency"
+    },
+    {
+     "query": "Who did Cornelius rent from in July 2022?",
+     "pattern": "Delacroix\\ agency",
+     "stalePattern": "Mr\\.\\ Tanaka",
+     "asOf": "2022-07-02"
+    },
+    {
+     "query": "Which company employs Cornelius?",
+     "pattern": "Castellane\\ Optics",
+     "stalePattern": "Halvorsen\\ Marine"
+    },
+    {
+     "query": "Who did Cornelius work for in June 2021?",
+     "pattern": "Halvorsen\\ Marine",
+     "stalePattern": "Castellane\\ Optics",
+     "asOf": "2021-06-10"
+    },
+    {
+     "query": "Where does Cornelius work out?",
+     "pattern": "Marlin\\ Athletic",
+     "stalePattern": "The\\ Granary\\ Gym"
+    },
+    {
+     "query": "What gym was Cornelius a member of in May 2022?",
+     "pattern": "The\\ Granary\\ Gym",
+     "stalePattern": "Marlin\\ Athletic",
+     "asOf": "2022-05-10"
+    },
+    {
+     "query": "Which team does Cornelius work on?",
+     "pattern": "pricing\\ team"
+    },
+    {
+     "query": "What book club is Cornelius a member of?",
+     "pattern": "Thursday\\ Readers"
+    },
+    {
+     "query": "Where did Cornelius attend a wedding in 2020?",
+     "pattern": "Galway"
+    },
+    {
+     "query": "Where did Cornelius attend a wedding in 2023?",
+     "pattern": "Sintra"
+    }
+   ]
+  },
+  {
+   "id": "ooo-ignatius",
+   "facts": [
+    {
+     "key": "u2-old",
+     "text": "Ignatius lives in Dunedin.",
+     "observedAt": "2021-05-03",
+     "role": "old",
+     "update": "u2"
+    },
+    {
+     "key": "u2-new",
+     "text": "Ignatius's city of residence is Halifax.",
+     "observedAt": "2024-04-12",
+     "role": "new",
+     "update": "u2"
+    },
+    {
+     "key": "u0-new",
+     "text": "Ignatius's employer is Castellane Optics.",
+     "observedAt": "2023-03-03",
+     "role": "new",
+     "update": "u0"
+    },
+    {
+     "key": "u0-old",
+     "text": "Ignatius is employed by Halvorsen Marine.",
+     "observedAt": "2020-01-22",
+     "role": "old",
+     "update": "u0",
+     "loggedOutOfOrder": true
+    },
+    {
+     "key": "u1-new",
+     "text": "Ignatius rents from the Greaves family, the landlord.",
+     "observedAt": "2023-12-16",
+     "role": "new",
+     "update": "u1"
+    },
+    {
+     "key": "u1-old",
+     "text": "Mr. Tanaka is Ignatius's landlord.",
+     "observedAt": "2021-09-08",
+     "role": "old",
+     "update": "u1",
+     "loggedOutOfOrder": true
+    },
+    {
+     "key": "c1-later",
+     "text": "Ignatius donated blood 1 time in 2024.",
+     "observedAt": "2024-12-27",
+     "role": "distinct"
+    },
+    {
+     "key": "c1-earlier",
+     "text": "In 2022, Ignatius donated blood 3 times.",
+     "observedAt": "2022-12-28",
+     "role": "distinct"
+    }
+   ],
+   "questions": [
+    {
+     "query": "Who is Ignatius's employer?",
+     "pattern": "Castellane\\ Optics",
+     "stalePattern": "Halvorsen\\ Marine"
+    },
+    {
+     "query": "Which company employed Ignatius in August 2020?",
+     "pattern": "Halvorsen\\ Marine",
+     "stalePattern": "Castellane\\ Optics",
+     "asOf": "2020-08-09"
+    },
+    {
+     "query": "Who does Ignatius rent from?",
+     "pattern": "Greaves\\ family",
+     "stalePattern": "Mr\\.\\ Tanaka"
+    },
+    {
+     "query": "Who was Ignatius's landlord in March 2022?",
+     "pattern": "Mr\\.\\ Tanaka",
+     "stalePattern": "Greaves\\ family",
+     "asOf": "2022-03-27"
+    },
+    {
+     "query": "What is Ignatius's city of residence?",
+     "pattern": "Halifax",
+     "stalePattern": "Dunedin"
+    },
+    {
+     "query": "Which city did Ignatius live in in November 2021?",
+     "pattern": "Dunedin",
+     "stalePattern": "Halifax",
+     "asOf": "2021-11-19"
+    },
+    {
+     "query": "How many times did Ignatius donate blood in 2022?",
+     "pattern": "(?<!\\d)3(?!\\d)"
+    },
+    {
+     "query": "How many times did Ignatius donate blood in 2024?",
+     "pattern": "(?<!\\d)1(?!\\d)"
+    }
+   ]
+  },
+  {
+   "id": "ooo-henrietta",
+   "facts": [
+    {
+     "key": "c0-later",
+     "text": "Henrietta made 4 blood donations in 2024.",
+     "observedAt": "2024-12-27",
+     "role": "distinct"
+    },
+    {
+     "key": "c0-earlier",
+     "text": "In 2022, Henrietta gave blood 2 times.",
+     "observedAt": "2022-12-28",
+     "role": "distinct"
+    },
+    {
+     "key": "u0-new",
+     "text": "Henrietta works out at Ironbark Fitness, a gym.",
+     "observedAt": "2024-04-30",
+     "role": "new",
+     "update": "u0"
+    },
+    {
+     "key": "u0-old",
+     "text": "Henrietta's gym is Pulso Studio.",
+     "observedAt": "2021-06-08",
+     "role": "old",
+     "update": "u0",
+     "loggedOutOfOrder": true
+    },
+    {
+     "key": "u2-old",
+     "text": "Henrietta belongs to the onboarding squad at work.",
+     "observedAt": "2020-09-18",
+     "role": "old",
+     "update": "u2"
+    },
+    {
+     "key": "u2-new",
+     "text": "Henrietta's team at work is the field service crew.",
+     "observedAt": "2024-01-20",
+     "role": "new",
+     "update": "u2"
+    },
+    {
+     "key": "u1-new",
+     "text": "Henrietta's landlord is Mr. Tanaka.",
+     "observedAt": "2023-01-03",
+     "role": "new",
+     "update": "u1"
+    },
+    {
+     "key": "u1-old",
+     "text": "Henrietta pays rent to Mr. Fonseca, the landlord.",
+     "observedAt": "2020-06-15",
+     "role": "old",
+     "update": "u1",
+     "loggedOutOfOrder": true
+    },
+    {
+     "key": "c1-later",
+     "text": "Henrietta attended a wedding in Sintra in January 2024.",
+     "observedAt": "2024-01-06",
+     "role": "distinct"
+    },
+    {
+     "key": "c1-earlier",
+     "text": "In June 2020, Henrietta attended a wedding in Bergen.",
+     "observedAt": "2020-06-24",
+     "role": "distinct"
+    }
+   ],
+   "questions": [
+    {
+     "query": "What gym is Henrietta a member of?",
+     "pattern": "Ironbark\\ Fitness",
+     "stalePattern": "Pulso\\ Studio"
+    },
+    {
+     "query": "Which gym did Henrietta go to in December 2021?",
+     "pattern": "Pulso\\ Studio",
+     "stalePattern": "Ironbark\\ Fitness",
+     "asOf": "2021-12-25"
+    },
+    {
+     "query": "Who is Henrietta's landlord?",
+     "pattern": "Mr\\.\\ Tanaka",
+     "stalePattern": "Mr\\.\\ Fonseca"
+    },
+    {
+     "query": "Who did Henrietta rent from in January 2021?",
+     "pattern": "Mr\\.\\ Fonseca",
+     "stalePattern": "Mr\\.\\ Tanaka",
+     "asOf": "2021-01-01"
+    },
+    {
+     "query": "Which team does Henrietta work on?",
+     "pattern": "field\\ service\\ crew",
+     "stalePattern": "onboarding\\ squad"
+    },
+    {
+     "query": "What team was Henrietta part of at work in April 2021?",
+     "pattern": "onboarding\\ squad",
+     "stalePattern": "field\\ service\\ crew",
+     "asOf": "2021-04-06"
+    },
+    {
+     "query": "How many times did Henrietta donate blood in 2022?",
+     "pattern": "(?<!\\d)2(?!\\d)"
+    },
+    {
+     "query": "How many times did Henrietta donate blood in 2024?",
+     "pattern": "(?<!\\d)4(?!\\d)"
+    },
+    {
+     "query": "Where did Henrietta attend a wedding in 2020?",
+     "pattern": "Bergen"
+    },
+    {
+     "query": "Where did Henrietta attend a wedding in 2024?",
+     "pattern": "Sintra"
+    }
+   ]
+  }
+ ]
+}

@@ -80,3 +80,71 @@ describe('supersession refuses a fact about another period (#252)', () => {
     expect(ruth?.supersedes).toEqual([petra!.id]);
   });
 });
+
+/** States the residence of the new message and lists whichever shown memory holds the other city, in either direction. */
+const eitherDirectionLlm: LLM = {
+  generateResponse: (messages) => {
+    const system = messages[0]?.content ?? '';
+    const city = /Lisbon/.test(system.slice(system.lastIndexOf('## New Messages'))) ? 'Lisbon' : 'Porto';
+    const other = city === 'Lisbon' ? 'Porto' : 'Lisbon';
+    const shown = system.split('\n').find((line) => /^\d+\. /.test(line) && line.includes(other))?.split('.')[0];
+    return Promise.resolve({ memory: [{ id: '0', text: `user lives in ${city}`, ...(shown !== undefined ? { supersedes_memory_ids: [shown] } : {}) }] });
+  },
+  generateChat: () => Promise.resolve({ role: 'assistant', content: '' }),
+};
+
+describe('an older value that arrives after the newer one (#253)', () => {
+  const said2023 = new Date('2023-01-01T00:00:00Z');
+  const said2024 = new Date('2024-03-01T00:00:00Z');
+
+  test('is stored as already ended, so current recall keeps only the newer value', async () => {
+    const memory = await createLocalMemory({ vectorStore: new InMemoryVectorStore(), embedder, llm: eitherDirectionLlm, embeddingDim: MAX_EMBEDDING_DIM });
+    await memory.user('anna').remember('I live in Lisbon', { observedAt: said2024 });
+
+    const [porto] = await memory.user('anna').remember('I live in Porto', { observedAt: said2023 });
+
+    expect(porto?.tInvalid).toEqual(said2024);
+    const current = await memory.user('anna').recall('where does the user live', { threshold: 0 });
+    expect(current.map((m) => m.text)).toEqual(['user lives in Lisbon']);
+  });
+
+  test('stays readable as of a date before the newer value began', async () => {
+    const memory = await createLocalMemory({ vectorStore: new InMemoryVectorStore(), embedder, llm: eitherDirectionLlm, embeddingDim: MAX_EMBEDDING_DIM });
+    await memory.user('anna').remember('I live in Lisbon', { observedAt: said2024 });
+    await memory.user('anna').remember('I live in Porto', { observedAt: said2023 });
+
+    const before = await memory.user('anna').recall('where does the user live', { threshold: 0, asOf: new Date('2023-06-01T00:00:00Z') });
+
+    expect(before.map((m) => m.text)).toEqual(['user lives in Porto']);
+  });
+
+  test('does not report the older value as replacing the newer one', async () => {
+    const memory = await createLocalMemory({ vectorStore: new InMemoryVectorStore(), embedder, llm: eitherDirectionLlm, embeddingDim: MAX_EMBEDDING_DIM });
+    await memory.user('anna').remember('I live in Lisbon', { observedAt: said2024 });
+
+    const [porto] = await memory.user('anna').remember('I live in Porto', { observedAt: said2023 });
+
+    expect(porto?.supersedes).toBeUndefined();
+  });
+
+  test('leaves a count for an earlier year alone when it arrives after the count for a later year', async () => {
+    const memory = await createLocalMemory({ vectorStore: new InMemoryVectorStore(), embedder, llm: yearlyCountLlm, embeddingDim: MAX_EMBEDDING_DIM });
+    await memory.user('oskar').remember('I planted 65 apple trees in 2023', { observedAt: new Date('2023-12-29T00:00:00Z') });
+
+    const [earlier] = await memory.user('oskar').remember('I planted 40 apple trees in 2022', { observedAt: new Date('2022-12-30T00:00:00Z') });
+
+    expect(earlier?.tInvalid).toBeNull();
+    const current = await memory.user('oskar').recall('how many apple trees did Oskar plant', { threshold: 0 });
+    expect(current.map((m) => m.text).sort()).toEqual(['Oskar planted 40 apple trees in 2022', 'Oskar planted 65 apple trees in 2023']);
+  });
+
+  test('with supersedeOnWrite off, both values stay current', async () => {
+    const memory = await createLocalMemory({ vectorStore: new InMemoryVectorStore(), embedder, llm: eitherDirectionLlm, embeddingDim: MAX_EMBEDDING_DIM, supersedeOnWrite: false });
+    await memory.user('anna').remember('I live in Lisbon', { observedAt: said2024 });
+    await memory.user('anna').remember('I live in Porto', { observedAt: said2023 });
+
+    const current = await memory.user('anna').recall('where does the user live', { threshold: 0 });
+
+    expect(current.map((m) => m.text).sort()).toEqual(['user lives in Lisbon', 'user lives in Porto']);
+  });
+});

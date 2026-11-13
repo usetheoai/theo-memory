@@ -815,6 +815,37 @@ describe('runExtractionPipeline supersession on write', () => {
     }));
   });
 
+  test('an older value that arrives after the newer one ends where the newer one began, with a history record (#253)', async () => {
+    const store = new InMemoryVectorStore();
+    const lisbon = await seed(store, 'user lives in Lisbon', '2024-03-01T00:00:00.000Z');
+    const batchAddHistory = vi.fn(async (_records: readonly HistoryBatchRecord[]) => undefined);
+    const historyManager = { addHistory: vi.fn(), getHistory: vi.fn(), reset: vi.fn(), close: vi.fn(), batchAddHistory };
+
+    const [item] = await runExtractionPipeline([{ role: 'user', content: 'I live in Porto' }], SCOPE,
+      { vectorStore: store, embedder: topicEmbedder(), llm: supersedingLlm('user lives in Porto', 'Lisbon'), historyManager },
+      { observedAt: new Date('2023-01-01T00:00:00Z') });
+
+    expect(item?.tInvalid).toEqual(new Date('2024-03-01T00:00:00.000Z'));
+    expect(item?.supersedes).toBeUndefined();
+    expect((await store.list(SCOPE, 10))[0].map((r) => r.id)).toEqual([lisbon]);
+    const records = batchAddHistory.mock.calls.flatMap((call) => [...call[0]]);
+    expect(records).toContainEqual(expect.objectContaining({
+      memoryId: item?.id, action: 'supersede', previousValue: 'user lives in Porto', newValue: 'user lives in Lisbon',
+    }));
+  });
+
+  test('a named memory that is no longer current does not end the arriving fact', async () => {
+    const store = new InMemoryVectorStore();
+    const lisbon = await seed(store, 'user lives in Lisbon', '2024-03-01T00:00:00.000Z');
+    await store.supersede(SCOPE, [lisbon], { memoryId: randomUUID(), at: new Date('2024-06-01T00:00:00Z') });
+
+    const [item] = await runExtractionPipeline([{ role: 'user', content: 'I live in Porto' }], SCOPE,
+      { vectorStore: store, embedder: topicEmbedder(), llm: supersedingLlm('user lives in Porto', 'Lisbon') },
+      { observedAt: new Date('2023-01-01T00:00:00Z') });
+
+    expect(item?.tInvalid).toBeNull();
+  });
+
   test('the extractor sees the existing memories most similar to the new messages, not only the latest', async () => {
     const store = new InMemoryVectorStore();
     // The residence fact is the oldest of seven, so a most-recent-five context would miss it.
@@ -857,7 +888,10 @@ describe('runExtractionPipeline supersession on write', () => {
       { observedAt: new Date('2023-01-01T00:00:00Z') });
     expect(item?.supersedes ?? []).toEqual([]);
     expect((await store.list(SCOPE, 10))[0].map((r) => r.id)).toContain(lisbon);
-    expect(exporter.getFinishedSpans().map((span) => span.name)).toContain('supersession_skipped');
+    // #253: the newer memory stays, and the arriving older value is the one that ends.
+    const events = exporter.getFinishedSpans().map((span) => span.name);
+    expect(events).toContain('memory_ended_on_arrival');
+    expect(events).not.toContain('supersession_skipped');
   });
 
   test('supersedeOnWrite false keeps every existing memory current and does not ask the extractor', async () => {

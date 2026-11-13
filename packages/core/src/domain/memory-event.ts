@@ -287,6 +287,8 @@ export const MEMORY_EVENTS = [
   'event_time_ambiguous',
   // ADR-0035: a passing state of the moment got an end, so recall stops showing it later.
   'short_lived_expiry_set',
+  // #253: a new fact arrived after a newer value of the same thing and was stored as already ended.
+  'memory_ended_on_arrival',
 ] as const;
 
 export type MemoryEvent = (typeof MEMORY_EVENTS)[number];
