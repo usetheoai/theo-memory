@@ -154,8 +154,20 @@ agent, shown only the message and the sending day, read the same date in all 120
 Stage 1 dates more sentences at the same error rate among the dated ones (87% right in both). The
 93% of the template set does not hold on free wording. Filling a date where the model wrote none
 is right 37 times and wrong 3; replacing a date the model wrote spoils 8 right ones and fixes 6
-wrong ones. How the date is accepted is therefore reopened, and decided by a measurement on sets
-kept apart from this one; until then stage 1 stays as merged.
+wrong ones. How the date is accepted was therefore reopened and put to a measurement on sets kept
+apart from this one.
+
+Two alternatives were compared with stage 1 on 119 more free sentences, never opened by the author,
+under a rule written before the run: fill a date only where the model wrote none, and accept a date
+only when two of three readers agree. Neither replaced stage 1. The first had fewer wrong dates in
+`eventTime` (4 against 7), a difference that 119 sentences cannot tell from chance (p 0.51), and
+left more wrong dates in the fact text (12 against 9). Stage 1 stays as merged.
+
+The same run confirms stage 1 against the base on sentences it was not designed on: the right date
+is in the fact text for 91 of 119 sentences against 54, and wrong dates do not rise (9 against 12).
+On 664 English assistant commands annotated by people (PÂTÉ and the annotated Snips set), the rules
+read 188 dates right and 10 wrong with a future direction, and leave 466 unread; coverage of free
+wording is the open problem, more than precision.
 
 ## Consequences
 
