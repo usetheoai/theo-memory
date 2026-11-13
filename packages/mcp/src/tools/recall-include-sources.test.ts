@@ -32,12 +32,20 @@ describe('recall tool includeSources', () => {
     ]);
   });
 
-  test('leaves sources out when not asked', async () => {
+  test('asks for sources when the caller does not say', async () => {
+    const { factory, recall } = memoryRecordingRecall();
+    const out = await withScope({ session: { userId: 'alice' } }, () =>
+      recallHandler({ query: 'pottery' }, { memoryFactory: factory }));
+    expect(vi.mocked(recall).mock.calls[0]?.[1]).toMatchObject({ includeSources: true });
+    expect(OUTPUT_SCHEMA.parse(out.structuredContent).results[0]?.sources).toHaveLength(1);
+  });
+
+  test('leaves sources out when the caller turns them off', async () => {
     const { factory, recall } = memoryRecordingRecall();
     vi.mocked(recall).mockResolvedValue([{ ...HIT, sources: undefined }] as never);
     const out = await withScope({ session: { userId: 'alice' } }, () =>
-      recallHandler({ query: 'pottery' }, { memoryFactory: factory }));
-    expect(vi.mocked(recall).mock.calls[0]?.[1]).not.toHaveProperty('includeSources');
+      recallHandler({ query: 'pottery', includeSources: false }, { memoryFactory: factory }));
+    expect(vi.mocked(recall).mock.calls[0]?.[1]).toMatchObject({ includeSources: false });
     expect(OUTPUT_SCHEMA.parse(out.structuredContent).results[0]).not.toHaveProperty('sources');
   });
 });
