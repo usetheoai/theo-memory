@@ -279,6 +279,14 @@ export const MEMORY_EVENTS = [
   'extraction_evidence_downgraded',
   // A fact written about `user` got back the person its own relation names (#257).
   'extraction_subject_restored',
+  // ADR-0035: a draft the extractor labeled temporary or tentative is stored, not dropped.
+  'extraction_short_lived_kept',
+  // ADR-0035: the date of a fact's event was counted in code from its quote.
+  'event_time_resolved',
+  // ADR-0035: the quote names two times, so no event date was set.
+  'event_time_ambiguous',
+  // ADR-0035: a passing state of the moment got an end, so recall stops showing it later.
+  'short_lived_expiry_set',
 ] as const;
 
 export type MemoryEvent = (typeof MEMORY_EVENTS)[number];

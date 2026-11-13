@@ -1,0 +1,1562 @@
+[
+ {
+  "name": "en-tomorrow-1",
+  "language": "en",
+  "kind": "tomorrow",
+  "tense": "plan",
+  "observedAt": "2025-11-10T12:00:00.000Z",
+  "text": "I'm flying to Lisbon tomorrow.",
+  "expected": "2025-11-11",
+  "granularity": "day"
+ },
+ {
+  "name": "en-tomorrow-2",
+  "language": "en",
+  "kind": "tomorrow",
+  "tense": "plan",
+  "observedAt": "2025-06-23T12:00:00.000Z",
+  "text": "My driving test is tomorrow.",
+  "expected": "2025-06-24",
+  "granularity": "day"
+ },
+ {
+  "name": "en-yesterday-1",
+  "language": "en",
+  "kind": "yesterday",
+  "tense": "past",
+  "observedAt": "2024-05-25T12:00:00.000Z",
+  "text": "I signed the lease yesterday.",
+  "expected": "2024-05-24",
+  "granularity": "day"
+ },
+ {
+  "name": "en-yesterday-2",
+  "language": "en",
+  "kind": "yesterday",
+  "tense": "past",
+  "observedAt": "2025-10-26T12:00:00.000Z",
+  "text": "I adopted a cat yesterday.",
+  "expected": "2025-10-25",
+  "granularity": "day"
+ },
+ {
+  "name": "en-day-after-tomorrow-1",
+  "language": "en",
+  "kind": "day-after-tomorrow",
+  "tense": "plan",
+  "observedAt": "2025-03-13T12:00:00.000Z",
+  "text": "I'm flying to Lisbon the day after tomorrow.",
+  "expected": "2025-03-15",
+  "granularity": "day"
+ },
+ {
+  "name": "en-day-after-tomorrow-2",
+  "language": "en",
+  "kind": "day-after-tomorrow",
+  "tense": "plan",
+  "observedAt": "2025-07-19T12:00:00.000Z",
+  "text": "I'm having dinner with Odile the day after tomorrow.",
+  "expected": "2025-07-21",
+  "granularity": "day"
+ },
+ {
+  "name": "en-in-n-days-1",
+  "language": "en",
+  "kind": "in-n-days",
+  "tense": "plan",
+  "observedAt": "2024-12-09T12:00:00.000Z",
+  "text": "I'm having dinner with Odile in 5 days.",
+  "expected": "2024-12-14",
+  "granularity": "day"
+ },
+ {
+  "name": "en-in-n-days-2",
+  "language": "en",
+  "kind": "in-n-days",
+  "tense": "plan",
+  "observedAt": "2024-04-18T12:00:00.000Z",
+  "text": "I have a dentist appointment in 5 days.",
+  "expected": "2024-04-23",
+  "granularity": "day"
+ },
+ {
+  "name": "en-n-days-ago-1",
+  "language": "en",
+  "kind": "n-days-ago",
+  "tense": "past",
+  "observedAt": "2024-08-01T12:00:00.000Z",
+  "text": "I visited my grandmother 8 days ago.",
+  "expected": "2024-07-24",
+  "granularity": "day"
+ },
+ {
+  "name": "en-n-days-ago-2",
+  "language": "en",
+  "kind": "n-days-ago",
+  "tense": "past",
+  "observedAt": "2024-02-04T12:00:00.000Z",
+  "text": "I ran a half marathon 7 days ago.",
+  "expected": "2024-01-28",
+  "granularity": "day"
+ },
+ {
+  "name": "en-weekday-ahead-1",
+  "language": "en",
+  "kind": "weekday-ahead",
+  "tense": "plan",
+  "observedAt": "2025-04-07T12:00:00.000Z",
+  "text": "I have a dentist appointment on Wednesday.",
+  "expected": "2025-04-09",
+  "granularity": "day"
+ },
+ {
+  "name": "en-weekday-ahead-2",
+  "language": "en",
+  "kind": "weekday-ahead",
+  "tense": "plan",
+  "observedAt": "2024-03-27T12:00:00.000Z",
+  "text": "I have a dentist appointment on Monday.",
+  "expected": "2024-04-01",
+  "granularity": "day"
+ },
+ {
+  "name": "en-weekday-back-1",
+  "language": "en",
+  "kind": "weekday-back",
+  "tense": "past",
+  "observedAt": "2024-09-24T12:00:00.000Z",
+  "text": "I signed the lease last Sunday.",
+  "expected": "2024-09-22",
+  "granularity": "day"
+ },
+ {
+  "name": "en-weekday-back-2",
+  "language": "en",
+  "kind": "weekday-back",
+  "tense": "past",
+  "observedAt": "2025-07-31T12:00:00.000Z",
+  "text": "I ran a half marathon last Tuesday.",
+  "expected": "2025-07-29",
+  "granularity": "day"
+ },
+ {
+  "name": "en-day-month-ahead-1",
+  "language": "en",
+  "kind": "day-month-ahead",
+  "tense": "plan",
+  "observedAt": "2024-08-29T12:00:00.000Z",
+  "text": "I'm having dinner with Odile on the 20th of September.",
+  "expected": "2024-09-20",
+  "granularity": "day"
+ },
+ {
+  "name": "en-day-month-ahead-2",
+  "language": "en",
+  "kind": "day-month-ahead",
+  "tense": "plan",
+  "observedAt": "2025-05-04T12:00:00.000Z",
+  "text": "My driving test is on the 3rd of June.",
+  "expected": "2025-06-03",
+  "granularity": "day"
+ },
+ {
+  "name": "en-day-month-back-1",
+  "language": "en",
+  "kind": "day-month-back",
+  "tense": "past",
+  "observedAt": "2024-01-12T12:00:00.000Z",
+  "text": "I signed the lease on the 11th of December.",
+  "expected": "2023-12-11",
+  "granularity": "day"
+ },
+ {
+  "name": "en-day-month-back-2",
+  "language": "en",
+  "kind": "day-month-back",
+  "tense": "past",
+  "observedAt": "2025-01-12T12:00:00.000Z",
+  "text": "I visited my grandmother on the 15th of July.",
+  "expected": "2024-07-15",
+  "granularity": "day"
+ },
+ {
+  "name": "en-day-month-year-1",
+  "language": "en",
+  "kind": "day-month-year",
+  "tense": "plan",
+  "observedAt": "2025-11-17T12:00:00.000Z",
+  "text": "I have a dentist appointment on 29 December 2025.",
+  "expected": "2025-12-29",
+  "granularity": "day"
+ },
+ {
+  "name": "en-day-month-year-2",
+  "language": "en",
+  "kind": "day-month-year",
+  "tense": "plan",
+  "observedAt": "2025-07-21T12:00:00.000Z",
+  "text": "I'm having dinner with Odile on 16 June 2026.",
+  "expected": "2026-06-16",
+  "granularity": "day"
+ },
+ {
+  "name": "en-next-month-1",
+  "language": "en",
+  "kind": "next-month",
+  "tense": "plan",
+  "observedAt": "2024-03-11T12:00:00.000Z",
+  "text": "I'm having dinner with Odile next month.",
+  "expected": "2024-04",
+  "granularity": "month"
+ },
+ {
+  "name": "en-next-month-2",
+  "language": "en",
+  "kind": "next-month",
+  "tense": "plan",
+  "observedAt": "2024-02-20T12:00:00.000Z",
+  "text": "I have a dentist appointment next month.",
+  "expected": "2024-03",
+  "granularity": "month"
+ },
+ {
+  "name": "en-last-month-1",
+  "language": "en",
+  "kind": "last-month",
+  "tense": "past",
+  "observedAt": "2025-03-17T12:00:00.000Z",
+  "text": "I ran a half marathon last month.",
+  "expected": "2025-02",
+  "granularity": "month"
+ },
+ {
+  "name": "en-last-month-2",
+  "language": "en",
+  "kind": "last-month",
+  "tense": "past",
+  "observedAt": "2024-01-16T12:00:00.000Z",
+  "text": "I ran a half marathon last month.",
+  "expected": "2023-12",
+  "granularity": "month"
+ },
+ {
+  "name": "en-month-name-ahead-1",
+  "language": "en",
+  "kind": "month-name-ahead",
+  "tense": "plan",
+  "observedAt": "2024-01-12T12:00:00.000Z",
+  "text": "I'm having dinner with Odile in May.",
+  "expected": "2024-05",
+  "granularity": "month"
+ },
+ {
+  "name": "en-month-name-ahead-2",
+  "language": "en",
+  "kind": "month-name-ahead",
+  "tense": "plan",
+  "observedAt": "2024-12-03T12:00:00.000Z",
+  "text": "I'm flying to Lisbon in August.",
+  "expected": "2025-08",
+  "granularity": "month"
+ },
+ {
+  "name": "pt-tomorrow-1",
+  "language": "pt",
+  "kind": "tomorrow",
+  "tense": "plan",
+  "observedAt": "2024-02-17T12:00:00.000Z",
+  "text": "Minha prova de direção é amanhã.",
+  "expected": "2024-02-18",
+  "granularity": "day"
+ },
+ {
+  "name": "pt-tomorrow-2",
+  "language": "pt",
+  "kind": "tomorrow",
+  "tense": "plan",
+  "observedAt": "2024-09-19T12:00:00.000Z",
+  "text": "Tenho consulta no dentista amanhã.",
+  "expected": "2024-09-20",
+  "granularity": "day"
+ },
+ {
+  "name": "pt-yesterday-1",
+  "language": "pt",
+  "kind": "yesterday",
+  "tense": "past",
+  "observedAt": "2025-07-17T12:00:00.000Z",
+  "text": "Adotei um gato ontem.",
+  "expected": "2025-07-16",
+  "granularity": "day"
+ },
+ {
+  "name": "pt-yesterday-2",
+  "language": "pt",
+  "kind": "yesterday",
+  "tense": "past",
+  "observedAt": "2024-03-02T12:00:00.000Z",
+  "text": "Corri uma meia maratona ontem.",
+  "expected": "2024-03-01",
+  "granularity": "day"
+ },
+ {
+  "name": "pt-day-after-tomorrow-1",
+  "language": "pt",
+  "kind": "day-after-tomorrow",
+  "tense": "plan",
+  "observedAt": "2025-08-15T12:00:00.000Z",
+  "text": "Vou jantar com a Odile depois de amanhã.",
+  "expected": "2025-08-17",
+  "granularity": "day"
+ },
+ {
+  "name": "pt-day-after-tomorrow-2",
+  "language": "pt",
+  "kind": "day-after-tomorrow",
+  "tense": "plan",
+  "observedAt": "2024-12-29T12:00:00.000Z",
+  "text": "Minha prova de direção é depois de amanhã.",
+  "expected": "2024-12-31",
+  "granularity": "day"
+ },
+ {
+  "name": "pt-in-n-days-1",
+  "language": "pt",
+  "kind": "in-n-days",
+  "tense": "plan",
+  "observedAt": "2025-09-06T12:00:00.000Z",
+  "text": "Vou jantar com a Odile daqui a 6 dias.",
+  "expected": "2025-09-12",
+  "granularity": "day"
+ },
+ {
+  "name": "pt-in-n-days-2",
+  "language": "pt",
+  "kind": "in-n-days",
+  "tense": "plan",
+  "observedAt": "2025-12-18T12:00:00.000Z",
+  "text": "Tenho consulta no dentista daqui a 7 dias.",
+  "expected": "2025-12-25",
+  "granularity": "day"
+ },
+ {
+  "name": "pt-n-days-ago-1",
+  "language": "pt",
+  "kind": "n-days-ago",
+  "tense": "past",
+  "observedAt": "2024-05-22T12:00:00.000Z",
+  "text": "Visitei minha avó há 9 dias.",
+  "expected": "2024-05-13",
+  "granularity": "day"
+ },
+ {
+  "name": "pt-n-days-ago-2",
+  "language": "pt",
+  "kind": "n-days-ago",
+  "tense": "past",
+  "observedAt": "2024-04-19T12:00:00.000Z",
+  "text": "Visitei minha avó há 7 dias.",
+  "expected": "2024-04-12",
+  "granularity": "day"
+ },
+ {
+  "name": "pt-weekday-ahead-1",
+  "language": "pt",
+  "kind": "weekday-ahead",
+  "tense": "plan",
+  "observedAt": "2025-03-13T12:00:00.000Z",
+  "text": "Vou jantar com a Odile no domingo.",
+  "expected": "2025-03-16",
+  "granularity": "day"
+ },
+ {
+  "name": "pt-weekday-ahead-2",
+  "language": "pt",
+  "kind": "weekday-ahead",
+  "tense": "plan",
+  "observedAt": "2025-01-08T12:00:00.000Z",
+  "text": "Vou viajar para Lisboa na terça-feira.",
+  "expected": "2025-01-14",
+  "granularity": "day"
+ },
+ {
+  "name": "pt-weekday-back-1",
+  "language": "pt",
+  "kind": "weekday-back",
+  "tense": "past",
+  "observedAt": "2025-06-15T12:00:00.000Z",
+  "text": "Visitei minha avó na quarta-feira passada.",
+  "expected": "2025-06-11",
+  "granularity": "day"
+ },
+ {
+  "name": "pt-weekday-back-2",
+  "language": "pt",
+  "kind": "weekday-back",
+  "tense": "past",
+  "observedAt": "2024-10-02T12:00:00.000Z",
+  "text": "Corri uma meia maratona na quinta-feira passada.",
+  "expected": "2024-09-26",
+  "granularity": "day"
+ },
+ {
+  "name": "pt-day-month-ahead-1",
+  "language": "pt",
+  "kind": "day-month-ahead",
+  "tense": "plan",
+  "observedAt": "2024-05-20T12:00:00.000Z",
+  "text": "Vou jantar com a Odile no dia 21 de outubro.",
+  "expected": "2024-10-21",
+  "granularity": "day"
+ },
+ {
+  "name": "pt-day-month-ahead-2",
+  "language": "pt",
+  "kind": "day-month-ahead",
+  "tense": "plan",
+  "observedAt": "2024-06-04T12:00:00.000Z",
+  "text": "Vou jantar com a Odile no dia 4 de agosto.",
+  "expected": "2024-08-04",
+  "granularity": "day"
+ },
+ {
+  "name": "pt-day-month-back-1",
+  "language": "pt",
+  "kind": "day-month-back",
+  "tense": "past",
+  "observedAt": "2024-05-24T12:00:00.000Z",
+  "text": "Visitei minha avó no dia 31 de janeiro.",
+  "expected": "2024-01-31",
+  "granularity": "day"
+ },
+ {
+  "name": "pt-day-month-back-2",
+  "language": "pt",
+  "kind": "day-month-back",
+  "tense": "past",
+  "observedAt": "2025-04-19T12:00:00.000Z",
+  "text": "Assinei o contrato de aluguel no dia 17 de novembro.",
+  "expected": "2024-11-17",
+  "granularity": "day"
+ },
+ {
+  "name": "pt-day-month-year-1",
+  "language": "pt",
+  "kind": "day-month-year",
+  "tense": "plan",
+  "observedAt": "2024-12-09T12:00:00.000Z",
+  "text": "Tenho consulta no dentista no dia 18 de setembro de 2025.",
+  "expected": "2025-09-18",
+  "granularity": "day"
+ },
+ {
+  "name": "pt-day-month-year-2",
+  "language": "pt",
+  "kind": "day-month-year",
+  "tense": "plan",
+  "observedAt": "2025-10-06T12:00:00.000Z",
+  "text": "Vou jantar com a Odile no dia 3 de março de 2026.",
+  "expected": "2026-03-03",
+  "granularity": "day"
+ },
+ {
+  "name": "pt-next-month-1",
+  "language": "pt",
+  "kind": "next-month",
+  "tense": "plan",
+  "observedAt": "2025-11-27T12:00:00.000Z",
+  "text": "Tenho consulta no dentista no mês que vem.",
+  "expected": "2025-12",
+  "granularity": "month"
+ },
+ {
+  "name": "pt-next-month-2",
+  "language": "pt",
+  "kind": "next-month",
+  "tense": "plan",
+  "observedAt": "2025-10-08T12:00:00.000Z",
+  "text": "Vou viajar para Lisboa no mês que vem.",
+  "expected": "2025-11",
+  "granularity": "month"
+ },
+ {
+  "name": "pt-last-month-1",
+  "language": "pt",
+  "kind": "last-month",
+  "tense": "past",
+  "observedAt": "2025-04-11T12:00:00.000Z",
+  "text": "Adotei um gato no mês passado.",
+  "expected": "2025-03",
+  "granularity": "month"
+ },
+ {
+  "name": "pt-last-month-2",
+  "language": "pt",
+  "kind": "last-month",
+  "tense": "past",
+  "observedAt": "2025-11-13T12:00:00.000Z",
+  "text": "Corri uma meia maratona no mês passado.",
+  "expected": "2025-10",
+  "granularity": "month"
+ },
+ {
+  "name": "pt-month-name-ahead-1",
+  "language": "pt",
+  "kind": "month-name-ahead",
+  "tense": "plan",
+  "observedAt": "2024-08-16T12:00:00.000Z",
+  "text": "Vou jantar com a Odile em dezembro.",
+  "expected": "2024-12",
+  "granularity": "month"
+ },
+ {
+  "name": "pt-month-name-ahead-2",
+  "language": "pt",
+  "kind": "month-name-ahead",
+  "tense": "plan",
+  "observedAt": "2024-04-12T12:00:00.000Z",
+  "text": "Vou viajar para Lisboa em dezembro.",
+  "expected": "2024-12",
+  "granularity": "month"
+ },
+ {
+  "name": "es-tomorrow-1",
+  "language": "es",
+  "kind": "tomorrow",
+  "tense": "plan",
+  "observedAt": "2025-12-09T12:00:00.000Z",
+  "text": "Tengo cita con el dentista mañana.",
+  "expected": "2025-12-10",
+  "granularity": "day"
+ },
+ {
+  "name": "es-tomorrow-2",
+  "language": "es",
+  "kind": "tomorrow",
+  "tense": "plan",
+  "observedAt": "2024-10-09T12:00:00.000Z",
+  "text": "Ceno con Odile mañana.",
+  "expected": "2024-10-10",
+  "granularity": "day"
+ },
+ {
+  "name": "es-yesterday-1",
+  "language": "es",
+  "kind": "yesterday",
+  "tense": "past",
+  "observedAt": "2025-10-10T12:00:00.000Z",
+  "text": "Visité a mi abuela ayer.",
+  "expected": "2025-10-09",
+  "granularity": "day"
+ },
+ {
+  "name": "es-yesterday-2",
+  "language": "es",
+  "kind": "yesterday",
+  "tense": "past",
+  "observedAt": "2024-09-20T12:00:00.000Z",
+  "text": "Adopté un gato ayer.",
+  "expected": "2024-09-19",
+  "granularity": "day"
+ },
+ {
+  "name": "es-day-after-tomorrow-1",
+  "language": "es",
+  "kind": "day-after-tomorrow",
+  "tense": "plan",
+  "observedAt": "2025-07-17T12:00:00.000Z",
+  "text": "Mi examen de conducir es pasado mañana.",
+  "expected": "2025-07-19",
+  "granularity": "day"
+ },
+ {
+  "name": "es-day-after-tomorrow-2",
+  "language": "es",
+  "kind": "day-after-tomorrow",
+  "tense": "plan",
+  "observedAt": "2025-04-28T12:00:00.000Z",
+  "text": "Ceno con Odile pasado mañana.",
+  "expected": "2025-04-30",
+  "granularity": "day"
+ },
+ {
+  "name": "es-in-n-days-1",
+  "language": "es",
+  "kind": "in-n-days",
+  "tense": "plan",
+  "observedAt": "2024-11-16T12:00:00.000Z",
+  "text": "Vuelo a Lisboa dentro de 9 días.",
+  "expected": "2024-11-25",
+  "granularity": "day"
+ },
+ {
+  "name": "es-in-n-days-2",
+  "language": "es",
+  "kind": "in-n-days",
+  "tense": "plan",
+  "observedAt": "2024-12-19T12:00:00.000Z",
+  "text": "Tengo cita con el dentista dentro de 5 días.",
+  "expected": "2024-12-24",
+  "granularity": "day"
+ },
+ {
+  "name": "es-n-days-ago-1",
+  "language": "es",
+  "kind": "n-days-ago",
+  "tense": "past",
+  "observedAt": "2024-02-13T12:00:00.000Z",
+  "text": "Visité a mi abuela hace 7 días.",
+  "expected": "2024-02-06",
+  "granularity": "day"
+ },
+ {
+  "name": "es-n-days-ago-2",
+  "language": "es",
+  "kind": "n-days-ago",
+  "tense": "past",
+  "observedAt": "2025-10-25T12:00:00.000Z",
+  "text": "Firmé el contrato de alquiler hace 5 días.",
+  "expected": "2025-10-20",
+  "granularity": "day"
+ },
+ {
+  "name": "es-weekday-ahead-1",
+  "language": "es",
+  "kind": "weekday-ahead",
+  "tense": "plan",
+  "observedAt": "2024-07-25T12:00:00.000Z",
+  "text": "Tengo cita con el dentista el domingo.",
+  "expected": "2024-07-28",
+  "granularity": "day"
+ },
+ {
+  "name": "es-weekday-ahead-2",
+  "language": "es",
+  "kind": "weekday-ahead",
+  "tense": "plan",
+  "observedAt": "2025-05-09T12:00:00.000Z",
+  "text": "Mi examen de conducir es el jueves.",
+  "expected": "2025-05-15",
+  "granularity": "day"
+ },
+ {
+  "name": "es-weekday-back-1",
+  "language": "es",
+  "kind": "weekday-back",
+  "tense": "past",
+  "observedAt": "2025-03-10T12:00:00.000Z",
+  "text": "Visité a mi abuela el martes pasado.",
+  "expected": "2025-03-04",
+  "granularity": "day"
+ },
+ {
+  "name": "es-weekday-back-2",
+  "language": "es",
+  "kind": "weekday-back",
+  "tense": "past",
+  "observedAt": "2025-07-25T12:00:00.000Z",
+  "text": "Corrí una media maratón el martes pasado.",
+  "expected": "2025-07-22",
+  "granularity": "day"
+ },
+ {
+  "name": "es-day-month-ahead-1",
+  "language": "es",
+  "kind": "day-month-ahead",
+  "tense": "plan",
+  "observedAt": "2024-01-01T12:00:00.000Z",
+  "text": "Tengo cita con el dentista el 9 de junio.",
+  "expected": "2024-06-09",
+  "granularity": "day"
+ },
+ {
+  "name": "es-day-month-ahead-2",
+  "language": "es",
+  "kind": "day-month-ahead",
+  "tense": "plan",
+  "observedAt": "2025-08-30T12:00:00.000Z",
+  "text": "Vuelo a Lisboa el 26 de febrero.",
+  "expected": "2026-02-26",
+  "granularity": "day"
+ },
+ {
+  "name": "es-day-month-back-1",
+  "language": "es",
+  "kind": "day-month-back",
+  "tense": "past",
+  "observedAt": "2024-03-05T12:00:00.000Z",
+  "text": "Firmé el contrato de alquiler el 4 de diciembre.",
+  "expected": "2023-12-04",
+  "granularity": "day"
+ },
+ {
+  "name": "es-day-month-back-2",
+  "language": "es",
+  "kind": "day-month-back",
+  "tense": "past",
+  "observedAt": "2025-12-01T12:00:00.000Z",
+  "text": "Visité a mi abuela el 11 de agosto.",
+  "expected": "2025-08-11",
+  "granularity": "day"
+ },
+ {
+  "name": "es-day-month-year-1",
+  "language": "es",
+  "kind": "day-month-year",
+  "tense": "plan",
+  "observedAt": "2025-11-02T12:00:00.000Z",
+  "text": "Mi examen de conducir es el 20 de febrero de 2026.",
+  "expected": "2026-02-20",
+  "granularity": "day"
+ },
+ {
+  "name": "es-day-month-year-2",
+  "language": "es",
+  "kind": "day-month-year",
+  "tense": "plan",
+  "observedAt": "2024-02-29T12:00:00.000Z",
+  "text": "Tengo cita con el dentista el 18 de noviembre de 2024.",
+  "expected": "2024-11-18",
+  "granularity": "day"
+ },
+ {
+  "name": "es-next-month-1",
+  "language": "es",
+  "kind": "next-month",
+  "tense": "plan",
+  "observedAt": "2025-04-15T12:00:00.000Z",
+  "text": "Ceno con Odile el mes que viene.",
+  "expected": "2025-05",
+  "granularity": "month"
+ },
+ {
+  "name": "es-next-month-2",
+  "language": "es",
+  "kind": "next-month",
+  "tense": "plan",
+  "observedAt": "2024-10-20T12:00:00.000Z",
+  "text": "Mi examen de conducir es el mes que viene.",
+  "expected": "2024-11",
+  "granularity": "month"
+ },
+ {
+  "name": "es-last-month-1",
+  "language": "es",
+  "kind": "last-month",
+  "tense": "past",
+  "observedAt": "2024-02-20T12:00:00.000Z",
+  "text": "Visité a mi abuela el mes pasado.",
+  "expected": "2024-01",
+  "granularity": "month"
+ },
+ {
+  "name": "es-last-month-2",
+  "language": "es",
+  "kind": "last-month",
+  "tense": "past",
+  "observedAt": "2025-09-18T12:00:00.000Z",
+  "text": "Adopté un gato el mes pasado.",
+  "expected": "2025-08",
+  "granularity": "month"
+ },
+ {
+  "name": "es-month-name-ahead-1",
+  "language": "es",
+  "kind": "month-name-ahead",
+  "tense": "plan",
+  "observedAt": "2025-11-17T12:00:00.000Z",
+  "text": "Ceno con Odile en abril.",
+  "expected": "2026-04",
+  "granularity": "month"
+ },
+ {
+  "name": "es-month-name-ahead-2",
+  "language": "es",
+  "kind": "month-name-ahead",
+  "tense": "plan",
+  "observedAt": "2024-04-05T12:00:00.000Z",
+  "text": "Tengo cita con el dentista en diciembre.",
+  "expected": "2024-12",
+  "granularity": "month"
+ },
+ {
+  "name": "fr-tomorrow-1",
+  "language": "fr",
+  "kind": "tomorrow",
+  "tense": "plan",
+  "observedAt": "2025-12-06T12:00:00.000Z",
+  "text": "Je prends l'avion pour Lisbonne demain.",
+  "expected": "2025-12-07",
+  "granularity": "day"
+ },
+ {
+  "name": "fr-tomorrow-2",
+  "language": "fr",
+  "kind": "tomorrow",
+  "tense": "plan",
+  "observedAt": "2025-12-24T12:00:00.000Z",
+  "text": "Je dîne avec Odile demain.",
+  "expected": "2025-12-25",
+  "granularity": "day"
+ },
+ {
+  "name": "fr-yesterday-1",
+  "language": "fr",
+  "kind": "yesterday",
+  "tense": "past",
+  "observedAt": "2024-11-16T12:00:00.000Z",
+  "text": "J'ai adopté un chat hier.",
+  "expected": "2024-11-15",
+  "granularity": "day"
+ },
+ {
+  "name": "fr-yesterday-2",
+  "language": "fr",
+  "kind": "yesterday",
+  "tense": "past",
+  "observedAt": "2025-08-24T12:00:00.000Z",
+  "text": "J'ai rendu visite à ma grand-mère hier.",
+  "expected": "2025-08-23",
+  "granularity": "day"
+ },
+ {
+  "name": "fr-day-after-tomorrow-1",
+  "language": "fr",
+  "kind": "day-after-tomorrow",
+  "tense": "plan",
+  "observedAt": "2025-10-05T12:00:00.000Z",
+  "text": "Je dîne avec Odile après-demain.",
+  "expected": "2025-10-07",
+  "granularity": "day"
+ },
+ {
+  "name": "fr-day-after-tomorrow-2",
+  "language": "fr",
+  "kind": "day-after-tomorrow",
+  "tense": "plan",
+  "observedAt": "2024-06-22T12:00:00.000Z",
+  "text": "J'ai rendez-vous chez le dentiste après-demain.",
+  "expected": "2024-06-24",
+  "granularity": "day"
+ },
+ {
+  "name": "fr-in-n-days-1",
+  "language": "fr",
+  "kind": "in-n-days",
+  "tense": "plan",
+  "observedAt": "2025-03-31T12:00:00.000Z",
+  "text": "Je prends l'avion pour Lisbonne dans 9 jours.",
+  "expected": "2025-04-09",
+  "granularity": "day"
+ },
+ {
+  "name": "fr-in-n-days-2",
+  "language": "fr",
+  "kind": "in-n-days",
+  "tense": "plan",
+  "observedAt": "2024-01-21T12:00:00.000Z",
+  "text": "Je prends l'avion pour Lisbonne dans 9 jours.",
+  "expected": "2024-01-30",
+  "granularity": "day"
+ },
+ {
+  "name": "fr-n-days-ago-1",
+  "language": "fr",
+  "kind": "n-days-ago",
+  "tense": "past",
+  "observedAt": "2025-08-26T12:00:00.000Z",
+  "text": "J'ai signé le bail il y a 5 jours.",
+  "expected": "2025-08-21",
+  "granularity": "day"
+ },
+ {
+  "name": "fr-n-days-ago-2",
+  "language": "fr",
+  "kind": "n-days-ago",
+  "tense": "past",
+  "observedAt": "2024-11-15T12:00:00.000Z",
+  "text": "J'ai signé le bail il y a 9 jours.",
+  "expected": "2024-11-06",
+  "granularity": "day"
+ },
+ {
+  "name": "fr-weekday-ahead-1",
+  "language": "fr",
+  "kind": "weekday-ahead",
+  "tense": "plan",
+  "observedAt": "2025-11-18T12:00:00.000Z",
+  "text": "Je prends l'avion pour Lisbonne jeudi.",
+  "expected": "2025-11-20",
+  "granularity": "day"
+ },
+ {
+  "name": "fr-weekday-ahead-2",
+  "language": "fr",
+  "kind": "weekday-ahead",
+  "tense": "plan",
+  "observedAt": "2025-05-26T12:00:00.000Z",
+  "text": "J'ai rendez-vous chez le dentiste mercredi.",
+  "expected": "2025-05-28",
+  "granularity": "day"
+ },
+ {
+  "name": "fr-weekday-back-1",
+  "language": "fr",
+  "kind": "weekday-back",
+  "tense": "past",
+  "observedAt": "2024-09-12T12:00:00.000Z",
+  "text": "J'ai adopté un chat mardi dernier.",
+  "expected": "2024-09-10",
+  "granularity": "day"
+ },
+ {
+  "name": "fr-weekday-back-2",
+  "language": "fr",
+  "kind": "weekday-back",
+  "tense": "past",
+  "observedAt": "2024-12-13T12:00:00.000Z",
+  "text": "J'ai couru un semi-marathon samedi dernier.",
+  "expected": "2024-12-07",
+  "granularity": "day"
+ },
+ {
+  "name": "fr-day-month-ahead-1",
+  "language": "fr",
+  "kind": "day-month-ahead",
+  "tense": "plan",
+  "observedAt": "2024-04-03T12:00:00.000Z",
+  "text": "Mon examen de conduite est le 1er juin.",
+  "expected": "2024-06-01",
+  "granularity": "day"
+ },
+ {
+  "name": "fr-day-month-ahead-2",
+  "language": "fr",
+  "kind": "day-month-ahead",
+  "tense": "plan",
+  "observedAt": "2025-11-19T12:00:00.000Z",
+  "text": "J'ai rendez-vous chez le dentiste le 6 mai.",
+  "expected": "2026-05-06",
+  "granularity": "day"
+ },
+ {
+  "name": "fr-day-month-back-1",
+  "language": "fr",
+  "kind": "day-month-back",
+  "tense": "past",
+  "observedAt": "2024-08-19T12:00:00.000Z",
+  "text": "J'ai rendu visite à ma grand-mère le 24 avril.",
+  "expected": "2024-04-24",
+  "granularity": "day"
+ },
+ {
+  "name": "fr-day-month-back-2",
+  "language": "fr",
+  "kind": "day-month-back",
+  "tense": "past",
+  "observedAt": "2024-02-24T12:00:00.000Z",
+  "text": "J'ai rendu visite à ma grand-mère le 8 octobre.",
+  "expected": "2023-10-08",
+  "granularity": "day"
+ },
+ {
+  "name": "fr-day-month-year-1",
+  "language": "fr",
+  "kind": "day-month-year",
+  "tense": "plan",
+  "observedAt": "2024-03-22T12:00:00.000Z",
+  "text": "J'ai rendez-vous chez le dentiste le 13 juin 2024.",
+  "expected": "2024-06-13",
+  "granularity": "day"
+ },
+ {
+  "name": "fr-day-month-year-2",
+  "language": "fr",
+  "kind": "day-month-year",
+  "tense": "plan",
+  "observedAt": "2024-05-06T12:00:00.000Z",
+  "text": "J'ai rendez-vous chez le dentiste le 25 juillet 2024.",
+  "expected": "2024-07-25",
+  "granularity": "day"
+ },
+ {
+  "name": "fr-next-month-1",
+  "language": "fr",
+  "kind": "next-month",
+  "tense": "plan",
+  "observedAt": "2025-04-28T12:00:00.000Z",
+  "text": "Je prends l'avion pour Lisbonne le mois prochain.",
+  "expected": "2025-05",
+  "granularity": "month"
+ },
+ {
+  "name": "fr-next-month-2",
+  "language": "fr",
+  "kind": "next-month",
+  "tense": "plan",
+  "observedAt": "2025-04-29T12:00:00.000Z",
+  "text": "Je dîne avec Odile le mois prochain.",
+  "expected": "2025-05",
+  "granularity": "month"
+ },
+ {
+  "name": "fr-last-month-1",
+  "language": "fr",
+  "kind": "last-month",
+  "tense": "past",
+  "observedAt": "2024-03-23T12:00:00.000Z",
+  "text": "J'ai couru un semi-marathon le mois dernier.",
+  "expected": "2024-02",
+  "granularity": "month"
+ },
+ {
+  "name": "fr-last-month-2",
+  "language": "fr",
+  "kind": "last-month",
+  "tense": "past",
+  "observedAt": "2024-06-25T12:00:00.000Z",
+  "text": "J'ai couru un semi-marathon le mois dernier.",
+  "expected": "2024-05",
+  "granularity": "month"
+ },
+ {
+  "name": "fr-month-name-ahead-1",
+  "language": "fr",
+  "kind": "month-name-ahead",
+  "tense": "plan",
+  "observedAt": "2024-06-26T12:00:00.000Z",
+  "text": "J'ai rendez-vous chez le dentiste en décembre.",
+  "expected": "2024-12",
+  "granularity": "month"
+ },
+ {
+  "name": "fr-month-name-ahead-2",
+  "language": "fr",
+  "kind": "month-name-ahead",
+  "tense": "plan",
+  "observedAt": "2024-06-08T12:00:00.000Z",
+  "text": "Mon examen de conduite est en août.",
+  "expected": "2024-08",
+  "granularity": "month"
+ },
+ {
+  "name": "de-tomorrow-1",
+  "language": "de",
+  "kind": "tomorrow",
+  "tense": "plan",
+  "observedAt": "2024-01-30T12:00:00.000Z",
+  "text": "Ich fliege morgen nach Lissabon.",
+  "expected": "2024-01-31",
+  "granularity": "day"
+ },
+ {
+  "name": "de-tomorrow-2",
+  "language": "de",
+  "kind": "tomorrow",
+  "tense": "plan",
+  "observedAt": "2024-12-03T12:00:00.000Z",
+  "text": "Ich habe morgen einen Zahnarzttermin.",
+  "expected": "2024-12-04",
+  "granularity": "day"
+ },
+ {
+  "name": "de-yesterday-1",
+  "language": "de",
+  "kind": "yesterday",
+  "tense": "past",
+  "observedAt": "2024-04-01T12:00:00.000Z",
+  "text": "Ich bin gestern einen Halbmarathon gelaufen.",
+  "expected": "2024-03-31",
+  "granularity": "day"
+ },
+ {
+  "name": "de-yesterday-2",
+  "language": "de",
+  "kind": "yesterday",
+  "tense": "past",
+  "observedAt": "2025-10-03T12:00:00.000Z",
+  "text": "Ich bin gestern einen Halbmarathon gelaufen.",
+  "expected": "2025-10-02",
+  "granularity": "day"
+ },
+ {
+  "name": "de-day-after-tomorrow-1",
+  "language": "de",
+  "kind": "day-after-tomorrow",
+  "tense": "plan",
+  "observedAt": "2025-10-02T12:00:00.000Z",
+  "text": "Ich fliege übermorgen nach Lissabon.",
+  "expected": "2025-10-04",
+  "granularity": "day"
+ },
+ {
+  "name": "de-day-after-tomorrow-2",
+  "language": "de",
+  "kind": "day-after-tomorrow",
+  "tense": "plan",
+  "observedAt": "2025-01-07T12:00:00.000Z",
+  "text": "Meine Fahrprüfung ist übermorgen.",
+  "expected": "2025-01-09",
+  "granularity": "day"
+ },
+ {
+  "name": "de-in-n-days-1",
+  "language": "de",
+  "kind": "in-n-days",
+  "tense": "plan",
+  "observedAt": "2024-09-21T12:00:00.000Z",
+  "text": "Ich fliege in 5 Tagen nach Lissabon.",
+  "expected": "2024-09-26",
+  "granularity": "day"
+ },
+ {
+  "name": "de-in-n-days-2",
+  "language": "de",
+  "kind": "in-n-days",
+  "tense": "plan",
+  "observedAt": "2024-07-09T12:00:00.000Z",
+  "text": "Ich habe in 4 Tagen einen Zahnarzttermin.",
+  "expected": "2024-07-13",
+  "granularity": "day"
+ },
+ {
+  "name": "de-n-days-ago-1",
+  "language": "de",
+  "kind": "n-days-ago",
+  "tense": "past",
+  "observedAt": "2024-08-18T12:00:00.000Z",
+  "text": "Ich habe vor 5 Tagen eine Katze adoptiert.",
+  "expected": "2024-08-13",
+  "granularity": "day"
+ },
+ {
+  "name": "de-n-days-ago-2",
+  "language": "de",
+  "kind": "n-days-ago",
+  "tense": "past",
+  "observedAt": "2024-04-02T12:00:00.000Z",
+  "text": "Ich habe vor 6 Tagen eine Katze adoptiert.",
+  "expected": "2024-03-27",
+  "granularity": "day"
+ },
+ {
+  "name": "de-weekday-ahead-1",
+  "language": "de",
+  "kind": "weekday-ahead",
+  "tense": "plan",
+  "observedAt": "2024-11-26T12:00:00.000Z",
+  "text": "Meine Fahrprüfung ist am Samstag.",
+  "expected": "2024-11-30",
+  "granularity": "day"
+ },
+ {
+  "name": "de-weekday-ahead-2",
+  "language": "de",
+  "kind": "weekday-ahead",
+  "tense": "plan",
+  "observedAt": "2025-10-14T12:00:00.000Z",
+  "text": "Meine Fahrprüfung ist am Donnerstag.",
+  "expected": "2025-10-16",
+  "granularity": "day"
+ },
+ {
+  "name": "de-weekday-back-1",
+  "language": "de",
+  "kind": "weekday-back",
+  "tense": "past",
+  "observedAt": "2024-03-05T12:00:00.000Z",
+  "text": "Ich habe letzten Donnerstag eine Katze adoptiert.",
+  "expected": "2024-02-29",
+  "granularity": "day"
+ },
+ {
+  "name": "de-weekday-back-2",
+  "language": "de",
+  "kind": "weekday-back",
+  "tense": "past",
+  "observedAt": "2024-07-16T12:00:00.000Z",
+  "text": "Ich habe letzten Sonntag eine Katze adoptiert.",
+  "expected": "2024-07-14",
+  "granularity": "day"
+ },
+ {
+  "name": "de-day-month-ahead-1",
+  "language": "de",
+  "kind": "day-month-ahead",
+  "tense": "plan",
+  "observedAt": "2024-11-05T12:00:00.000Z",
+  "text": "Meine Fahrprüfung ist am 21. Februar.",
+  "expected": "2025-02-21",
+  "granularity": "day"
+ },
+ {
+  "name": "de-day-month-ahead-2",
+  "language": "de",
+  "kind": "day-month-ahead",
+  "tense": "plan",
+  "observedAt": "2024-09-05T12:00:00.000Z",
+  "text": "Ich esse am 11. Februar mit Odile zu Abend.",
+  "expected": "2025-02-11",
+  "granularity": "day"
+ },
+ {
+  "name": "de-day-month-back-1",
+  "language": "de",
+  "kind": "day-month-back",
+  "tense": "past",
+  "observedAt": "2025-03-28T12:00:00.000Z",
+  "text": "Ich habe am 30. Dezember eine Katze adoptiert.",
+  "expected": "2024-12-30",
+  "granularity": "day"
+ },
+ {
+  "name": "de-day-month-back-2",
+  "language": "de",
+  "kind": "day-month-back",
+  "tense": "past",
+  "observedAt": "2025-05-20T12:00:00.000Z",
+  "text": "Ich bin am 7. Dezember einen Halbmarathon gelaufen.",
+  "expected": "2024-12-07",
+  "granularity": "day"
+ },
+ {
+  "name": "de-day-month-year-1",
+  "language": "de",
+  "kind": "day-month-year",
+  "tense": "plan",
+  "observedAt": "2024-08-07T12:00:00.000Z",
+  "text": "Ich fliege am 1. Juli 2025 nach Lissabon.",
+  "expected": "2025-07-01",
+  "granularity": "day"
+ },
+ {
+  "name": "de-day-month-year-2",
+  "language": "de",
+  "kind": "day-month-year",
+  "tense": "plan",
+  "observedAt": "2024-12-15T12:00:00.000Z",
+  "text": "Ich habe am 20. Januar 2025 einen Zahnarzttermin.",
+  "expected": "2025-01-20",
+  "granularity": "day"
+ },
+ {
+  "name": "de-next-month-1",
+  "language": "de",
+  "kind": "next-month",
+  "tense": "plan",
+  "observedAt": "2024-12-14T12:00:00.000Z",
+  "text": "Ich fliege nächsten Monat nach Lissabon.",
+  "expected": "2025-01",
+  "granularity": "month"
+ },
+ {
+  "name": "de-next-month-2",
+  "language": "de",
+  "kind": "next-month",
+  "tense": "plan",
+  "observedAt": "2024-11-07T12:00:00.000Z",
+  "text": "Ich esse nächsten Monat mit Odile zu Abend.",
+  "expected": "2024-12",
+  "granularity": "month"
+ },
+ {
+  "name": "de-last-month-1",
+  "language": "de",
+  "kind": "last-month",
+  "tense": "past",
+  "observedAt": "2025-02-05T12:00:00.000Z",
+  "text": "Ich habe letzten Monat eine Katze adoptiert.",
+  "expected": "2025-01",
+  "granularity": "month"
+ },
+ {
+  "name": "de-last-month-2",
+  "language": "de",
+  "kind": "last-month",
+  "tense": "past",
+  "observedAt": "2025-07-31T12:00:00.000Z",
+  "text": "Ich bin letzten Monat einen Halbmarathon gelaufen.",
+  "expected": "2025-06",
+  "granularity": "month"
+ },
+ {
+  "name": "de-month-name-ahead-1",
+  "language": "de",
+  "kind": "month-name-ahead",
+  "tense": "plan",
+  "observedAt": "2024-12-29T12:00:00.000Z",
+  "text": "Ich habe im März einen Zahnarzttermin.",
+  "expected": "2025-03",
+  "granularity": "month"
+ },
+ {
+  "name": "de-month-name-ahead-2",
+  "language": "de",
+  "kind": "month-name-ahead",
+  "tense": "plan",
+  "observedAt": "2025-11-01T12:00:00.000Z",
+  "text": "Meine Fahrprüfung ist im Mai.",
+  "expected": "2026-05",
+  "granularity": "month"
+ },
+ {
+  "name": "it-tomorrow-1",
+  "language": "it",
+  "kind": "tomorrow",
+  "tense": "plan",
+  "observedAt": "2025-08-24T12:00:00.000Z",
+  "text": "Ho un appuntamento dal dentista domani.",
+  "expected": "2025-08-25",
+  "granularity": "day"
+ },
+ {
+  "name": "it-tomorrow-2",
+  "language": "it",
+  "kind": "tomorrow",
+  "tense": "plan",
+  "observedAt": "2025-08-05T12:00:00.000Z",
+  "text": "Il mio esame di guida è domani.",
+  "expected": "2025-08-06",
+  "granularity": "day"
+ },
+ {
+  "name": "it-yesterday-1",
+  "language": "it",
+  "kind": "yesterday",
+  "tense": "past",
+  "observedAt": "2025-09-25T12:00:00.000Z",
+  "text": "Ho adottato un gatto ieri.",
+  "expected": "2025-09-24",
+  "granularity": "day"
+ },
+ {
+  "name": "it-yesterday-2",
+  "language": "it",
+  "kind": "yesterday",
+  "tense": "past",
+  "observedAt": "2025-08-17T12:00:00.000Z",
+  "text": "Ho firmato il contratto d'affitto ieri.",
+  "expected": "2025-08-16",
+  "granularity": "day"
+ },
+ {
+  "name": "it-day-after-tomorrow-1",
+  "language": "it",
+  "kind": "day-after-tomorrow",
+  "tense": "plan",
+  "observedAt": "2024-02-05T12:00:00.000Z",
+  "text": "Ho un appuntamento dal dentista dopodomani.",
+  "expected": "2024-02-07",
+  "granularity": "day"
+ },
+ {
+  "name": "it-day-after-tomorrow-2",
+  "language": "it",
+  "kind": "day-after-tomorrow",
+  "tense": "plan",
+  "observedAt": "2024-02-21T12:00:00.000Z",
+  "text": "Ho un appuntamento dal dentista dopodomani.",
+  "expected": "2024-02-23",
+  "granularity": "day"
+ },
+ {
+  "name": "it-in-n-days-1",
+  "language": "it",
+  "kind": "in-n-days",
+  "tense": "plan",
+  "observedAt": "2025-11-13T12:00:00.000Z",
+  "text": "Ho un appuntamento dal dentista tra 3 giorni.",
+  "expected": "2025-11-16",
+  "granularity": "day"
+ },
+ {
+  "name": "it-in-n-days-2",
+  "language": "it",
+  "kind": "in-n-days",
+  "tense": "plan",
+  "observedAt": "2025-07-24T12:00:00.000Z",
+  "text": "Il mio esame di guida è tra 4 giorni.",
+  "expected": "2025-07-28",
+  "granularity": "day"
+ },
+ {
+  "name": "it-n-days-ago-1",
+  "language": "it",
+  "kind": "n-days-ago",
+  "tense": "past",
+  "observedAt": "2024-10-18T12:00:00.000Z",
+  "text": "Ho fatto visita a mia nonna 4 giorni fa.",
+  "expected": "2024-10-14",
+  "granularity": "day"
+ },
+ {
+  "name": "it-n-days-ago-2",
+  "language": "it",
+  "kind": "n-days-ago",
+  "tense": "past",
+  "observedAt": "2025-07-31T12:00:00.000Z",
+  "text": "Ho adottato un gatto 3 giorni fa.",
+  "expected": "2025-07-28",
+  "granularity": "day"
+ },
+ {
+  "name": "it-weekday-ahead-1",
+  "language": "it",
+  "kind": "weekday-ahead",
+  "tense": "plan",
+  "observedAt": "2024-02-03T12:00:00.000Z",
+  "text": "Ceno con Odile lunedì.",
+  "expected": "2024-02-05",
+  "granularity": "day"
+ },
+ {
+  "name": "it-weekday-ahead-2",
+  "language": "it",
+  "kind": "weekday-ahead",
+  "tense": "plan",
+  "observedAt": "2024-06-20T12:00:00.000Z",
+  "text": "Il mio esame di guida è martedì.",
+  "expected": "2024-06-25",
+  "granularity": "day"
+ },
+ {
+  "name": "it-weekday-back-1",
+  "language": "it",
+  "kind": "weekday-back",
+  "tense": "past",
+  "observedAt": "2025-08-11T12:00:00.000Z",
+  "text": "Ho fatto visita a mia nonna mercoledì scorso.",
+  "expected": "2025-08-06",
+  "granularity": "day"
+ },
+ {
+  "name": "it-weekday-back-2",
+  "language": "it",
+  "kind": "weekday-back",
+  "tense": "past",
+  "observedAt": "2025-04-07T12:00:00.000Z",
+  "text": "Ho corso una mezza maratona venerdì scorso.",
+  "expected": "2025-04-04",
+  "granularity": "day"
+ },
+ {
+  "name": "it-day-month-ahead-1",
+  "language": "it",
+  "kind": "day-month-ahead",
+  "tense": "plan",
+  "observedAt": "2024-07-28T12:00:00.000Z",
+  "text": "Il mio esame di guida è il 2 ottobre.",
+  "expected": "2024-10-02",
+  "granularity": "day"
+ },
+ {
+  "name": "it-day-month-ahead-2",
+  "language": "it",
+  "kind": "day-month-ahead",
+  "tense": "plan",
+  "observedAt": "2024-11-28T12:00:00.000Z",
+  "text": "Il mio esame di guida è il 26 aprile.",
+  "expected": "2025-04-26",
+  "granularity": "day"
+ },
+ {
+  "name": "it-day-month-back-1",
+  "language": "it",
+  "kind": "day-month-back",
+  "tense": "past",
+  "observedAt": "2025-06-02T12:00:00.000Z",
+  "text": "Ho fatto visita a mia nonna il 31 gennaio.",
+  "expected": "2025-01-31",
+  "granularity": "day"
+ },
+ {
+  "name": "it-day-month-back-2",
+  "language": "it",
+  "kind": "day-month-back",
+  "tense": "past",
+  "observedAt": "2025-07-21T12:00:00.000Z",
+  "text": "Ho corso una mezza maratona il 4 aprile.",
+  "expected": "2025-04-04",
+  "granularity": "day"
+ },
+ {
+  "name": "it-day-month-year-1",
+  "language": "it",
+  "kind": "day-month-year",
+  "tense": "plan",
+  "observedAt": "2025-12-15T12:00:00.000Z",
+  "text": "Ho un appuntamento dal dentista il 17 giugno 2026.",
+  "expected": "2026-06-17",
+  "granularity": "day"
+ },
+ {
+  "name": "it-day-month-year-2",
+  "language": "it",
+  "kind": "day-month-year",
+  "tense": "plan",
+  "observedAt": "2024-06-08T12:00:00.000Z",
+  "text": "Il mio esame di guida è il 24 marzo 2025.",
+  "expected": "2025-03-24",
+  "granularity": "day"
+ },
+ {
+  "name": "it-next-month-1",
+  "language": "it",
+  "kind": "next-month",
+  "tense": "plan",
+  "observedAt": "2025-08-25T12:00:00.000Z",
+  "text": "Ho un appuntamento dal dentista il mese prossimo.",
+  "expected": "2025-09",
+  "granularity": "month"
+ },
+ {
+  "name": "it-next-month-2",
+  "language": "it",
+  "kind": "next-month",
+  "tense": "plan",
+  "observedAt": "2024-08-17T12:00:00.000Z",
+  "text": "Ho un appuntamento dal dentista il mese prossimo.",
+  "expected": "2024-09",
+  "granularity": "month"
+ },
+ {
+  "name": "it-last-month-1",
+  "language": "it",
+  "kind": "last-month",
+  "tense": "past",
+  "observedAt": "2025-07-05T12:00:00.000Z",
+  "text": "Ho adottato un gatto il mese scorso.",
+  "expected": "2025-06",
+  "granularity": "month"
+ },
+ {
+  "name": "it-last-month-2",
+  "language": "it",
+  "kind": "last-month",
+  "tense": "past",
+  "observedAt": "2025-07-03T12:00:00.000Z",
+  "text": "Ho adottato un gatto il mese scorso.",
+  "expected": "2025-06",
+  "granularity": "month"
+ },
+ {
+  "name": "it-month-name-ahead-1",
+  "language": "it",
+  "kind": "month-name-ahead",
+  "tense": "plan",
+  "observedAt": "2024-06-22T12:00:00.000Z",
+  "text": "Il mio esame di guida è a dicembre.",
+  "expected": "2024-12",
+  "granularity": "month"
+ },
+ {
+  "name": "it-month-name-ahead-2",
+  "language": "it",
+  "kind": "month-name-ahead",
+  "tense": "plan",
+  "observedAt": "2025-08-30T12:00:00.000Z",
+  "text": "Ceno con Odile a febbraio.",
+  "expected": "2026-02",
+  "granularity": "month"
+ }
+]

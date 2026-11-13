@@ -19,13 +19,24 @@ The architecture applies the [provided video transcript](transcripts/8C4bh59FtsI
 
 `RememberOptions.evidence` and `MemoryItem.evidence` accept `kind` (`stated`, `inferred`, or
 `observed`), optional `sourceId`, `originSourceId`, `sourceQuote`, `modality` (`text`, `audio`,
-`video`) and `confidence` (0–1). None means verified. Confidence is a subjective estimate.
+`video`) and `confidence` (0 to 1). None means verified. Confidence is a subjective estimate.
 References do not fetch or retain raw sources.
 
 For `infer:false`, the caller declares evidence. For extraction, caller source references are
-preserved while the model classifies each fact. The extractor drops temporary and tentative
-preferences before persistence. Purchases, returns and profile changes can be durable events
-without becoming permanent preferences. A stated fact needs a quote present in the submitted
+preserved while the model classifies each fact with a durability (`durable`, `temporary`,
+`tentative`) and the time of the statement (`future`, `past`, `present`). A stated, grounded fact is
+stored whatever its durability, and the label is kept as `MemoryItem.durability`. A stated plan or a
+dated event is therefore remembered. A passing state of the moment ("I am very sleepy right now")
+is stored with `expiresAt` set to the end of the UTC day it was said: recall stops showing it after
+that, and `recall({ asOf })` still reaches it. A temporary or tentative draft that is only the
+extractor's inference, or has no quote in the input, is dropped. Purchases, returns and profile
+changes can be durable events without becoming permanent preferences.
+
+When a fact names when its event is ("tomorrow", "last Wednesday", "on the 14th of March"), the
+date is counted in code from `RememberOptions.observedAt` (the write time when absent), stored as
+`MemoryItem.eventTime` (`start`, `end`, `granularity`, `expression`) and written into the fact
+text. A date the extractor wrote that disagrees is replaced. A sentence that names two times gets
+no event time. A stated fact needs a quote present in the submitted
 input; invalid quotes are stripped and the fact becomes inferred. Presence checks do not
 prove that an interpretation is correct. Reflection-derived memories are inferred.
 

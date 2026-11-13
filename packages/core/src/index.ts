@@ -232,6 +232,9 @@ export {
 /** Evidence classification for contextual memory. @see docs/memory-semantics.md */
 export { MemoryEvidenceSchema } from './domain/memory-evidence.js';
 export type { MemoryEvidence } from './domain/memory-evidence.js';
+/** When a fact's event is, and how long its statement is expected to hold (ADR-0035). @see docs/memory-semantics.md */
+export type { EventTime, EventGranularity } from './domain/extraction/event-time.js';
+export type { MemoryDurability } from './domain/memory-time.js';
 
 /** Session lifecycle and exact fact-store integration. @see docs/memory-semantics.md */
 export { MemorySession, MemorySessionUnavailable } from './application/memory-session.js';
