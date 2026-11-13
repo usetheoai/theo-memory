@@ -828,7 +828,28 @@ export class PgvectorStore implements VectorStore {
   }
 
   async delete(vectorId: string): Promise<void> {
+    const derived = await this.countDerivatives(this.pool, vectorId);
     await this.pool.query('DELETE FROM memories WHERE id = $1', [vectorId]);
+    if (derived > 0) emitEvent(this.tracer, 'forget_reached_derived', { memories: derived });
+  }
+
+  /**
+   * How many memories a physical delete of this one will take with it: every summary derived
+   * from it, and every summary derived from those. The delete itself is done by a trigger
+   * (migration 0039), on any path; this count is what makes it visible in the audit events.
+   */
+  private async countDerivatives(db: Pool | PoolClient, vectorId: string): Promise<number> {
+    const { rows } = await db.query<{ n: string }>(
+      `WITH RECURSIVE gone AS (
+         SELECT id, workspace_id FROM memories WHERE id = $1
+         UNION
+         SELECT d.id, d.workspace_id FROM memories d
+           JOIN gone g ON d.kind = 'derived' AND d.workspace_id = g.workspace_id AND d.derived_from ? g.id::text
+       )
+       SELECT count(*) AS n FROM gone WHERE id <> $1`,
+      [vectorId],
+    );
+    return Number(rows[0]?.n ?? 0);
   }
 
   /**
@@ -915,8 +936,10 @@ export class PgvectorStore implements VectorStore {
         'SELECT entity_id FROM memory_entities WHERE memory_id = $1',
         [vectorId],
       );
+      const derived = await this.countDerivatives(client, vectorId);
       const result = await client.query(`DELETE FROM memories WHERE ${where}`, params);
       const hit = (result.rowCount ?? 0) > 0;
+      if (hit && derived > 0) emitEvent(this.tracer, 'forget_reached_derived', { memories: derived });
       let ents = 0;
       let edges = 0;
       if (hit && linked.length > 0) {

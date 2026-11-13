@@ -115,8 +115,9 @@ describe.skipIf(PG_URI === '')(
       expect(auditRows).toHaveLength(1);
       expect(auditRows[0]?.kept_memory_id).toBeNull();
 
-      // Then (c): `reason` + `policy_name` preserved (regulatory audit trail).
-      expect(auditRows[0]?.reason).toBe('kept "a" — more specific (oat milk)');
+      // Then (c): the row and its `policy_name` stay as the record that a decision was made.
+      // The free-text reason restates the erased memory, so a hard forget replaces it.
+      expect(auditRows[0]?.reason).toBe('[erased]');
       expect(auditRows[0]?.policy_name).toBe('ec-3-test');
 
       // Then (d) [SEPA MAJOR add]: `rejected_memory_ids` JSONB unchanged —
