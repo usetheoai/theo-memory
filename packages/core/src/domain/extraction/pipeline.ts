@@ -560,6 +560,8 @@ async function extractAndPersist(
         for (let i = 0; i < survivingItems.length; i += 1) {
           const replaced = applied.supersededBy.get(survivingItems[i]!.id);
           if (replaced !== undefined) survivingItems[i] = { ...survivingItems[i]!, supersedes: replaced };
+          const endedAt = applied.endedOnArrival.get(survivingItems[i]!.id);
+          if (endedAt !== undefined) survivingItems[i] = { ...survivingItems[i]!, tInvalid: endedAt };
         }
       } catch (err) {
         // The facts are committed; the replaced memories simply stay current. Observable, not silent.
