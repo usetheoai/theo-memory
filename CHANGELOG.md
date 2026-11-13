@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- The MCP `recall` tool returns `tValid` (when the fact was said), `eventTime` and `durability` on each result, as REST already does. `createdAt` is the write time, so a fact imported with `observedAt` had no visible date of its own. (#253)
+
 - `MemoryItem.eventTime` (`start`, `end`, `granularity`, `expression`): the date of a fact's event, counted in code from `RememberOptions.observedAt` in English, Portuguese, Spanish, French, German and Italian, and written into the fact text. A date the extractor counted wrong is replaced. `MemoryItem.durability` carries the extractor's label. `EventTime`, `EventGranularity` and `MemoryDurability` are exported from `@usetheo/memory`. Each decision emits an event: `event_time_resolved`, `event_time_ambiguous`, `extraction_short_lived_kept`, `short_lived_expiry_set`. (#245)
 
 - `searchMessages` takes `surroundingTurns` (0..5, default 0): each result also carries the turns logged just before and after it in the same stream (`ScoredLoggedMessage.surrounding`), so a matching question comes back with its reply. Also on REST (`surroundingTurns` query parameter, `surrounding` on each item) and on the MCP `search_messages` tool. `LoggedMessage`, `ScoredLoggedMessage` and `SurroundingTurns` are now exported from `@usetheo/memory/contract`.

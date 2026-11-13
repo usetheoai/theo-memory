@@ -23,6 +23,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mock } from 'vitest-mock-extended';
 
 import { dispatch } from './dispatch.js';
+import { OUTPUT_SCHEMA } from './recall-schema.js';
 
 const FIXED_DATE = new Date('2026-05-24T12:00:00.000Z');
 const ALICE_CTX = { session: { userId: 'alice' } } as const;
@@ -110,6 +111,46 @@ describe('dispatch handlers — happy paths (T5.1)', () => {
     expect(result.structuredContent).toBeDefined();
     const structured = result.structuredContent as { results: unknown[] };
     expect(structured.results).toHaveLength(1);
+  });
+
+  it('recall handler returns when each fact was said, the date of its event and its durability', async () => {
+    const scoped = mockScopedMemory();
+    const saidAt = new Date('2023-11-01T00:00:00.000Z');
+    vi.mocked(scoped.recall).mockResolvedValue([{
+      id: 'uuid-1', text: 'user has a dentist appointment (2023-11-06)', hash: 'h', scope: { kind: 'user', userId: 'alice' },
+      createdAt: FIXED_DATE, updatedAt: FIXED_DATE, metadata: {}, tValid: saidAt, tInvalid: null, score: 0.5,
+      eventTime: { start: '2023-11-06', end: '2023-11-06', granularity: 'day', expression: 'in 5 days' }, durability: 'temporary',
+    }]);
+    const memory = mockMemory(scoped);
+
+    const result = await withScope(ALICE_CTX, () =>
+      dispatch('recall', { query: 'dentist' }, { memoryFactory: () => memory }),
+    );
+
+    const [hit] = (result.structuredContent as { results: Record<string, unknown>[] }).results;
+    expect(hit).toMatchObject({
+      tValid: '2023-11-01T00:00:00.000Z',
+      eventTime: { start: '2023-11-06', end: '2023-11-06', granularity: 'day', expression: 'in 5 days' },
+      durability: 'temporary',
+    });
+    expect(OUTPUT_SCHEMA.safeParse(result.structuredContent).success).toBe(true);
+  });
+
+  it('recall handler leaves the time fields out of a memory that has none', async () => {
+    const scoped = mockScopedMemory();
+    vi.mocked(scoped.recall).mockResolvedValue([{
+      id: 'uuid-1', text: 't', hash: 'h', scope: { kind: 'user', userId: 'alice' },
+      createdAt: FIXED_DATE, updatedAt: FIXED_DATE, metadata: {}, tValid: null, tInvalid: null, score: 0.5,
+    }]);
+    const memory = mockMemory(scoped);
+
+    const result = await withScope(ALICE_CTX, () =>
+      dispatch('recall', { query: 'x' }, { memoryFactory: () => memory }),
+    );
+
+    const [hit] = (result.structuredContent as { results: Record<string, unknown>[] }).results;
+    expect(Object.keys(hit ?? {}).sort()).toEqual(['createdAt', 'id', 'metadata', 'scope', 'score', 'tValid', 'text']);
+    expect(hit?.['tValid']).toBeNull();
   });
 
   it('recall handler maps createdAt Date to ISO string at wire boundary', async () => {

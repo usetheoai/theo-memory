@@ -69,9 +69,9 @@ export type RecallInput = z.infer<typeof INPUT_SCHEMA>;
  *
  * Minimal honest subset of `MemoryItemWithScore` (src/core/memory-item.ts:48):
  * LLM-visible fields only. Dropped: `hash` (internal dedup), `updatedAt` (==createdAt
- * under ADD-only ADR-0003), `tValid`/`tInvalid` (bi-temporal columns; `asOf` query
- * surface lifted in v1.1 per ADR-0011 — exposed via separate option, not on the row
- * shape). `attributedTo` is shipped at v1.1 (T1.1 + T2.2) as a first-class column
+ * under ADD-only ADR-0003) and `tInvalid` (current recall returns only valid rows). `tValid`,
+ * `eventTime` and `durability` are on the row, as they are on REST: without `tValid` a reader
+ * cannot tell when an imported fact was said. `attributedTo` is shipped at v1.1 (T1.1 + T2.2) as a first-class column
  * + filter, but the MCP recall tool surface is deferred to v1.2 alongside TheoKit
  * binding alignment (EC-13 plan deferral).
  *
@@ -96,6 +96,17 @@ export const OUTPUT_SCHEMA = z.object({
       scope: SCOPE_SCHEMA,
       /** Write timestamp (ISO 8601 string at wire boundary). */
       createdAt: z.string(),
+      /**
+       * When the fact was said (ISO 8601), or null on a row written before valid time existed.
+       * It is the write time unless the write gave `observedAt`, as an import of older notes does.
+       */
+      tValid: z.string().nullable(),
+      /** The date of the fact's event, counted from when it was said (ADR-0035). Absent when the fact names no time. */
+      eventTime: z
+        .object({ start: z.string(), end: z.string(), granularity: z.enum(['day', 'month']), expression: z.string() })
+        .optional(),
+      /** How long the extractor expected the statement to hold. */
+      durability: z.enum(['durable', 'temporary', 'tentative']).optional(),
       /** Flat key/value payload set at write time. */
       metadata: z.record(z.union([z.string(), z.number(), z.boolean(), z.null()])),
       /** Raw messages that produced the memory, oldest first; present only with `includeSources`. */
