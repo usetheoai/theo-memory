@@ -2,7 +2,7 @@
  * Live baseline of the update decision: for each pair of `pairs.json`, the first note is written
  * at its date and the second at its later date, through the real write path (`remember`,
  * `infer: true`), in a scope of its own. The decision under test is whatever the write path does:
- * the first note counts as ended when the valid time of a memory it produced was closed.
+ * the first note counts as ended when the second write reports that it replaced a memory of the first.
  *
  * The store is in memory and the embedder is a constant stub, so the one existing memory is always
  * shown to the extractor; nothing here measures retrieval.
@@ -68,10 +68,13 @@ async function runOne(pair: UpdatePair, repetition: number): Promise<Row> {
     const scope = memory.user(`update-decision-${pair.id}-${repetition}`);
     const first = await scope.remember(pair.textA, { observedAt: new Date(`${pair.dateA}T12:00:00Z`) });
     const second = await scope.remember(pair.textB, { observedAt: new Date(`${pair.dateB}T12:00:00Z`) });
-    // Ended means superseded: its valid time was closed. A note stored as a passing state has an
-    // expiry of its own and is counted apart, since no decision about the pair produced it.
-    const after = await Promise.all(first.map((item) => memory.get(item.id)));
-    const endedA = after.filter((item) => item !== null && item.tInvalid !== null && item.tInvalid !== undefined).length;
+    // Ended means superseded: the second write reports the memories it replaced. Reading the
+    // first memory back does not work for this, because a superseded memory is no longer returned.
+    // A note stored as a passing state has an expiry of its own and is counted apart, since no
+    // decision about the pair produced it.
+    const firstIds = new Set(first.map((item) => item.id));
+    const replaced = new Set(second.flatMap((item) => item.supersedes ?? []).filter((id) => firstIds.has(id)));
+    const endedA = replaced.size;
     const expiringA = first.filter((item) => item.expiresAt !== undefined && item.expiresAt !== null).length;
     return {
       id: pair.id, label: pair.label, language: pair.language, repetition,
