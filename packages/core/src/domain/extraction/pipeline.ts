@@ -45,7 +45,7 @@ import { applyOntologyToEntities, boundedAutoCategory, buildPayload, embedBatchW
 import type { ExtractionDeps, Payload } from './pipeline-helpers.js';
 import { AdditiveExtractionSchema, generateAdditiveExtractionPrompt, type AdditiveExtractionResponse } from './prompt.js';
 import { restoreNamedSubject } from './subject-restore.js';
-import { applySupersessions } from './supersession.js';
+import { judgeSupersessions } from './supersession.js';
 import { DEFAULT_CATEGORY_TAXONOMY, classifyCategorySource } from './taxonomy.js';
 
 function isExtractionParseError(error: unknown): boolean {
@@ -177,9 +177,9 @@ async function extractAndPersist(
   // ============================================================
   // Phase 1: existing retrieval + UUID→int mapping
   // ============================================================
-  // The in-scope memories most similar to the new messages, so the extractor can see what the
-  // new facts repeat or replace even when it is old (ADR-0029). The integer→UUID mapping is
-  // owned by the prompt composer.
+  // The in-scope memories most similar to the new messages. The extractor sees them to avoid
+  // repeating what is already stored, and the update judge compares each new fact with them
+  // (ADR-0036). The integer→UUID mapping is owned by the prompt composer.
   const supersedeOnWrite = deps.supersedeOnWrite !== false;
   const queryVector = await deps.embedder.embed(messages.map((m) => m.content).join('\n'));
   const existingResults = await deps.vectorStore.search(queryVector, SIMILAR_MEMORY_COUNT, filters);
@@ -227,7 +227,6 @@ async function extractAndPersist(
     options?.attributedTo, // M29 (#160): speaker token derived from attribution inside the prompt composer
     options?.observedAt, // anchors relative time expressions to when the messages were said
     previousMessages, // preceding turns of the scope, context only
-    supersedeOnWrite,
   );
   const shownMemories = new Map<number, { id: string; text: string }>();
   for (const [promptId, id] of uuidByInt) {
@@ -437,7 +436,6 @@ async function extractAndPersist(
   const survivingVectors: (readonly number[])[] = [];
   const survivingPayloads: Payload[] = [];
   const survivingItems: MemoryItem[] = [];
-  const survivingSupersedes: (readonly string[])[] = [];
 
   for (let i = 0; i < extracted.length; i += 1) {
     const text = extracted[i]?.text ?? '';
@@ -509,7 +507,6 @@ async function extractAndPersist(
     survivingVectors.push(vector);
     survivingPayloads.push(payload);
     survivingItems.push(toMemoryItem(id, text, hash, scope, payload, now));
-    survivingSupersedes.push(supersedeOnWrite ? extracted[i]?.supersedes_memory_ids ?? [] : []);
   }
 
   if (survivingIds.length === 0) {
@@ -544,18 +541,18 @@ async function extractAndPersist(
   survivingItems.push(...(patchedItems as MemoryItem[]));
 
   // ============================================================
-  // Phase 6.2: supersession (ADR-0029)
+  // Phase 6.2: supersession (ADR-0029, decided by the update judge of ADR-0036)
   // ============================================================
-  // Only facts the store confirmed persisting may invalidate anything.
+  // Only facts the store confirmed persisting may end anything, or be ended.
   let supersessionHistory: readonly HistoryBatchRecord[] = [];
-  if (survivingSupersedes.some((ids) => ids.length > 0)) {
+  if (supersedeOnWrite && shownMemories.size > 0) {
     if (persistOutcomes.length !== survivingIds.length) {
       emitEvent(tracer, 'supersession_skipped', { reason: 'incomplete_persist', count: survivingIds.length });
     } else {
       try {
-        const applied = await applySupersessions(
-          survivingItems.map((memory, i) => ({ memory, promptIds: survivingSupersedes[i] ?? [] })),
-          shownMemories, filters, options?.observedAt ?? new Date(), deps.vectorStore, tracer);
+        const applied = await judgeSupersessions(
+          survivingItems.filter((item) => item.rejectedAsDuplicate !== true),
+          shownMemories, filters, options?.observedAt ?? new Date(), deps.vectorStore, deps.llm, tracer);
         supersessionHistory = applied.history;
         for (let i = 0; i < survivingItems.length; i += 1) {
           const replaced = applied.supersededBy.get(survivingItems[i]!.id);
@@ -564,7 +561,7 @@ async function extractAndPersist(
           if (endedAt !== undefined) survivingItems[i] = { ...survivingItems[i]!, tInvalid: endedAt };
         }
       } catch (err) {
-        // The facts are committed; the replaced memories simply stay current. Observable, not silent.
+        // The facts are committed; the memories they would end simply stay current. Observable, not silent.
         emitEvent(tracer, 'supersession_failed', { error: err instanceof Error ? err.name : 'UnknownError' });
       }
     }

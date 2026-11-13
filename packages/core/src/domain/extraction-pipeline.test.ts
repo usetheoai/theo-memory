@@ -776,14 +776,23 @@ describe('runExtractionPipeline supersession on write', () => {
   /** The id the prompt gave to the existing memory whose text contains `needle`. */
   const promptIdOf = (system: string, needle: string): string =>
     system.split('\n').find((line) => /^\d+\. /.test(line) && line.includes(needle))?.split('.')[0] ?? 'none';
-  /** An extractor that states `text` and supersedes the existing memory containing `needle`. */
-  const supersedingLlm = (text: string, needle: string): LLM => ({
+  const isJudgeCall = (messages: readonly { readonly content: string }[]): boolean =>
+    (messages[0]?.content ?? '').startsWith('You compare two notes');
+  /**
+   * An extractor that states `text`, and an update judge that answers `verdict` for a pair in which
+   * one of the two notes contains `needle` (and "both" for any other pair).
+   */
+  const supersedingLlm = (text: string, needle: string, verdict: 'replaces' | 'both' = 'replaces'): LLM => ({
     generateResponse: vi.fn(async (messages: readonly { readonly content: string }[]) => {
-      const system = messages[0]?.content ?? '';
-      return { memory: [{ id: '0', text, supersedes_memory_ids: [promptIdOf(system, needle)] }] };
+      if (isJudgeCall(messages)) {
+        return { reasoning: 'test', verdict: (messages[1]?.content ?? '').includes(needle) ? verdict : 'both' };
+      }
+      return { memory: [{ id: '0', text }] };
     }),
     generateChat: vi.fn(),
   });
+  const judgeCalls = (llm: LLM): unknown[][] =>
+    vi.mocked(llm.generateResponse).mock.calls.filter((call) => isJudgeCall(call[0] as readonly { readonly content: string }[]));
 
   async function seed(store: InMemoryVectorStore, text: string, tValid = '2023-01-01T00:00:00.000Z'): Promise<string> {
     const id = randomUUID();
@@ -867,16 +876,67 @@ describe('runExtractionPipeline supersession on write', () => {
     expect(system).toContain('user lives in Porto');
   });
 
-  test('an id the prompt never showed is rejected as an observable event and nothing is invalidated', async () => {
+  test('a pair the judge says can both be true leaves the existing memory current', async () => {
     const { tracer, exporter } = setupTracer();
     const store = new InMemoryVectorStore();
     await seed(store, 'user lives in Porto');
-    const llm = makeLlm({ memory: [{ id: '0', text: 'user lives in Lisbon', supersedes_memory_ids: ['99'] }] });
+
     const [item] = await runExtractionPipeline([{ role: 'user', content: 'I moved to Lisbon' }], SCOPE,
-      { vectorStore: store, embedder: topicEmbedder(), llm, tracer });
+      { vectorStore: store, embedder: topicEmbedder(), llm: supersedingLlm('user lives in Lisbon', 'Porto', 'both'), tracer });
+
     expect(item?.supersedes ?? []).toEqual([]);
     expect((await store.list(SCOPE, 10))[1]).toBe(2);
-    expect(exporter.getFinishedSpans().map((span) => span.name)).toContain('supersession_rejected');
+    const judged = exporter.getFinishedSpans().find((span) => span.name === 'update_judged');
+    expect(judged?.attributes).toEqual({ pairs: 1, replaced: 0 });
+  });
+
+  test('a judge call that fails leaves the pair alone, keeps the write and says so', async () => {
+    const { tracer, exporter } = setupTracer();
+    const store = new InMemoryVectorStore();
+    await seed(store, 'user lives in Porto');
+    const llm: LLM = {
+      generateResponse: vi.fn(async (messages: readonly { readonly content: string }[]) => {
+        if (isJudgeCall(messages)) throw new Error('provider down');
+        return { memory: [{ id: '0', text: 'user lives in Lisbon' }] };
+      }),
+      generateChat: vi.fn(),
+    };
+
+    const [item] = await runExtractionPipeline([{ role: 'user', content: 'I moved to Lisbon' }], SCOPE,
+      { vectorStore: store, embedder: topicEmbedder(), llm, tracer });
+
+    expect(item?.text).toBe('user lives in Lisbon');
+    expect((await store.list(SCOPE, 10))[1]).toBe(2);
+    expect(exporter.getFinishedSpans().map((span) => span.name)).toContain('update_judge_failed');
+  });
+
+  test('the judge is asked once for each existing memory shown, with the earlier note first', async () => {
+    const store = new InMemoryVectorStore();
+    await seed(store, 'user lives in Porto');
+    await seed(store, 'user plays the cello');
+    const llm = supersedingLlm('user lives in Lisbon', 'Porto');
+
+    await runExtractionPipeline([{ role: 'user', content: 'I moved to Lisbon' }], SCOPE,
+      { vectorStore: store, embedder: topicEmbedder(), llm }, { observedAt: new Date('2024-03-01T00:00:00Z') });
+
+    const asked = judgeCalls(llm).map((call) => (call[0] as readonly { readonly content: string }[])[1]?.content);
+    expect(asked.sort()).toEqual([
+      'First note (written 2023-01-01): user lives in Porto\nSecond note (written 2024-03-01): user lives in Lisbon',
+      'First note (written 2023-01-01): user plays the cello\nSecond note (written 2024-03-01): user lives in Lisbon',
+    ]);
+  });
+
+  test('a pair about two different years is never sent to the judge', async () => {
+    const store = new InMemoryVectorStore();
+    await seed(store, 'user planted 40 apple trees in 2022');
+    const llm = supersedingLlm('user planted 65 apple trees in 2023', 'apple');
+
+    const [item] = await runExtractionPipeline([{ role: 'user', content: 'I planted 65 apple trees in 2023' }], SCOPE,
+      { vectorStore: store, embedder: topicEmbedder(), llm });
+
+    expect(judgeCalls(llm)).toEqual([]);
+    expect(item?.supersedes ?? []).toEqual([]);
+    expect((await store.list(SCOPE, 10))[1]).toBe(2);
   });
 
   test('an observation older than the memory it would replace leaves that memory current', async () => {
@@ -894,7 +954,7 @@ describe('runExtractionPipeline supersession on write', () => {
     expect(events).not.toContain('supersession_skipped');
   });
 
-  test('supersedeOnWrite false keeps every existing memory current and does not ask the extractor', async () => {
+  test('supersedeOnWrite false keeps every existing memory current and does not ask the judge', async () => {
     const store = new InMemoryVectorStore();
     const porto = await seed(store, 'user lives in Porto');
     const llm = supersedingLlm('user lives in Lisbon', 'Porto');
@@ -902,7 +962,18 @@ describe('runExtractionPipeline supersession on write', () => {
       { vectorStore: store, embedder: topicEmbedder(), llm, supersedeOnWrite: false });
     expect(item?.supersedes ?? []).toEqual([]);
     expect((await store.list(SCOPE, 10))[0].map((r) => r.id)).toContain(porto);
+    expect(judgeCalls(llm)).toEqual([]);
+  });
+
+  test('the extraction prompt no longer asks the extractor which memories a fact replaces', async () => {
+    const store = new InMemoryVectorStore();
+    await seed(store, 'user lives in Porto');
+    const llm = supersedingLlm('user lives in Lisbon', 'Porto');
+
+    await runExtractionPipeline([{ role: 'user', content: 'I moved to Lisbon' }], SCOPE, { vectorStore: store, embedder: topicEmbedder(), llm });
+
     const system = extractionCalls(llm)[0]?.[0]?.[0]?.content ?? '';
     expect(system).not.toContain('supersedes_memory_ids');
+    expect(system).not.toContain('SUPERSESSION');
   });
 });

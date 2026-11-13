@@ -415,10 +415,10 @@ describe.skipIf(!process.env['THEOMEM_PG_URI'])('durable extraction jobs on enfo
     const pool=tenantScopedPool(db.pool);
     const residence:LLM={generateResponse:vi.fn(async(messages:readonly {readonly content:string}[])=>{
       const system=messages[0]?.content??'';
-      const porto=system.split('\n').find(line=>/^\d+\. /.test(line)&&line.includes('Porto'))?.split('.')[0];
+      // The update judge (ADR-0036) is asked about each pair; two residence notes are an update.
+      if(system.startsWith('You compare two notes'))return {reasoning:'test',verdict:((messages[1]?.content??'').match(/lives in/g)??[]).length===2?'replaces':'both'};
       const lisbon=system.slice(system.lastIndexOf('## New Messages')).includes('Lisbon');
-      return {memory:[{id:'1',text:lisbon?'user lives in Lisbon':'user lives in Porto',
-        ...(lisbon&&porto!==undefined?{supersedes_memory_ids:[porto]}:{})}]};
+      return {memory:[{id:'1',text:lisbon?'user lives in Lisbon':'user lives in Porto'}]};
     }),generateChat:vi.fn()};
     const residenceWorker=new MemoryJobWorker(jobs,new PgMemoryJobProcessor(jobs,pool,{llm:residence,embedder,embeddingDim:3,entityBoost:false}));
     await jobs.submit({...input,text:'I live in Porto'},actor,'supersede-1');

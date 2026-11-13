@@ -143,30 +143,6 @@ const SYSTEM_PROMPT = [
   '  "relations"?: [{ "source": "<entity>", "relationship": "<verb phrase>", "destination": "<entity>" }] }',
 ].join('\n');
 
-/**
- * The output format names `supersedes_memory_ids` next to `linked_memory_ids` when supersession
- * is on. Mentioned only in a directive, the field was never filled by a real model, which put
- * the replaced id in `linked_memory_ids` instead (ADR-0029).
- */
-const SYSTEM_PROMPT_WITH_SUPERSESSION = SYSTEM_PROMPT.replace(
-  '"linked_memory_ids"?: ["1", "2"], ',
-  '"linked_memory_ids"?: ["1", "2"], "supersedes_memory_ids"?: ["1"], ',
-);
-
-/**
- * ADR-0029 — how the extractor marks existing memories a new fact replaces. Rendered only when
- * supersession is on and existing memories are shown.
- */
-const SUPERSESSION_DIRECTIVE = [
-  'SUPERSESSION: when a new fact makes an existing memory no longer true, because the same',
-  'attribute of the same subject now has a different value (a move, a new job, an ended',
-  'relationship, a corrected detail), add that existing memory\'s id to the new fact\'s',
-  '`supersedes_memory_ids`, as quoted strings ("1"). Never list a memory that stays true next',
-  'to the new fact: a past event, an extra preference, or a different attribute. When in',
-  'doubt, list nothing.',
-  '',
-].join('\n');
-
 function renderExistingMemories(existing: readonly MemoryItem[]): string {
   if (existing.length === 0) {
     return '';
@@ -283,7 +259,6 @@ export function generateAdditiveExtractionPrompt(
   attributedTo?: string,
   referenceTime?: Date,
   previousMessages?: readonly Message[],
-  supersedeOnWrite = false,
 ): PromptResult {
   const uuidByInt = new Map<number, string>();
   existing.forEach((m, i) => uuidByInt.set(i + 1, m.id));
@@ -345,9 +320,8 @@ export function generateAdditiveExtractionPrompt(
 
   const prompt = [
     speakerPrefix + languagePrefix + referencePrefix + ontologyPrefix + categoryPrefix + customPrefix
-      + (supersedeOnWrite && existing.length > 0 ? SYSTEM_PROMPT_WITH_SUPERSESSION : SYSTEM_PROMPT),
+      + SYSTEM_PROMPT,
     '',
-    supersedeOnWrite && existing.length > 0 ? SUPERSESSION_DIRECTIVE : '',
     renderExistingMemories(existing),
     renderPreviousMessages(previousMessages ?? []),
     renderNewMessages(newMessages),
@@ -369,7 +343,6 @@ export const AdditiveExtractionSchema = z.object({
       attributed_to: z.string().optional(),
       category: z.string().optional(),
       linked_memory_ids: z.array(z.string()).optional(),
-      supersedes_memory_ids: z.array(z.string()).optional(),
       evidence: z.object({
         kind: z.enum(['stated', 'inferred']),
         durability: z.enum(['durable', 'temporary', 'tentative']),

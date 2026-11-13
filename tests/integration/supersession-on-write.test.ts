@@ -19,10 +19,13 @@ const embedder: Embedder = { embed: () => Promise.resolve(vector()), embedBatch:
 const residenceLlm: LLM = {
   generateResponse: (messages) => {
     const system = messages[0]?.content ?? '';
+    // The update judge (ADR-0036) is asked about each pair; two residence notes are an update.
+    if (system.startsWith('You compare two notes')) {
+      const residences = ((messages[1]?.content ?? '').match(/lives in/g) ?? []).length;
+      return Promise.resolve({ reasoning: 'test', verdict: residences === 2 ? 'replaces' : 'both' });
+    }
     const lisbon = system.slice(system.lastIndexOf('## New Messages')).includes('Lisbon');
-    const porto = system.split('\n').find((line) => /^\d+\. /.test(line) && line.includes('Porto'))?.split('.')[0];
-    return Promise.resolve({ memory: [{ id: '0', text: lisbon ? 'user lives in Lisbon' : 'user lives in Porto',
-      ...(lisbon && porto !== undefined ? { supersedes_memory_ids: [porto] } : {}) }] });
+    return Promise.resolve({ memory: [{ id: '0', text: lisbon ? 'user lives in Lisbon' : 'user lives in Porto' }] });
   },
   generateChat: () => Promise.resolve({ role: 'assistant', content: '' }),
 };
