@@ -32,6 +32,7 @@ import type { RememberOptions } from '../options.js';
 import type { Filters } from '../scope.js';
 import { attachWriteContext, validateWriteContext, writeRequestHash } from '../write-context.js';
 
+import { nameAuthorAsSubject, nameAuthorInGraph, showAuthorNames, soleAuthor } from './author-name.js';
 import { keepAnnotationsNamedBy, linkEntities, type RelationTriple } from './entity-linking.js';
 import { prepareExtractedEvidence, extractedMemoryEvidence } from './evidence.js';
 import { applyFactGate } from './fact-gate.js';
@@ -82,6 +83,9 @@ export async function runExtractionPipeline(
   deps: ExtractionDeps,
   options?: RememberOptions,
 ): Promise<readonly MemoryItem[]> {
+  // A named author is written into the text once, here: the extractor, the evidence check and the
+  // message log all see the same `Name: text` line.
+  messages = showAuthorNames(messages);
   const log = deps.messageLog;
   if (log === undefined) return extractAndPersist(messages, filters, deps, options, []);
   let previous: readonly Message[] = [];
@@ -368,6 +372,10 @@ async function extractAndPersist(
   // A third-person fact sometimes comes back with `user` in place of the person its own
   // relation names, which would record that person's attribute as the user's (#257).
   extracted = [...restoreNamedSubject(extracted, llmEntities, relations, tracer)];
+
+  // The speaker of a message whose author the caller named is that person, not `user` (#244).
+  extracted = [...nameAuthorAsSubject(extracted, messages, tracer)];
+  ({ entities: llmEntities, relations } = nameAuthorInGraph(llmEntities, relations, soleAuthor(messages)));
 
   // M27 T2.1 — deterministic durable-fact backstop gate (infer:true only; audit per drop).
   const extractedCount = extracted.length;
