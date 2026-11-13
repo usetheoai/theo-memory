@@ -1,0 +1,2562 @@
+[
+  {
+    "id": "src-en-0",
+    "language": "en",
+    "messages": [
+      "Last night I had dinner at a Peruvian restaurant with Marek, who had been wanting to catch up for ages. I ordered the baked cod and it was honestly the best thing I have eaten this month.",
+      "I finally had the study painted this week, and we went with slate blue for the walls. The painter, Lucjan, did a really tidy job and even cleaned up after himself before leaving.",
+      "Just so you know, I had the exhaust replaced on the car because it was making a horrible rattling noise. I paid 420 euros for the job, and Amara, the mechanic, sorted it out quickly.",
+      "My heel had been bothering me for weeks, so I saw a podiatrist called Dr. Bettina. Her clinic is on Calle Marés, which is easy enough for me to reach on foot after work.",
+      "I ran a night race over the weekend and it was more fun than I expected. My bib number was 8255, and I crossed the finish line in 82 minutes, tired but really happy.",
+      "I spent a weekend in Ghent and stayed at Hotel Vesper, which was cosy and quiet. My train to Ghent left at 15:50, so I had plenty of time to pack beforehand without rushing.",
+      "I enrolled in a calligraphy course because I wanted a hobby away from screens. The teacher is Cosmin, and the classes take place on Saturdays, which suits my work schedule perfectly.",
+      "After months of thinking about it, I bought a bread oven for the kitchen. It cost me 380 euros at Nordlys, the shop where I usually get my baking gear, and I love it."
+    ],
+    "questions": [
+      {
+        "kind": "main",
+        "question": "What kind of restaurant did I have dinner at?",
+        "value": "Peruvian",
+        "message": 0
+      },
+      {
+        "kind": "detail",
+        "question": "Who did I have dinner with at the Peruvian restaurant?",
+        "value": "Marek",
+        "message": 0
+      },
+      {
+        "kind": "detail",
+        "question": "Which dish did I order at the Peruvian restaurant?",
+        "value": "the baked cod",
+        "message": 0
+      },
+      {
+        "kind": "main",
+        "question": "Which room did I have painted?",
+        "value": "study",
+        "message": 1
+      },
+      {
+        "kind": "detail",
+        "question": "What colour was the study painted?",
+        "value": "slate blue",
+        "message": 1
+      },
+      {
+        "kind": "detail",
+        "question": "What is the name of the painter who did the study?",
+        "value": "Lucjan",
+        "message": 1
+      },
+      {
+        "kind": "main",
+        "question": "Which part of the car did I have replaced?",
+        "value": "exhaust",
+        "message": 2
+      },
+      {
+        "kind": "detail",
+        "question": "How much did I pay to have the exhaust replaced?",
+        "value": "420 euros",
+        "message": 2
+      },
+      {
+        "kind": "detail",
+        "question": "What is the name of the mechanic who replaced the exhaust?",
+        "value": "Amara",
+        "message": 2
+      },
+      {
+        "kind": "main",
+        "question": "Which kind of specialist did I see?",
+        "value": "podiatrist",
+        "message": 3
+      },
+      {
+        "kind": "detail",
+        "question": "What is the name of the podiatrist I saw?",
+        "value": "Dr. Bettina",
+        "message": 3
+      },
+      {
+        "kind": "detail",
+        "question": "On which street is the podiatrist's clinic?",
+        "value": "Calle Marés",
+        "message": 3
+      },
+      {
+        "kind": "main",
+        "question": "What kind of race did I run?",
+        "value": "night",
+        "message": 4
+      },
+      {
+        "kind": "detail",
+        "question": "What was my bib number in the night race?",
+        "value": "8255",
+        "message": 4
+      },
+      {
+        "kind": "detail",
+        "question": "How long did I take to finish the night race?",
+        "value": "82 minutes",
+        "message": 4
+      },
+      {
+        "kind": "main",
+        "question": "Where did I spend a weekend?",
+        "value": "Ghent",
+        "message": 5
+      },
+      {
+        "kind": "detail",
+        "question": "Which hotel did I stay at in Ghent?",
+        "value": "Hotel Vesper",
+        "message": 5
+      },
+      {
+        "kind": "detail",
+        "question": "What time did my train to Ghent leave?",
+        "value": "15:50",
+        "message": 5
+      },
+      {
+        "kind": "main",
+        "question": "Which course did I enrol in?",
+        "value": "calligraphy",
+        "message": 6
+      },
+      {
+        "kind": "detail",
+        "question": "Who teaches my calligraphy course?",
+        "value": "Cosmin",
+        "message": 6
+      },
+      {
+        "kind": "detail",
+        "question": "On which day of the week is my calligraphy course?",
+        "value": "Saturdays",
+        "message": 6
+      },
+      {
+        "kind": "main",
+        "question": "What did I buy?",
+        "value": "bread oven",
+        "message": 7
+      },
+      {
+        "kind": "detail",
+        "question": "How much did the bread oven cost me?",
+        "value": "380 euros",
+        "message": 7
+      },
+      {
+        "kind": "detail",
+        "question": "In which shop did I buy the bread oven?",
+        "value": "Nordlys",
+        "message": 7
+      }
+    ]
+  },
+  {
+    "id": "src-en-1",
+    "language": "en",
+    "messages": [
+      "I bought a kayak so I can get out on the water when the weather is good. I paid 1170 euros for it at Vila Nova Store, and the staff there helped me choose.",
+      "I spent a weekend in Tartu to clear my head after a hectic stretch at work. I stayed at Hotel Astra, and my train to Tartu left at 16:05, right after lunch with colleagues.",
+      "My shoulder kept aching, so I saw a physiotherapist named Dr. Teodora, who gave me some stretches to do at home. Her clinic is on Via Orti, not far from where I live.",
+      "I had dinner at a Basque restaurant with Lucjan to celebrate his new job. I ordered the grilled octopus, which came out perfectly tender, and we stayed chatting until the place closed.",
+      "Guess what, I enrolled in a beekeeping course, something I have wanted to try since I was a kid. Oriol teaches it, and we meet on Saturdays out by the hives.",
+      "I had the balcony painted at last, and it is now a warm terracotta that looks lovely in the evening light. Tadeu was the painter who did it, and he worked fast.",
+      "The engine kept overheating, so I had the radiator replaced on the car. It set me back 900 euros, which hurt, but Edurne, the mechanic who did the work, explained everything clearly.",
+      "I ran a night race through the old part of town and loved the atmosphere. I wore bib number 1980 and it took me 95 minutes to finish, slower than I had hoped."
+    ],
+    "questions": [
+      {
+        "kind": "main",
+        "question": "What did I buy?",
+        "value": "kayak",
+        "message": 0
+      },
+      {
+        "kind": "detail",
+        "question": "How much did the kayak cost me?",
+        "value": "1170 euros",
+        "message": 0
+      },
+      {
+        "kind": "detail",
+        "question": "In which shop did I buy the kayak?",
+        "value": "Vila Nova Store",
+        "message": 0
+      },
+      {
+        "kind": "main",
+        "question": "Where did I spend a weekend?",
+        "value": "Tartu",
+        "message": 1
+      },
+      {
+        "kind": "detail",
+        "question": "Which hotel did I stay at in Tartu?",
+        "value": "Hotel Astra",
+        "message": 1
+      },
+      {
+        "kind": "detail",
+        "question": "What time did my train to Tartu leave?",
+        "value": "16:05",
+        "message": 1
+      },
+      {
+        "kind": "main",
+        "question": "Which kind of specialist did I see?",
+        "value": "physiotherapist",
+        "message": 2
+      },
+      {
+        "kind": "detail",
+        "question": "What is the name of the physiotherapist I saw?",
+        "value": "Dr. Teodora",
+        "message": 2
+      },
+      {
+        "kind": "detail",
+        "question": "On which street is the physiotherapist's clinic?",
+        "value": "Via Orti",
+        "message": 2
+      },
+      {
+        "kind": "main",
+        "question": "What kind of restaurant did I have dinner at?",
+        "value": "Basque",
+        "message": 3
+      },
+      {
+        "kind": "detail",
+        "question": "Who did I have dinner with at the Basque restaurant?",
+        "value": "Lucjan",
+        "message": 3
+      },
+      {
+        "kind": "detail",
+        "question": "Which dish did I order at the Basque restaurant?",
+        "value": "the grilled octopus",
+        "message": 3
+      },
+      {
+        "kind": "main",
+        "question": "Which course did I enrol in?",
+        "value": "beekeeping",
+        "message": 4
+      },
+      {
+        "kind": "detail",
+        "question": "Who teaches my beekeeping course?",
+        "value": "Oriol",
+        "message": 4
+      },
+      {
+        "kind": "detail",
+        "question": "On which day of the week is my beekeeping course?",
+        "value": "Saturdays",
+        "message": 4
+      },
+      {
+        "kind": "main",
+        "question": "Which room did I have painted?",
+        "value": "balcony",
+        "message": 5
+      },
+      {
+        "kind": "detail",
+        "question": "What colour was the balcony painted?",
+        "value": "terracotta",
+        "message": 5
+      },
+      {
+        "kind": "detail",
+        "question": "What is the name of the painter who did the balcony?",
+        "value": "Tadeu",
+        "message": 5
+      },
+      {
+        "kind": "main",
+        "question": "Which part of the car did I have replaced?",
+        "value": "radiator",
+        "message": 6
+      },
+      {
+        "kind": "detail",
+        "question": "How much did I pay to have the radiator replaced?",
+        "value": "900 euros",
+        "message": 6
+      },
+      {
+        "kind": "detail",
+        "question": "What is the name of the mechanic who replaced the radiator?",
+        "value": "Edurne",
+        "message": 6
+      },
+      {
+        "kind": "main",
+        "question": "What kind of race did I run?",
+        "value": "night",
+        "message": 7
+      },
+      {
+        "kind": "detail",
+        "question": "What was my bib number in the night race?",
+        "value": "1980",
+        "message": 7
+      },
+      {
+        "kind": "detail",
+        "question": "How long did I take to finish the night race?",
+        "value": "95 minutes",
+        "message": 7
+      }
+    ]
+  },
+  {
+    "id": "src-en-2",
+    "language": "en",
+    "messages": [
+      "I saw a podiatrist about my ingrown toenail, a very patient man called Dr. Hakon. His clinic is on Via Orti, and luckily I managed to get an appointment without a long wait.",
+      "I had the timing belt replaced on the car before it could snap and cause real damage. The bill came to 400 euros, and Ilse was the mechanic who did the replacement.",
+      "I had dinner at a Sichuan restaurant with Soren after work, since we had not caught up in a long while. I ordered the duck dumplings and they were spicy enough to make my eyes water.",
+      "I spent a weekend in Aarhus wandering around museums and cafés. My train to Aarhus left at 10:50, and once I arrived I checked into Hotel Tilia, where I stayed the whole time.",
+      "I ran a 10 km race with some people from my running club. My bib number was 3191 and I finished in 58 minutes, which is a personal best for me.",
+      "I bought a kayak for the summer trips I keep promising myself. It cost me 1240 euros, and I got it at Vila Nova Store because they had the model I wanted in stock.",
+      "The scuffed walls were driving me mad, so I had the hallway painted. It is slate blue now, and Soren, the painter who did the work, finished sooner than he had promised.",
+      "I enrolled in a calligraphy course to improve my terrible handwriting. It runs on Saturdays, and the instructor who teaches it is Edurne, who seems wonderfully calm and encouraging with beginners like me."
+    ],
+    "questions": [
+      {
+        "kind": "main",
+        "question": "Which kind of specialist did I see?",
+        "value": "podiatrist",
+        "message": 0
+      },
+      {
+        "kind": "detail",
+        "question": "What is the name of the podiatrist I saw?",
+        "value": "Dr. Hakon",
+        "message": 0
+      },
+      {
+        "kind": "detail",
+        "question": "On which street is the podiatrist's clinic?",
+        "value": "Via Orti",
+        "message": 0
+      },
+      {
+        "kind": "main",
+        "question": "Which part of the car did I have replaced?",
+        "value": "timing belt",
+        "message": 1
+      },
+      {
+        "kind": "detail",
+        "question": "How much did I pay to have the timing belt replaced?",
+        "value": "400 euros",
+        "message": 1
+      },
+      {
+        "kind": "detail",
+        "question": "What is the name of the mechanic who replaced the timing belt?",
+        "value": "Ilse",
+        "message": 1
+      },
+      {
+        "kind": "main",
+        "question": "What kind of restaurant did I have dinner at?",
+        "value": "Sichuan",
+        "message": 2
+      },
+      {
+        "kind": "detail",
+        "question": "Who did I have dinner with at the Sichuan restaurant?",
+        "value": "Soren",
+        "message": 2
+      },
+      {
+        "kind": "detail",
+        "question": "Which dish did I order at the Sichuan restaurant?",
+        "value": "the duck dumplings",
+        "message": 2
+      },
+      {
+        "kind": "main",
+        "question": "Where did I spend a weekend?",
+        "value": "Aarhus",
+        "message": 3
+      },
+      {
+        "kind": "detail",
+        "question": "Which hotel did I stay at in Aarhus?",
+        "value": "Hotel Tilia",
+        "message": 3
+      },
+      {
+        "kind": "detail",
+        "question": "What time did my train to Aarhus leave?",
+        "value": "10:50",
+        "message": 3
+      },
+      {
+        "kind": "main",
+        "question": "What kind of race did I run?",
+        "value": "10 km",
+        "message": 4
+      },
+      {
+        "kind": "detail",
+        "question": "What was my bib number in the 10 km race?",
+        "value": "3191",
+        "message": 4
+      },
+      {
+        "kind": "detail",
+        "question": "How long did I take to finish the 10 km race?",
+        "value": "58 minutes",
+        "message": 4
+      },
+      {
+        "kind": "main",
+        "question": "What did I buy?",
+        "value": "kayak",
+        "message": 5
+      },
+      {
+        "kind": "detail",
+        "question": "How much did the kayak cost me?",
+        "value": "1240 euros",
+        "message": 5
+      },
+      {
+        "kind": "detail",
+        "question": "In which shop did I buy the kayak?",
+        "value": "Vila Nova Store",
+        "message": 5
+      },
+      {
+        "kind": "main",
+        "question": "Which room did I have painted?",
+        "value": "hallway",
+        "message": 6
+      },
+      {
+        "kind": "detail",
+        "question": "What colour was the hallway painted?",
+        "value": "slate blue",
+        "message": 6
+      },
+      {
+        "kind": "detail",
+        "question": "What is the name of the painter who did the hallway?",
+        "value": "Soren",
+        "message": 6
+      },
+      {
+        "kind": "main",
+        "question": "Which course did I enrol in?",
+        "value": "calligraphy",
+        "message": 7
+      },
+      {
+        "kind": "detail",
+        "question": "Who teaches my calligraphy course?",
+        "value": "Edurne",
+        "message": 7
+      },
+      {
+        "kind": "detail",
+        "question": "On which day of the week is my calligraphy course?",
+        "value": "Saturdays",
+        "message": 7
+      }
+    ]
+  },
+  {
+    "id": "src-en-3",
+    "language": "en",
+    "messages": [
+      "My hay fever got so bad that I saw an allergist, Dr. Hakon, who ran some skin tests on me. His clinic is on Rue Blanche, in a building I had walked past often.",
+      "I had the garage painted because the old walls were stained and peeling. We chose off-white to keep it bright, and Soren was the painter who took care of the whole thing.",
+      "My wallet is still recovering, because I had the timing belt replaced on the car and paid 670 euros for it. Cosmin, the mechanic who did the job, said it was overdue.",
+      "I bought a road bike so I can start cycling to work instead of driving. I paid 880 euros for it at Vila Nova Store, and they adjusted the saddle for me too.",
+      "I ran a trail race in the hills and it was muddy the whole way. I had bib number 1571 pinned to my shirt and made it to the end in 42 minutes.",
+      "Tadeu was visiting, so I had dinner at a Lebanese restaurant with him and we talked for hours. I ordered the eggplant rolls, and I would happily go back just for those.",
+      "I spent a weekend in Tartu with nothing planned except long walks and good coffee. I stayed at Hotel Tilia, and my train to Tartu left at 12:50, so the morning was relaxed.",
+      "Since I am moving soon, I enrolled in a Catalan course to get the basics down. My teacher is Bettina, and the lessons are on Mondays, right after I finish work."
+    ],
+    "questions": [
+      {
+        "kind": "main",
+        "question": "Which kind of specialist did I see?",
+        "value": "allergist",
+        "message": 0
+      },
+      {
+        "kind": "detail",
+        "question": "What is the name of the allergist I saw?",
+        "value": "Dr. Hakon",
+        "message": 0
+      },
+      {
+        "kind": "detail",
+        "question": "On which street is the allergist's clinic?",
+        "value": "Rue Blanche",
+        "message": 0
+      },
+      {
+        "kind": "main",
+        "question": "Which room did I have painted?",
+        "value": "garage",
+        "message": 1
+      },
+      {
+        "kind": "detail",
+        "question": "What colour was the garage painted?",
+        "value": "off-white",
+        "message": 1
+      },
+      {
+        "kind": "detail",
+        "question": "What is the name of the painter who did the garage?",
+        "value": "Soren",
+        "message": 1
+      },
+      {
+        "kind": "main",
+        "question": "Which part of the car did I have replaced?",
+        "value": "timing belt",
+        "message": 2
+      },
+      {
+        "kind": "detail",
+        "question": "How much did I pay to have the timing belt replaced?",
+        "value": "670 euros",
+        "message": 2
+      },
+      {
+        "kind": "detail",
+        "question": "What is the name of the mechanic who replaced the timing belt?",
+        "value": "Cosmin",
+        "message": 2
+      },
+      {
+        "kind": "main",
+        "question": "What did I buy?",
+        "value": "road bike",
+        "message": 3
+      },
+      {
+        "kind": "detail",
+        "question": "How much did the road bike cost me?",
+        "value": "880 euros",
+        "message": 3
+      },
+      {
+        "kind": "detail",
+        "question": "In which shop did I buy the road bike?",
+        "value": "Vila Nova Store",
+        "message": 3
+      },
+      {
+        "kind": "main",
+        "question": "What kind of race did I run?",
+        "value": "trail",
+        "message": 4
+      },
+      {
+        "kind": "detail",
+        "question": "What was my bib number in the trail race?",
+        "value": "1571",
+        "message": 4
+      },
+      {
+        "kind": "detail",
+        "question": "How long did I take to finish the trail race?",
+        "value": "42 minutes",
+        "message": 4
+      },
+      {
+        "kind": "main",
+        "question": "What kind of restaurant did I have dinner at?",
+        "value": "Lebanese",
+        "message": 5
+      },
+      {
+        "kind": "detail",
+        "question": "Who did I have dinner with at the Lebanese restaurant?",
+        "value": "Tadeu",
+        "message": 5
+      },
+      {
+        "kind": "detail",
+        "question": "Which dish did I order at the Lebanese restaurant?",
+        "value": "the eggplant rolls",
+        "message": 5
+      },
+      {
+        "kind": "main",
+        "question": "Where did I spend a weekend?",
+        "value": "Tartu",
+        "message": 6
+      },
+      {
+        "kind": "detail",
+        "question": "Which hotel did I stay at in Tartu?",
+        "value": "Hotel Tilia",
+        "message": 6
+      },
+      {
+        "kind": "detail",
+        "question": "What time did my train to Tartu leave?",
+        "value": "12:50",
+        "message": 6
+      },
+      {
+        "kind": "main",
+        "question": "Which course did I enrol in?",
+        "value": "Catalan",
+        "message": 7
+      },
+      {
+        "kind": "detail",
+        "question": "Who teaches my Catalan course?",
+        "value": "Bettina",
+        "message": 7
+      },
+      {
+        "kind": "detail",
+        "question": "On which day of the week is my Catalan course?",
+        "value": "Mondays",
+        "message": 7
+      }
+    ]
+  },
+  {
+    "id": "src-en-4",
+    "language": "en",
+    "messages": [
+      "I saw a podiatrist because my arches hurt whenever I stand for long. He is called Dr. Soren, his clinic is on Rua do Salitre, and he recommended custom insoles for my shoes.",
+      "It was Amara's birthday, so I had dinner at a Peruvian restaurant with her to celebrate. I ordered the baked cod, which was delicious, and she kept stealing bites from my plate.",
+      "I had the balcony painted before the rainy season arrives. The colour I picked is slate blue, and the painter who did it was Amara, who came recommended by my neighbour downstairs.",
+      "The battery kept dying, and it turned out I needed more than a jump start, so I had the alternator replaced on the car. Tadeu, the mechanic, did it and charged me 760 euros.",
+      "I bought a kayak after renting them for years. The shop where I got it is Vila Nova Store, and it cost me 820 euros, which felt reasonable for something I will use constantly.",
+      "I ran a charity race to raise money for the local animal shelter. They gave me bib number 5137, and I took 118 minutes to finish because I walked the steeper parts.",
+      "I spent a weekend in Plovdiv exploring the old streets and eating far too much. My train to Plovdiv left at 11:20, and I stayed at Hotel Vesper, which had a lovely quiet courtyard.",
+      "I enrolled in a calligraphy course as a birthday present to myself. Nilufar is the teacher, and class is held on Tuesdays in the evening, so I can go straight from the office."
+    ],
+    "questions": [
+      {
+        "kind": "main",
+        "question": "Which kind of specialist did I see?",
+        "value": "podiatrist",
+        "message": 0
+      },
+      {
+        "kind": "detail",
+        "question": "What is the name of the podiatrist I saw?",
+        "value": "Dr. Soren",
+        "message": 0
+      },
+      {
+        "kind": "detail",
+        "question": "On which street is the podiatrist's clinic?",
+        "value": "Rua do Salitre",
+        "message": 0
+      },
+      {
+        "kind": "main",
+        "question": "What kind of restaurant did I have dinner at?",
+        "value": "Peruvian",
+        "message": 1
+      },
+      {
+        "kind": "detail",
+        "question": "Who did I have dinner with at the Peruvian restaurant?",
+        "value": "Amara",
+        "message": 1
+      },
+      {
+        "kind": "detail",
+        "question": "Which dish did I order at the Peruvian restaurant?",
+        "value": "the baked cod",
+        "message": 1
+      },
+      {
+        "kind": "main",
+        "question": "Which room did I have painted?",
+        "value": "balcony",
+        "message": 2
+      },
+      {
+        "kind": "detail",
+        "question": "What colour was the balcony painted?",
+        "value": "slate blue",
+        "message": 2
+      },
+      {
+        "kind": "detail",
+        "question": "What is the name of the painter who did the balcony?",
+        "value": "Amara",
+        "message": 2
+      },
+      {
+        "kind": "main",
+        "question": "Which part of the car did I have replaced?",
+        "value": "alternator",
+        "message": 3
+      },
+      {
+        "kind": "detail",
+        "question": "How much did I pay to have the alternator replaced?",
+        "value": "760 euros",
+        "message": 3
+      },
+      {
+        "kind": "detail",
+        "question": "What is the name of the mechanic who replaced the alternator?",
+        "value": "Tadeu",
+        "message": 3
+      },
+      {
+        "kind": "main",
+        "question": "What did I buy?",
+        "value": "kayak",
+        "message": 4
+      },
+      {
+        "kind": "detail",
+        "question": "How much did the kayak cost me?",
+        "value": "820 euros",
+        "message": 4
+      },
+      {
+        "kind": "detail",
+        "question": "In which shop did I buy the kayak?",
+        "value": "Vila Nova Store",
+        "message": 4
+      },
+      {
+        "kind": "main",
+        "question": "What kind of race did I run?",
+        "value": "charity",
+        "message": 5
+      },
+      {
+        "kind": "detail",
+        "question": "What was my bib number in the charity race?",
+        "value": "5137",
+        "message": 5
+      },
+      {
+        "kind": "detail",
+        "question": "How long did I take to finish the charity race?",
+        "value": "118 minutes",
+        "message": 5
+      },
+      {
+        "kind": "main",
+        "question": "Where did I spend a weekend?",
+        "value": "Plovdiv",
+        "message": 6
+      },
+      {
+        "kind": "detail",
+        "question": "Which hotel did I stay at in Plovdiv?",
+        "value": "Hotel Vesper",
+        "message": 6
+      },
+      {
+        "kind": "detail",
+        "question": "What time did my train to Plovdiv leave?",
+        "value": "11:20",
+        "message": 6
+      },
+      {
+        "kind": "main",
+        "question": "Which course did I enrol in?",
+        "value": "calligraphy",
+        "message": 7
+      },
+      {
+        "kind": "detail",
+        "question": "Who teaches my calligraphy course?",
+        "value": "Nilufar",
+        "message": 7
+      },
+      {
+        "kind": "detail",
+        "question": "On which day of the week is my calligraphy course?",
+        "value": "Tuesdays",
+        "message": 7
+      }
+    ]
+  },
+  {
+    "id": "src-en-5",
+    "language": "en",
+    "messages": [
+      "After twisting my knee, I saw a physiotherapist, Dr. Tadeu, who thinks I will recover with regular exercises. His clinic is on Lindenstraat, so I can cycle there without much trouble.",
+      "I had dinner at a Sichuan restaurant with Tadeu, who loves spicy food far more than I do. I played it safe and ordered the pumpkin soup, which turned out to be surprisingly good.",
+      "The dashboard warning light would not go away, so I had the alternator replaced on the car. I paid 590 euros in total, and the mechanic who replaced it was Hakon.",
+      "I ran a charity race alongside my sister, who talked me into signing up. I was given bib number 9770 and finished in 65 minutes, a bit behind her but still proud.",
+      "I bought a sewing machine so I can start altering my own clothes. I found it at Brixton & Lowe, the shop near my office, and it cost me 970 euros with the accessories included.",
+      "Working from home made me want a nicer room, so I had the study painted. Marek was the painter who did it, and the walls are now slate blue, which feels really calming.",
+      "I spent a weekend in Braga visiting an old friend from university. I stayed at Hotel Vesper rather than on her sofa, and my train to Braga left at 11:05 from the main station.",
+      "My handwriting has always embarrassed me, so I enrolled in a calligraphy course. It meets on Tuesdays, and Nilufar, the woman who teaches it, already has us practising basic strokes with a proper pen."
+    ],
+    "questions": [
+      {
+        "kind": "main",
+        "question": "Which kind of specialist did I see?",
+        "value": "physiotherapist",
+        "message": 0
+      },
+      {
+        "kind": "detail",
+        "question": "What is the name of the physiotherapist I saw?",
+        "value": "Dr. Tadeu",
+        "message": 0
+      },
+      {
+        "kind": "detail",
+        "question": "On which street is the physiotherapist's clinic?",
+        "value": "Lindenstraat",
+        "message": 0
+      },
+      {
+        "kind": "main",
+        "question": "What kind of restaurant did I have dinner at?",
+        "value": "Sichuan",
+        "message": 1
+      },
+      {
+        "kind": "detail",
+        "question": "Who did I have dinner with at the Sichuan restaurant?",
+        "value": "Tadeu",
+        "message": 1
+      },
+      {
+        "kind": "detail",
+        "question": "Which dish did I order at the Sichuan restaurant?",
+        "value": "the pumpkin soup",
+        "message": 1
+      },
+      {
+        "kind": "main",
+        "question": "Which part of the car did I have replaced?",
+        "value": "alternator",
+        "message": 2
+      },
+      {
+        "kind": "detail",
+        "question": "How much did I pay to have the alternator replaced?",
+        "value": "590 euros",
+        "message": 2
+      },
+      {
+        "kind": "detail",
+        "question": "What is the name of the mechanic who replaced the alternator?",
+        "value": "Hakon",
+        "message": 2
+      },
+      {
+        "kind": "main",
+        "question": "What kind of race did I run?",
+        "value": "charity",
+        "message": 3
+      },
+      {
+        "kind": "detail",
+        "question": "What was my bib number in the charity race?",
+        "value": "9770",
+        "message": 3
+      },
+      {
+        "kind": "detail",
+        "question": "How long did I take to finish the charity race?",
+        "value": "65 minutes",
+        "message": 3
+      },
+      {
+        "kind": "main",
+        "question": "What did I buy?",
+        "value": "sewing machine",
+        "message": 4
+      },
+      {
+        "kind": "detail",
+        "question": "How much did the sewing machine cost me?",
+        "value": "970 euros",
+        "message": 4
+      },
+      {
+        "kind": "detail",
+        "question": "In which shop did I buy the sewing machine?",
+        "value": "Brixton & Lowe",
+        "message": 4
+      },
+      {
+        "kind": "main",
+        "question": "Which room did I have painted?",
+        "value": "study",
+        "message": 5
+      },
+      {
+        "kind": "detail",
+        "question": "What colour was the study painted?",
+        "value": "slate blue",
+        "message": 5
+      },
+      {
+        "kind": "detail",
+        "question": "What is the name of the painter who did the study?",
+        "value": "Marek",
+        "message": 5
+      },
+      {
+        "kind": "main",
+        "question": "Where did I spend a weekend?",
+        "value": "Braga",
+        "message": 6
+      },
+      {
+        "kind": "detail",
+        "question": "Which hotel did I stay at in Braga?",
+        "value": "Hotel Vesper",
+        "message": 6
+      },
+      {
+        "kind": "detail",
+        "question": "What time did my train to Braga leave?",
+        "value": "11:05",
+        "message": 6
+      },
+      {
+        "kind": "main",
+        "question": "Which course did I enrol in?",
+        "value": "calligraphy",
+        "message": 7
+      },
+      {
+        "kind": "detail",
+        "question": "Who teaches my calligraphy course?",
+        "value": "Nilufar",
+        "message": 7
+      },
+      {
+        "kind": "detail",
+        "question": "On which day of the week is my calligraphy course?",
+        "value": "Tuesdays",
+        "message": 7
+      }
+    ]
+  },
+  {
+    "id": "src-en-6",
+    "language": "en",
+    "messages": [
+      "I ran a half marathon race, something I had been training for since the start of the year. My bib number was 7846 and my finishing time was 84 minutes, so I am thrilled.",
+      "I had the clutch replaced on the car because the pedal had gone completely soft. Bettina, the mechanic who replaced it, charged me 800 euros and had it ready sooner than expected.",
+      "I had dinner at a Lebanese restaurant with Teodora, since we both had the evening free. It was chilly out, so I ordered the pumpkin soup and it warmed me right up.",
+      "I enrolled in a Catalan course because my partner's family speaks it at home. Oriol is the teacher, and the classes are on Tuesdays, so I will need to rearrange my gym routine.",
+      "My back was complaining about sitting all day, so I bought a standing desk. I picked it up at Petit Atelier, a shop a friend suggested, and it cost me 270 euros.",
+      "I spent a weekend in Tartu on a bit of a whim. My train to Tartu left at 21:20, so I arrived very late and went straight to Hotel Linde, where I was staying.",
+      "I saw a physiotherapist for the stiffness in my neck, and Dr. Vasco was the physiotherapist who treated me. His clinic is on Rua do Salitre, up a rather steep flight of stairs.",
+      "I had the balcony painted to cheer the place up a little. It is mustard yellow now, quite bold, and Teodora was the painter who did the work without any fuss."
+    ],
+    "questions": [
+      {
+        "kind": "main",
+        "question": "What kind of race did I run?",
+        "value": "half marathon",
+        "message": 0
+      },
+      {
+        "kind": "detail",
+        "question": "What was my bib number in the half marathon race?",
+        "value": "7846",
+        "message": 0
+      },
+      {
+        "kind": "detail",
+        "question": "How long did I take to finish the half marathon race?",
+        "value": "84 minutes",
+        "message": 0
+      },
+      {
+        "kind": "main",
+        "question": "Which part of the car did I have replaced?",
+        "value": "clutch",
+        "message": 1
+      },
+      {
+        "kind": "detail",
+        "question": "How much did I pay to have the clutch replaced?",
+        "value": "800 euros",
+        "message": 1
+      },
+      {
+        "kind": "detail",
+        "question": "What is the name of the mechanic who replaced the clutch?",
+        "value": "Bettina",
+        "message": 1
+      },
+      {
+        "kind": "main",
+        "question": "What kind of restaurant did I have dinner at?",
+        "value": "Lebanese",
+        "message": 2
+      },
+      {
+        "kind": "detail",
+        "question": "Who did I have dinner with at the Lebanese restaurant?",
+        "value": "Teodora",
+        "message": 2
+      },
+      {
+        "kind": "detail",
+        "question": "Which dish did I order at the Lebanese restaurant?",
+        "value": "the pumpkin soup",
+        "message": 2
+      },
+      {
+        "kind": "main",
+        "question": "Which course did I enrol in?",
+        "value": "Catalan",
+        "message": 3
+      },
+      {
+        "kind": "detail",
+        "question": "Who teaches my Catalan course?",
+        "value": "Oriol",
+        "message": 3
+      },
+      {
+        "kind": "detail",
+        "question": "On which day of the week is my Catalan course?",
+        "value": "Tuesdays",
+        "message": 3
+      },
+      {
+        "kind": "main",
+        "question": "What did I buy?",
+        "value": "standing desk",
+        "message": 4
+      },
+      {
+        "kind": "detail",
+        "question": "How much did the standing desk cost me?",
+        "value": "270 euros",
+        "message": 4
+      },
+      {
+        "kind": "detail",
+        "question": "In which shop did I buy the standing desk?",
+        "value": "Petit Atelier",
+        "message": 4
+      },
+      {
+        "kind": "main",
+        "question": "Where did I spend a weekend?",
+        "value": "Tartu",
+        "message": 5
+      },
+      {
+        "kind": "detail",
+        "question": "Which hotel did I stay at in Tartu?",
+        "value": "Hotel Linde",
+        "message": 5
+      },
+      {
+        "kind": "detail",
+        "question": "What time did my train to Tartu leave?",
+        "value": "21:20",
+        "message": 5
+      },
+      {
+        "kind": "main",
+        "question": "Which kind of specialist did I see?",
+        "value": "physiotherapist",
+        "message": 6
+      },
+      {
+        "kind": "detail",
+        "question": "What is the name of the physiotherapist I saw?",
+        "value": "Dr. Vasco",
+        "message": 6
+      },
+      {
+        "kind": "detail",
+        "question": "On which street is the physiotherapist's clinic?",
+        "value": "Rua do Salitre",
+        "message": 6
+      },
+      {
+        "kind": "main",
+        "question": "Which room did I have painted?",
+        "value": "balcony",
+        "message": 7
+      },
+      {
+        "kind": "detail",
+        "question": "What colour was the balcony painted?",
+        "value": "mustard yellow",
+        "message": 7
+      },
+      {
+        "kind": "detail",
+        "question": "What is the name of the painter who did the balcony?",
+        "value": "Teodora",
+        "message": 7
+      }
+    ]
+  },
+  {
+    "id": "src-en-7",
+    "language": "en",
+    "messages": [
+      "I bought a kayak, a used model that was on clearance, so it only cost me 140 euros. I got it at Brixton & Lowe, which sells outdoor gear alongside everything else.",
+      "I spent a weekend in Bergamo with my cousin, mostly eating and walking the old walls. I stayed at Hotel Astra, and my train to Bergamo left at 13:35, just after lunch.",
+      "I had the timing belt replaced on the car as part of its regular service. Ginevra, my mechanic, replaced it and I paid 250 euros, which was less than I had feared.",
+      "Because of some palpitations, I saw a cardiologist named Dr. Cosmin, who reassured me after listening to my heart. His clinic is on Kirkegata, close to the tram stop I use.",
+      "I ran a charity race organised by my workplace and had a great time. My bib number was 3510, and I finished in 43 minutes, well ahead of most of my colleagues.",
+      "I enrolled in a welding course because I want to build my own garden furniture. Cosmin teaches it in his workshop, and the sessions are on Saturdays, sparks and all.",
+      "We are turning the top floor into a playroom, so I had the attic painted. The kids chose mustard yellow, and Tadeu, the painter who did it, managed the sloped ceilings beautifully.",
+      "I had dinner at a Lebanese restaurant with Teodora after we finished a long project together. I ordered the grilled octopus, an unusual choice for that kind of place, but it was excellent."
+    ],
+    "questions": [
+      {
+        "kind": "main",
+        "question": "What did I buy?",
+        "value": "kayak",
+        "message": 0
+      },
+      {
+        "kind": "detail",
+        "question": "How much did the kayak cost me?",
+        "value": "140 euros",
+        "message": 0
+      },
+      {
+        "kind": "detail",
+        "question": "In which shop did I buy the kayak?",
+        "value": "Brixton & Lowe",
+        "message": 0
+      },
+      {
+        "kind": "main",
+        "question": "Where did I spend a weekend?",
+        "value": "Bergamo",
+        "message": 1
+      },
+      {
+        "kind": "detail",
+        "question": "Which hotel did I stay at in Bergamo?",
+        "value": "Hotel Astra",
+        "message": 1
+      },
+      {
+        "kind": "detail",
+        "question": "What time did my train to Bergamo leave?",
+        "value": "13:35",
+        "message": 1
+      },
+      {
+        "kind": "main",
+        "question": "Which part of the car did I have replaced?",
+        "value": "timing belt",
+        "message": 2
+      },
+      {
+        "kind": "detail",
+        "question": "How much did I pay to have the timing belt replaced?",
+        "value": "250 euros",
+        "message": 2
+      },
+      {
+        "kind": "detail",
+        "question": "What is the name of the mechanic who replaced the timing belt?",
+        "value": "Ginevra",
+        "message": 2
+      },
+      {
+        "kind": "main",
+        "question": "Which kind of specialist did I see?",
+        "value": "cardiologist",
+        "message": 3
+      },
+      {
+        "kind": "detail",
+        "question": "What is the name of the cardiologist I saw?",
+        "value": "Dr. Cosmin",
+        "message": 3
+      },
+      {
+        "kind": "detail",
+        "question": "On which street is the cardiologist's clinic?",
+        "value": "Kirkegata",
+        "message": 3
+      },
+      {
+        "kind": "main",
+        "question": "What kind of race did I run?",
+        "value": "charity",
+        "message": 4
+      },
+      {
+        "kind": "detail",
+        "question": "What was my bib number in the charity race?",
+        "value": "3510",
+        "message": 4
+      },
+      {
+        "kind": "detail",
+        "question": "How long did I take to finish the charity race?",
+        "value": "43 minutes",
+        "message": 4
+      },
+      {
+        "kind": "main",
+        "question": "Which course did I enrol in?",
+        "value": "welding",
+        "message": 5
+      },
+      {
+        "kind": "detail",
+        "question": "Who teaches my welding course?",
+        "value": "Cosmin",
+        "message": 5
+      },
+      {
+        "kind": "detail",
+        "question": "On which day of the week is my welding course?",
+        "value": "Saturdays",
+        "message": 5
+      },
+      {
+        "kind": "main",
+        "question": "Which room did I have painted?",
+        "value": "attic",
+        "message": 6
+      },
+      {
+        "kind": "detail",
+        "question": "What colour was the attic painted?",
+        "value": "mustard yellow",
+        "message": 6
+      },
+      {
+        "kind": "detail",
+        "question": "What is the name of the painter who did the attic?",
+        "value": "Tadeu",
+        "message": 6
+      },
+      {
+        "kind": "main",
+        "question": "What kind of restaurant did I have dinner at?",
+        "value": "Lebanese",
+        "message": 7
+      },
+      {
+        "kind": "detail",
+        "question": "Who did I have dinner with at the Lebanese restaurant?",
+        "value": "Teodora",
+        "message": 7
+      },
+      {
+        "kind": "detail",
+        "question": "Which dish did I order at the Lebanese restaurant?",
+        "value": "the grilled octopus",
+        "message": 7
+      }
+    ]
+  },
+  {
+    "id": "src-pt-0",
+    "language": "pt",
+    "messages": [
+      "Me matriculei em um curso de caligrafia porque sempre achei minha letra horrível. Quem dá as aulas é a Ginevra, e o curso acontece às segundas, logo depois do meu expediente.",
+      "Corri uma prova de 10 km no fim de semana e sofri bastante nas subidas. Meu número de peito era 4244 e levei 101 minutos para terminar, mas cheguei inteiro e feliz.",
+      "Por causa das enxaquecas, passei em consulta de neurologia com a Dra. Oriol, que me pediu alguns exames. A clínica fica na Rua das Laranjeiras, pertinho de onde eu trabalho.",
+      "Comprei um forno de pão para finalmente fazer fermentação natural em casa. Ele me custou 780 reais na Loja Aroeira, onde o vendedor ainda me deu várias dicas de uso.",
+      "O barulho estava insuportável, então mandei trocar o escapamento do carro. Paguei 750 reais pelo serviço, e quem fez a troca foi a Bettina, mecânica da oficina aqui do bairro.",
+      "Passei um fim de semana em Pirenópolis para descansar um pouco da correria. Meu ônibus para Pirenópolis saiu às 15h35, e fiquei hospedado na Pousada Sabiá, que tinha uma rede deliciosa.",
+      "Mandei pintar o sótão, que estava com as paredes manchadas de umidade. Ele ficou amarelo-mostarda, bem alegre, e a pintura foi feita pela Bettina, a pintora que uma vizinha indicou.",
+      "Jantei em um restaurante libanês com o Hakon, que estava de passagem pela cidade. Eu pedi o polvo grelhado, que veio no ponto certo, e ficamos conversando até tarde."
+    ],
+    "questions": [
+      {
+        "kind": "main",
+        "question": "Em que curso me matriculei?",
+        "value": "caligrafia",
+        "message": 0
+      },
+      {
+        "kind": "detail",
+        "question": "Quem dá o meu curso de caligrafia?",
+        "value": "Ginevra",
+        "message": 0
+      },
+      {
+        "kind": "detail",
+        "question": "Em que dia da semana é o meu curso de caligrafia?",
+        "value": "segundas",
+        "message": 0
+      },
+      {
+        "kind": "main",
+        "question": "Que tipo de prova eu corri?",
+        "value": "de 10 km",
+        "message": 1
+      },
+      {
+        "kind": "detail",
+        "question": "Qual foi o meu número de peito na prova de 10 km?",
+        "value": "4244",
+        "message": 1
+      },
+      {
+        "kind": "detail",
+        "question": "Quanto tempo levei para terminar a prova de 10 km?",
+        "value": "101 minutos",
+        "message": 1
+      },
+      {
+        "kind": "main",
+        "question": "Em que especialidade passei em consulta?",
+        "value": "neurologia",
+        "message": 2
+      },
+      {
+        "kind": "detail",
+        "question": "Qual é o nome da médica da consulta de neurologia?",
+        "value": "Dra. Oriol",
+        "message": 2
+      },
+      {
+        "kind": "detail",
+        "question": "Em que rua fica a clínica da consulta de neurologia?",
+        "value": "Rua das Laranjeiras",
+        "message": 2
+      },
+      {
+        "kind": "main",
+        "question": "O que eu comprei?",
+        "value": "um forno de pão",
+        "message": 3
+      },
+      {
+        "kind": "detail",
+        "question": "Quanto me custou um forno de pão?",
+        "value": "780 reais",
+        "message": 3
+      },
+      {
+        "kind": "detail",
+        "question": "Em qual loja comprei um forno de pão?",
+        "value": "Loja Aroeira",
+        "message": 3
+      },
+      {
+        "kind": "main",
+        "question": "Que peça do carro eu mandei trocar?",
+        "value": "o escapamento",
+        "message": 4
+      },
+      {
+        "kind": "detail",
+        "question": "Quanto paguei para trocar o escapamento do carro?",
+        "value": "750 reais",
+        "message": 4
+      },
+      {
+        "kind": "detail",
+        "question": "Qual é o nome do mecânico que trocou o escapamento do carro?",
+        "value": "Bettina",
+        "message": 4
+      },
+      {
+        "kind": "main",
+        "question": "Onde passei um fim de semana?",
+        "value": "Pirenópolis",
+        "message": 5
+      },
+      {
+        "kind": "detail",
+        "question": "Em qual pousada fiquei em Pirenópolis?",
+        "value": "Pousada Sabiá",
+        "message": 5
+      },
+      {
+        "kind": "detail",
+        "question": "A que horas saiu o meu ônibus para Pirenópolis?",
+        "value": "15h35",
+        "message": 5
+      },
+      {
+        "kind": "main",
+        "question": "Que cômodo eu mandei pintar?",
+        "value": "o sótão",
+        "message": 6
+      },
+      {
+        "kind": "detail",
+        "question": "De que cor ficou o sótão?",
+        "value": "amarelo-mostarda",
+        "message": 6
+      },
+      {
+        "kind": "detail",
+        "question": "Qual é o nome do pintor que pintou o sótão?",
+        "value": "Bettina",
+        "message": 6
+      },
+      {
+        "kind": "main",
+        "question": "Em que tipo de restaurante eu jantei?",
+        "value": "libanês",
+        "message": 7
+      },
+      {
+        "kind": "detail",
+        "question": "Com quem jantei no restaurante libanês?",
+        "value": "Hakon",
+        "message": 7
+      },
+      {
+        "kind": "detail",
+        "question": "Qual prato pedi no restaurante libanês?",
+        "value": "o polvo grelhado",
+        "message": 7
+      }
+    ]
+  },
+  {
+    "id": "src-pt-1",
+    "language": "pt",
+    "messages": [
+      "Depois de muito adiar, mandei pintar o sótão para transformar o espaço em escritório. A cor ficou verde-sálvia, e quem pintou foi a Bettina, uma pintora muito caprichosa nos acabamentos.",
+      "Comprei um forno de pão pequeno, ideal para a minha cozinha apertada. Achei na Casa Ferrán, a loja onde fechei a compra, e ele me custou 500 reais, um bom negócio.",
+      "Passei um fim de semana em Tiradentes com minha mãe, que adora as igrejas de lá. Ficamos na Pousada Sabiá, e o meu ônibus para Tiradentes saiu às 16h20, sem atraso nenhum.",
+      "Jantei em um restaurante basco com o Marek para comemorar a promoção dele. Eu pedi os rolinhos de berinjela, que estavam ótimos, e ele insistiu em pagar a conta.",
+      "Passei em consulta de cardiologia para fazer um check-up, já que tenho histórico na família. A médica que me atendeu foi a Dra. Vasco, e a clínica fica na Rua das Laranjeiras.",
+      "Me matriculei em um curso de cerâmica para ter um tempo só meu durante a semana. As aulas são às terças, e a professora é a Ginevra, que tem um ateliê lindo.",
+      "A bateria vivia descarregando, então mandei trocar o alternador do carro. O Hakon, mecânico que fez a troca, cobrou 560 reais, e foi isso que paguei, sem choro nem desconto.",
+      "Corri uma prova noturna pelas ruas do centro e adorei o clima da largada. Usei o número de peito 2250 e terminei em 56 minutos, bem melhor do que eu imaginava."
+    ],
+    "questions": [
+      {
+        "kind": "main",
+        "question": "Que cômodo eu mandei pintar?",
+        "value": "o sótão",
+        "message": 0
+      },
+      {
+        "kind": "detail",
+        "question": "De que cor ficou o sótão?",
+        "value": "verde-sálvia",
+        "message": 0
+      },
+      {
+        "kind": "detail",
+        "question": "Qual é o nome do pintor que pintou o sótão?",
+        "value": "Bettina",
+        "message": 0
+      },
+      {
+        "kind": "main",
+        "question": "O que eu comprei?",
+        "value": "um forno de pão",
+        "message": 1
+      },
+      {
+        "kind": "detail",
+        "question": "Quanto me custou um forno de pão?",
+        "value": "500 reais",
+        "message": 1
+      },
+      {
+        "kind": "detail",
+        "question": "Em qual loja comprei um forno de pão?",
+        "value": "Casa Ferrán",
+        "message": 1
+      },
+      {
+        "kind": "main",
+        "question": "Onde passei um fim de semana?",
+        "value": "Tiradentes",
+        "message": 2
+      },
+      {
+        "kind": "detail",
+        "question": "Em qual pousada fiquei em Tiradentes?",
+        "value": "Pousada Sabiá",
+        "message": 2
+      },
+      {
+        "kind": "detail",
+        "question": "A que horas saiu o meu ônibus para Tiradentes?",
+        "value": "16h20",
+        "message": 2
+      },
+      {
+        "kind": "main",
+        "question": "Em que tipo de restaurante eu jantei?",
+        "value": "basco",
+        "message": 3
+      },
+      {
+        "kind": "detail",
+        "question": "Com quem jantei no restaurante basco?",
+        "value": "Marek",
+        "message": 3
+      },
+      {
+        "kind": "detail",
+        "question": "Qual prato pedi no restaurante basco?",
+        "value": "os rolinhos de berinjela",
+        "message": 3
+      },
+      {
+        "kind": "main",
+        "question": "Em que especialidade passei em consulta?",
+        "value": "cardiologia",
+        "message": 4
+      },
+      {
+        "kind": "detail",
+        "question": "Qual é o nome da médica da consulta de cardiologia?",
+        "value": "Dra. Vasco",
+        "message": 4
+      },
+      {
+        "kind": "detail",
+        "question": "Em que rua fica a clínica da consulta de cardiologia?",
+        "value": "Rua das Laranjeiras",
+        "message": 4
+      },
+      {
+        "kind": "main",
+        "question": "Em que curso me matriculei?",
+        "value": "cerâmica",
+        "message": 5
+      },
+      {
+        "kind": "detail",
+        "question": "Quem dá o meu curso de cerâmica?",
+        "value": "Ginevra",
+        "message": 5
+      },
+      {
+        "kind": "detail",
+        "question": "Em que dia da semana é o meu curso de cerâmica?",
+        "value": "terças",
+        "message": 5
+      },
+      {
+        "kind": "main",
+        "question": "Que peça do carro eu mandei trocar?",
+        "value": "o alternador",
+        "message": 6
+      },
+      {
+        "kind": "detail",
+        "question": "Quanto paguei para trocar o alternador do carro?",
+        "value": "560 reais",
+        "message": 6
+      },
+      {
+        "kind": "detail",
+        "question": "Qual é o nome do mecânico que trocou o alternador do carro?",
+        "value": "Hakon",
+        "message": 6
+      },
+      {
+        "kind": "main",
+        "question": "Que tipo de prova eu corri?",
+        "value": "noturna",
+        "message": 7
+      },
+      {
+        "kind": "detail",
+        "question": "Qual foi o meu número de peito na prova noturna?",
+        "value": "2250",
+        "message": 7
+      },
+      {
+        "kind": "detail",
+        "question": "Quanto tempo levei para terminar a prova noturna?",
+        "value": "56 minutos",
+        "message": 7
+      }
+    ]
+  },
+  {
+    "id": "src-pt-2",
+    "language": "pt",
+    "messages": [
+      "Comprei um caiaque para remar na represa nos dias de folga. Paguei 1170 reais nele no Empório Tucum, a loja onde comprei, e já estou doido para estrear.",
+      "Passei em consulta de neurologia por conta de uns formigamentos na mão. Fui atendido pela Dra. Amara, médica muito atenciosa, na clínica dela, que fica na Alameda Jaú.",
+      "Me matriculei em um curso de catalão porque pretendo passar uma temporada fora. A professora que dá o curso é a Ilse, e as aulas caem às terças, no começo da noite.",
+      "Jantei em um restaurante georgiano com o Hakon, que queria muito conhecer o lugar. Acabei pedindo o bacalhau assado, uma escolha curiosa para aquela cozinha, mas estava muito bem feito.",
+      "O pedal estava patinando, então mandei trocar a embreagem do carro. Paguei só 190 reais pela troca, e o mecânico que fez o serviço foi o Soren, sempre muito honesto comigo.",
+      "Corri uma prova de trilha no meio da mata, com lama até o joelho. Meu número de peito era 3639, e completei o percurso em 64 minutos, exausto e todo sujo.",
+      "Mandei pintar a cozinha, porque a gordura já tinha acabado com as paredes. Ela ficou azul-ardósia, bem moderna, e a pintora que fez o trabalho foi a Bettina.",
+      "Passei um fim de semana em Tiradentes só para comer bem e andar sem pressa. Meu ônibus para Tiradentes saiu às 10h35, e me hospedei na Pousada Jatobá, pertinho da praça."
+    ],
+    "questions": [
+      {
+        "kind": "main",
+        "question": "O que eu comprei?",
+        "value": "um caiaque",
+        "message": 0
+      },
+      {
+        "kind": "detail",
+        "question": "Quanto me custou um caiaque?",
+        "value": "1170 reais",
+        "message": 0
+      },
+      {
+        "kind": "detail",
+        "question": "Em qual loja comprei um caiaque?",
+        "value": "Empório Tucum",
+        "message": 0
+      },
+      {
+        "kind": "main",
+        "question": "Em que especialidade passei em consulta?",
+        "value": "neurologia",
+        "message": 1
+      },
+      {
+        "kind": "detail",
+        "question": "Qual é o nome da médica da consulta de neurologia?",
+        "value": "Dra. Amara",
+        "message": 1
+      },
+      {
+        "kind": "detail",
+        "question": "Em que rua fica a clínica da consulta de neurologia?",
+        "value": "Alameda Jaú",
+        "message": 1
+      },
+      {
+        "kind": "main",
+        "question": "Em que curso me matriculei?",
+        "value": "catalão",
+        "message": 2
+      },
+      {
+        "kind": "detail",
+        "question": "Quem dá o meu curso de catalão?",
+        "value": "Ilse",
+        "message": 2
+      },
+      {
+        "kind": "detail",
+        "question": "Em que dia da semana é o meu curso de catalão?",
+        "value": "terças",
+        "message": 2
+      },
+      {
+        "kind": "main",
+        "question": "Em que tipo de restaurante eu jantei?",
+        "value": "georgiano",
+        "message": 3
+      },
+      {
+        "kind": "detail",
+        "question": "Com quem jantei no restaurante georgiano?",
+        "value": "Hakon",
+        "message": 3
+      },
+      {
+        "kind": "detail",
+        "question": "Qual prato pedi no restaurante georgiano?",
+        "value": "o bacalhau assado",
+        "message": 3
+      },
+      {
+        "kind": "main",
+        "question": "Que peça do carro eu mandei trocar?",
+        "value": "a embreagem",
+        "message": 4
+      },
+      {
+        "kind": "detail",
+        "question": "Quanto paguei para trocar a embreagem do carro?",
+        "value": "190 reais",
+        "message": 4
+      },
+      {
+        "kind": "detail",
+        "question": "Qual é o nome do mecânico que trocou a embreagem do carro?",
+        "value": "Soren",
+        "message": 4
+      },
+      {
+        "kind": "main",
+        "question": "Que tipo de prova eu corri?",
+        "value": "de trilha",
+        "message": 5
+      },
+      {
+        "kind": "detail",
+        "question": "Qual foi o meu número de peito na prova de trilha?",
+        "value": "3639",
+        "message": 5
+      },
+      {
+        "kind": "detail",
+        "question": "Quanto tempo levei para terminar a prova de trilha?",
+        "value": "64 minutos",
+        "message": 5
+      },
+      {
+        "kind": "main",
+        "question": "Que cômodo eu mandei pintar?",
+        "value": "a cozinha",
+        "message": 6
+      },
+      {
+        "kind": "detail",
+        "question": "De que cor ficou a cozinha?",
+        "value": "azul-ardósia",
+        "message": 6
+      },
+      {
+        "kind": "detail",
+        "question": "Qual é o nome do pintor que pintou a cozinha?",
+        "value": "Bettina",
+        "message": 6
+      },
+      {
+        "kind": "main",
+        "question": "Onde passei um fim de semana?",
+        "value": "Tiradentes",
+        "message": 7
+      },
+      {
+        "kind": "detail",
+        "question": "Em qual pousada fiquei em Tiradentes?",
+        "value": "Pousada Jatobá",
+        "message": 7
+      },
+      {
+        "kind": "detail",
+        "question": "A que horas saiu o meu ônibus para Tiradentes?",
+        "value": "10h35",
+        "message": 7
+      }
+    ]
+  },
+  {
+    "id": "src-pt-3",
+    "language": "pt",
+    "messages": [
+      "Jantei em um restaurante etíope com a Aroha, que nunca tinha provado essa culinária. Eu pedi os rolinhos de berinjela e a gente comeu com a mão, do jeito tradicional.",
+      "Me matriculei em um curso de apicultura, acredita? O professor é o Tadeu, que cria abelhas há anos, e as aulas acontecem às quintas, num sítio perto da cidade.",
+      "Passei em consulta de cardiologia porque minha pressão andava alta. A médica foi a Dra. Ilse, que me acalmou bastante, e a clínica dela fica na Travessa do Carmo.",
+      "Passei um fim de semana em Olinda curtindo as ladeiras e a música na rua. Fiquei na Pousada Araçá, e o meu ônibus para Olinda saiu às 20h05, então viajei de noite.",
+      "Corri uma prova de 10 km com o pessoal da assessoria de corrida. Peguei o número de peito 6660 e fechei em 63 minutos, meu melhor tempo até agora nessa distância.",
+      "Mandei pintar a garagem antes de montar minha bancada de ferramentas. A parede ficou verde-sálvia, e quem pintou foi a Nilufar, pintora que já tinha feito um serviço para meu irmão.",
+      "Mandei trocar o alternador do carro depois de ficar parado na estrada. O conserto saiu por 700 reais, que paguei na hora, e o mecânico responsável pela troca foi o Hakon.",
+      "Comprei uma máquina de costura para fazer as fantasias das crianças. Encontrei no Ateliê Pitanga, que é a loja onde comprei, e ela me custou 480 reais, com garantia."
+    ],
+    "questions": [
+      {
+        "kind": "main",
+        "question": "Em que tipo de restaurante eu jantei?",
+        "value": "etíope",
+        "message": 0
+      },
+      {
+        "kind": "detail",
+        "question": "Com quem jantei no restaurante etíope?",
+        "value": "Aroha",
+        "message": 0
+      },
+      {
+        "kind": "detail",
+        "question": "Qual prato pedi no restaurante etíope?",
+        "value": "os rolinhos de berinjela",
+        "message": 0
+      },
+      {
+        "kind": "main",
+        "question": "Em que curso me matriculei?",
+        "value": "apicultura",
+        "message": 1
+      },
+      {
+        "kind": "detail",
+        "question": "Quem dá o meu curso de apicultura?",
+        "value": "Tadeu",
+        "message": 1
+      },
+      {
+        "kind": "detail",
+        "question": "Em que dia da semana é o meu curso de apicultura?",
+        "value": "quintas",
+        "message": 1
+      },
+      {
+        "kind": "main",
+        "question": "Em que especialidade passei em consulta?",
+        "value": "cardiologia",
+        "message": 2
+      },
+      {
+        "kind": "detail",
+        "question": "Qual é o nome da médica da consulta de cardiologia?",
+        "value": "Dra. Ilse",
+        "message": 2
+      },
+      {
+        "kind": "detail",
+        "question": "Em que rua fica a clínica da consulta de cardiologia?",
+        "value": "Travessa do Carmo",
+        "message": 2
+      },
+      {
+        "kind": "main",
+        "question": "Onde passei um fim de semana?",
+        "value": "Olinda",
+        "message": 3
+      },
+      {
+        "kind": "detail",
+        "question": "Em qual pousada fiquei em Olinda?",
+        "value": "Pousada Araçá",
+        "message": 3
+      },
+      {
+        "kind": "detail",
+        "question": "A que horas saiu o meu ônibus para Olinda?",
+        "value": "20h05",
+        "message": 3
+      },
+      {
+        "kind": "main",
+        "question": "Que tipo de prova eu corri?",
+        "value": "de 10 km",
+        "message": 4
+      },
+      {
+        "kind": "detail",
+        "question": "Qual foi o meu número de peito na prova de 10 km?",
+        "value": "6660",
+        "message": 4
+      },
+      {
+        "kind": "detail",
+        "question": "Quanto tempo levei para terminar a prova de 10 km?",
+        "value": "63 minutos",
+        "message": 4
+      },
+      {
+        "kind": "main",
+        "question": "Que cômodo eu mandei pintar?",
+        "value": "a garagem",
+        "message": 5
+      },
+      {
+        "kind": "detail",
+        "question": "De que cor ficou a garagem?",
+        "value": "verde-sálvia",
+        "message": 5
+      },
+      {
+        "kind": "detail",
+        "question": "Qual é o nome do pintor que pintou a garagem?",
+        "value": "Nilufar",
+        "message": 5
+      },
+      {
+        "kind": "main",
+        "question": "Que peça do carro eu mandei trocar?",
+        "value": "o alternador",
+        "message": 6
+      },
+      {
+        "kind": "detail",
+        "question": "Quanto paguei para trocar o alternador do carro?",
+        "value": "700 reais",
+        "message": 6
+      },
+      {
+        "kind": "detail",
+        "question": "Qual é o nome do mecânico que trocou o alternador do carro?",
+        "value": "Hakon",
+        "message": 6
+      },
+      {
+        "kind": "main",
+        "question": "O que eu comprei?",
+        "value": "uma máquina de costura",
+        "message": 7
+      },
+      {
+        "kind": "detail",
+        "question": "Quanto me custou uma máquina de costura?",
+        "value": "480 reais",
+        "message": 7
+      },
+      {
+        "kind": "detail",
+        "question": "Em qual loja comprei uma máquina de costura?",
+        "value": "Ateliê Pitanga",
+        "message": 7
+      }
+    ]
+  },
+  {
+    "id": "src-pt-4",
+    "language": "pt",
+    "messages": [
+      "Jantei em um restaurante libanês com a Edurne, minha amiga dos tempos de faculdade. Pedi os rolinhos de berinjela e gostei tanto que quase pedi outra porção para levar.",
+      "Corri uma prova de revezamento com a equipe do trabalho e foi uma farra. Meu número de peito era 3181, e o tempo que levei para terminar foi de 82 minutos.",
+      "Tomei coragem e me matriculei em um curso de catalão, um sonho antigo. As aulas são às terças, e a Ilse, que dá o curso, parece muito paciente com iniciantes.",
+      "Passei em consulta de podologia por causa de uma unha encravada que não me deixava em paz. Quem me atendeu foi a Dra. Amara, e a clínica fica na Rua Aurora.",
+      "Comprei um forno de pão daqueles grandes, pensando em vender pães para os vizinhos. Ele me custou 1070 reais, e comprei no Bazar Caju, que entregou tudo direitinho em casa.",
+      "Mandei trocar o alternador do carro porque a luz do painel não apagava de jeito nenhum. A Ginevra, mecânica que trocou a peça, me cobrou 900 reais, e paguei sem reclamar.",
+      "Passei um fim de semana em Olinda e precisei madrugar, porque meu ônibus para Olinda saiu às 7h05. Em compensação, fiquei na Pousada Mandacaru, que tinha uma vista linda.",
+      "Mandei pintar a cozinha para dar uma renovada antes das festas de fim de ano. Ela ficou verde-sálvia, e a Amara, a pintora que contratei, terminou tudo sem bagunça."
+    ],
+    "questions": [
+      {
+        "kind": "main",
+        "question": "Em que tipo de restaurante eu jantei?",
+        "value": "libanês",
+        "message": 0
+      },
+      {
+        "kind": "detail",
+        "question": "Com quem jantei no restaurante libanês?",
+        "value": "Edurne",
+        "message": 0
+      },
+      {
+        "kind": "detail",
+        "question": "Qual prato pedi no restaurante libanês?",
+        "value": "os rolinhos de berinjela",
+        "message": 0
+      },
+      {
+        "kind": "main",
+        "question": "Que tipo de prova eu corri?",
+        "value": "de revezamento",
+        "message": 1
+      },
+      {
+        "kind": "detail",
+        "question": "Qual foi o meu número de peito na prova de revezamento?",
+        "value": "3181",
+        "message": 1
+      },
+      {
+        "kind": "detail",
+        "question": "Quanto tempo levei para terminar a prova de revezamento?",
+        "value": "82 minutos",
+        "message": 1
+      },
+      {
+        "kind": "main",
+        "question": "Em que curso me matriculei?",
+        "value": "catalão",
+        "message": 2
+      },
+      {
+        "kind": "detail",
+        "question": "Quem dá o meu curso de catalão?",
+        "value": "Ilse",
+        "message": 2
+      },
+      {
+        "kind": "detail",
+        "question": "Em que dia da semana é o meu curso de catalão?",
+        "value": "terças",
+        "message": 2
+      },
+      {
+        "kind": "main",
+        "question": "Em que especialidade passei em consulta?",
+        "value": "podologia",
+        "message": 3
+      },
+      {
+        "kind": "detail",
+        "question": "Qual é o nome da médica da consulta de podologia?",
+        "value": "Dra. Amara",
+        "message": 3
+      },
+      {
+        "kind": "detail",
+        "question": "Em que rua fica a clínica da consulta de podologia?",
+        "value": "Rua Aurora",
+        "message": 3
+      },
+      {
+        "kind": "main",
+        "question": "O que eu comprei?",
+        "value": "um forno de pão",
+        "message": 4
+      },
+      {
+        "kind": "detail",
+        "question": "Quanto me custou um forno de pão?",
+        "value": "1070 reais",
+        "message": 4
+      },
+      {
+        "kind": "detail",
+        "question": "Em qual loja comprei um forno de pão?",
+        "value": "Bazar Caju",
+        "message": 4
+      },
+      {
+        "kind": "main",
+        "question": "Que peça do carro eu mandei trocar?",
+        "value": "o alternador",
+        "message": 5
+      },
+      {
+        "kind": "detail",
+        "question": "Quanto paguei para trocar o alternador do carro?",
+        "value": "900 reais",
+        "message": 5
+      },
+      {
+        "kind": "detail",
+        "question": "Qual é o nome do mecânico que trocou o alternador do carro?",
+        "value": "Ginevra",
+        "message": 5
+      },
+      {
+        "kind": "main",
+        "question": "Onde passei um fim de semana?",
+        "value": "Olinda",
+        "message": 6
+      },
+      {
+        "kind": "detail",
+        "question": "Em qual pousada fiquei em Olinda?",
+        "value": "Pousada Mandacaru",
+        "message": 6
+      },
+      {
+        "kind": "detail",
+        "question": "A que horas saiu o meu ônibus para Olinda?",
+        "value": "7h05",
+        "message": 6
+      },
+      {
+        "kind": "main",
+        "question": "Que cômodo eu mandei pintar?",
+        "value": "a cozinha",
+        "message": 7
+      },
+      {
+        "kind": "detail",
+        "question": "De que cor ficou a cozinha?",
+        "value": "verde-sálvia",
+        "message": 7
+      },
+      {
+        "kind": "detail",
+        "question": "Qual é o nome do pintor que pintou a cozinha?",
+        "value": "Amara",
+        "message": 7
+      }
+    ]
+  },
+  {
+    "id": "src-pt-5",
+    "language": "pt",
+    "messages": [
+      "Comprei um forno de pão de presente para mim mesmo. Paguei 900 reais nele, e a loja onde comprei foi o Ateliê Pitanga, que tem um atendimento que eu adoro.",
+      "Passei um fim de semana em Tiradentes e viajei à noite, já que meu ônibus para Tiradentes saiu às 21h05. Fiquei na Pousada Araçá, que serviu um café da manhã caprichado.",
+      "Mandei pintar a varanda, que estava descascando por causa do sol. Agora ela está amarelo-mostarda, e a Amara foi a pintora que fez o serviço, com muito capricho nos cantos.",
+      "Jantei em um restaurante georgiano com a Teodora, que voltou de viagem cheia de histórias. Como estava frio, pedi a sopa de abóbora, e ela me esquentou na hora.",
+      "Corri uma prova noturna debaixo de uma garoa fina e quase desisti no meio. Meu número de peito era 5724 e levei 102 minutos para cruzar a chegada, mas terminei.",
+      "Passei em consulta de dermatologia para olhar umas pintas nas costas. A Dra. Cosmin, a médica que me examinou, disse que está tudo bem, e a clínica dela fica na Rua Tupi.",
+      "Mandei trocar o escapamento do carro, que já estava todo enferrujado. Quem fez a troca foi a Nilufar, mecânica de confiança da família, e paguei 910 reais por tudo.",
+      "Me matriculei em um curso de encadernação porque adoro cadernos feitos à mão. Quem dá o curso é o Hakon, e os encontros são às terças, numa salinha cheia de papéis."
+    ],
+    "questions": [
+      {
+        "kind": "main",
+        "question": "O que eu comprei?",
+        "value": "um forno de pão",
+        "message": 0
+      },
+      {
+        "kind": "detail",
+        "question": "Quanto me custou um forno de pão?",
+        "value": "900 reais",
+        "message": 0
+      },
+      {
+        "kind": "detail",
+        "question": "Em qual loja comprei um forno de pão?",
+        "value": "Ateliê Pitanga",
+        "message": 0
+      },
+      {
+        "kind": "main",
+        "question": "Onde passei um fim de semana?",
+        "value": "Tiradentes",
+        "message": 1
+      },
+      {
+        "kind": "detail",
+        "question": "Em qual pousada fiquei em Tiradentes?",
+        "value": "Pousada Araçá",
+        "message": 1
+      },
+      {
+        "kind": "detail",
+        "question": "A que horas saiu o meu ônibus para Tiradentes?",
+        "value": "21h05",
+        "message": 1
+      },
+      {
+        "kind": "main",
+        "question": "Que cômodo eu mandei pintar?",
+        "value": "a varanda",
+        "message": 2
+      },
+      {
+        "kind": "detail",
+        "question": "De que cor ficou a varanda?",
+        "value": "amarelo-mostarda",
+        "message": 2
+      },
+      {
+        "kind": "detail",
+        "question": "Qual é o nome do pintor que pintou a varanda?",
+        "value": "Amara",
+        "message": 2
+      },
+      {
+        "kind": "main",
+        "question": "Em que tipo de restaurante eu jantei?",
+        "value": "georgiano",
+        "message": 3
+      },
+      {
+        "kind": "detail",
+        "question": "Com quem jantei no restaurante georgiano?",
+        "value": "Teodora",
+        "message": 3
+      },
+      {
+        "kind": "detail",
+        "question": "Qual prato pedi no restaurante georgiano?",
+        "value": "a sopa de abóbora",
+        "message": 3
+      },
+      {
+        "kind": "main",
+        "question": "Que tipo de prova eu corri?",
+        "value": "noturna",
+        "message": 4
+      },
+      {
+        "kind": "detail",
+        "question": "Qual foi o meu número de peito na prova noturna?",
+        "value": "5724",
+        "message": 4
+      },
+      {
+        "kind": "detail",
+        "question": "Quanto tempo levei para terminar a prova noturna?",
+        "value": "102 minutos",
+        "message": 4
+      },
+      {
+        "kind": "main",
+        "question": "Em que especialidade passei em consulta?",
+        "value": "dermatologia",
+        "message": 5
+      },
+      {
+        "kind": "detail",
+        "question": "Qual é o nome da médica da consulta de dermatologia?",
+        "value": "Dra. Cosmin",
+        "message": 5
+      },
+      {
+        "kind": "detail",
+        "question": "Em que rua fica a clínica da consulta de dermatologia?",
+        "value": "Rua Tupi",
+        "message": 5
+      },
+      {
+        "kind": "main",
+        "question": "Que peça do carro eu mandei trocar?",
+        "value": "o escapamento",
+        "message": 6
+      },
+      {
+        "kind": "detail",
+        "question": "Quanto paguei para trocar o escapamento do carro?",
+        "value": "910 reais",
+        "message": 6
+      },
+      {
+        "kind": "detail",
+        "question": "Qual é o nome do mecânico que trocou o escapamento do carro?",
+        "value": "Nilufar",
+        "message": 6
+      },
+      {
+        "kind": "main",
+        "question": "Em que curso me matriculei?",
+        "value": "encadernação",
+        "message": 7
+      },
+      {
+        "kind": "detail",
+        "question": "Quem dá o meu curso de encadernação?",
+        "value": "Hakon",
+        "message": 7
+      },
+      {
+        "kind": "detail",
+        "question": "Em que dia da semana é o meu curso de encadernação?",
+        "value": "terças",
+        "message": 7
+      }
+    ]
+  },
+  {
+    "id": "src-pt-6",
+    "language": "pt",
+    "messages": [
+      "Comprei uma máquina de costura depois de anos pegando a da minha tia emprestada. Ela me custou 810 reais no Bazar Caju, e saí da loja já com linhas e agulhas.",
+      "Senti um aperto no peito na academia e, por precaução, passei em consulta de cardiologia. A médica, Dra. Aroha, pediu um eletrocardiograma, e a clínica dela fica na Travessa do Carmo.",
+      "Jantei em um restaurante etíope com o Vasco, meu colega de república de antigamente. Na hora de pedir, escolhi os rolinhos de berinjela, e ele ficou de olho no meu prato a noite toda.",
+      "O motor estava esquentando demais, então mandei trocar o radiador do carro. O serviço ficou a cargo do Hakon, o mecânico, e paguei 560 reais, parcelados no cartão.",
+      "Corri uma prova beneficente em prol de um abrigo de idosos. Meu número de peito foi o 1937, e precisei de 82 minutos para terminar, sem pressa e curtindo o percurso.",
+      "Mandei pintar o corredor, que era escuro e sem graça. Escolhi azul-ardósia para as paredes, e a pintora que fez o trabalho foi a Amara, indicada pelo síndico do prédio.",
+      "Me matriculei em um curso de apicultura para cuidar das colmeias do sítio do meu avô. A Aroha é quem dá as aulas, sempre aos sábados, bem cedinho, antes do calor.",
+      "Passei um fim de semana em Tiradentes para um casamento de amigos. Meu ônibus para Tiradentes saiu às 11h05, e dormi na Pousada Sabiá, onde boa parte dos convidados também ficou."
+    ],
+    "questions": [
+      {
+        "kind": "main",
+        "question": "O que eu comprei?",
+        "value": "uma máquina de costura",
+        "message": 0
+      },
+      {
+        "kind": "detail",
+        "question": "Quanto me custou uma máquina de costura?",
+        "value": "810 reais",
+        "message": 0
+      },
+      {
+        "kind": "detail",
+        "question": "Em qual loja comprei uma máquina de costura?",
+        "value": "Bazar Caju",
+        "message": 0
+      },
+      {
+        "kind": "main",
+        "question": "Em que especialidade passei em consulta?",
+        "value": "cardiologia",
+        "message": 1
+      },
+      {
+        "kind": "detail",
+        "question": "Qual é o nome da médica da consulta de cardiologia?",
+        "value": "Dra. Aroha",
+        "message": 1
+      },
+      {
+        "kind": "detail",
+        "question": "Em que rua fica a clínica da consulta de cardiologia?",
+        "value": "Travessa do Carmo",
+        "message": 1
+      },
+      {
+        "kind": "main",
+        "question": "Em que tipo de restaurante eu jantei?",
+        "value": "etíope",
+        "message": 2
+      },
+      {
+        "kind": "detail",
+        "question": "Com quem jantei no restaurante etíope?",
+        "value": "Vasco",
+        "message": 2
+      },
+      {
+        "kind": "detail",
+        "question": "Qual prato pedi no restaurante etíope?",
+        "value": "os rolinhos de berinjela",
+        "message": 2
+      },
+      {
+        "kind": "main",
+        "question": "Que peça do carro eu mandei trocar?",
+        "value": "o radiador",
+        "message": 3
+      },
+      {
+        "kind": "detail",
+        "question": "Quanto paguei para trocar o radiador do carro?",
+        "value": "560 reais",
+        "message": 3
+      },
+      {
+        "kind": "detail",
+        "question": "Qual é o nome do mecânico que trocou o radiador do carro?",
+        "value": "Hakon",
+        "message": 3
+      },
+      {
+        "kind": "main",
+        "question": "Que tipo de prova eu corri?",
+        "value": "beneficente",
+        "message": 4
+      },
+      {
+        "kind": "detail",
+        "question": "Qual foi o meu número de peito na prova beneficente?",
+        "value": "1937",
+        "message": 4
+      },
+      {
+        "kind": "detail",
+        "question": "Quanto tempo levei para terminar a prova beneficente?",
+        "value": "82 minutos",
+        "message": 4
+      },
+      {
+        "kind": "main",
+        "question": "Que cômodo eu mandei pintar?",
+        "value": "o corredor",
+        "message": 5
+      },
+      {
+        "kind": "detail",
+        "question": "De que cor ficou o corredor?",
+        "value": "azul-ardósia",
+        "message": 5
+      },
+      {
+        "kind": "detail",
+        "question": "Qual é o nome do pintor que pintou o corredor?",
+        "value": "Amara",
+        "message": 5
+      },
+      {
+        "kind": "main",
+        "question": "Em que curso me matriculei?",
+        "value": "apicultura",
+        "message": 6
+      },
+      {
+        "kind": "detail",
+        "question": "Quem dá o meu curso de apicultura?",
+        "value": "Aroha",
+        "message": 6
+      },
+      {
+        "kind": "detail",
+        "question": "Em que dia da semana é o meu curso de apicultura?",
+        "value": "sábados",
+        "message": 6
+      },
+      {
+        "kind": "main",
+        "question": "Onde passei um fim de semana?",
+        "value": "Tiradentes",
+        "message": 7
+      },
+      {
+        "kind": "detail",
+        "question": "Em qual pousada fiquei em Tiradentes?",
+        "value": "Pousada Sabiá",
+        "message": 7
+      },
+      {
+        "kind": "detail",
+        "question": "A que horas saiu o meu ônibus para Tiradentes?",
+        "value": "11h05",
+        "message": 7
+      }
+    ]
+  },
+  {
+    "id": "src-pt-7",
+    "language": "pt",
+    "messages": [
+      "Apareceu uma alergia no meu braço e passei em consulta de dermatologia. Fui atendido pela Dra. Marek, a médica, que receitou uma pomada, e a clínica fica na Rua Aurora.",
+      "Corri uma prova de revezamento com meus primos e demos muita risada. Fiquei com o número de peito 1672 e levei 76 minutos para terminar, suando bastante no trecho final.",
+      "Mandei trocar o radiador do carro depois de ver uma poça debaixo dele na garagem. A Aroha, mecânica que fez a troca, cobrou 520 reais, e eu paguei no pix.",
+      "Jantei em um restaurante basco com a Bettina, que conhece o dono da casa. Por sugestão dela, pedi o ensopado de cordeiro, e foi a melhor decisão da noite.",
+      "Passei um fim de semana em Pirenópolis tomando banho de cachoeira. Fiquei hospedado na Pousada Ipê Roxo, e o meu ônibus para Pirenópolis saiu às 17h05, depois do trabalho.",
+      "Comprei um caiaque para pescar com meu pai nas férias. Foi no Bazar Caju que eu comprei, e ele me custou 1550 reais, já com o remo e o colete.",
+      "Mandei pintar a cozinha depois da reforma dos armários. As paredes ficaram azul-ardósia, e o Soren, pintor que fez o serviço, deixou tudo impecável e ainda limpou o chão.",
+      "Me matriculei em um curso de catalão para acompanhar as músicas que eu gosto. A Ginevra é a professora, e as aulas são às quintas, na hora do almoço."
+    ],
+    "questions": [
+      {
+        "kind": "main",
+        "question": "Em que especialidade passei em consulta?",
+        "value": "dermatologia",
+        "message": 0
+      },
+      {
+        "kind": "detail",
+        "question": "Qual é o nome da médica da consulta de dermatologia?",
+        "value": "Dra. Marek",
+        "message": 0
+      },
+      {
+        "kind": "detail",
+        "question": "Em que rua fica a clínica da consulta de dermatologia?",
+        "value": "Rua Aurora",
+        "message": 0
+      },
+      {
+        "kind": "main",
+        "question": "Que tipo de prova eu corri?",
+        "value": "de revezamento",
+        "message": 1
+      },
+      {
+        "kind": "detail",
+        "question": "Qual foi o meu número de peito na prova de revezamento?",
+        "value": "1672",
+        "message": 1
+      },
+      {
+        "kind": "detail",
+        "question": "Quanto tempo levei para terminar a prova de revezamento?",
+        "value": "76 minutos",
+        "message": 1
+      },
+      {
+        "kind": "main",
+        "question": "Que peça do carro eu mandei trocar?",
+        "value": "o radiador",
+        "message": 2
+      },
+      {
+        "kind": "detail",
+        "question": "Quanto paguei para trocar o radiador do carro?",
+        "value": "520 reais",
+        "message": 2
+      },
+      {
+        "kind": "detail",
+        "question": "Qual é o nome do mecânico que trocou o radiador do carro?",
+        "value": "Aroha",
+        "message": 2
+      },
+      {
+        "kind": "main",
+        "question": "Em que tipo de restaurante eu jantei?",
+        "value": "basco",
+        "message": 3
+      },
+      {
+        "kind": "detail",
+        "question": "Com quem jantei no restaurante basco?",
+        "value": "Bettina",
+        "message": 3
+      },
+      {
+        "kind": "detail",
+        "question": "Qual prato pedi no restaurante basco?",
+        "value": "o ensopado de cordeiro",
+        "message": 3
+      },
+      {
+        "kind": "main",
+        "question": "Onde passei um fim de semana?",
+        "value": "Pirenópolis",
+        "message": 4
+      },
+      {
+        "kind": "detail",
+        "question": "Em qual pousada fiquei em Pirenópolis?",
+        "value": "Pousada Ipê Roxo",
+        "message": 4
+      },
+      {
+        "kind": "detail",
+        "question": "A que horas saiu o meu ônibus para Pirenópolis?",
+        "value": "17h05",
+        "message": 4
+      },
+      {
+        "kind": "main",
+        "question": "O que eu comprei?",
+        "value": "um caiaque",
+        "message": 5
+      },
+      {
+        "kind": "detail",
+        "question": "Quanto me custou um caiaque?",
+        "value": "1550 reais",
+        "message": 5
+      },
+      {
+        "kind": "detail",
+        "question": "Em qual loja comprei um caiaque?",
+        "value": "Bazar Caju",
+        "message": 5
+      },
+      {
+        "kind": "main",
+        "question": "Que cômodo eu mandei pintar?",
+        "value": "a cozinha",
+        "message": 6
+      },
+      {
+        "kind": "detail",
+        "question": "De que cor ficou a cozinha?",
+        "value": "azul-ardósia",
+        "message": 6
+      },
+      {
+        "kind": "detail",
+        "question": "Qual é o nome do pintor que pintou a cozinha?",
+        "value": "Soren",
+        "message": 6
+      },
+      {
+        "kind": "main",
+        "question": "Em que curso me matriculei?",
+        "value": "catalão",
+        "message": 7
+      },
+      {
+        "kind": "detail",
+        "question": "Quem dá o meu curso de catalão?",
+        "value": "Ginevra",
+        "message": 7
+      },
+      {
+        "kind": "detail",
+        "question": "Em que dia da semana é o meu curso de catalão?",
+        "value": "quintas",
+        "message": 7
+      }
+    ]
+  }
+]
