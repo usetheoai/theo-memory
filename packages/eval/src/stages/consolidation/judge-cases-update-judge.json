@@ -1,0 +1,2228 @@
+{
+ "users": [
+  {
+   "id": "upd-en-ansgar",
+   "facts": [
+    {
+     "key": "u1-old",
+     "text": "Ansgar's home internet comes from Northgate Broadband; the router sits in the hallway.",
+     "observedAt": "2021-08-21",
+     "role": "old",
+     "update": "u1"
+    },
+    {
+     "key": "u1-new",
+     "text": "Lumenet is the provider for the internet at Ansgar's place.",
+     "observedAt": "2023-09-04",
+     "role": "new",
+     "update": "u1"
+    },
+    {
+     "key": "u2-old",
+     "text": "Ansgar works for Jacarandá Editora.",
+     "observedAt": "2021-07-13",
+     "role": "old",
+     "update": "u2"
+    },
+    {
+     "key": "m-first",
+     "text": "Ansgar practises kendo, usually on weekday evenings.",
+     "observedAt": "2021-06-22",
+     "role": "distinct"
+    },
+    {
+     "key": "p-earlier",
+     "text": "Ansgar ran 18 half marathons in 2022.",
+     "observedAt": "2022-12-29",
+     "role": "distinct"
+    },
+    {
+     "key": "m-second",
+     "text": "Ansgar plays badminton at the club near the station.",
+     "observedAt": "2023-08-15",
+     "role": "distinct"
+    },
+    {
+     "key": "u0-new",
+     "text": "Ansgar's dentist is Dr. Kovač.",
+     "observedAt": "2024-10-11",
+     "role": "new",
+     "update": "u0"
+    },
+    {
+     "key": "u2-new",
+     "text": "Marrow & Finch has Ansgar on its staff.",
+     "observedAt": "2023-07-24",
+     "role": "new",
+     "update": "u2"
+    },
+    {
+     "key": "p-later",
+     "text": "In 2024 Ansgar finished 8 half marathons.",
+     "observedAt": "2024-12-28",
+     "role": "distinct"
+    },
+    {
+     "key": "u0-old",
+     "text": "For dental check-ups Ansgar goes to Dr. Tavares.",
+     "observedAt": "2021-01-17",
+     "role": "old",
+     "update": "u0",
+     "loggedOutOfOrder": true
+    },
+    {
+     "key": "o-earlier",
+     "text": "Ansgar took a ceramics course in Faenza in August 2020.",
+     "observedAt": "2020-08-12",
+     "role": "distinct"
+    },
+    {
+     "key": "o-later",
+     "text": "In April 2024 Ansgar was in Kyoto for a course in ceramics.",
+     "observedAt": "2024-04-25",
+     "role": "distinct"
+    }
+   ],
+   "questions": [
+    {
+     "query": "Who is Ansgar's dentist?",
+     "pattern": "Dr\\.\\ Kovač",
+     "stalePattern": "Dr\\.\\ Tavares"
+    },
+    {
+     "query": "Who was Ansgar's dentist in August 2021?",
+     "pattern": "Dr\\.\\ Tavares",
+     "stalePattern": "Dr\\.\\ Kovač",
+     "asOf": "2021-08-05"
+    },
+    {
+     "query": "Which company provides Ansgar's home internet?",
+     "pattern": "Lumenet",
+     "stalePattern": "Northgate\\ Broadband"
+    },
+    {
+     "query": "Which home internet provider did Ansgar have in March 2022?",
+     "pattern": "Northgate\\ Broadband",
+     "stalePattern": "Lumenet",
+     "asOf": "2022-03-09"
+    },
+    {
+     "query": "Where does Ansgar work?",
+     "pattern": "Marrow\\ \\&\\ Finch",
+     "stalePattern": "Jacarandá\\ Editora"
+    },
+    {
+     "query": "Who was Ansgar's employer in January 2022?",
+     "pattern": "Jacarandá\\ Editora",
+     "stalePattern": "Marrow\\ \\&\\ Finch",
+     "asOf": "2022-01-29"
+    },
+    {
+     "query": "Which sports does Ansgar practise?",
+     "pattern": "kendo"
+    },
+    {
+     "query": "How many half marathons did Ansgar run in 2022?",
+     "pattern": "(?<!\\d)18(?!\\d)"
+    },
+    {
+     "query": "How many half marathons did Ansgar run in 2024?",
+     "pattern": "(?<!\\d)8(?!\\d)"
+    },
+    {
+     "query": "Where did Ansgar take a ceramics course in 2020?",
+     "pattern": "Faenza"
+    },
+    {
+     "query": "Where did Ansgar take a ceramics course in 2024?",
+     "pattern": "Kyoto"
+    }
+   ]
+  },
+  {
+   "id": "upd-en-beatrix",
+   "facts": [
+    {
+     "key": "u0-new",
+     "text": "Beatrix's job title is purchasing manager.",
+     "observedAt": "2024-02-11",
+     "role": "new",
+     "update": "u0"
+    },
+    {
+     "key": "u0-old",
+     "text": "Beatrix works as a lighting designer.",
+     "observedAt": "2019-04-05",
+     "role": "old",
+     "update": "u0",
+     "loggedOutOfOrder": true
+    },
+    {
+     "key": "m-first",
+     "text": "Beatrix is allergic to walnuts, so check the cake recipe.",
+     "observedAt": "2021-07-21",
+     "role": "distinct"
+    },
+    {
+     "key": "m-second",
+     "text": "Beatrix has a sesame allergy; no tahini for her.",
+     "observedAt": "2023-08-27",
+     "role": "distinct"
+    },
+    {
+     "key": "a-first",
+     "text": "Beatrix reports to Emil Sorensen at work.",
+     "observedAt": "2021-10-14",
+     "role": "distinct"
+    },
+    {
+     "key": "p-earlier",
+     "text": "Beatrix gave 10 lectures in 2021.",
+     "observedAt": "2021-12-29",
+     "role": "distinct"
+    },
+    {
+     "key": "a-second",
+     "text": "Dr. Lindqvist is Beatrix's eye doctor.",
+     "observedAt": "2023-05-18",
+     "role": "distinct"
+    },
+    {
+     "key": "p-later",
+     "text": "Over 2023 Beatrix delivered 5 lectures.",
+     "observedAt": "2023-12-28",
+     "role": "distinct"
+    },
+    {
+     "key": "u2-old",
+     "text": "Beatrix lives in Viseu.",
+     "observedAt": "2021-07-28",
+     "role": "old",
+     "update": "u2"
+    },
+    {
+     "key": "u1-old",
+     "text": "Beatrix works at Marrow & Finch.",
+     "observedAt": "2020-08-10",
+     "role": "old",
+     "update": "u1"
+    },
+    {
+     "key": "u1-new",
+     "text": "Solvang Power is Beatrix's employer.",
+     "observedAt": "2023-09-26",
+     "role": "new",
+     "update": "u1"
+    },
+    {
+     "key": "u2-new",
+     "text": "Home for Beatrix is a flat in Christchurch.",
+     "observedAt": "2023-06-28",
+     "role": "new",
+     "update": "u2"
+    }
+   ],
+   "questions": [
+    {
+     "query": "What is Beatrix's job title?",
+     "pattern": "purchasing\\ manager",
+     "stalePattern": "lighting\\ designer"
+    },
+    {
+     "query": "What was Beatrix's job title in October 2019?",
+     "pattern": "lighting\\ designer",
+     "stalePattern": "purchasing\\ manager",
+     "asOf": "2019-10-22"
+    },
+    {
+     "query": "Who does Beatrix work for?",
+     "pattern": "Solvang\\ Power",
+     "stalePattern": "Marrow\\ \\&\\ Finch"
+    },
+    {
+     "query": "Which company employed Beatrix in February 2021?",
+     "pattern": "Marrow\\ \\&\\ Finch",
+     "stalePattern": "Solvang\\ Power",
+     "asOf": "2021-02-26"
+    },
+    {
+     "query": "Which city does Beatrix live in?",
+     "pattern": "Christchurch",
+     "stalePattern": "Viseu"
+    },
+    {
+     "query": "Where was Beatrix living in February 2022?",
+     "pattern": "Viseu",
+     "stalePattern": "Christchurch",
+     "asOf": "2022-02-13"
+    },
+    {
+     "query": "What food allergies does Beatrix have?",
+     "pattern": "walnuts"
+    },
+    {
+     "query": "How many lectures did Beatrix give in 2021?",
+     "pattern": "(?<!\\d)10(?!\\d)"
+    },
+    {
+     "query": "How many lectures did Beatrix give in 2023?",
+     "pattern": "(?<!\\d)5(?!\\d)"
+    },
+    {
+     "query": "Who is Beatrix's manager at work?",
+     "pattern": "Emil\\ Sorensen"
+    },
+    {
+     "query": "Who is Beatrix's eye doctor?",
+     "pattern": "Dr\\.\\ Lindqvist"
+    }
+   ]
+  },
+  {
+   "id": "upd-en-cormac",
+   "facts": [
+    {
+     "key": "p-earlier",
+     "text": "Cormac published 12 short stories in 2021.",
+     "observedAt": "2021-12-29",
+     "role": "distinct"
+    },
+    {
+     "key": "o-earlier",
+     "text": "Cormac ran a ten-kilometre race in Paraty in January 2021.",
+     "observedAt": "2021-01-26",
+     "role": "distinct"
+    },
+    {
+     "key": "o-later",
+     "text": "In September 2023 Cormac was in Tartu for a road run over ten thousand metres, which he finished in light rain.",
+     "observedAt": "2023-09-19",
+     "role": "distinct"
+    },
+    {
+     "key": "m-first",
+     "text": "Cormac plays the kora.",
+     "observedAt": "2020-09-09",
+     "role": "distinct"
+    },
+    {
+     "key": "p-later",
+     "text": "Cormac saw 10 of his short stories reach print during 2023.",
+     "observedAt": "2023-12-28",
+     "role": "distinct"
+    },
+    {
+     "key": "u0-new",
+     "text": "Cormac's primary bank is Elmstead Savings.",
+     "observedAt": "2023-07-28",
+     "role": "new",
+     "update": "u0"
+    },
+    {
+     "key": "u2-old",
+     "text": "Cormac's manager at work is Duarte Peixoto.",
+     "observedAt": "2020-10-15",
+     "role": "old",
+     "update": "u2"
+    },
+    {
+     "key": "u0-old",
+     "text": "Cormac keeps his main account at Banco Miradouro.",
+     "observedAt": "2021-07-16",
+     "role": "old",
+     "update": "u0",
+     "loggedOutOfOrder": true
+    },
+    {
+     "key": "u1-old",
+     "text": "Cormac has his health insurance with Penhale Assurance.",
+     "observedAt": "2019-10-05",
+     "role": "old",
+     "update": "u1"
+    },
+    {
+     "key": "u1-new",
+     "text": "Amparo Saúde is the insurer covering Cormac's medical care.",
+     "observedAt": "2023-01-28",
+     "role": "new",
+     "update": "u1"
+    },
+    {
+     "key": "m-second",
+     "text": "Cormac is a bassoon player in a local wind ensemble.",
+     "observedAt": "2023-07-15",
+     "role": "distinct"
+    },
+    {
+     "key": "u2-new",
+     "text": "At the office Cormac answers to Leona Whitcombe.",
+     "observedAt": "2023-10-25",
+     "role": "new",
+     "update": "u2"
+    }
+   ],
+   "questions": [
+    {
+     "query": "Which bank is Cormac's primary bank?",
+     "pattern": "Elmstead\\ Savings",
+     "stalePattern": "Banco\\ Miradouro"
+    },
+    {
+     "query": "Which bank was Cormac's primary bank in February 2022?",
+     "pattern": "Banco\\ Miradouro",
+     "stalePattern": "Elmstead\\ Savings",
+     "asOf": "2022-02-01"
+    },
+    {
+     "query": "Who is Cormac's health insurer?",
+     "pattern": "Amparo\\ Saúde",
+     "stalePattern": "Penhale\\ Assurance"
+    },
+    {
+     "query": "Who insured Cormac's health in April 2020?",
+     "pattern": "Penhale\\ Assurance",
+     "stalePattern": "Amparo\\ Saúde",
+     "asOf": "2020-04-22"
+    },
+    {
+     "query": "Who is Cormac's manager at work?",
+     "pattern": "Leona\\ Whitcombe",
+     "stalePattern": "Duarte\\ Peixoto"
+    },
+    {
+     "query": "Who was Cormac's manager at work in May 2021?",
+     "pattern": "Duarte\\ Peixoto",
+     "stalePattern": "Leona\\ Whitcombe",
+     "asOf": "2021-05-03"
+    },
+    {
+     "query": "Which musical instruments does Cormac play?",
+     "pattern": "kora"
+    },
+    {
+     "query": "How many short stories did Cormac publish in 2021?",
+     "pattern": "(?<!\\d)12(?!\\d)"
+    },
+    {
+     "query": "How many short stories did Cormac publish in 2023?",
+     "pattern": "(?<!\\d)10(?!\\d)"
+    },
+    {
+     "query": "Where did Cormac run a 10k race in 2021?",
+     "pattern": "Paraty"
+    },
+    {
+     "query": "Where did Cormac run a 10k race in 2023?",
+     "pattern": "Tartu"
+    }
+   ]
+  },
+  {
+   "id": "upd-en-dagmar",
+   "facts": [
+    {
+     "key": "u1-old",
+     "text": "Dagmar banks primarily with Elmstead Savings.",
+     "observedAt": "2020-04-20",
+     "role": "old",
+     "update": "u1"
+    },
+    {
+     "key": "u2-old",
+     "text": "Dagmar's job title is lighting designer.",
+     "observedAt": "2021-10-09",
+     "role": "old",
+     "update": "u2"
+    },
+    {
+     "key": "p-earlier",
+     "text": "Dagmar reviewed 15 films in 2022.",
+     "observedAt": "2022-12-29",
+     "role": "distinct"
+    },
+    {
+     "key": "u2-new",
+     "text": "Dagmar works as a land surveyor.",
+     "observedAt": "2023-11-25",
+     "role": "new",
+     "update": "u2"
+    },
+    {
+     "key": "m-first",
+     "text": "Dagmar plays the bandolim.",
+     "observedAt": "2021-09-09",
+     "role": "distinct"
+    },
+    {
+     "key": "u1-new",
+     "text": "Caixa Planalto is Dagmar's primary bank.",
+     "observedAt": "2024-07-05",
+     "role": "new",
+     "update": "u1"
+    },
+    {
+     "key": "m-second",
+     "text": "Dagmar practises the bassoon on Sunday mornings.",
+     "observedAt": "2023-07-18",
+     "role": "distinct"
+    },
+    {
+     "key": "a-first",
+     "text": "Dagmar lives in Wrocław.",
+     "observedAt": "2020-04-08",
+     "role": "distinct"
+    },
+    {
+     "key": "p-later",
+     "text": "In 2024 Dagmar wrote up 5 films as a reviewer.",
+     "observedAt": "2024-12-28",
+     "role": "distinct"
+    },
+    {
+     "key": "a-second",
+     "text": "Dagmar holds her investments through the brokerage Corvo Investimentos.",
+     "observedAt": "2024-03-13",
+     "role": "distinct"
+    },
+    {
+     "key": "u0-new",
+     "text": "Dagmar's health insurer is Coralwood Health.",
+     "observedAt": "2023-06-04",
+     "role": "new",
+     "update": "u0"
+    },
+    {
+     "key": "u0-old",
+     "text": "Dagmar has medical cover through Saúde Serena.",
+     "observedAt": "2020-06-19",
+     "role": "old",
+     "update": "u0",
+     "loggedOutOfOrder": true
+    }
+   ],
+   "questions": [
+    {
+     "query": "Who is Dagmar's health insurer?",
+     "pattern": "Coralwood\\ Health",
+     "stalePattern": "Saúde\\ Serena"
+    },
+    {
+     "query": "Which health insurer did Dagmar have in January 2021?",
+     "pattern": "Saúde\\ Serena",
+     "stalePattern": "Coralwood\\ Health",
+     "asOf": "2021-01-05"
+    },
+    {
+     "query": "What is Dagmar's primary bank?",
+     "pattern": "Caixa\\ Planalto",
+     "stalePattern": "Elmstead\\ Savings"
+    },
+    {
+     "query": "Which bank was Dagmar's primary bank in November 2020?",
+     "pattern": "Elmstead\\ Savings",
+     "stalePattern": "Caixa\\ Planalto",
+     "asOf": "2020-11-06"
+    },
+    {
+     "query": "What is Dagmar's job title?",
+     "pattern": "land\\ surveyor",
+     "stalePattern": "lighting\\ designer"
+    },
+    {
+     "query": "What was Dagmar's job title in April 2022?",
+     "pattern": "lighting\\ designer",
+     "stalePattern": "land\\ surveyor",
+     "asOf": "2022-04-27"
+    },
+    {
+     "query": "Which musical instruments does Dagmar play?",
+     "pattern": "bandolim"
+    },
+    {
+     "query": "How many films did Dagmar review in 2022?",
+     "pattern": "(?<!\\d)15(?!\\d)"
+    },
+    {
+     "query": "How many films did Dagmar review in 2024?",
+     "pattern": "(?<!\\d)5(?!\\d)"
+    },
+    {
+     "query": "Which city does Dagmar live in?",
+     "pattern": "Wrocław"
+    },
+    {
+     "query": "Which brokerage does Dagmar use for her investments?",
+     "pattern": "Corvo\\ Investimentos"
+    }
+   ]
+  },
+  {
+   "id": "upd-en-elowen",
+   "facts": [
+    {
+     "key": "p-earlier",
+     "text": "Elowen completed 7 half marathons in 2022.",
+     "observedAt": "2022-12-29",
+     "role": "distinct"
+    },
+    {
+     "key": "p-later",
+     "text": "Half marathons Elowen ran in 2024: 9.",
+     "observedAt": "2024-12-28",
+     "role": "distinct"
+    },
+    {
+     "key": "u1-old",
+     "text": "Elowen's manager at work is Harriet Blythe.",
+     "observedAt": "2019-05-12",
+     "role": "old",
+     "update": "u1"
+    },
+    {
+     "key": "o-earlier",
+     "text": "Elowen took a ceramics course in Delft in August 2020.",
+     "observedAt": "2020-08-27",
+     "role": "distinct"
+    },
+    {
+     "key": "u0-new",
+     "text": "Elowen works for Marrow & Finch.",
+     "observedAt": "2024-09-23",
+     "role": "new",
+     "update": "u0"
+    },
+    {
+     "key": "m-first",
+     "text": "Elowen trains in jiu-jitsu.",
+     "observedAt": "2020-03-09",
+     "role": "distinct"
+    },
+    {
+     "key": "u0-old",
+     "text": "Whitlock Rail is Elowen's employer.",
+     "observedAt": "2020-10-03",
+     "role": "old",
+     "update": "u0",
+     "loggedOutOfOrder": true
+    },
+    {
+     "key": "u2-old",
+     "text": "Elowen's job title is land surveyor.",
+     "observedAt": "2019-04-14",
+     "role": "old",
+     "update": "u2"
+    },
+    {
+     "key": "u2-new",
+     "text": "Elowen works as an actuarial analyst.",
+     "observedAt": "2024-12-11",
+     "role": "new",
+     "update": "u2"
+    },
+    {
+     "key": "u1-new",
+     "text": "Elowen reports to Caetano Viana.",
+     "observedAt": "2023-09-30",
+     "role": "new",
+     "update": "u1"
+    },
+    {
+     "key": "m-second",
+     "text": "Elowen practises kendo at a dojo across town.",
+     "observedAt": "2024-04-18",
+     "role": "distinct"
+    },
+    {
+     "key": "o-later",
+     "text": "In July 2024 Elowen went to Kyoto and did a pottery and ceramics class there.",
+     "observedAt": "2024-07-19",
+     "role": "distinct"
+    }
+   ],
+   "questions": [
+    {
+     "query": "Who does Elowen work for?",
+     "pattern": "Marrow\\ \\&\\ Finch",
+     "stalePattern": "Whitlock\\ Rail"
+    },
+    {
+     "query": "Where was Elowen working in April 2021?",
+     "pattern": "Whitlock\\ Rail",
+     "stalePattern": "Marrow\\ \\&\\ Finch",
+     "asOf": "2021-04-21"
+    },
+    {
+     "query": "Who is Elowen's manager at work?",
+     "pattern": "Caetano\\ Viana",
+     "stalePattern": "Harriet\\ Blythe"
+    },
+    {
+     "query": "Who managed Elowen at work in November 2019?",
+     "pattern": "Harriet\\ Blythe",
+     "stalePattern": "Caetano\\ Viana",
+     "asOf": "2019-11-28"
+    },
+    {
+     "query": "What is Elowen's job title?",
+     "pattern": "actuarial\\ analyst",
+     "stalePattern": "land\\ surveyor"
+    },
+    {
+     "query": "What job title did Elowen hold in October 2019?",
+     "pattern": "land\\ surveyor",
+     "stalePattern": "actuarial\\ analyst",
+     "asOf": "2019-10-31"
+    },
+    {
+     "query": "Which sports does Elowen practise?",
+     "pattern": "jiu\\-jitsu"
+    },
+    {
+     "query": "How many half marathons did Elowen run in 2022?",
+     "pattern": "(?<!\\d)7(?!\\d)"
+    },
+    {
+     "query": "How many half marathons did Elowen run in 2024?",
+     "pattern": "(?<!\\d)9(?!\\d)"
+    },
+    {
+     "query": "Where did Elowen take a ceramics course in 2020?",
+     "pattern": "Delft"
+    },
+    {
+     "query": "Where did Elowen take a ceramics course in 2024?",
+     "pattern": "Kyoto"
+    }
+   ]
+  },
+  {
+   "id": "upd-en-fintan",
+   "facts": [
+    {
+     "key": "u1-old",
+     "text": "Fintan's health insurer is Coralwood Health.",
+     "observedAt": "2021-02-16",
+     "role": "old",
+     "update": "u1"
+    },
+    {
+     "key": "u0-new",
+     "text": "Fintan's manager at work is Leona Whitcombe.",
+     "observedAt": "2023-03-28",
+     "role": "new",
+     "update": "u0"
+    },
+    {
+     "key": "u2-old",
+     "text": "Fintan lives in Stavanger, close to the harbour.",
+     "observedAt": "2021-04-28",
+     "role": "old",
+     "update": "u2"
+    },
+    {
+     "key": "p-earlier",
+     "text": "Fintan gave 2 lectures in 2022.",
+     "observedAt": "2022-12-29",
+     "role": "distinct"
+    },
+    {
+     "key": "a-first",
+     "text": "Fintan gets his home internet from Northgate Broadband.",
+     "observedAt": "2019-01-27",
+     "role": "distinct"
+    },
+    {
+     "key": "u2-new",
+     "text": "Wrocław is the city Fintan calls home.",
+     "observedAt": "2023-02-25",
+     "role": "new",
+     "update": "u2"
+    },
+    {
+     "key": "a-second",
+     "text": "Fintan's mentor at work is Olímpia Seabra.",
+     "observedAt": "2024-01-07",
+     "role": "distinct"
+    },
+    {
+     "key": "m-first",
+     "text": "Fintan speaks Quechua.",
+     "observedAt": "2020-09-15",
+     "role": "distinct"
+    },
+    {
+     "key": "m-second",
+     "text": "Fintan can hold a full conversation in Vietnamese.",
+     "observedAt": "2024-05-13",
+     "role": "distinct"
+    },
+    {
+     "key": "u1-new",
+     "text": "Penhale Assurance covers Fintan for medical costs.",
+     "observedAt": "2024-02-11",
+     "role": "new",
+     "update": "u1"
+    },
+    {
+     "key": "p-later",
+     "text": "During 2024 Fintan delivered 14 lectures.",
+     "observedAt": "2024-12-28",
+     "role": "distinct"
+    },
+    {
+     "key": "u0-old",
+     "text": "Fintan reports to Ingrid Solheim at the office.",
+     "observedAt": "2019-08-09",
+     "role": "old",
+     "update": "u0",
+     "loggedOutOfOrder": true
+    }
+   ],
+   "questions": [
+    {
+     "query": "Who is Fintan's manager at work?",
+     "pattern": "Leona\\ Whitcombe",
+     "stalePattern": "Ingrid\\ Solheim"
+    },
+    {
+     "query": "Who was Fintan's manager at work in February 2020?",
+     "pattern": "Ingrid\\ Solheim",
+     "stalePattern": "Leona\\ Whitcombe",
+     "asOf": "2020-02-25"
+    },
+    {
+     "query": "Which health insurer does Fintan have?",
+     "pattern": "Penhale\\ Assurance",
+     "stalePattern": "Coralwood\\ Health"
+    },
+    {
+     "query": "Who was Fintan's health insurer in September 2021?",
+     "pattern": "Coralwood\\ Health",
+     "stalePattern": "Penhale\\ Assurance",
+     "asOf": "2021-09-04"
+    },
+    {
+     "query": "Where does Fintan live?",
+     "pattern": "Wrocław",
+     "stalePattern": "Stavanger"
+    },
+    {
+     "query": "Which city was Fintan living in in November 2021?",
+     "pattern": "Stavanger",
+     "stalePattern": "Wrocław",
+     "asOf": "2021-11-14"
+    },
+    {
+     "query": "Which languages does Fintan speak?",
+     "pattern": "Quechua"
+    },
+    {
+     "query": "How many lectures did Fintan give in 2022?",
+     "pattern": "(?<!\\d)2(?!\\d)"
+    },
+    {
+     "query": "How many lectures did Fintan give in 2024?",
+     "pattern": "(?<!\\d)14(?!\\d)"
+    },
+    {
+     "query": "Who is Fintan's home internet provider?",
+     "pattern": "Northgate\\ Broadband"
+    },
+    {
+     "query": "Who is Fintan's mentor at work?",
+     "pattern": "Olímpia\\ Seabra"
+    }
+   ]
+  },
+  {
+   "id": "upd-en-greta",
+   "facts": [
+    {
+     "key": "u1-old",
+     "text": "Greta works as a pastry chef.",
+     "observedAt": "2021-01-03",
+     "role": "old",
+     "update": "u1"
+    },
+    {
+     "key": "m-first",
+     "text": "Greta does jiu-jitsu, training early before work.",
+     "observedAt": "2019-07-29",
+     "role": "distinct"
+    },
+    {
+     "key": "u2-old",
+     "text": "Greta's manager at work is Harriet Blythe.",
+     "observedAt": "2020-06-22",
+     "role": "old",
+     "update": "u2"
+    },
+    {
+     "key": "u2-new",
+     "text": "Ingrid Solheim is the person Greta reports to in her job.",
+     "observedAt": "2024-02-19",
+     "role": "new",
+     "update": "u2"
+    },
+    {
+     "key": "u0-new",
+     "text": "Greta's home internet provider is Northgate Broadband.",
+     "observedAt": "2024-01-13",
+     "role": "new",
+     "update": "u0"
+    },
+    {
+     "key": "u0-old",
+     "text": "The connection at Greta's house is supplied by Conecta Serra.",
+     "observedAt": "2019-07-03",
+     "role": "old",
+     "update": "u0",
+     "loggedOutOfOrder": true
+    },
+    {
+     "key": "o-earlier",
+     "text": "Greta ran a 10k race in Paraty in June 2020.",
+     "observedAt": "2020-06-27",
+     "role": "distinct"
+    },
+    {
+     "key": "p-earlier",
+     "text": "Greta gave 17 lectures in 2022.",
+     "observedAt": "2022-12-29",
+     "role": "distinct"
+    },
+    {
+     "key": "u1-new",
+     "text": "Greta's job title is actuarial analyst.",
+     "observedAt": "2023-05-29",
+     "role": "new",
+     "update": "u1"
+    },
+    {
+     "key": "p-later",
+     "text": "Lecture count for Greta in 2024 came to 13.",
+     "observedAt": "2024-12-28",
+     "role": "distinct"
+    },
+    {
+     "key": "m-second",
+     "text": "Greta practises kendo.",
+     "observedAt": "2023-06-11",
+     "role": "distinct"
+    },
+    {
+     "key": "o-later",
+     "text": "In April 2023 Greta crossed the finish line of a 10k in Hobart.",
+     "observedAt": "2023-04-30",
+     "role": "distinct"
+    }
+   ],
+   "questions": [
+    {
+     "query": "Who provides Greta's home internet?",
+     "pattern": "Northgate\\ Broadband",
+     "stalePattern": "Conecta\\ Serra"
+    },
+    {
+     "query": "Who was Greta's home internet provider in January 2020?",
+     "pattern": "Conecta\\ Serra",
+     "stalePattern": "Northgate\\ Broadband",
+     "asOf": "2020-01-19"
+    },
+    {
+     "query": "What is Greta's job title?",
+     "pattern": "actuarial\\ analyst",
+     "stalePattern": "pastry\\ chef"
+    },
+    {
+     "query": "What was Greta's job title in July 2021?",
+     "pattern": "pastry\\ chef",
+     "stalePattern": "actuarial\\ analyst",
+     "asOf": "2021-07-22"
+    },
+    {
+     "query": "Who is Greta's manager at work?",
+     "pattern": "Ingrid\\ Solheim",
+     "stalePattern": "Harriet\\ Blythe"
+    },
+    {
+     "query": "Who was Greta's manager at work in January 2021?",
+     "pattern": "Harriet\\ Blythe",
+     "stalePattern": "Ingrid\\ Solheim",
+     "asOf": "2021-01-08"
+    },
+    {
+     "query": "Which sports does Greta practise?",
+     "pattern": "jiu\\-jitsu"
+    },
+    {
+     "query": "How many lectures did Greta give in 2022?",
+     "pattern": "(?<!\\d)17(?!\\d)"
+    },
+    {
+     "query": "How many lectures did Greta give in 2024?",
+     "pattern": "(?<!\\d)13(?!\\d)"
+    },
+    {
+     "query": "Where did Greta run a 10k race in 2020?",
+     "pattern": "Paraty"
+    },
+    {
+     "query": "Where did Greta run a 10k race in 2023?",
+     "pattern": "Hobart"
+    }
+   ]
+  },
+  {
+   "id": "upd-en-hamish",
+   "facts": [
+    {
+     "key": "u1-old",
+     "text": "Hamish has Northgate Broadband as his home internet provider.",
+     "observedAt": "2019-12-05",
+     "role": "old",
+     "update": "u1"
+    },
+    {
+     "key": "u1-new",
+     "text": "The wifi at Hamish's flat runs through Conecta Serra.",
+     "observedAt": "2024-08-30",
+     "role": "new",
+     "update": "u1"
+    },
+    {
+     "key": "p-earlier",
+     "text": "Hamish ran 5 half marathons in 2021.",
+     "observedAt": "2021-12-29",
+     "role": "distinct"
+    },
+    {
+     "key": "u0-new",
+     "text": "Hamish's health insurer is Saúde Serena.",
+     "observedAt": "2024-10-29",
+     "role": "new",
+     "update": "u0"
+    },
+    {
+     "key": "p-later",
+     "text": "In 2023 Hamish got through 9 half marathons.",
+     "observedAt": "2023-12-28",
+     "role": "distinct"
+    },
+    {
+     "key": "a-first",
+     "text": "Hamish's dentist is Dr. Tavares.",
+     "observedAt": "2019-04-11",
+     "role": "distinct"
+    },
+    {
+     "key": "a-second",
+     "text": "Hamish insures his car with Estrada Segura.",
+     "observedAt": "2024-10-23",
+     "role": "distinct"
+    },
+    {
+     "key": "u0-old",
+     "text": "Coralwood Health provides Hamish's medical cover.",
+     "observedAt": "2019-12-23",
+     "role": "old",
+     "update": "u0",
+     "loggedOutOfOrder": true
+    },
+    {
+     "key": "u2-old",
+     "text": "Hamish reports to Leona Whitcombe at work.",
+     "observedAt": "2019-11-24",
+     "role": "old",
+     "update": "u2"
+    },
+    {
+     "key": "u2-new",
+     "text": "Harriet Blythe is Hamish's manager.",
+     "observedAt": "2023-02-19",
+     "role": "new",
+     "update": "u2"
+    },
+    {
+     "key": "m-first",
+     "text": "Hamish has a terrier named Biscoito.",
+     "observedAt": "2020-03-09",
+     "role": "distinct"
+    },
+    {
+     "key": "m-second",
+     "text": "Hamish owns a beagle named Pipoca, who sleeps by the back door.",
+     "observedAt": "2023-12-19",
+     "role": "distinct"
+    }
+   ],
+   "questions": [
+    {
+     "query": "Who is Hamish's health insurer?",
+     "pattern": "Saúde\\ Serena",
+     "stalePattern": "Coralwood\\ Health"
+    },
+    {
+     "query": "Which health insurer did Hamish have in July 2020?",
+     "pattern": "Coralwood\\ Health",
+     "stalePattern": "Saúde\\ Serena",
+     "asOf": "2020-07-10"
+    },
+    {
+     "query": "Who is Hamish's home internet provider?",
+     "pattern": "Conecta\\ Serra",
+     "stalePattern": "Northgate\\ Broadband"
+    },
+    {
+     "query": "Which company provided Hamish's home internet in June 2020?",
+     "pattern": "Northgate\\ Broadband",
+     "stalePattern": "Conecta\\ Serra",
+     "asOf": "2020-06-22"
+    },
+    {
+     "query": "Who is Hamish's manager at work?",
+     "pattern": "Harriet\\ Blythe",
+     "stalePattern": "Leona\\ Whitcombe"
+    },
+    {
+     "query": "Who was Hamish's manager at work in June 2020?",
+     "pattern": "Leona\\ Whitcombe",
+     "stalePattern": "Harriet\\ Blythe",
+     "asOf": "2020-06-11"
+    },
+    {
+     "query": "What pets does Hamish have?",
+     "pattern": "terrier\\ named\\ Biscoito"
+    },
+    {
+     "query": "How many half marathons did Hamish run in 2021?",
+     "pattern": "(?<!\\d)5(?!\\d)"
+    },
+    {
+     "query": "How many half marathons did Hamish run in 2023?",
+     "pattern": "(?<!\\d)9(?!\\d)"
+    },
+    {
+     "query": "Who is Hamish's dentist?",
+     "pattern": "Dr\\.\\ Tavares"
+    },
+    {
+     "query": "Who is Hamish's car insurer?",
+     "pattern": "Estrada\\ Segura"
+    }
+   ]
+  },
+  {
+   "id": "upd-pt-abigail",
+   "facts": [
+    {
+     "key": "u0-new",
+     "text": "O dentista da Abigail é o Dr. Tavares.",
+     "observedAt": "2024-07-05",
+     "role": "new",
+     "update": "u0"
+    },
+    {
+     "key": "p-earlier",
+     "text": "A Abigail deu 12 palestras em 2022.",
+     "observedAt": "2022-12-29",
+     "role": "distinct"
+    },
+    {
+     "key": "o-earlier",
+     "text": "A Abigail foi a um casamento em Olinda em janeiro de 2021.",
+     "observedAt": "2021-01-17",
+     "role": "distinct"
+    },
+    {
+     "key": "u2-old",
+     "text": "A Abigail trabalha na Marrow & Finch.",
+     "observedAt": "2021-11-29",
+     "role": "old",
+     "update": "u2"
+    },
+    {
+     "key": "u2-new",
+     "text": "A Jacarandá Editora é a empregadora da Abigail.",
+     "observedAt": "2023-04-06",
+     "role": "new",
+     "update": "u2"
+    },
+    {
+     "key": "o-later",
+     "text": "Em janeiro de 2023, a Abigail esteve em Bergen como convidada de uma festa de casamento.",
+     "observedAt": "2023-01-22",
+     "role": "distinct"
+    },
+    {
+     "key": "u1-old",
+     "text": "O banco principal da Abigail é o Finchley Trust.",
+     "observedAt": "2020-11-10",
+     "role": "old",
+     "update": "u1"
+    },
+    {
+     "key": "m-first",
+     "text": "A Abigail joga handebol.",
+     "observedAt": "2020-05-07",
+     "role": "distinct"
+    },
+    {
+     "key": "u0-old",
+     "text": "A Abigail se consulta com o Dr. Kovač para cuidar dos dentes.",
+     "observedAt": "2021-04-15",
+     "role": "old",
+     "update": "u0",
+     "loggedOutOfOrder": true
+    },
+    {
+     "key": "p-later",
+     "text": "Em 2024 a Abigail ministrou 6 palestras.",
+     "observedAt": "2024-12-28",
+     "role": "distinct"
+    },
+    {
+     "key": "m-second",
+     "text": "A Abigail pratica badminton, quase sempre aos sábados de manhã.",
+     "observedAt": "2024-03-09",
+     "role": "distinct"
+    },
+    {
+     "key": "u1-new",
+     "text": "A conta principal da Abigail fica no Elmstead Savings.",
+     "observedAt": "2023-01-31",
+     "role": "new",
+     "update": "u1"
+    }
+   ],
+   "questions": [
+    {
+     "query": "Quem é o dentista da Abigail?",
+     "pattern": "Dr\\.\\ Tavares",
+     "stalePattern": "Dr\\.\\ Kovač"
+    },
+    {
+     "query": "Quem era o dentista da Abigail em novembro de 2021?",
+     "pattern": "Dr\\.\\ Kovač",
+     "stalePattern": "Dr\\.\\ Tavares",
+     "asOf": "2021-11-01"
+    },
+    {
+     "query": "Qual é o banco principal da Abigail?",
+     "pattern": "Elmstead\\ Savings",
+     "stalePattern": "Finchley\\ Trust"
+    },
+    {
+     "query": "Qual era o banco principal da Abigail em maio de 2021?",
+     "pattern": "Finchley\\ Trust",
+     "stalePattern": "Elmstead\\ Savings",
+     "asOf": "2021-05-29"
+    },
+    {
+     "query": "Onde a Abigail trabalha?",
+     "pattern": "Jacarandá\\ Editora",
+     "stalePattern": "Marrow\\ \\&\\ Finch"
+    },
+    {
+     "query": "Em que empresa a Abigail trabalhava em junho de 2022?",
+     "pattern": "Marrow\\ \\&\\ Finch",
+     "stalePattern": "Jacarandá\\ Editora",
+     "asOf": "2022-06-17"
+    },
+    {
+     "query": "Quais esportes a Abigail pratica?",
+     "pattern": "handebol"
+    },
+    {
+     "query": "Quantas palestras a Abigail deu em 2022?",
+     "pattern": "(?<!\\d)12(?!\\d)"
+    },
+    {
+     "query": "Quantas palestras a Abigail deu em 2024?",
+     "pattern": "(?<!\\d)6(?!\\d)"
+    },
+    {
+     "query": "Onde foi o casamento a que a Abigail compareceu em 2021?",
+     "pattern": "Olinda"
+    },
+    {
+     "query": "Onde foi o casamento a que a Abigail compareceu em 2023?",
+     "pattern": "Bergen"
+    }
+   ]
+  },
+  {
+   "id": "upd-pt-bernardo",
+   "facts": [
+    {
+     "key": "p-earlier",
+     "text": "O Bernardo correu 11 meias maratonas em 2021.",
+     "observedAt": "2021-12-29",
+     "role": "distinct"
+    },
+    {
+     "key": "u1-old",
+     "text": "O dentista do Bernardo é o Dr. Adeyemi.",
+     "observedAt": "2020-04-12",
+     "role": "old",
+     "update": "u1"
+    },
+    {
+     "key": "p-later",
+     "text": "Em 2023 o Bernardo completou 4 meias maratonas.",
+     "observedAt": "2023-12-28",
+     "role": "distinct"
+    },
+    {
+     "key": "m-first",
+     "text": "O Bernardo fala estoniano.",
+     "observedAt": "2020-06-21",
+     "role": "distinct"
+    },
+    {
+     "key": "u2-old",
+     "text": "O Bernardo trabalha na Tavira Cerâmica.",
+     "observedAt": "2021-04-27",
+     "role": "old",
+     "update": "u2"
+    },
+    {
+     "key": "u0-new",
+     "text": "O cargo do Bernardo é analista atuarial.",
+     "observedAt": "2023-11-08",
+     "role": "new",
+     "update": "u0"
+    },
+    {
+     "key": "a-first",
+     "text": "O Bernardo mora em Salta.",
+     "observedAt": "2021-06-17",
+     "role": "distinct"
+    },
+    {
+     "key": "m-second",
+     "text": "O Bernardo conversa em quéchua sem dificuldade.",
+     "observedAt": "2024-12-25",
+     "role": "distinct"
+    },
+    {
+     "key": "u2-new",
+     "text": "A Whitlock Rail é a empresa que emprega o Bernardo.",
+     "observedAt": "2024-04-23",
+     "role": "new",
+     "update": "u2"
+    },
+    {
+     "key": "a-second",
+     "text": "O oftalmologista do Bernardo é o Dr. Lindqvist.",
+     "observedAt": "2023-10-01",
+     "role": "distinct"
+    },
+    {
+     "key": "u1-new",
+     "text": "O Bernardo trata dos dentes com o Dr. Tavares.",
+     "observedAt": "2023-04-02",
+     "role": "new",
+     "update": "u1"
+    },
+    {
+     "key": "u0-old",
+     "text": "O Bernardo trabalha como designer de iluminação.",
+     "observedAt": "2019-06-30",
+     "role": "old",
+     "update": "u0",
+     "loggedOutOfOrder": true
+    }
+   ],
+   "questions": [
+    {
+     "query": "Qual é o cargo do Bernardo?",
+     "pattern": "analista\\ atuarial",
+     "stalePattern": "designer\\ de\\ iluminação"
+    },
+    {
+     "query": "Qual era o cargo do Bernardo em janeiro de 2020?",
+     "pattern": "designer\\ de\\ iluminação",
+     "stalePattern": "analista\\ atuarial",
+     "asOf": "2020-01-16"
+    },
+    {
+     "query": "Quem é o dentista do Bernardo?",
+     "pattern": "Dr\\.\\ Tavares",
+     "stalePattern": "Dr\\.\\ Adeyemi"
+    },
+    {
+     "query": "Com que dentista o Bernardo se tratava em outubro de 2020?",
+     "pattern": "Dr\\.\\ Adeyemi",
+     "stalePattern": "Dr\\.\\ Tavares",
+     "asOf": "2020-10-29"
+    },
+    {
+     "query": "Onde o Bernardo trabalha?",
+     "pattern": "Whitlock\\ Rail",
+     "stalePattern": "Tavira\\ Cerâmica"
+    },
+    {
+     "query": "Para que empresa o Bernardo trabalhava em novembro de 2021?",
+     "pattern": "Tavira\\ Cerâmica",
+     "stalePattern": "Whitlock\\ Rail",
+     "asOf": "2021-11-13"
+    },
+    {
+     "query": "Quais idiomas o Bernardo fala?",
+     "pattern": "estoniano"
+    },
+    {
+     "query": "Quantas meias maratonas o Bernardo correu em 2021?",
+     "pattern": "(?<!\\d)11(?!\\d)"
+    },
+    {
+     "query": "Quantas meias maratonas o Bernardo correu em 2023?",
+     "pattern": "(?<!\\d)4(?!\\d)"
+    },
+    {
+     "query": "Em que cidade o Bernardo mora?",
+     "pattern": "Salta"
+    },
+    {
+     "query": "Quem é o oftalmologista do Bernardo?",
+     "pattern": "Dr\\.\\ Lindqvist"
+    }
+   ]
+  },
+  {
+   "id": "upd-pt-celina",
+   "facts": [
+    {
+     "key": "o-earlier",
+     "text": "A Celina correu uma prova de 10 km em Ghent em maio de 2021.",
+     "observedAt": "2021-05-30",
+     "role": "distinct"
+    },
+    {
+     "key": "p-earlier",
+     "text": "A Celina resenhou 14 filmes em 2021.",
+     "observedAt": "2021-12-29",
+     "role": "distinct"
+    },
+    {
+     "key": "p-later",
+     "text": "Em 2023 a Celina escreveu críticas de 2 filmes.",
+     "observedAt": "2023-12-28",
+     "role": "distinct"
+    },
+    {
+     "key": "u0-new",
+     "text": "A chefe da Celina no trabalho é Leona Whitcombe.",
+     "observedAt": "2023-01-23",
+     "role": "new",
+     "update": "u0"
+    },
+    {
+     "key": "u1-old",
+     "text": "A Celina trabalha como designer de iluminação.",
+     "observedAt": "2020-08-10",
+     "role": "old",
+     "update": "u1"
+    },
+    {
+     "key": "u1-new",
+     "text": "O cargo da Celina é agrimensora.",
+     "observedAt": "2023-05-02",
+     "role": "new",
+     "update": "u1"
+    },
+    {
+     "key": "u2-old",
+     "text": "O plano de saúde da Celina é da Vitalis Sul.",
+     "observedAt": "2019-07-15",
+     "role": "old",
+     "update": "u2"
+    },
+    {
+     "key": "m-first",
+     "text": "A Celina joga badminton.",
+     "observedAt": "2021-09-28",
+     "role": "distinct"
+    },
+    {
+     "key": "m-second",
+     "text": "A Celina pratica vela e sai com o barco na represa nos fins de semana.",
+     "observedAt": "2023-11-08",
+     "role": "distinct"
+    },
+    {
+     "key": "u0-old",
+     "text": "No escritório, a Celina responde a Caetano Viana.",
+     "observedAt": "2020-01-15",
+     "role": "old",
+     "update": "u0",
+     "loggedOutOfOrder": true
+    },
+    {
+     "key": "o-later",
+     "text": "Em dezembro de 2023 a Celina esteve em Tartu e disputou lá uma corrida de 10 km.",
+     "observedAt": "2023-12-15",
+     "role": "distinct"
+    },
+    {
+     "key": "u2-new",
+     "text": "A Baltic Mutual é a operadora que cobre as despesas médicas da Celina.",
+     "observedAt": "2024-09-07",
+     "role": "new",
+     "update": "u2"
+    }
+   ],
+   "questions": [
+    {
+     "query": "A quem a Celina responde no trabalho?",
+     "pattern": "Leona\\ Whitcombe",
+     "stalePattern": "Caetano\\ Viana"
+    },
+    {
+     "query": "Quem chefiava a Celina no trabalho em agosto de 2020?",
+     "pattern": "Caetano\\ Viana",
+     "stalePattern": "Leona\\ Whitcombe",
+     "asOf": "2020-08-02"
+    },
+    {
+     "query": "Qual é o cargo da Celina?",
+     "pattern": "agrimensora",
+     "stalePattern": "designer\\ de\\ iluminação"
+    },
+    {
+     "query": "Qual era o cargo da Celina em fevereiro de 2021?",
+     "pattern": "designer\\ de\\ iluminação",
+     "stalePattern": "agrimensora",
+     "asOf": "2021-02-26"
+    },
+    {
+     "query": "Qual é o plano de saúde da Celina?",
+     "pattern": "Baltic\\ Mutual",
+     "stalePattern": "Vitalis\\ Sul"
+    },
+    {
+     "query": "Qual era o plano de saúde da Celina em janeiro de 2020?",
+     "pattern": "Vitalis\\ Sul",
+     "stalePattern": "Baltic\\ Mutual",
+     "asOf": "2020-01-31"
+    },
+    {
+     "query": "Quais esportes a Celina pratica?",
+     "pattern": "badminton"
+    },
+    {
+     "query": "Quantos filmes a Celina resenhou em 2021?",
+     "pattern": "(?<!\\d)14(?!\\d)"
+    },
+    {
+     "query": "Quantos filmes a Celina resenhou em 2023?",
+     "pattern": "(?<!\\d)2(?!\\d)"
+    },
+    {
+     "query": "Onde a Celina correu uma prova de 10 km em 2021?",
+     "pattern": "Ghent"
+    },
+    {
+     "query": "Onde a Celina correu uma prova de 10 km em 2023?",
+     "pattern": "Tartu"
+    }
+   ]
+  },
+  {
+   "id": "upd-pt-deodato",
+   "facts": [
+    {
+     "key": "u0-new",
+     "text": "O Deodato trabalha como agrimensor.",
+     "observedAt": "2023-07-06",
+     "role": "new",
+     "update": "u0"
+    },
+    {
+     "key": "u0-old",
+     "text": "O cargo do Deodato é confeiteiro.",
+     "observedAt": "2021-09-13",
+     "role": "old",
+     "update": "u0",
+     "loggedOutOfOrder": true
+    },
+    {
+     "key": "u1-old",
+     "text": "O plano de saúde do Deodato é da Coralwood Health.",
+     "observedAt": "2019-12-29",
+     "role": "old",
+     "update": "u1"
+    },
+    {
+     "key": "p-earlier",
+     "text": "O Deodato correu 8 meias maratonas em 2021.",
+     "observedAt": "2021-12-29",
+     "role": "distinct"
+    },
+    {
+     "key": "u1-new",
+     "text": "A Amparo Saúde é a seguradora que atende o Deodato em consultas e exames.",
+     "observedAt": "2024-09-14",
+     "role": "new",
+     "update": "u1"
+    },
+    {
+     "key": "a-first",
+     "text": "O Deodato trabalha na Marrow & Finch.",
+     "observedAt": "2019-04-06",
+     "role": "distinct"
+    },
+    {
+     "key": "a-second",
+     "text": "O seguro do carro do Deodato é com a Estrada Segura.",
+     "observedAt": "2023-05-17",
+     "role": "distinct"
+    },
+    {
+     "key": "p-later",
+     "text": "Em 2023 o Deodato cruzou a linha de chegada de 15 meias maratonas.",
+     "observedAt": "2023-12-28",
+     "role": "distinct"
+    },
+    {
+     "key": "u2-old",
+     "text": "A internet da casa do Deodato é da Rio Fibra.",
+     "observedAt": "2020-06-24",
+     "role": "old",
+     "update": "u2"
+    },
+    {
+     "key": "u2-new",
+     "text": "Quem fornece a conexão residencial do Deodato é a Skagen Fiber.",
+     "observedAt": "2024-02-03",
+     "role": "new",
+     "update": "u2"
+    },
+    {
+     "key": "m-first",
+     "text": "O Deodato é alérgico a nozes.",
+     "observedAt": "2019-10-18",
+     "role": "distinct"
+    },
+    {
+     "key": "m-second",
+     "text": "O Deodato tem alergia a gergelim; melhor conferir o pão antes de servir.",
+     "observedAt": "2024-10-18",
+     "role": "distinct"
+    }
+   ],
+   "questions": [
+    {
+     "query": "Qual é o cargo do Deodato?",
+     "pattern": "agrimensor",
+     "stalePattern": "confeiteiro"
+    },
+    {
+     "query": "Qual era o cargo do Deodato em abril de 2022?",
+     "pattern": "confeiteiro",
+     "stalePattern": "agrimensor",
+     "asOf": "2022-04-01"
+    },
+    {
+     "query": "Qual é o plano de saúde do Deodato?",
+     "pattern": "Amparo\\ Saúde",
+     "stalePattern": "Coralwood\\ Health"
+    },
+    {
+     "query": "Que plano de saúde o Deodato tinha em julho de 2020?",
+     "pattern": "Coralwood\\ Health",
+     "stalePattern": "Amparo\\ Saúde",
+     "asOf": "2020-07-16"
+    },
+    {
+     "query": "Qual é o provedor de internet da casa do Deodato?",
+     "pattern": "Skagen\\ Fiber",
+     "stalePattern": "Rio\\ Fibra"
+    },
+    {
+     "query": "Qual era o provedor de internet residencial do Deodato em janeiro de 2021?",
+     "pattern": "Rio\\ Fibra",
+     "stalePattern": "Skagen\\ Fiber",
+     "asOf": "2021-01-10"
+    },
+    {
+     "query": "A que alimentos o Deodato é alérgico?",
+     "pattern": "nozes"
+    },
+    {
+     "query": "Quantas meias maratonas o Deodato correu em 2021?",
+     "pattern": "(?<!\\d)8(?!\\d)"
+    },
+    {
+     "query": "Quantas meias maratonas o Deodato correu em 2023?",
+     "pattern": "(?<!\\d)15(?!\\d)"
+    },
+    {
+     "query": "Onde o Deodato trabalha?",
+     "pattern": "Marrow\\ \\&\\ Finch"
+    },
+    {
+     "query": "Qual é a seguradora do carro do Deodato?",
+     "pattern": "Estrada\\ Segura"
+    }
+   ]
+  },
+  {
+   "id": "upd-pt-eulália",
+   "facts": [
+    {
+     "key": "o-earlier",
+     "text": "A Eulália correu uma prova de 10 km em Leuven em dezembro de 2020.",
+     "observedAt": "2020-12-17",
+     "role": "distinct"
+    },
+    {
+     "key": "o-later",
+     "text": "Em dezembro de 2024 a Eulália participou de uma corrida de 10 km em Ghent, num dia de muito frio.",
+     "observedAt": "2024-12-08",
+     "role": "distinct"
+    },
+    {
+     "key": "u1-old",
+     "text": "A Eulália mora em Stavanger.",
+     "observedAt": "2020-10-19",
+     "role": "old",
+     "update": "u1"
+    },
+    {
+     "key": "u1-new",
+     "text": "A cidade onde a Eulália reside é Belo Horizonte.",
+     "observedAt": "2023-06-24",
+     "role": "new",
+     "update": "u1"
+    },
+    {
+     "key": "u2-old",
+     "text": "O chefe da Eulália no trabalho é Duarte Peixoto.",
+     "observedAt": "2021-04-28",
+     "role": "old",
+     "update": "u2"
+    },
+    {
+     "key": "u2-new",
+     "text": "Na empresa, a Eulália se reporta a Harriet Blythe.",
+     "observedAt": "2024-05-23",
+     "role": "new",
+     "update": "u2"
+    },
+    {
+     "key": "p-earlier",
+     "text": "A Eulália vendeu 3 casas em 2021.",
+     "observedAt": "2021-12-29",
+     "role": "distinct"
+    },
+    {
+     "key": "u0-new",
+     "text": "A Eulália trabalha na Tavira Cerâmica.",
+     "observedAt": "2023-02-02",
+     "role": "new",
+     "update": "u0"
+    },
+    {
+     "key": "m-first",
+     "text": "A Eulália pratica vela.",
+     "observedAt": "2021-03-09",
+     "role": "distinct"
+    },
+    {
+     "key": "p-later",
+     "text": "Em 2023 a Eulália fechou negócio em 11 casas.",
+     "observedAt": "2023-12-28",
+     "role": "distinct"
+    },
+    {
+     "key": "m-second",
+     "text": "A Eulália joga handebol num time do bairro.",
+     "observedAt": "2024-01-19",
+     "role": "distinct"
+    },
+    {
+     "key": "u0-old",
+     "text": "A Marrow & Finch é a empregadora da Eulália.",
+     "observedAt": "2021-02-25",
+     "role": "old",
+     "update": "u0",
+     "loggedOutOfOrder": true
+    }
+   ],
+   "questions": [
+    {
+     "query": "Onde a Eulália trabalha?",
+     "pattern": "Tavira\\ Cerâmica",
+     "stalePattern": "Marrow\\ \\&\\ Finch"
+    },
+    {
+     "query": "Em que empresa a Eulália trabalhava em setembro de 2021?",
+     "pattern": "Marrow\\ \\&\\ Finch",
+     "stalePattern": "Tavira\\ Cerâmica",
+     "asOf": "2021-09-13"
+    },
+    {
+     "query": "Em que cidade a Eulália mora?",
+     "pattern": "Belo\\ Horizonte",
+     "stalePattern": "Stavanger"
+    },
+    {
+     "query": "Onde a Eulália morava em maio de 2021?",
+     "pattern": "Stavanger",
+     "stalePattern": "Belo\\ Horizonte",
+     "asOf": "2021-05-07"
+    },
+    {
+     "query": "Quem chefia a Eulália no trabalho?",
+     "pattern": "Harriet\\ Blythe",
+     "stalePattern": "Duarte\\ Peixoto"
+    },
+    {
+     "query": "Quem era o gestor da Eulália no trabalho em novembro de 2021?",
+     "pattern": "Duarte\\ Peixoto",
+     "stalePattern": "Harriet\\ Blythe",
+     "asOf": "2021-11-14"
+    },
+    {
+     "query": "Quais esportes a Eulália pratica?",
+     "pattern": "vela"
+    },
+    {
+     "query": "Quantas casas a Eulália vendeu em 2021?",
+     "pattern": "(?<!\\d)3(?!\\d)"
+    },
+    {
+     "query": "Quantas casas a Eulália vendeu em 2023?",
+     "pattern": "(?<!\\d)11(?!\\d)"
+    },
+    {
+     "query": "Onde a Eulália correu uma prova de 10 km em 2020?",
+     "pattern": "Leuven"
+    },
+    {
+     "query": "Onde a Eulália correu uma prova de 10 km em 2024?",
+     "pattern": "Ghent"
+    }
+   ]
+  },
+  {
+   "id": "upd-pt-fabrício",
+   "facts": [
+    {
+     "key": "m-first",
+     "text": "O Fabrício pratica vela.",
+     "observedAt": "2021-04-16",
+     "role": "distinct"
+    },
+    {
+     "key": "u0-new",
+     "text": "O banco principal do Fabrício é o Finchley Trust.",
+     "observedAt": "2023-10-22",
+     "role": "new",
+     "update": "u0"
+    },
+    {
+     "key": "u0-old",
+     "text": "O Fabrício mantém a conta do dia a dia no Banco Miradouro, onde concentra tudo.",
+     "observedAt": "2019-12-10",
+     "role": "old",
+     "update": "u0",
+     "loggedOutOfOrder": true
+    },
+    {
+     "key": "u2-old",
+     "text": "O Fabrício trabalha na Marrow & Finch.",
+     "observedAt": "2019-07-19",
+     "role": "old",
+     "update": "u2"
+    },
+    {
+     "key": "u1-old",
+     "text": "O chefe do Fabrício no trabalho é Duarte Peixoto.",
+     "observedAt": "2020-06-27",
+     "role": "old",
+     "update": "u1"
+    },
+    {
+     "key": "u1-new",
+     "text": "No escritório, o Fabrício se reporta a Leona Whitcombe.",
+     "observedAt": "2023-04-20",
+     "role": "new",
+     "update": "u1"
+    },
+    {
+     "key": "u2-new",
+     "text": "A Tavira Cerâmica é a empresa onde o Fabrício está empregado.",
+     "observedAt": "2023-12-13",
+     "role": "new",
+     "update": "u2"
+    },
+    {
+     "key": "p-earlier",
+     "text": "O Fabrício correu 18 meias maratonas em 2021.",
+     "observedAt": "2021-12-29",
+     "role": "distinct"
+    },
+    {
+     "key": "a-first",
+     "text": "A dentista do Fabrício é a Dra. Holmberg.",
+     "observedAt": "2020-11-19",
+     "role": "distinct"
+    },
+    {
+     "key": "p-later",
+     "text": "Ao longo de 2023 o Fabrício terminou 7 meias maratonas.",
+     "observedAt": "2023-12-28",
+     "role": "distinct"
+    },
+    {
+     "key": "a-second",
+     "text": "O Fabrício é formado pelo Ravenhall College.",
+     "observedAt": "2024-01-13",
+     "role": "distinct"
+    },
+    {
+     "key": "m-second",
+     "text": "O Fabrício joga badminton às quartas, depois do expediente.",
+     "observedAt": "2024-02-09",
+     "role": "distinct"
+    }
+   ],
+   "questions": [
+    {
+     "query": "Qual é o banco principal do Fabrício?",
+     "pattern": "Finchley\\ Trust",
+     "stalePattern": "Banco\\ Miradouro"
+    },
+    {
+     "query": "Qual era o banco principal do Fabrício em junho de 2020?",
+     "pattern": "Banco\\ Miradouro",
+     "stalePattern": "Finchley\\ Trust",
+     "asOf": "2020-06-27"
+    },
+    {
+     "query": "Quem chefia o Fabrício no trabalho?",
+     "pattern": "Leona\\ Whitcombe",
+     "stalePattern": "Duarte\\ Peixoto"
+    },
+    {
+     "query": "Quem era o chefe do Fabrício no trabalho em janeiro de 2021?",
+     "pattern": "Duarte\\ Peixoto",
+     "stalePattern": "Leona\\ Whitcombe",
+     "asOf": "2021-01-13"
+    },
+    {
+     "query": "Onde o Fabrício trabalha?",
+     "pattern": "Tavira\\ Cerâmica",
+     "stalePattern": "Marrow\\ \\&\\ Finch"
+    },
+    {
+     "query": "Em que empresa o Fabrício trabalhava em fevereiro de 2020?",
+     "pattern": "Marrow\\ \\&\\ Finch",
+     "stalePattern": "Tavira\\ Cerâmica",
+     "asOf": "2020-02-04"
+    },
+    {
+     "query": "Quais esportes o Fabrício pratica?",
+     "pattern": "vela"
+    },
+    {
+     "query": "Quantas meias maratonas o Fabrício correu em 2021?",
+     "pattern": "(?<!\\d)18(?!\\d)"
+    },
+    {
+     "query": "Quantas meias maratonas o Fabrício correu em 2023?",
+     "pattern": "(?<!\\d)7(?!\\d)"
+    },
+    {
+     "query": "Quem é o dentista do Fabrício?",
+     "pattern": "Dra\\.\\ Holmberg"
+    },
+    {
+     "query": "Em que instituição o Fabrício se formou?",
+     "pattern": "Ravenhall\\ College"
+    }
+   ]
+  },
+  {
+   "id": "upd-pt-graciela",
+   "facts": [
+    {
+     "key": "m-first",
+     "text": "A Graciela toca trompete.",
+     "observedAt": "2021-11-11",
+     "role": "distinct"
+    },
+    {
+     "key": "p-earlier",
+     "text": "A Graciela vendeu 10 casas em 2021.",
+     "observedAt": "2021-12-29",
+     "role": "distinct"
+    },
+    {
+     "key": "u1-old",
+     "text": "A Graciela trabalha como designer de iluminação.",
+     "observedAt": "2019-10-05",
+     "role": "old",
+     "update": "u1"
+    },
+    {
+     "key": "o-earlier",
+     "text": "A Graciela correu uma prova de dez quilômetros em Ghent em julho de 2021.",
+     "observedAt": "2021-07-25",
+     "role": "distinct"
+    },
+    {
+     "key": "m-second",
+     "text": "Nos ensaios da orquestra comunitária, a Graciela fica na estante de viola.",
+     "observedAt": "2023-04-19",
+     "role": "distinct"
+    },
+    {
+     "key": "p-later",
+     "text": "Em 2023 a Graciela intermediou a compra de 15 casas por clientes dela.",
+     "observedAt": "2023-12-28",
+     "role": "distinct"
+    },
+    {
+     "key": "u2-old",
+     "text": "A Graciela trabalha na Jacarandá Editora.",
+     "observedAt": "2021-02-21",
+     "role": "old",
+     "update": "u2"
+    },
+    {
+     "key": "u1-new",
+     "text": "O cargo da Graciela é confeiteira.",
+     "observedAt": "2023-03-24",
+     "role": "new",
+     "update": "u1"
+    },
+    {
+     "key": "u0-new",
+     "text": "O banco principal da Graciela é o Banco Miradouro.",
+     "observedAt": "2023-11-10",
+     "role": "new",
+     "update": "u0"
+    },
+    {
+     "key": "o-later",
+     "text": "Em fevereiro de 2023 a Graciela foi a Leuven disputar uma corrida de rua de dez mil metros.",
+     "observedAt": "2023-02-06",
+     "role": "distinct"
+    },
+    {
+     "key": "u2-new",
+     "text": "A Tavira Cerâmica é a empregadora da Graciela.",
+     "observedAt": "2023-08-05",
+     "role": "new",
+     "update": "u2"
+    },
+    {
+     "key": "u0-old",
+     "text": "A Graciela movimenta a conta do dia a dia no Harrow Bank, onde recebe o salário.",
+     "observedAt": "2019-12-26",
+     "role": "old",
+     "update": "u0",
+     "loggedOutOfOrder": true
+    }
+   ],
+   "questions": [
+    {
+     "query": "Qual é o banco principal da Graciela?",
+     "pattern": "Banco\\ Miradouro",
+     "stalePattern": "Harrow\\ Bank"
+    },
+    {
+     "query": "Qual era o banco principal da Graciela em julho de 2020?",
+     "pattern": "Harrow\\ Bank",
+     "stalePattern": "Banco\\ Miradouro",
+     "asOf": "2020-07-13"
+    },
+    {
+     "query": "Qual é o cargo da Graciela?",
+     "pattern": "confeiteira",
+     "stalePattern": "designer\\ de\\ iluminação"
+    },
+    {
+     "query": "Qual era o cargo da Graciela em abril de 2020?",
+     "pattern": "designer\\ de\\ iluminação",
+     "stalePattern": "confeiteira",
+     "asOf": "2020-04-22"
+    },
+    {
+     "query": "Onde a Graciela trabalha?",
+     "pattern": "Tavira\\ Cerâmica",
+     "stalePattern": "Jacarandá\\ Editora"
+    },
+    {
+     "query": "Em que empresa a Graciela trabalhava em setembro de 2021?",
+     "pattern": "Jacarandá\\ Editora",
+     "stalePattern": "Tavira\\ Cerâmica",
+     "asOf": "2021-09-09"
+    },
+    {
+     "query": "Quais instrumentos musicais a Graciela toca?",
+     "pattern": "trompete"
+    },
+    {
+     "query": "Quantas casas a Graciela vendeu em 2021?",
+     "pattern": "(?<!\\d)10(?!\\d)"
+    },
+    {
+     "query": "Quantas casas a Graciela vendeu em 2023?",
+     "pattern": "(?<!\\d)15(?!\\d)"
+    },
+    {
+     "query": "Onde a Graciela correu uma prova de 10 km em 2021?",
+     "pattern": "Ghent"
+    },
+    {
+     "query": "Onde a Graciela correu uma prova de 10 km em 2023?",
+     "pattern": "Leuven"
+    }
+   ]
+  },
+  {
+   "id": "upd-pt-heitor",
+   "facts": [
+    {
+     "key": "u0-new",
+     "text": "A dentista do Heitor é a Dra. Holmberg.",
+     "observedAt": "2023-01-25",
+     "role": "new",
+     "update": "u0"
+    },
+    {
+     "key": "u1-old",
+     "text": "O Heitor mora em Viseu.",
+     "observedAt": "2021-05-22",
+     "role": "old",
+     "update": "u1"
+    },
+    {
+     "key": "p-earlier",
+     "text": "O Heitor correu 3 meias maratonas em 2021.",
+     "observedAt": "2021-12-29",
+     "role": "distinct"
+    },
+    {
+     "key": "u0-old",
+     "text": "O Heitor cuida dos dentes com o Dr. Tavares.",
+     "observedAt": "2021-10-11",
+     "role": "old",
+     "update": "u0",
+     "loggedOutOfOrder": true
+    },
+    {
+     "key": "p-later",
+     "text": "Em 2023 o Heitor completou 13 meias maratonas.",
+     "observedAt": "2023-12-28",
+     "role": "distinct"
+    },
+    {
+     "key": "u1-new",
+     "text": "A cidade onde o Heitor reside é Salta.",
+     "observedAt": "2023-03-11",
+     "role": "new",
+     "update": "u1"
+    },
+    {
+     "key": "a-first",
+     "text": "O Heitor trabalha na Jacarandá Editora.",
+     "observedAt": "2020-04-29",
+     "role": "distinct"
+    },
+    {
+     "key": "a-second",
+     "text": "O Heitor faz trabalho voluntário no Marsh Lane Food Bank.",
+     "observedAt": "2024-07-30",
+     "role": "distinct"
+    },
+    {
+     "key": "m-first",
+     "text": "O Heitor toca kora.",
+     "observedAt": "2019-07-18",
+     "role": "distinct"
+    },
+    {
+     "key": "m-second",
+     "text": "Na banda sinfônica amadora, o Heitor é quem assume o fagote.",
+     "observedAt": "2024-08-05",
+     "role": "distinct"
+    },
+    {
+     "key": "u2-old",
+     "text": "O Heitor trabalha como agrimensor.",
+     "observedAt": "2020-10-25",
+     "role": "old",
+     "update": "u2"
+    },
+    {
+     "key": "u2-new",
+     "text": "O cargo do Heitor é confeiteiro.",
+     "observedAt": "2024-05-30",
+     "role": "new",
+     "update": "u2"
+    }
+   ],
+   "questions": [
+    {
+     "query": "Quem é o dentista do Heitor?",
+     "pattern": "Dra\\.\\ Holmberg",
+     "stalePattern": "Dr\\.\\ Tavares"
+    },
+    {
+     "query": "Quem era o dentista do Heitor em abril de 2022?",
+     "pattern": "Dr\\.\\ Tavares",
+     "stalePattern": "Dra\\.\\ Holmberg",
+     "asOf": "2022-04-29"
+    },
+    {
+     "query": "Em que cidade o Heitor mora?",
+     "pattern": "Salta",
+     "stalePattern": "Viseu"
+    },
+    {
+     "query": "Onde o Heitor morava em dezembro de 2021?",
+     "pattern": "Viseu",
+     "stalePattern": "Salta",
+     "asOf": "2021-12-08"
+    },
+    {
+     "query": "Qual é o cargo do Heitor?",
+     "pattern": "confeiteiro",
+     "stalePattern": "agrimensor"
+    },
+    {
+     "query": "Qual era o cargo do Heitor em maio de 2021?",
+     "pattern": "agrimensor",
+     "stalePattern": "confeiteiro",
+     "asOf": "2021-05-13"
+    },
+    {
+     "query": "Quais instrumentos musicais o Heitor toca?",
+     "pattern": "kora"
+    },
+    {
+     "query": "Quantas meias maratonas o Heitor correu em 2021?",
+     "pattern": "(?<!\\d)3(?!\\d)"
+    },
+    {
+     "query": "Quantas meias maratonas o Heitor correu em 2023?",
+     "pattern": "(?<!\\d)13(?!\\d)"
+    },
+    {
+     "query": "Onde o Heitor trabalha?",
+     "pattern": "Jacarandá\\ Editora"
+    },
+    {
+     "query": "Onde o Heitor faz trabalho voluntário?",
+     "pattern": "Marsh\\ Lane\\ Food\\ Bank"
+    }
+   ]
+  }
+ ]
+}
