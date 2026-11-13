@@ -247,8 +247,22 @@ export class InMemoryVectorStore implements VectorStore {
     await Promise.resolve();
   }
 
+  /**
+   * Deletes the row and every memory derived from it, as the Postgres store does: a summary
+   * restates its sources, so it does not outlive one of them.
+   */
   async delete(vectorId: string): Promise<void> {
-    this.rows.delete(vectorId);
+    const pending = [vectorId];
+    for (let id = pending.pop(); id !== undefined; id = pending.pop()) {
+      const workspace = this.rows.get(id)?.payload['workspace_id'] ?? 'default';
+      this.rows.delete(id);
+      for (const [otherId, row] of this.rows) {
+        const sources = row.payload['derived_from'];
+        if (row.payload['kind'] !== 'derived' || typeof sources !== 'string') continue;
+        if ((row.payload['workspace_id'] ?? 'default') !== workspace) continue;
+        if ((JSON.parse(sources) as unknown[]).includes(id)) pending.push(otherId);
+      }
+    }
     await Promise.resolve();
   }
 

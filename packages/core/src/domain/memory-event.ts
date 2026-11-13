@@ -279,6 +279,8 @@ export const MEMORY_EVENTS = [
   'extraction_evidence_downgraded',
   // A fact written about `user` got back the person its own relation names (#257).
   'extraction_subject_restored',
+  // A physical delete took the summaries derived from the memory with it (migration 0039).
+  'forget_reached_derived',
   // A fact written about `user` got the name of the author the caller gave for its message (#244).
   'extraction_author_named',
   // ADR-0035: a draft the extractor labeled temporary or tentative is stored, not dropped.
