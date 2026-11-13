@@ -1,95 +1,101 @@
 # Image publish.
-#   develop push → build ./Dockerfile → ghcr.io/usetheoai/themory:develop (+ :develop-<sha>)
-#                  atrás do gate Trivy CRITICAL/HIGH.
-#   v* tag       → :X.Y.Z + :X.Y + :latest, SBOM + SLSA + keyless cosign.
+#   develop push → build ./Dockerfile behind the Trivy CRITICAL/HIGH gate, then push
+#                  ghcr.io/usetheoai/theo-memory:develop (+ :develop-<sha>) AND, when the ECR
+#                  repository variables are set, <ECR_REGISTRY>/theo-memory:<full commit sha>.
+#   v* tag       → GHCR :X.Y.Z + :X.Y + :latest, ECR :<full sha> + :X.Y.Z.
+#   Every push is signed keyless with cosign and carries an SBOM + SLSA provenance.
 #
-# ESTE WORKFLOW NÃO FAZ DEPLOY — E ISSO É DELIBERADO (2026-07-27).
+# THIS WORKFLOW DOES NOT DEPLOY — DELIBERATELY (2026-07-27).
 #
-# Até esta data ele carregava um job `deploy-dev` que fazia SSH para um host nosso. Isso obrigava o
-# repositório a conhecer — e versionar — o usuário, o caminho e a topologia de um ambiente
-# específico, além de manter uma chave SSH com shell nos secrets do CI. Para um projeto que vai ser
-# ABERTO, é inaceitável: nada disso é do produto, é da nossa operação.
+# Until that date it carried a `deploy-dev` job that SSHed into a host of ours. That forced the
+# repository to know — and version — the user, the path and the topology of one specific
+# environment, and to keep an SSH key with a shell in the CI secrets. For a project that is going
+# to be OPEN, that is unacceptable: none of it belongs to the product, it belongs to our operation.
 #
-# O deploy passou a ser PULL: o host roda um reconciliador que converge para a tag publicada.
-# A troca elimina três coisas de uma vez — o repo público não sabe que existe um host, o CI não
-# guarda mais credencial de acesso a ele, e a reconciliação passa a ser contínua em vez de um
-# evento pontual. O ambiente é responsabilidade de quem o opera; este repo publica a imagem.
+# Deployment became PULL: the host runs a reconciler that converges to the published tag. The swap
+# removes three things at once — the public repo does not know a host exists, CI no longer holds a
+# credential to reach it, and reconciliation becomes continuous instead of a one-off event. The
+# environment belongs to whoever operates it; this repo publishes the image.
 #
-# O contrato entre os dois lados é UMA COISA SÓ: a tag da imagem. Nada mais.
+# The contract between the two sides is ONE THING: the image reference. Nothing else.
 name: publish
-# GATILHOS: push em `develop` (publica `:develop` + `:develop-<sha>`) e tag `v*` (imagem de release
-# assinada).
+# TRIGGERS: push to `develop` (publishes `:develop` + `:develop-<sha>`, and the ECR commit tag) and
+# `v*` tags (signed release image).
 #
-# POR QUE ESTE WORKFLOW NÃO SEGUE A REGRA DOS OUTROS: ele é CD, não gate. O que ele faz é
-# consequência de um merge já aprovado, não verificação de um candidato. Release disparado por TAG,
-# e não por clique humano, é o que mantém a publicação reproduzível e auditável.
+# WHY THIS WORKFLOW DOES NOT FOLLOW THE RULE OF THE OTHERS: it is CD, not a gate. What it does is a
+# consequence of an already-approved merge, not the verification of a candidate. A release
+# triggered by a TAG, rather than by a human click, is what keeps publication reproducible and
+# auditable.
 #
-# POR QUE NÃO RODA EM PULL REQUEST: o reusable SEMPRE dá push da imagem; não há modo build-only.
-# Rodar em PR publicaria artefato de código não mergeado. O custo dessa escolha é honesto — uma
-# quebra de Dockerfile só aparece pós-merge — e é preferível a poluir o registry.
+# WHY IT DOES NOT RUN ON PULL REQUESTS: the reusable ALWAYS pushes the image; there is no
+# build-only mode. Running on a PR would publish an artifact of unmerged code. The cost of that
+# choice is honest — a broken Dockerfile only shows up after the merge — and it is preferable to
+# polluting the registry.
 #
-# O `workflow_dispatch` fica como escape hatch (exercitar mudança neste arquivo, republicar).
+# `workflow_dispatch` stays as an escape hatch (exercise a change to this file, republish).
 on:
   push:
     branches: [develop]
     tags: ["v*"]
-    # #116: um push em develop que só mexe em docs pula a esteira inteira de build.
+    # #116: a push to develop that only touches docs skips the whole build pipeline.
     #
-    # DELIBERADAMENTE lista de EXCLUSÃO, não filtro positivo: este workflow escuta `tags: ["v*"]`,
-    # e filtro de path se aplica TAMBÉM a push de tag. Um filtro positivo faria um release cujo
-    # commit não casasse a lista ser ignorado em silêncio — nenhuma imagem publicada, nenhum erro.
-    # Exclusão erra para o lado de publicar a mais, que aqui é o lado certo.
+    # DELIBERATELY an EXCLUSION list, not a positive filter: this workflow listens to
+    # `tags: ["v*"]`, and a path filter ALSO applies to tag pushes. A positive filter would make a
+    # release whose commit did not match the list be ignored in silence — no image published, no
+    # error. Exclusion errs on the side of publishing too much, which is the right side here.
     paths-ignore:
       - '.claude/**'
       - '**/*.md'
-      # Adicionados em 2026-07-27: nada aqui entra na imagem. Medido no commit `6b333d9`,
-      # que tocou só workflows + CHANGELOG e mesmo assim disparou build + push de
-      # uma imagem idêntica, além de CI, SAST, eval e integration — seis runs numa fila
-      # serial compartilhada por cinco repositórios.
+      # Aligned with ci/integration/eval (F-tests-3). Without this line, a push touching only
+      # `docs/**` was not ignored here and triggered an image build, although the three gates
+      # ignore it — paid work that does not change the artifact.
       - 'docs/**'
+      # Added 2026-07-27: nothing here goes into the image. Measured on commit `6b333d9`, which
+      # touched only workflows + CHANGELOG and still triggered build + push of an identical
+      # image, plus CI, SAST, eval and integration — six runs in a serial queue shared by five
+      # repositories.
       - 'agents/**'
-      # Mudar um workflow não muda a imagem. Para exercitar uma alteração NESTE arquivo,
-      # use o `workflow_dispatch` declarado abaixo — é o escape hatch previsto.
-      - '.github/**'
+      # `.github/**` is NOT listed here (ADR-5). Changing a workflow DOES change the image: the
+      # publish workflow defines how the image is built (Dockerfile, registries, signing). And,
+      # since this workflow invokes the gates, ignoring `.github/**` would stop a workflow change
+      # from running the tests that validate it.
   workflow_dispatch:
-# Pushes sucessivos em develop devem SUPERSEDER (cancelar) o run mais antigo em vez de empilhar:
-# só a imagem mais nova interessa, e build cancelado é minuto de runner economizado. Antes de o
-# deploy sair daqui havia um risco extra — cancelar sem sucessor deixava o host sem deploy (incidente
-# 2026-07-22) —; hoje isso não se aplica, porque quem converge o ambiente é o reconciliador no
-# próprio host, não este workflow. Runs de tag têm grupo próprio e nunca são cancelados por develop.
+# Successive develop pushes SUPERSEDE (cancel) the older run instead of piling up: only the newest
+# image matters, and a cancelled build is runner time saved. Before deployment left this workflow
+# there was an extra risk — cancelling without a successor left the host without a deploy
+# (incident 2026-07-22) — which no longer applies: the reconciler on the host converges the
+# environment, not this workflow. Tag runs have their own group and are never cancelled by develop.
 concurrency:
-  # #129 note: publish listens on push + tag ONLY (no pull_request), so it does NOT
-  # double-run — the push/PR key-mismatch that #129 fixes for integration/sast does not
-  # apply here. Left on github.ref deliberately: a tag build (v*) and a develop push MUST
-  # stay in separate groups, and cancel-in-progress is already tag-aware below. Changing
-  # the key would risk the signed release build for zero dedup benefit.
+  # #129 note: publish listens on push + tag ONLY (no pull_request), so it does NOT double-run —
+  # the push/PR key mismatch that #129 fixes for integration/sast does not apply here. Left on
+  # github.ref deliberately: a tag build (v*) and a develop push MUST stay in separate groups, and
+  # cancel-in-progress is already tag-aware below.
   group: publish-${{ github.ref }}
   cancel-in-progress: ${{ github.ref_type != 'tag' }}
 permissions:
   contents: read
   packages: write
-  id-token: write   # keyless cosign via GitHub OIDC (release only)
+  id-token: write   # keyless cosign via GitHub OIDC, and the ECR publish role
 jobs:
-  # A TAG DE RELEASE TEM DE ESTAR EM `main` — senão `:latest` sai de código não promovido.
+  # THE RELEASE TAG MUST BE ON `main` — otherwise `:latest` ships from unpromoted code.
   #
-  # `:latest` é a referência que a reconciliação de PRODUÇÃO consome. Ela já era condicionada a
-  # `refs/tags/v*`, mas tag não é promoção: nada impedia taggear um commit de `develop`, de um
-  # branch de trabalho ou de um fork-merge e publicar `:latest` a partir dele. O contrato do ciclo
-  # de release (`develop → main` por PR, tag no merge) era DISCIPLINA, não enforcement — e a
-  # diferença só aparece no dia em que alguém taggeia no lugar errado, com produção puxando.
+  # `:latest` is the reference PRODUCTION reconciliation consumes. It was already conditioned on
+  # `refs/tags/v*`, but a tag is not a promotion: nothing stopped tagging a commit from `develop`,
+  # a work branch or a fork merge and publishing `:latest` from it. The release cycle contract
+  # (`develop → main` by PR, tag on the merge) was DISCIPLINE, not enforcement.
   #
-  # Usa a API em vez de `git merge-base`: dispensa checkout (o histórico completo deste repo é caro
-  # de buscar só para responder sim/não) e roda em segundos.
+  # Uses the API instead of `git merge-base`: no checkout needed (the full history of this repo is
+  # expensive to fetch just to answer yes/no) and it runs in seconds.
   #
-  # `compare/main...<sha>` devolve a posição do commit RELATIVA a main:
-  #   identical -> a tag é exatamente o head de main            (ok)
-  #   behind    -> a tag é um ancestral de main; main avançou   (ok — foi promovida)
-  #   ahead     -> a tag tem commits que main não tem           (NÃO promovida)
-  #   diverged  -> históricos separados                         (NÃO promovida)
+  # `compare/main...<sha>` returns the commit's position RELATIVE to main:
+  #   identical -> the tag is exactly the head of main           (ok)
+  #   behind    -> the tag is an ancestor of main; main moved on  (ok — it was promoted)
+  #   ahead     -> the tag has commits main does not have         (NOT promoted)
+  #   diverged  -> separate histories                             (NOT promoted)
   guard-release-on-main:
-    runs-on: ${{ fromJSON('["blacksmith-8vcpu-ubuntu-2404"]') }}
+    runs-on: ubuntu-latest
     steps:
-      - name: A tag esta em main?
+      - name: Is the tag on main?
         if: ${{ startsWith(github.ref, 'refs/tags/v') }}
         env:
           GH_TOKEN: ${{ github.token }}
@@ -97,93 +103,106 @@ jobs:
         run: |
           set -euo pipefail
           STATUS="$(gh api "repos/${GITHUB_REPOSITORY}/compare/main...${SHA}" --jq .status)"
-          echo "posicao de ${SHA} em relacao a main: ${STATUS}"
+          echo "position of ${SHA} relative to main: ${STATUS}"
           case "${STATUS}" in
             identical|behind)
-              echo "OK — a tag esta em main; :latest pode ser publicada." ;;
+              echo "OK — the tag is on main; :latest may be published." ;;
             *)
-              echo "::error::A tag ${GITHUB_REF_NAME} NAO esta em main (${STATUS})." >&2
-              echo "::error::':latest' alimenta a reconciliacao de PRODUCAO e so pode sair de codigo promovido." >&2
-              echo "::error::Promova develop -> main por PR e taggeie o commit de merge." >&2
+              echo "::error::Tag ${GITHUB_REF_NAME} is NOT on main (${STATUS})." >&2
+              echo "::error::':latest' feeds PRODUCTION reconciliation and may only ship from promoted code." >&2
+              echo "::error::Promote develop -> main by PR and tag the merge commit." >&2
               exit 1 ;;
           esac
 
-  # Chama a CÓPIA VENDORIZADA local, não o reusable de `usetheodev/theo`.
+  # The gates run HERE, invoked through `workflow_call` — one definition, two callers (a PR calls
+  # them directly; a push reaches them through this workflow). `workflow_call` is synchronous in
+  # the same run and preserves `github.sha`, unlike `workflow_run`.
+  gate-ci:
+    uses: ./.github/workflows/ci.yml
+
+  gate-contract:
+    uses: ./.github/workflows/integration.yml
+    secrets:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+  # The org's shared reusable, pinned by commit SHA. It replaced a vendored local copy that existed
+  # only because `usetheodev/theo` was private under another owner and GitHub does not share a
+  # private reusable across owners; the engine now lives in `usetheoai`, so the copy was deleted.
   #
-  # POR QUÊ: `usetheodev/theo` é privado e de outro dono desde a transferência deste repo para a
-  # org `usetheoai`, e o GitHub só compartilha reusable privado dentro do mesmo dono. A chamada
-  # cross-owner falhava no PARSE ("workflow was not found"), o que derrubava o workflow inteiro —
-  # zero jobs criados: o workflow inteiro morria antes de qualquer step.
+  # ONLY INPUTS THE REUSABLE DECLARES may be passed. GitHub refuses the WHOLE workflow at startup,
+  # with no log at all, when a caller passes one it does not declare (usetheoai/theo-cloud B-270:
+  # five runs dead in under a second, including two release tags). The reusable's inputs are:
+  # aws_role_arn, build_args, context, dockerfile, dockerhub_image, ecr_registry, image, registry,
+  # runner, sign, trivy, verify. `tests/integration/publish-workflow.test.ts` enforces this list.
   #
-  # DÍVIDA TEMPORÁRIA: quando `usetheodev/theo` migrar para `usetheoai`, volte esta linha para
-  # `uses: usetheoai/theo/.github/workflows/build-publish.yml@develop` e APAGUE
-  # `.github/workflows/build-publish.yml`. O teste `tests/integration/publish-workflow.test.ts`
-  # fixa qual referência está em uso e falha se as duas coisas não andarem juntas.
+  # What the vendored copy had and the shared reusable does not, accepted knowingly:
+  #   - `platforms`: release tags were also built for linux/arm64. The shared reusable builds for
+  #     the runner's architecture only (amd64). Nothing that consumes this image runs on ARM today.
+  #   - `attest`: SBOM + SLSA provenance were release-only. The shared reusable ties them to
+  #     `sign`, so every develop push now also exports them.
+  #   - `outputs.digest` / `outputs.image_ref`: no job here consumed them; the platform pins ECR
+  #     by the full commit SHA tag instead.
   image:
-    # A guarda roda em todo disparo e sai imediatamente quando nao e tag — o job existe
-    # para que `needs` seja incondicional aqui. Com `needs` condicional, um job pulado
-    # arrastaria o `image` junto e nenhuma imagem seria publicada em `develop`.
-    needs: guard-release-on-main
-    uses: ./.github/workflows/build-publish.yml
+    # The guard runs on every trigger and exits immediately when it is not a tag — the job exists
+    # so that `needs` is unconditional here. With a conditional `needs`, a skipped job would drag
+    # `image` along and no image would be published on `develop`.
+    needs: [guard-release-on-main, gate-ci, gate-contract]
+    # The reusable declares these scopes, and GitHub refuses at startup — with no log — a reusable
+    # that asks for more than its caller grants (usetheoai/theo#436). `attestations` is for its
+    # GitHub-native provenance; `id-token` signs with cosign and assumes the ECR publish role.
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    # The shared reusable lives in the PUBLIC usetheoai/.github. This repository is public, and
+    # GitHub refuses, at load time and with no log, a call from a public repository to a reusable
+    # in a private one: the develop publish of 31655b0 died that way against usetheoai/theo. The
+    # file there is a copy of usetheoai/theo at 1596e81, with no change to its steps.
+    uses: usetheoai/.github/.github/workflows/build-publish.yml@d6c4912d02a37fda477644c0b8f83cb3a317c0f3 # main
     with:
-      # `theo-memory`, nao `themory`: e o nome do repositorio, que e o padrao dos
-      # irmaos (theo-lens -> theo-lens, theo-rag -> theo-rag, theo-db -> theo-db).
+      # `theo-memory`, not `themory`: the repository name, which is the sibling convention
+      # (theo-lens -> theo-lens, theo-rag -> theo-rag). It is also the name of the ECR repository.
       #
-      # O pacote antigo `ghcr.io/usetheoai/themory` NAO e apagado — as tags
-      # historicas seguem puxaveis; ele so deixa de receber builds novos.
+      # The old package `ghcr.io/usetheodev/themory` is NOT deleted — historical tags remain
+      # pullable; it simply stops receiving new builds.
       #
-      # ATENCAO AO CONSUMIDOR: o reconciliador do host puxa este nome por default
-      # (dev/theo-memory/reconcile.sh). Renomear aqui sem atualizar la nao quebra
-      # nada visivelmente — o host simplesmente para de receber versao nova,
-      # convergindo para sempre na ultima imagem antiga. Falha silenciosa. A troca
-      # do reconciliador vem DEPOIS do primeiro build com o nome novo, nunca antes.
+      # CONSUMER WARNING: the host reconciler pulls this name by default. Renaming it here without
+      # updating the reconciler breaks nothing visibly — the host simply stops receiving new
+      # versions and converges forever on the last old image. A silent failure.
       image: theo-memory
       dockerfile: ./Dockerfile
       context: .
-      # Namespace do NOVO dono. Um run de `usetheoai` recebe GITHUB_TOKEN de outro escopo e não
-      # tem push em `ghcr.io/usetheodev` — deixar no default publicaria (ou tentaria publicar) no
-      # namespace errado. A imagem passa a ser `ghcr.io/usetheoai/themory`.
+      # The namespace of the NEW owner, explicit rather than derived: the image is
+      # `ghcr.io/usetheoai/theo-memory` (`themory` was the OLD name and no longer resolves).
       registry: ghcr.io/usetheoai
       trivy: true
-      # Alinhado ao GHCR pelo mesmo motivo. Dormente hoje: sem DOCKERHUB_TOKEN o
-      # step de login e pulado e nada e empurrado para o Docker Hub — nenhum dos
-      # projetos irmaos publica la.
-      dockerhub_image: usetheo/theo-memory   # pushed only when the DOCKERHUB_TOKEN secret is set
-      # Assinar SEMPRE — inclusive em develop. O reconciliador do host puxa
-      # `:develop` a cada 5 min, entao era exatamente o artefato em execucao que
-      # nao tinha assinatura: a garantia existia no canal de release, que nao e o
-      # que roda. Cosign keyless custa segundos, e `id-token: write` ja esta
-      # declarado. Verificar junto, senao assina-se sem saber se a assinatura
-      # presta.
+      # SBOM + SLSA provenance (mode=max) + keyless cosign signature on every push: the signed
+      # channel has to be the DEPLOYED channel, and the host reconciler pulls `:develop`.
       sign: true
-      verify: true
-      # SBOM + proveniencia SLSA mode=max SO na release. Este e o export pesado —
-      # o proprio reusable registra que o cache do GHA devolve 500/BlobNotFound
-      # justamente nele — e quem consome atestacao e auditoria, nao o
-      # reconciliador.
-      attest: ${{ startsWith(github.ref, 'refs/tags/v') }}
-      # arm64 SO na release. O build ja leva ~14 min a frio pelo double-build do
-      # gate Trivy, e arm64 aqui sai por emulacao (QEMU) — ligar em todo push de
-      # develop cobraria esse preco a cada iteracao, sem consumidor ARM hoje: o
-      # dev roda em host amd64.
-      #
-      # Na release o preco se paga: uma imagem so-amd64 nao roda em no Graviton,
-      # e o erro no cluster e obscuro. O delta medido entre a familia AMD e o
-      # Graviton foi ~$100/mes numa unica maquina de 8 vCPU / 32 GB, entao a
-      # portabilidade do artefato de release e o que mantem essa escolha aberta.
-      #
-      # Quando/se o deploy passar a consumir ARM continuamente, mover para
-      # 'linux/amd64,linux/arm64' incondicional — e aceitar o tempo de build.
-      platforms: ${{ startsWith(github.ref, 'refs/tags/v') && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
-      # Mesma frota de todo job deste repo. O reusable declara `runner` como STRING e faz o
-      # `fromJSON` do lado dele (build-publish.yml: `runs-on: ${{ fromJSON(inputs.runner) }}`),
-      # entao aqui vai a string JSON literal — NAO envolver em fromJSON, que produziria um array
-      # onde o input espera string e o workflow falharia no parse.
-      runner: '["blacksmith-8vcpu-ubuntu-2404"]'
-    # Explicit (not `secrets: inherit`) — avoids the semgrep github-actions
-    # secrets-inherit finding. DOCKERHUB_* are empty here → Docker Hub push is skipped
-    # (GHCR still publishes via the run's GITHUB_TOKEN).
-    secrets:
-      GOMOD_TOKEN: ${{ secrets.GOMOD_TOKEN }}
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      # OFF, and it has to be: the reusable pins the verified identity to the CALLER
+      # (`github.com/${github.repository}/.github/workflows/build-publish.yml@`), while a
+      # certificate signed inside a reusable workflow carries the REUSABLE's path. Measured
+      # 2026-09-29 on the Rekor entry of theo-cloud's image signed by this same reusable at this
+      # same SHA: SAN = `https://github.com/usetheoai/theo/.github/workflows/build-publish.yml@1596e81…`
+      # (the reusable then lived in usetheoai/theo; it is now usetheoai/.github, so the SAN names
+      # that path).
+      # With `verify: true` every run would fail AFTER the push, reporting red for an image that
+      # was published. The signature itself is still produced. Verify it by pinning BOTH the
+      # reusable (the SAN) and this repository (the caller claim), or any org repo calling the same
+      # reusable would satisfy the check:
+      #   --certificate-identity-regexp '^https://github\.com/usetheoai/\.github/\.github/workflows/build-publish\.yml@'
+      #   --certificate-github-workflow-repository usetheoai/theo-memory
+      verify: false
+      # Amazon ECR, the registry the platform pulls from, by the full commit SHA tag
+      # (usetheoai/theo#446). Both are repository VARIABLES; unset, the reusable skips ECR and
+      # GHCR publishes as before. The account id is never fixed in text.
+      ecr_registry: ${{ vars.ECR_REGISTRY }}
+      aws_role_arn: ${{ vars.AWS_IMAGE_PUBLISH_ROLE_ARN }}
+      # No `runner:` input: the reusable defaults to '["ubuntu-latest"]', the same runner as
+      # every job in this repo, and repeating the default would only be a second copy to drift.
+    # NO `secrets:` block — on purpose. The reusable's optional secrets are for a Go module this
+    # repo does not have and for Docker Hub, which this workflow does not publish to (no
+    # `dockerhub_image`). Passing a credential to a destination that cannot use it is surface with
+    # no return, and `secrets: inherit` is refused for the same reason (semgrep flags it).
+    # `GITHUB_TOKEN` is implicit — it is what publishes to GHCR — and ECR is reached by OIDC.

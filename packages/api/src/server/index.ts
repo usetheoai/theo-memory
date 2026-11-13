@@ -9,6 +9,8 @@
  */
 export { createApp as createServer } from './app.js';
 export type { AdminApiOptions, CreateServerOptions } from './app.js';
+export { createAmlAdapter } from './aml-adapter.js';
+export type { AmlAdapterOptions } from './aml-adapter.js';
 
 // Camada 1 (env-secret) — historical default
 export { BearerAuthVerifier, readApiKey } from './auth/bearer-verifier.js';

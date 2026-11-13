@@ -8,6 +8,7 @@
  * @see ADR D6 — Error mechanisms: zod validation fail → Protocol Error -32602
  * @see EC-2 — Payload size cap absorbed via MAX_CONTENT_BYTES
  */
+import { MemoryEvidenceSchema } from '@usetheo/memory/contract';
 import { z } from 'zod';
 
 import { MAX_CONTENT_BYTES } from './constants.js';
@@ -15,7 +16,7 @@ import { MAX_CONTENT_BYTES } from './constants.js';
 export const TOOL_NAME = 'remember' as const;
 
 export const DESCRIPTION =
-  'Persist a free-form note to scoped memory. Use this when the user states a preference, fact, or decision worth recalling later. Choose WHERE it lives: omit `sessionId` to store in the durable GLOBAL memory (remembered across all sessions — preferences, long-lived facts, decisions); pass `sessionId` to store it in that SESSION only (ephemeral working context that should not leak into other conversations). Pass `infer:false` to store the content verbatim without LLM extraction.';
+  'Persist a free-form note to scoped memory. Use this when the user states a preference, fact, or decision worth recalling later. Choose WHERE it lives: omit `sessionId` to store in the durable GLOBAL memory (remembered across all sessions — preferences, long-lived facts, decisions); pass `sessionId` to store it in that SESSION only (ephemeral working context that should not leak into other conversations). Pass `infer:false` to store the content verbatim without LLM extraction. This stores contextual memory, not authoritative purchases or calendar records; use the application tools for exact operations. Do not turn temporary choices into permanent preferences.';
 
 /**
  * Input shape for `tools/call remember`.
@@ -42,6 +43,12 @@ export const INPUT_SCHEMA = z.object({
    * Default true (LLM fact-extraction mode). Mirrors REST `POST /v1/remember` `infer` flag.
    */
   infer: z.boolean().optional(),
+  evidence: MemoryEvidenceSchema.optional(),
+  idempotencyKey: z.string().trim().min(1).max(256).optional(),
+  expiresAt: z.string().datetime({offset:true}).optional(),
+  /** When the content was said or written (ISO-8601), if not now; relative dates resolve against it. */
+  observedAt: z.string().datetime({offset:true}).optional(),
+    strictExtraction: z.boolean().optional(),
 });
 
 export type RememberInput = z.infer<typeof INPUT_SCHEMA>;

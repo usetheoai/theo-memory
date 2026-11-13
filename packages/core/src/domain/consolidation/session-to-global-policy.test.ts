@@ -2,7 +2,7 @@
  * M9 T1.1 — SessionToGlobalConsolidationPolicy: the promotion DECISION.
  *
  * A cosine-similar cluster of session memories is promoted to global when its
- * representative is durable (confirmation_count ≥ threshold, Princípio 1). The policy
+ * representative is durable (distinct_source_count ≥ threshold, Princípio 1). The policy
  * is PURE (no I/O) — persistence (session_id→NULL + soft-delete + audit) is T2.1.
  * Reuses the shipped ConflictResolutionPolicy DIP (ADR D1) so the audit/soft-delete
  * path is already built.
@@ -21,8 +21,8 @@ const CTX: ConsolidationContext = {
   observationDate: new Date('2026-07-22T00:00:00Z'),
 };
 
-function candidate(id: string, confirmationCount: number): ConsolidationCandidate {
-  return { memoryId: id, text: `fact ${id}`, createdAt: new Date('2026-07-22T00:00:00Z'), confirmationCount };
+function candidate(id: string, distinctSourceCount: number): ConsolidationCandidate {
+  return { memoryId: id, text: `fact ${id}`, createdAt: new Date('2026-07-22T00:00:00Z'), distinctSourceCount };
 }
 
 describe('SessionToGlobalConsolidationPolicy — session→global promotion decision', () => {
@@ -54,16 +54,16 @@ describe('SessionToGlobalConsolidationPolicy — session→global promotion deci
     expect(results).toEqual([]); // one-off → not promoted; it will decay via eviction
   });
 
-  it('test_reason_records_the_confirmation_trigger', async () => {
+  it('test_reason_records_the_distinct_source_trigger', async () => {
     const policy = new SessionToGlobalConsolidationPolicy(3);
     const results = await policy.consolidate([candidate('m1', 5)], CTX);
     expect(results).toHaveLength(1);
-    expect(results[0]!.reason).toContain('confirmation_count');
+    expect(results[0]!.reason).toContain('distinct_source_count');
     expect(results[0]!.reason).toContain('5');
   });
 
   it('test_single_deduped_row_at_threshold_promotes_with_no_rejects', async () => {
-    // 3 exact mentions dedup (composite UPSERT) into ONE row with confirmation_count=3.
+    // Three identified original sources support one deduplicated memory.
     const policy = new SessionToGlobalConsolidationPolicy(3);
     const results = await policy.consolidate([candidate('m1', 3)], CTX);
     expect(results).toHaveLength(1);
@@ -72,8 +72,8 @@ describe('SessionToGlobalConsolidationPolicy — session→global promotion deci
     expect(results[0]!.originalEpisodeIds).toEqual(['m1']);
   });
 
-  it('test_undefined_confirmation_count_is_not_promoted', async () => {
-    // A candidate with no confirmationCount (optional field absent) is treated as 0 — a
+  it('test_unknown_distinct_source_count_is_not_promoted', async () => {
+    // A candidate with no distinctSourceCount (optional field absent) is treated as 0 — a
     // stale-impl candidate must NEVER be silently promoted (negative case, testing.md §4.1).
     const policy = new SessionToGlobalConsolidationPolicy(3);
     const noCount: ConsolidationCandidate = { memoryId: 'm1', text: 'x', createdAt: new Date('2026-07-22T00:00:00Z') };
@@ -95,3 +95,10 @@ describe('SessionToGlobalConsolidationPolicy — session→global promotion deci
     expect(new SessionToGlobalConsolidationPolicy(3).kind).toBe('session-to-global');
   });
 });
+
+ it('does not confuse repeated assertions with distinct origins', async () => {
+   const policy = new SessionToGlobalConsolidationPolicy();
+   expect(await policy.consolidate([{ ...candidate('repeated', 1), confirmationCount: 100 }], CTX)).toEqual([]);
+   expect(await policy.consolidate([{ ...candidate('unknown', 0), distinctSourceCount: null, confirmationCount: 100 }], CTX)).toEqual([]);
+   expect(await policy.consolidate([{ ...candidate('expired', 2), expiresAt: new Date('2026-07-01') }], CTX)).toEqual([]);
+ });

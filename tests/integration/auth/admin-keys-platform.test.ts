@@ -30,9 +30,14 @@ const stubLlm: LLM = {
     Promise.resolve({ content: '[]', role: 'assistant' }),
 };
 
-/** Seed a platform-admin key bound to a control-plane workspace. */
-async function seedPlatformKey(pool: pg.Pool, token: string): Promise<void> {
-  await pool.query(`INSERT INTO workspaces (id, name) VALUES ('ws-platform','ws-platform') ON CONFLICT (id) DO NOTHING`);
+/**
+ * Seed a platform-admin key bound to a control-plane workspace.
+ *
+ * Dois pools porque são duas naturezas: `workspaces` é escopada (semeada pelo
+ * pool de travessia) e `theo_api_keys` não é (papel de aplicação).
+ */
+async function seedPlatformKey(pool: pg.Pool, wsPool: pg.Pool, token: string): Promise<void> {
+  await wsPool.query(`INSERT INTO workspaces (id, name) VALUES ('ws-platform','ws-platform') ON CONFLICT (id) DO NOTHING`);
   await pool.query(
     `INSERT INTO theo_api_keys (id, subject, tenant_id, workspace_id, key_name, key_hash, key_prefix, scopes)
      VALUES ($1, 'platform', 'self', 'ws-platform', 'platform-key', $2, $3, $4::jsonb)`,
@@ -64,6 +69,8 @@ if (PG_URI === undefined || PG_URI === '') {
 } else {
   describe('Model B — platform-admin workspace-targeted mint (REST e2e)', () => {
     let pool: pg.Pool;
+    /** Só para criar a linha de `workspaces`, que é escopada. */
+    let wsSeed: pg.Pool;
     let dropDb: () => Promise<void>;
     let app: ReturnType<typeof createServer>;
     const platformToken = `theo_live_${randomUUID()}${randomUUID()}`;
@@ -71,9 +78,20 @@ if (PG_URI === undefined || PG_URI === '') {
 
     beforeAll(async () => {
       const iso = await createIsolatedDb();
-      pool = iso.pool;
+      // O CAMINHO DE PLATAFORMA NÃO TEM PAPEL PRÓPRIO, e este arquivo é onde
+      // isso aparece. A mint auto-provisiona o workspace-alvo (escrita
+      // escopada, exige travessia) E grava em `theo_api_keys` (não escopada,
+      // sem grant para o papel de travessia). Nenhum dos dois papéis existentes
+      // cobre as duas coisas: o de aplicação não atravessa, o de travessia não
+      // alcança a tabela de chaves.
+      //
+      // Enquanto não houver um papel de administração, este teste roda no pool
+      // de setup — que é o que ele já fazia antes do #196, então não é regressão;
+      // é a lacuna ficando visível. Registrada em #197.
+      pool = iso.setupPool;
+      wsSeed = iso.setupPool;
       dropDb = iso.dropDb;
-      await seedPlatformKey(pool, platformToken);
+      await seedPlatformKey(pool, wsSeed, platformToken);
       const memory: Memory = await createLocalMemory({
         vectorStore: new PgvectorStore(pool),
         embedder: new DeterministicStubEmbedder(),

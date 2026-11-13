@@ -27,6 +27,17 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 
 const mockRunMcpServer = vi.fn().mockResolvedValue(undefined);
 
+// FLAKY-boot-import — o `cli.ts` alcanca `@usetheo/memory/recall-trace-pg` por
+// `./run-server.js`, e o grafo real dele dominava o tempo deste arquivo (8,8 s
+// contra um teto de 15 s — margem que sumia sob carga da suite). O `vi.mock`
+// casa pelo especificador, nao por quem importa, entao pega o caminho transitivo.
+// Nenhum teste deste arquivo assere simbolo algum deste modulo.
+vi.mock('@usetheo/memory/recall-trace-pg', () => ({
+  PgRecallTraceStore: class MockPgRecallTraceStore {},
+  PgRecallTraceRetention: class MockPgRecallTraceRetention {},
+  startRecallTraceRetentionCron: vi.fn().mockReturnValue({ stop: vi.fn() }),
+}));
+
 vi.mock('@usetheo/memory-mcp', () => ({
   McpServer: class MockMcpServer {},
   runMcpServer: mockRunMcpServer,
@@ -74,6 +85,23 @@ describe('runMcpServer delegation (post-T3.4 MCP extraction)', () => {
 });
 
 describe('T2.1 — commander router + alias detection', () => {
+/**
+ * TIMEOUT EXPLICITO — calibrado contra medicao, nao arredondado para cima.
+ *
+ * Estes testes fazem `await import()` de um modulo de boot: o que eles medem, de
+ * fato, e TRANSFORMACAO DE MODULO, nao comportamento. Com 12 workers do vitest
+ * competindo pelo transform, o piso de infraestrutura passa dos 15 s do
+ * `testTimeout` global, e o teste falha por latencia da maquina em vez de por
+ * defeito no codigo.
+ *
+ * O custo EVITAVEL ja foi removido: `@usetheo/memory/recall-trace-pg` passou a
+ * ser mockado nestes arquivos (medido em isolamento: 14,0 s -> 5,7 s). O que
+ * resta e inerente ao import dinamico de um grafo real sob contencao.
+ *
+ * 30 s = ~4x o custo isolado medido (5,7-8,8 s), com folga para a contencao.
+ * Se voltar a estourar, o caminho e quebrar a cadeia de import do boot — nao
+ * subir este numero de novo.
+ */
   it('32. themory --help lists exactly 4 subcommands (mcp, server, migrate, health)', async () => {
     const { buildProgram } = await import('../cli.js');
     const program = buildProgram();
@@ -88,7 +116,7 @@ describe('T2.1 — commander router + alias detection', () => {
       /^\s{2}(mcp|server|migrate|health)\b/.test(l),
     );
     expect(knownSubcommands).toHaveLength(4);
-  });
+  }, 30_000);
 
   it('M27: themory cleanup-write-quality is registered with --apply (dry-run default)', async () => {
     const { buildProgram } = await import('../cli.js');

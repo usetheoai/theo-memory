@@ -16,7 +16,8 @@ import { randomBytes } from 'node:crypto';
 
 import type { WorkspaceRole } from '@usetheo/memory/contract';
 
-import type { AuthPool, AuthPoolClient } from '../auth/api-key-verifier.js';
+import type { AuthPool } from '../auth/api-key-verifier.js';
+import { withWorkspaceContext } from '../auth/workspace-context.js';
 
 import {
   isWorkspaceRole,
@@ -59,29 +60,15 @@ SELECT m.user_id, u.email, u.name, m.role, m.created_at
  ORDER BY m.created_at ASC`;
 
 export function createPostgresMembersRepository(pool: AuthPool): MembersRepository {
-  async function runInTx<T>(fn: (tx: QueryRunner) => Promise<T>): Promise<T> {
-    // FOR UPDATE requires a pinned connection; pool.query may pick different
-    // connections per statement under pg.Pool.
-    if (pool.connect === undefined) {
-      // No connection pinning available (stub pool) — best effort without lock.
-      return fn(pool);
-    }
-    const client: AuthPoolClient = await pool.connect();
-    try {
-      await client.query('BEGIN', []);
-      const out = await fn(client);
-      await client.query('COMMIT', []);
-      return out;
-    } catch (err) {
-      try {
-        await client.query('ROLLBACK', []);
-      } catch {
-        /* swallow double-rollback */
-      }
-      throw err;
-    } finally {
-      client.release();
-    }
+  /**
+   * One transaction on one pinned connection (FOR UPDATE needs it), with
+   * `app.workspace_id` set for its duration: `workspace_users` is under FORCE ROW
+   * LEVEL SECURITY, and this repository runs on the raw pool with no request scope,
+   * so without the context every read is empty and every write fails its WITH
+   * CHECK (#227). The workspace is the one the caller's own key belongs to.
+   */
+  function runInTx<T>(workspaceId: string, fn: (tx: QueryRunner) => Promise<T>): Promise<T> {
+    return withWorkspaceContext(pool, workspaceId, fn);
   }
 
   /**
@@ -107,13 +94,15 @@ export function createPostgresMembersRepository(pool: AuthPool): MembersReposito
 
   return {
     async list(workspaceId: string): Promise<Member[]> {
-      const { rows } = await pool.query<{
-        user_id: string;
-        email: string;
-        name: string | null;
-        role: string;
-        created_at: Date | string;
-      }>(LIST_SQL, [workspaceId]);
+      const { rows } = await runInTx(workspaceId, (tx) =>
+        tx.query<{
+          user_id: string;
+          email: string;
+          name: string | null;
+          role: string;
+          created_at: Date | string;
+        }>(LIST_SQL, [workspaceId]),
+      );
       return rows.map(rowToMember);
     },
 
@@ -136,11 +125,14 @@ export function createPostgresMembersRepository(pool: AuthPool): MembersReposito
         ]);
         userId = reread.rows[0]?.id ?? userId;
       }
-      const ins = await pool.query<{ created_at: Date | string }>(
-        `INSERT INTO workspace_users (workspace_id, user_id, role) VALUES ($1, $2, $3)
-         ON CONFLICT (workspace_id, user_id) DO NOTHING
-         RETURNING created_at`,
-        [workspaceId, userId, input.role],
+      const memberUserId = userId;
+      const ins = await runInTx(workspaceId, (tx) =>
+        tx.query<{ created_at: Date | string }>(
+          `INSERT INTO workspace_users (workspace_id, user_id, role) VALUES ($1, $2, $3)
+           ON CONFLICT (workspace_id, user_id) DO NOTHING
+           RETURNING created_at`,
+          [workspaceId, memberUserId, input.role],
+        ),
       );
       if (ins.rows.length === 0) {
         return { ok: false, reason: 'duplicate' };
@@ -159,7 +151,7 @@ export function createPostgresMembersRepository(pool: AuthPool): MembersReposito
     },
 
     async setRole(workspaceId, userId, role): Promise<SetRoleResult> {
-      return runInTx(async (tx) => {
+      return runInTx(workspaceId, async (tx) => {
         const locked = await lockMembership(tx, workspaceId);
         const current = locked.find((r) => r.user_id === userId);
         if (current === undefined) return { ok: false, reason: 'not_found' };
@@ -190,7 +182,7 @@ export function createPostgresMembersRepository(pool: AuthPool): MembersReposito
     },
 
     async remove(workspaceId, userId): Promise<RemoveMemberResult> {
-      return runInTx(async (tx) => {
+      return runInTx(workspaceId, async (tx) => {
         const locked = await lockMembership(tx, workspaceId);
         const current = locked.find((r) => r.user_id === userId);
         if (current === undefined) return { ok: false, reason: 'not_found' };
@@ -207,9 +199,11 @@ export function createPostgresMembersRepository(pool: AuthPool): MembersReposito
     },
 
     async getMemberRole(workspaceId, userId): Promise<WorkspaceRole | null> {
-      const { rows } = await pool.query<{ role: string }>(
-        `SELECT role FROM workspace_users WHERE workspace_id = $1 AND user_id = $2 LIMIT 1`,
-        [workspaceId, userId],
+      const { rows } = await runInTx(workspaceId, (tx) =>
+        tx.query<{ role: string }>(
+          `SELECT role FROM workspace_users WHERE workspace_id = $1 AND user_id = $2 LIMIT 1`,
+          [workspaceId, userId],
+        ),
       );
       const role = rows[0]?.role;
       return role !== undefined && isWorkspaceRole(role) ? role : null;

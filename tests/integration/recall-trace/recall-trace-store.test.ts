@@ -38,18 +38,21 @@ const llm: LLM = {
 };
 
 let db: IsolatedDb;
+/** Atravessa workspaces de propósito — ver `_helpers/isolated-db.ts`. */
+let crossingPool: pg.Pool;
 let onMemory: Memory; // recallTrace: {} (default pg impl)
 let offMemory: Memory; // no recallTrace
 let farId: string;
 
 async function traceCount(): Promise<number> {
-  const { rows } = await db.pool.query<{ n: string }>('SELECT COUNT(*)::int AS n FROM recall_traces');
+  const { rows } = await crossingPool.query<{ n: string }>('SELECT COUNT(*)::int AS n FROM recall_traces');
   return Number(rows[0]?.n ?? 0);
 }
 
 beforeAll(async () => {
   db = await createIsolatedDb({ fresh: true, embeddingDim: DIM });
-  const vectorStore = new PgvectorStore(db.pool, { embeddingDim: DIM });
+  crossingPool = db.crossWorkspacePool('semeia mais de um workspace para provar o filtro do store');
+  const vectorStore = new PgvectorStore(crossingPool, { embeddingDim: DIM });
   await vectorStore.initialize();
 
   onMemory = await createLocalMemory({ vectorStore, embedder, embeddingDim: DIM, llm, recallTrace: {} });
@@ -74,7 +77,7 @@ test('GOAL — recall dropping ≥1 candidate writes recall_traces rows retrieva
 
   // Find the trace row for the dropped `far` memory, then prove it is
   // retrievable by its recall_id via the default store.
-  const { rows } = await db.pool.query<{ recall_id: string; drop_reason: string; composite: number | null }>(
+  const { rows } = await crossingPool.query<{ recall_id: string; drop_reason: string; composite: number | null }>(
     `SELECT recall_id, drop_reason, composite FROM recall_traces WHERE memory_id = $1`,
     [farId],
   );
@@ -82,7 +85,7 @@ test('GOAL — recall dropping ≥1 candidate writes recall_traces rows retrieva
   expect(rows[0]?.drop_reason).toBe('semantic_gate');
   expect(rows[0]?.composite).toBeNull(); // EC-6
 
-  const store = new PgRecallTraceStore(db.pool);
+  const store = new PgRecallTraceStore(crossingPool);
   const trace = await store.getByRecallId(rows[0]!.recall_id, 'default');
   expect(trace.some((r) => r.memoryId === farId && r.dropReason === 'semantic_gate')).toBe(true);
 });
@@ -90,7 +93,7 @@ test('GOAL — recall dropping ≥1 candidate writes recall_traces rows retrieva
 test('T1.1 — a supplied RecallOptions.recallId keys the trace rows verbatim', async () => {
   const fixed = 'fixed-recall-id-t1-0001';
   await onMemory.user('alice').recall('match', { threshold: 0.5, topK: 10, recallId: fixed });
-  const { rows } = await db.pool.query<{ n: string }>(
+  const { rows } = await crossingPool.query<{ n: string }>(
     'SELECT COUNT(*)::int AS n FROM recall_traces WHERE recall_id = $1',
     [fixed],
   );
@@ -109,14 +112,14 @@ test('T1.1/D1 — recall() returns the SAME array with vs without a supplied rec
 
 test('T1.1 — an empty-string recallId is treated as absent (minted UUID, never keyed by "")', async () => {
   await onMemory.user('alice').recall('match', { threshold: 0.5, topK: 10, recallId: '' });
-  const { rows } = await db.pool.query<{ n: string }>(
+  const { rows } = await crossingPool.query<{ n: string }>(
     "SELECT COUNT(*)::int AS n FROM recall_traces WHERE recall_id = ''",
   );
   expect(Number(rows[0]?.n ?? 0)).toBe(0);
 });
 
 test('T3.1 — getByRecallId is workspace-scoped: no cross-tenant read (CWE-441)', async () => {
-  const store = new PgRecallTraceStore(db.pool);
+  const store = new PgRecallTraceStore(crossingPool);
   await store.record({
     recallId: 'ws-scoped-1',
     workspaceId: 'wsA',
@@ -138,7 +141,7 @@ test('GOAL — a recall dropping 0 candidates writes 0 new rows', async () => {
 });
 
 test('T2.1 — an opted-out workspace writes 0 trace rows (fail-closed, M4)', async () => {
-  const vectorStore = new PgvectorStore(db.pool, { embeddingDim: DIM });
+  const vectorStore = new PgvectorStore(crossingPool, { embeddingDim: DIM });
   const disabledMem = await createLocalMemory({
     vectorStore,
     embedder,
@@ -161,7 +164,7 @@ test('GOAL — tracing OFF (no recallTrace) writes nothing', async () => {
 });
 
 test('test_factory_rejects_invalid_config_fast — maxRowsPerRecall 0 throws at createLocalMemory (EC-1)', async () => {
-  const vs = new PgvectorStore(db.pool, { embeddingDim: DIM });
+  const vs = new PgvectorStore(crossingPool, { embeddingDim: DIM });
   await expect(
     createLocalMemory({ vectorStore: vs, embedder, embeddingDim: DIM, llm, recallTrace: { maxRowsPerRecall: 0 } }),
   ).rejects.toThrow(/maxRowsPerRecall/);
@@ -170,7 +173,7 @@ test('test_factory_rejects_invalid_config_fast — maxRowsPerRecall 0 throws at 
 test('test_resolve_throws_when_table_absent — missing recall_traces fails fast, not silent (EC-3)', async () => {
   const iso = await createIsolatedDb({ fresh: true, embeddingDim: DIM });
   try {
-    await iso.pool.query('DROP TABLE recall_traces');
+    await iso.setupPool.query('DROP TABLE recall_traces');
     const vs = new PgvectorStore(iso.pool, { embeddingDim: DIM });
     await expect(
       createLocalMemory({ vectorStore: vs, embedder, embeddingDim: DIM, llm, recallTrace: {} }),

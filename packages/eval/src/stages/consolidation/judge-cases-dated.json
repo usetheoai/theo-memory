@@ -1,0 +1,598 @@
+{
+  "users": [
+    {
+      "id": "dtc-lior",
+      "facts": [
+        {
+          "key": "bruges",
+          "text": "Lior spent a weekend in Bruges in April 2023.",
+          "observedAt": "2024-03-11",
+          "role": "distinct"
+        },
+        {
+          "key": "flu",
+          "text": "Lior had the flu for a week in January 2024.",
+          "observedAt": "2024-03-12",
+          "role": "distinct"
+        },
+        {
+          "key": "pottery",
+          "text": "Lior attended a three-day pottery workshop in October 2023.",
+          "observedAt": "2024-03-13",
+          "role": "distinct"
+        },
+        {
+          "key": "hospital",
+          "text": "Lior stayed two nights in hospital after a knee operation in June 2022.",
+          "observedAt": "2024-03-14",
+          "role": "distinct"
+        },
+        {
+          "key": "dinner",
+          "text": "Lior hosted a dinner for twelve people in December 2023.",
+          "observedAt": "2024-03-15",
+          "role": "distinct"
+        },
+        {
+          "key": "sister",
+          "text": "Lior's sister is named Talia.",
+          "observedAt": "2024-03-16",
+          "role": "distinct"
+        },
+        {
+          "key": "job",
+          "text": "Lior works as a dental hygienist.",
+          "observedAt": "2024-03-17",
+          "role": "distinct"
+        },
+        {
+          "key": "allergy",
+          "text": "Lior is allergic to hazelnuts.",
+          "observedAt": "2024-03-18",
+          "role": "distinct"
+        },
+        {
+          "key": "tentative",
+          "text": "Lior might move to Ghent in 2026, but nothing is decided.",
+          "observedAt": "2024-03-19",
+          "role": "distinct"
+        },
+        {
+          "key": "mood",
+          "text": "Lior feels a bit sleepy this afternoon.",
+          "observedAt": "2024-03-20",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Where did Lior spend a weekend in April 2023?",
+          "pattern": "Bruges"
+        },
+        {
+          "query": "What illness did Lior have in January 2024?",
+          "pattern": "\\bflu\\b"
+        },
+        {
+          "query": "What workshop did Lior attend in October 2023?",
+          "pattern": "pottery"
+        },
+        {
+          "query": "Why was Lior in hospital in June 2022?",
+          "pattern": "knee"
+        },
+        {
+          "query": "How many people came to the dinner Lior hosted in December 2023?",
+          "pattern": "\\btwelve\\b"
+        },
+        {
+          "query": "What is the name of Lior's sister?",
+          "pattern": "Talia"
+        },
+        {
+          "query": "What does Lior do for a living?",
+          "pattern": "hygienist"
+        },
+        {
+          "query": "What is Lior allergic to?",
+          "pattern": "hazelnut"
+        }
+      ]
+    },
+    {
+      "id": "dtc-graca",
+      "facts": [
+        {
+          "key": "olinda",
+          "text": "Graça passou um fim de semana em Penedo em abril de 2023.",
+          "observedAt": "2024-03-11",
+          "role": "distinct"
+        },
+        {
+          "key": "dengue",
+          "text": "Graça teve dengue por uma semana em fevereiro de 2024.",
+          "observedAt": "2024-03-12",
+          "role": "distinct"
+        },
+        {
+          "key": "crochet",
+          "text": "Graça fez um curso de crochê de três dias em setembro de 2023.",
+          "observedAt": "2024-03-13",
+          "role": "distinct"
+        },
+        {
+          "key": "cirurgia",
+          "text": "Graça ficou duas noites internada depois de uma cirurgia no ombro em maio de 2022.",
+          "observedAt": "2024-03-14",
+          "role": "distinct"
+        },
+        {
+          "key": "festa",
+          "text": "Graça organizou uma festa para quarenta convidados em dezembro de 2023.",
+          "observedAt": "2024-03-15",
+          "role": "distinct"
+        },
+        {
+          "key": "neto",
+          "text": "O neto de Graça se chama Arquimedes.",
+          "observedAt": "2024-03-16",
+          "role": "distinct"
+        },
+        {
+          "key": "trabalho",
+          "text": "Graça trabalha como costureira.",
+          "observedAt": "2024-03-17",
+          "role": "distinct"
+        },
+        {
+          "key": "alergia",
+          "text": "Graça é alérgica a camarão.",
+          "observedAt": "2024-03-18",
+          "role": "distinct"
+        },
+        {
+          "key": "tentative",
+          "text": "Talvez Graça se mude para Aracaju em 2026, mas nada está decidido.",
+          "observedAt": "2024-03-19",
+          "role": "distinct"
+        },
+        {
+          "key": "mood",
+          "text": "Graça está meio sonolenta nesta tarde.",
+          "observedAt": "2024-03-20",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Onde Graça passou um fim de semana em abril de 2023?",
+          "pattern": "Penedo"
+        },
+        {
+          "query": "Que doença Graça teve em fevereiro de 2024?",
+          "pattern": "dengue"
+        },
+        {
+          "query": "Que curso Graça fez em setembro de 2023?",
+          "pattern": "croch"
+        },
+        {
+          "query": "Por que Graça ficou internada em maio de 2022?",
+          "pattern": "ombro"
+        },
+        {
+          "query": "Quantos convidados foram à festa de Graça em dezembro de 2023?",
+          "pattern": "quarenta"
+        },
+        {
+          "query": "Como se chama o neto de Graça?",
+          "pattern": "Arquimedes"
+        },
+        {
+          "query": "Qual é a profissão de Graça?",
+          "pattern": "costureira"
+        },
+        {
+          "query": "A que Graça é alérgica?",
+          "pattern": "camar"
+        }
+      ]
+    },
+    {
+      "id": "dtc-feliciano",
+      "facts": [
+        {
+          "key": "ronda",
+          "text": "Feliciano pasó un fin de semana en Ronda en marzo de 2023.",
+          "observedAt": "2024-03-11",
+          "role": "distinct"
+        },
+        {
+          "key": "gripe",
+          "text": "Feliciano tuvo gripe durante una semana en enero de 2024.",
+          "observedAt": "2024-03-12",
+          "role": "distinct"
+        },
+        {
+          "key": "cata",
+          "text": "Feliciano hizo un curso de cata de vinos de tres días en noviembre de 2023.",
+          "observedAt": "2024-03-13",
+          "role": "distinct"
+        },
+        {
+          "key": "apendice",
+          "text": "Feliciano estuvo dos noches en el hospital por una apendicitis en julio de 2022.",
+          "observedAt": "2024-03-14",
+          "role": "distinct"
+        },
+        {
+          "key": "cena",
+          "text": "Feliciano organizó una cena para quince personas en diciembre de 2023.",
+          "observedAt": "2024-03-15",
+          "role": "distinct"
+        },
+        {
+          "key": "primo",
+          "text": "El primo de Feliciano se llama Epifanio.",
+          "observedAt": "2024-03-16",
+          "role": "distinct"
+        },
+        {
+          "key": "trabajo",
+          "text": "Feliciano trabaja como cerrajero.",
+          "observedAt": "2024-03-17",
+          "role": "distinct"
+        },
+        {
+          "key": "alergia",
+          "text": "Feliciano es alérgico al polen de olivo.",
+          "observedAt": "2024-03-18",
+          "role": "distinct"
+        },
+        {
+          "key": "tentative",
+          "text": "Quizás Feliciano se mude a Cádiz en 2026, pero no hay nada decidido.",
+          "observedAt": "2024-03-19",
+          "role": "distinct"
+        },
+        {
+          "key": "mood",
+          "text": "Feliciano está un poco cansado esta tarde.",
+          "observedAt": "2024-03-20",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "¿Dónde pasó Feliciano un fin de semana en marzo de 2023?",
+          "pattern": "Ronda"
+        },
+        {
+          "query": "¿Qué enfermedad tuvo Feliciano en enero de 2024?",
+          "pattern": "gripe"
+        },
+        {
+          "query": "¿Qué curso hizo Feliciano en noviembre de 2023?",
+          "pattern": "cata"
+        },
+        {
+          "query": "¿Por qué estuvo Feliciano en el hospital en julio de 2022?",
+          "pattern": "apendicitis"
+        },
+        {
+          "query": "¿Cuántas personas fueron a la cena de Feliciano en diciembre de 2023?",
+          "pattern": "quince"
+        },
+        {
+          "query": "¿Cómo se llama el primo de Feliciano?",
+          "pattern": "Epifanio"
+        },
+        {
+          "query": "¿A qué se dedica Feliciano?",
+          "pattern": "cerrajero"
+        },
+        {
+          "query": "¿A qué es alérgico Feliciano?",
+          "pattern": "olivo"
+        }
+      ]
+    },
+    {
+      "id": "dtc-gianmaria",
+      "facts": [
+        {
+          "key": "matera",
+          "text": "Gianmaria ha passato un fine settimana a Alberobello ad aprile 2023.",
+          "observedAt": "2024-03-11",
+          "role": "distinct"
+        },
+        {
+          "key": "influenza",
+          "text": "Gianmaria ha avuto l'influenza per una settimana a gennaio 2024.",
+          "observedAt": "2024-03-12",
+          "role": "distinct"
+        },
+        {
+          "key": "mosaico",
+          "text": "Gianmaria ha seguito un corso di mosaico di tre giorni a ottobre 2023.",
+          "observedAt": "2024-03-13",
+          "role": "distinct"
+        },
+        {
+          "key": "caviglia",
+          "text": "Gianmaria è stato due notti in ospedale per una frattura alla caviglia a giugno 2022.",
+          "observedAt": "2024-03-14",
+          "role": "distinct"
+        },
+        {
+          "key": "pranzo",
+          "text": "Gianmaria ha organizzato un pranzo per venti persone a dicembre 2023.",
+          "observedAt": "2024-03-15",
+          "role": "distinct"
+        },
+        {
+          "key": "zia",
+          "text": "La zia di Gianmaria si chiama Fiorenza.",
+          "observedAt": "2024-03-16",
+          "role": "distinct"
+        },
+        {
+          "key": "lavoro",
+          "text": "Gianmaria lavora come restauratore di mobili.",
+          "observedAt": "2024-03-17",
+          "role": "distinct"
+        },
+        {
+          "key": "allergia",
+          "text": "Gianmaria è allergico alle arachidi.",
+          "observedAt": "2024-03-18",
+          "role": "distinct"
+        },
+        {
+          "key": "tentative",
+          "text": "Forse Gianmaria si trasferirà a Trani nel 2026, ma non è deciso nulla.",
+          "observedAt": "2024-03-19",
+          "role": "distinct"
+        },
+        {
+          "key": "mood",
+          "text": "Gianmaria è un po' assonnato questo pomeriggio.",
+          "observedAt": "2024-03-20",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Dove ha passato un fine settimana Gianmaria ad aprile 2023?",
+          "pattern": "Alberobello"
+        },
+        {
+          "query": "Che malattia ha avuto Gianmaria a gennaio 2024?",
+          "pattern": "influenza"
+        },
+        {
+          "query": "Che corso ha seguito Gianmaria a ottobre 2023?",
+          "pattern": "mosaico"
+        },
+        {
+          "query": "Perché Gianmaria è stato in ospedale a giugno 2022?",
+          "pattern": "caviglia"
+        },
+        {
+          "query": "Quante persone sono venute al pranzo di Gianmaria a dicembre 2023?",
+          "pattern": "venti"
+        },
+        {
+          "query": "Come si chiama la zia di Gianmaria?",
+          "pattern": "Fiorenza"
+        },
+        {
+          "query": "Che lavoro fa Gianmaria?",
+          "pattern": "restauratore"
+        },
+        {
+          "query": "A cosa è allergico Gianmaria?",
+          "pattern": "arachid"
+        }
+      ]
+    },
+    {
+      "id": "dtc-sidonie",
+      "facts": [
+        {
+          "key": "colmar",
+          "text": "Sidonie a passé un week-end à Eguisheim en avril 2023.",
+          "observedAt": "2024-03-11",
+          "role": "distinct"
+        },
+        {
+          "key": "angine",
+          "text": "Sidonie a eu une angine pendant une semaine en janvier 2024.",
+          "observedAt": "2024-03-12",
+          "role": "distinct"
+        },
+        {
+          "key": "reliure",
+          "text": "Sidonie a suivi un stage de reliure de trois jours en octobre 2023.",
+          "observedAt": "2024-03-13",
+          "role": "distinct"
+        },
+        {
+          "key": "poignet",
+          "text": "Sidonie a passé deux nuits à l'hôpital pour une fracture du poignet en juin 2022.",
+          "observedAt": "2024-03-14",
+          "role": "distinct"
+        },
+        {
+          "key": "fete",
+          "text": "Sidonie a organisé une fête pour trente invités en décembre 2023.",
+          "observedAt": "2024-03-15",
+          "role": "distinct"
+        },
+        {
+          "key": "parrain",
+          "text": "Le parrain de Sidonie s'appelle Eustache.",
+          "observedAt": "2024-03-16",
+          "role": "distinct"
+        },
+        {
+          "key": "travail",
+          "text": "Sidonie travaille comme luthière.",
+          "observedAt": "2024-03-17",
+          "role": "distinct"
+        },
+        {
+          "key": "allergie",
+          "text": "Sidonie est allergique au latex.",
+          "observedAt": "2024-03-18",
+          "role": "distinct"
+        },
+        {
+          "key": "tentative",
+          "text": "Sidonie déménagera peut-être à Annecy en 2026, mais rien n'est décidé.",
+          "observedAt": "2024-03-19",
+          "role": "distinct"
+        },
+        {
+          "key": "mood",
+          "text": "Sidonie est un peu somnolente cet après-midi.",
+          "observedAt": "2024-03-20",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Où Sidonie a-t-elle passé un week-end en avril 2023 ?",
+          "pattern": "Eguisheim"
+        },
+        {
+          "query": "Quelle maladie Sidonie a-t-elle eue en janvier 2024 ?",
+          "pattern": "angine"
+        },
+        {
+          "query": "Quel stage Sidonie a-t-elle suivi en octobre 2023 ?",
+          "pattern": "reliure"
+        },
+        {
+          "query": "Pourquoi Sidonie était-elle à l'hôpital en juin 2022 ?",
+          "pattern": "poignet"
+        },
+        {
+          "query": "Combien d'invités sont venus à la fête de Sidonie en décembre 2023 ?",
+          "pattern": "trente"
+        },
+        {
+          "query": "Comment s'appelle le parrain de Sidonie ?",
+          "pattern": "Eustache"
+        },
+        {
+          "query": "Quel est le métier de Sidonie ?",
+          "pattern": "luthi"
+        },
+        {
+          "query": "À quoi Sidonie est-elle allergique ?",
+          "pattern": "latex"
+        }
+      ]
+    },
+    {
+      "id": "dtc-wendelin",
+      "facts": [
+        {
+          "key": "lindau",
+          "text": "Wendelin verbrachte im April 2023 ein Wochenende in Meersburg.",
+          "observedAt": "2024-03-11",
+          "role": "distinct"
+        },
+        {
+          "key": "grippe",
+          "text": "Wendelin hatte im Januar 2024 eine Woche lang eine Grippe.",
+          "observedAt": "2024-03-12",
+          "role": "distinct"
+        },
+        {
+          "key": "schmieden",
+          "text": "Wendelin besuchte im Oktober 2023 einen dreitägigen Schmiedekurs.",
+          "observedAt": "2024-03-13",
+          "role": "distinct"
+        },
+        {
+          "key": "meniskus",
+          "text": "Wendelin lag im Juni 2022 nach einer Meniskusoperation zwei Nächte im Krankenhaus.",
+          "observedAt": "2024-03-14",
+          "role": "distinct"
+        },
+        {
+          "key": "feier",
+          "text": "Wendelin richtete im Dezember 2023 eine Feier für achtzehn Gäste aus.",
+          "observedAt": "2024-03-15",
+          "role": "distinct"
+        },
+        {
+          "key": "nichte",
+          "text": "Die Nichte von Wendelin heißt Isolde.",
+          "observedAt": "2024-03-16",
+          "role": "distinct"
+        },
+        {
+          "key": "beruf",
+          "text": "Wendelin arbeitet als Orgelbauer.",
+          "observedAt": "2024-03-17",
+          "role": "distinct"
+        },
+        {
+          "key": "allergie",
+          "text": "Wendelin ist gegen Birkenpollen allergisch.",
+          "observedAt": "2024-03-18",
+          "role": "distinct"
+        },
+        {
+          "key": "tentative",
+          "text": "Vielleicht zieht Wendelin 2026 nach Bamberg, aber es ist nichts entschieden.",
+          "observedAt": "2024-03-19",
+          "role": "distinct"
+        },
+        {
+          "key": "mood",
+          "text": "Wendelin ist heute Nachmittag etwas müde.",
+          "observedAt": "2024-03-20",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Wo verbrachte Wendelin im April 2023 ein Wochenende?",
+          "pattern": "Meersburg"
+        },
+        {
+          "query": "Welche Krankheit hatte Wendelin im Januar 2024?",
+          "pattern": "Grippe"
+        },
+        {
+          "query": "Welchen Kurs besuchte Wendelin im Oktober 2023?",
+          "pattern": "Schmied"
+        },
+        {
+          "query": "Warum lag Wendelin im Juni 2022 im Krankenhaus?",
+          "pattern": "Meniskus"
+        },
+        {
+          "query": "Wie viele Gäste kamen im Dezember 2023 zu Wendelins Feier?",
+          "pattern": "achtzehn"
+        },
+        {
+          "query": "Wie heißt die Nichte von Wendelin?",
+          "pattern": "Isolde"
+        },
+        {
+          "query": "Was ist Wendelin von Beruf?",
+          "pattern": "Orgelbauer"
+        },
+        {
+          "query": "Wogegen ist Wendelin allergisch?",
+          "pattern": "Birken"
+        }
+      ]
+    }
+  ]
+}

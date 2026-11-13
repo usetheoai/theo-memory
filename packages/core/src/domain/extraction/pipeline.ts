@@ -20,24 +20,38 @@ import { randomUUID } from 'node:crypto';
 
 import { hashFact } from '../dedup.js';
 import type { HistoryBatchRecord } from '../dip/history-manager.js';
-import { InvalidScope } from '../errors.js';
+import { InvalidScope, MemoryStoreError } from '../errors.js';
 import { lemmatizeForBm25 } from '../lemmatization.js';
 import { emitEvent } from '../memory-event.js';
+import { attachEvidence, validateMemoryEvidence, restoreDuplicateEvidence } from '../memory-evidence.js';
 import type { MemoryItem } from '../memory-item.js';
+import { attachFactTime } from '../memory-time.js';
 import type { Message } from '../message.js';
 import { DEFAULT_ENTITY_TAXONOMY } from '../ontology.js';
 import type { RememberOptions } from '../options.js';
 import type { Filters } from '../scope.js';
+import { attachWriteContext, validateWriteContext, writeRequestHash } from '../write-context.js';
 
-import { linkEntities, type RelationTriple } from './entity-linking.js';
+import { keepAnnotationsNamedBy, linkEntities, type RelationTriple } from './entity-linking.js';
+import { prepareExtractedEvidence, extractedMemoryEvidence } from './evidence.js';
 import { applyFactGate } from './fact-gate.js';
+import { timeOfFact } from './fact-time.js';
+import { scoreNewFacts } from './importance-scoring.js';
 import { correctEntityRelationLanguage } from './label-language.js';
-import { detectInputLanguage } from './language.js';
+import { identifyInputLanguage } from './language-identification.js';
+import { detectInputLanguage, type DetectedLanguage } from './language.js';
 import { coerceExtractionResponse } from './normalize.js';
 import { applyOntologyToEntities, boundedAutoCategory, buildPayload, embedBatchWithFallback, extractResponseText, patchItemsWithOutcomes, persistWithFallback, runInferFalsePath, scopeFromFilters, toMemoryItem } from './pipeline-helpers.js';
 import type { ExtractionDeps, Payload } from './pipeline-helpers.js';
-import { AdditiveExtractionSchema, generateAdditiveExtractionPrompt } from './prompt.js';
+import { AdditiveExtractionSchema, generateAdditiveExtractionPrompt, type AdditiveExtractionResponse } from './prompt.js';
+import { restoreNamedSubject } from './subject-restore.js';
+import { judgeSupersessions } from './supersession.js';
 import { DEFAULT_CATEGORY_TAXONOMY, classifyCategorySource } from './taxonomy.js';
+
+function isExtractionParseError(error: unknown): boolean {
+  return error instanceof SyntaxError
+    || (error !== null && typeof error === 'object' && 'issues' in error);
+}
 
 
 // Re-export the public surface that used to live here (backward-compatible for
@@ -49,12 +63,91 @@ export type { ExtractionDeps, Payload } from './pipeline-helpers.js';
 /**
  * Main entry point. Runs the 8-phase write pipeline + returns the persisted MemoryItems.
  */
+/** Preceding turns of the scope given to the extractor as context when the deps do not say (ADR-0027). */
+export const DEFAULT_CONTEXT_MESSAGE_COUNT = 10;
+
+/** Existing memories of the scope shown to the extractor: the most similar to the new messages (ADR-0029). */
+export const SIMILAR_MEMORY_COUNT = 10;
+
+/**
+ * The write pipeline. With a `MessageLog`, the preceding turns of the scope are read before
+ * extraction (context only), and once the write completes the new messages are logged and
+ * linked to every memory the write returned. A replayed idempotent write logs nothing; a write
+ * that throws logs nothing. A log failure never fails a committed write: it is emitted as
+ * `message_log_failed`.
+ */
 export async function runExtractionPipeline(
   messages: readonly Message[],
   filters: Filters,
   deps: ExtractionDeps,
   options?: RememberOptions,
 ): Promise<readonly MemoryItem[]> {
+  const log = deps.messageLog;
+  if (log === undefined) return extractAndPersist(messages, filters, deps, options, []);
+  let previous: readonly Message[] = [];
+  try {
+    previous = (await log.recent(filters, deps.contextMessageCount ?? DEFAULT_CONTEXT_MESSAGE_COUNT))
+      .map((m) => ({ role: m.role, content: m.content }));
+  } catch (err) {
+    emitEvent(deps.tracer, 'message_log_failed', { operation: 'recent', error: err instanceof Error ? err.name : 'UnknownError' });
+  }
+  const items = await extractAndPersist(messages, filters, deps, options, previous);
+  if (items.some((item) => item.idempotentReplay === true)) return items;
+  // ADR-0031: each logged message carries its embedding for search by meaning. Without one it is
+  // still logged and found by its words, so an embedding failure is reported, never fatal.
+  let embeddings: readonly (readonly number[])[] | undefined;
+  try {
+    embeddings = await deps.embedder.embedBatch(messages.map((m) => m.content));
+  } catch (err) {
+    emitEvent(deps.tracer, 'message_log_failed', { operation: 'embed', error: err instanceof Error ? err.name : 'UnknownError' });
+  }
+  try {
+    const messageIds = await log.append(filters, messages, options?.observedAt, embeddings);
+    await log.linkSources(filters, items.map((item) => item.id), messageIds);
+  } catch (err) {
+    emitEvent(deps.tracer, 'message_log_failed', { operation: 'append', error: err instanceof Error ? err.name : 'UnknownError' });
+  }
+  return items;
+}
+
+/**
+ * The write pipeline with caller-supplied preceding turns and no logging of its own. For
+ * callers that log inside their own transaction, such as the durable job processor (ADR-0027).
+ */
+export function runExtractionWithContext(
+  messages: readonly Message[],
+  filters: Filters,
+  deps: Omit<ExtractionDeps, 'messageLog' | 'contextMessageCount'>,
+  options: RememberOptions | undefined,
+  previousMessages: readonly Message[],
+): Promise<readonly MemoryItem[]> {
+  return extractAndPersist(messages, filters, deps, options, previousMessages);
+}
+
+async function extractAndPersist(
+  messages: readonly Message[],
+  filters: Filters,
+  deps: ExtractionDeps,
+  options: RememberOptions | undefined,
+  previousMessages: readonly Message[],
+): Promise<readonly MemoryItem[]> {
+  const sourceEvidence = options?.evidence === undefined ? undefined : validateMemoryEvidence(options.evidence);
+  if (sourceEvidence !== undefined) options = { ...options, evidence: sourceEvidence };
+  validateWriteContext(options, true);
+  messages=messages.map(message=>({...message}));
+  if(options!==undefined)options={...options,
+    ...(options.expiresAt!==undefined?{expiresAt:new Date(options.expiresAt)}:{}),
+    ...(options.observedAt instanceof Date?{observedAt:new Date(options.observedAt)}:{}),
+    ...(options.metadata!==undefined?{metadata:{...options.metadata}}:{})};
+  if (options?.idempotencyKey !== undefined && deps.vectorStore.findWriteReplay === undefined) {
+    throw new InvalidScope('Idempotent writes require a store with durable write receipts, such as PgvectorStore.');
+  }
+  if (options?.idempotencyKey !== undefined && deps.vectorStore.findWriteReplay !== undefined) {
+    const replay = await deps.vectorStore.findWriteReplay(options.idempotencyKey, writeRequestHash(messages, options), filters);
+    if (replay !== null) return replay.map((row) => ({ ...toMemoryItem(row.id, String(row.payload['text'] ?? ''),
+      String(row.payload['hash'] ?? row.id), scopeFromFilters(filters), { ...row.payload }, row.createdAt ?? new Date()), rejectedAsDuplicate: true, idempotentReplay: true }));
+  }
+  validateWriteContext(options);
   const tracer = deps.tracer;
 
   // themory-category-filter-server-side T3.3 / EC-2 — SDK-layer boundary check
@@ -73,7 +166,7 @@ export async function runExtractionPipeline(
 
   // infer:false fast-path
   if (options?.infer === false) {
-    return runInferFalsePath(messages, filters, deps, options);
+    return runInferFalsePath(messages, filters, deps, sourceEvidence === undefined ? options : { ...options, evidence: sourceEvidence });
   }
 
   // ============================================================
@@ -84,10 +177,13 @@ export async function runExtractionPipeline(
   // ============================================================
   // Phase 1: existing retrieval + UUID→int mapping
   // ============================================================
-  // For v0.1 we keep this minimal: query the store for recent in-scope memories
-  // to provide LLM context. The integer→UUID mapping is owned by the prompt composer.
-  const existingResults = await deps.vectorStore.list(filters, 5);
-  const existingItems: MemoryItem[] = existingResults[0].map((r) => {
+  // The in-scope memories most similar to the new messages. The extractor sees them to avoid
+  // repeating what is already stored, and the update judge compares each new fact with them
+  // (ADR-0036). The integer→UUID mapping is owned by the prompt composer.
+  const supersedeOnWrite = deps.supersedeOnWrite !== false;
+  const queryVector = await deps.embedder.embed(messages.map((m) => m.content).join('\n'));
+  const existingResults = await deps.vectorStore.search(queryVector, SIMILAR_MEMORY_COUNT, filters);
+  const existingItems: MemoryItem[] = existingResults.map((r) => {
     const text = String(r.payload['text'] ?? '');
     const hash = String(r.payload['hash'] ?? r.id);
     const now = new Date();
@@ -97,16 +193,31 @@ export async function runExtractionPipeline(
   // ============================================================
   // Phase 2: LLM extraction (single call; Zod parse with EC-10 fallback)
   // ============================================================
-  // EG-4 fixes-cycle-1 (D1): deterministically detect the input language and inject
-  // the EXPLICIT target-language name into the extraction prompt. A concrete "write in
-  // English" instruction is followed far more reliably than the model self-detecting
-  // (live-test 2026-06-23: self-detect stored English inputs as Portuguese facts).
-  const detectedLanguage = detectInputLanguage(messages.map((m) => m.content).join('\n'));
+  // EG-4 fixes-cycle-1 (D1): name the input language and inject it into the extraction
+  // prompt; a concrete "write in English" instruction is followed more reliably than the
+  // model self-detecting. #254: the language is named by the LLM on the input with its
+  // proper names and numbers masked, because a character-statistics detector (and the model
+  // on the raw text) names "Mihaela's nephew Sorin is a pilot." Romanian. When it cannot be
+  // named, no directive is injected and `extraction_language_identification_failed` says why.
+  const inputText = messages.map((m) => m.content).join('\n');
+  let detectedLanguage: DetectedLanguage | null = null;
+  if (inputText.trim().length > 0) {
+    const identification = await identifyInputLanguage(deps.llm, inputText);
+    if (identification.ok) {
+      detectedLanguage = identification.language;
+    } else {
+      emitEvent(tracer, 'extraction_language_identification_failed', {
+        reason: identification.reason,
+        ...(identification.code === undefined ? {} : { language: identification.code }),
+        ...(identification.error === undefined ? {} : { error: identification.error }),
+      });
+    }
+  }
   // auto-categorization-write-pipeline T3.1 — default-on (ADR D3). When enabled, the
   // taxonomy is injected into the prompt so the LLM emits a per-fact category.
   const autoCategorizeEnabled = deps.autoCategorize?.enabled !== false;
   const autoCategorizeTaxonomy = deps.autoCategorize?.taxonomy ?? DEFAULT_CATEGORY_TAXONOMY;
-  const { prompt } = generateAdditiveExtractionPrompt(
+  const { prompt, uuidByInt } = generateAdditiveExtractionPrompt(
     existingItems,
     messages,
     deps.customInstructions,
@@ -114,25 +225,45 @@ export async function runExtractionPipeline(
     detectedLanguage ?? undefined,
     autoCategorizeEnabled ? autoCategorizeTaxonomy : undefined,
     options?.attributedTo, // M29 (#160): speaker token derived from attribution inside the prompt composer
+    options?.observedAt, // anchors relative time expressions to when the messages were said
+    previousMessages, // preceding turns of the scope, context only
   );
-  let extracted: readonly { id: string; text: string; attributed_to?: string | undefined; category?: string | undefined; linked_memory_ids?: string[] | undefined }[];
+  const shownMemories = new Map<number, { id: string; text: string }>();
+  for (const [promptId, id] of uuidByInt) {
+    shownMemories.set(promptId, { id, text: existingItems[promptId - 1]?.text ?? '' });
+  }
+  let extracted: Readonly<AdditiveExtractionResponse['memory']>;
   // slice2 T2.2 — relation triples from the SAME extraction call (response-level).
   let relations: readonly RelationTriple[] | undefined;
   // multilingual nodes: the LLM is the PRIMARY node source (compromise is an
   // English-only fallback). Surface names preserved in the input language/script.
   let llmEntities: readonly { name: string; type?: string | undefined }[] | undefined;
   try {
-    const raw = await deps.llm.generateResponse(
-      [
-        { role: 'system', content: prompt },
-        { role: 'user', content: messages.map((m) => `${m.role}: ${m.content}`).join('\n') },
-      ],
-      { type: 'json' },
-    );
-    // Normalize the raw response (numeric ids, fact-under-`fact`, missing id) before the
-    // strict parse — see `extraction/normalize.ts` (extracted for single responsibility).
-    const obj = coerceExtractionResponse(raw);
-    const parsed = AdditiveExtractionSchema.parse(obj);
+    const extractionMessages = [
+      { role: 'system' as const, content: prompt },
+      { role: 'user' as const, content: messages.map((m) => `${m.role}: ${m.content}`).join('\n') },
+    ];
+    let parsed: AdditiveExtractionResponse;
+    const raw = await deps.llm.generateResponse(extractionMessages, { type: 'json' });
+    try {
+      // Normalize the raw response (numeric ids, fact-under-`fact`, missing id) before the
+      // strict parse — see `extraction/normalize.ts` (extracted for single responsibility).
+      parsed = AdditiveExtractionSchema.parse(coerceExtractionResponse(raw));
+    } catch (error) {
+      if (!isExtractionParseError(error)) throw error;
+      // Provider JSON mode can still return malformed content. Make one bounded repair
+      // attempt before failing the write; network failures are never retried here.
+      emitEvent(tracer, 'extraction_parse_retry', { attempt: 1 });
+      const retryMessages = [
+        {
+          role: 'system' as const,
+          content: `${prompt}\n\nRETRY REQUIREMENT: your prior output did not match the required schema. Return one valid JSON object only, with memory as an array of fact objects and relations/entities using the exact schema above. Do not return prose or bare strings.`,
+        },
+        extractionMessages[1] as { role: 'user'; content: string },
+      ];
+      const retriedRaw = await deps.llm.generateResponse(retryMessages, { type: 'json' });
+      parsed = AdditiveExtractionSchema.parse(coerceExtractionResponse(retriedRaw));
+    }
     extracted = parsed.memory;
     relations = parsed.relations;
     llmEntities = parsed.entities;
@@ -157,7 +288,7 @@ export async function runExtractionPipeline(
         const lang = detectedLanguage;
         const factsLanguage = detectInputLanguage(extracted.map((f) => f.text).join(' '));
         if (factsLanguage !== null && factsLanguage.iso6391 !== lang.iso6391) {
-          const result: { id: string; text: string; attributed_to?: string | undefined; category?: string | undefined; linked_memory_ids?: string[] | undefined }[] = [];
+          const result: AdditiveExtractionResponse['memory'] = [];
           let correctedCount = 0;
           for (const fact of extracted) {
             let text = fact.text;
@@ -205,10 +336,9 @@ export async function runExtractionPipeline(
     // T2.1 — differentiate LLM network errors (propagate) from parse/validation
     // errors (return [] with OTel event). Per ADR D3 + EC-6: classify by error
     // TYPE (instanceof), NOT by message content.
-    const isParse = err instanceof SyntaxError                    // JSON.parse failure
-      || (err !== null && typeof err === 'object' && 'issues' in err);  // ZodError shape
+    const isParse = isExtractionParseError(err);
     process.stderr.write(
-      `[themory] extraction_failed (${isParse ? 'parse' : 'network'}): ${err instanceof Error ? err.message : String(err)}\n`,
+      `[themory] extraction_failed (${isParse ? 'parse' : 'network'}): ${deps.redactErrorDetails === true ? (err instanceof Error ? err.name : 'UnknownError') : (err instanceof Error ? err.message : String(err))}\n`,
     );
     if (!isParse) {
       // Network / LLM provider errors propagate — caller decides retry policy.
@@ -216,6 +346,7 @@ export async function runExtractionPipeline(
       throw err;
     }
     emitEvent(tracer, 'extraction_parse_failure');
+    if (options?.strictExtraction === true) throw new MemoryStoreError('Memory extraction response was invalid.', { cause: err });
     return [];
   }
 
@@ -234,8 +365,21 @@ export async function runExtractionPipeline(
     }
   }
 
+  // A third-person fact sometimes comes back with `user` in place of the person its own
+  // relation names, which would record that person's attribute as the user's (#257).
+  extracted = [...restoreNamedSubject(extracted, llmEntities, relations, tracer)];
+
   // M27 T2.1 — deterministic durable-fact backstop gate (infer:true only; audit per drop).
-  extracted = applyFactGate(extracted, tracer);
+  const extractedCount = extracted.length;
+  extracted = prepareExtractedEvidence(applyFactGate(extracted, tracer), messages, tracer);
+  if (extracted.length < extractedCount && (llmEntities !== undefined || relations !== undefined)) {
+    // Graph annotations come for the whole call. Keep only what a surviving fact names,
+    // so a dropped draft cannot attach its entities or relations to a kept fact. With no
+    // entity left, linking falls back to extracting nodes from the kept texts.
+    const kept = keepAnnotationsNamedBy(extracted, llmEntities, relations, tracer);
+    llmEntities = kept.entities !== undefined && kept.entities.length > 0 ? kept.entities : undefined;
+    relations = kept.relations;
+  }
 
   if (extracted.length === 0) {
     // principles-alignment-hardening T3.1 — Princípio 3 IGNORE auditability per ADR D2.
@@ -254,11 +398,23 @@ export async function runExtractionPipeline(
     return [];
   }
 
+  // ADR-0035: the date of each fact's event is counted in code from when the messages were said,
+  // and a passing state of the moment gets an end. Done before embedding so the stored text,
+  // its hash and its vector all carry the date.
+  const saidAt = options?.observedAt ?? new Date();
+  const factTimes = extracted.map((draft) => timeOfFact(draft, saidAt, detectedLanguage?.iso6391, tracer));
+  extracted = extracted.map((draft, index) => ({ ...draft, text: factTimes[index]?.text ?? draft.text }));
+
   // ============================================================
   // Phase 3: batch embed (per-row fallback)
   // ============================================================
   const texts = extracted.map((e) => e.text);
   const vectors = await embedBatchWithFallback(texts, deps.embedder, tracer);
+
+  if (options?.strictExtraction === true &&
+      (vectors.length !== extracted.length || vectors.some((v) => v.length === 0))) {
+    throw new MemoryStoreError('Memory extraction did not produce embeddings for every fact.');
+  }
 
   // ============================================================
   // Phase 4-5: dedup + payload composition
@@ -297,6 +453,9 @@ export async function runExtractionPipeline(
     const id = randomUUID();
     const now = new Date();
     const payload = buildPayload(text, hash, filters, metadata);
+    attachWriteContext(payload, messages, options);
+    attachEvidence(payload, extractedMemoryEvidence(extracted[i]?.evidence, sourceEvidence));
+    attachFactTime(payload, extracted[i]?.evidence, factTimes[i], options?.expiresAt !== undefined);
     payload['text_lemmatized'] = lemmatizeForBm25(text).join(' ');
     // Attribution authority (claude-code-kit fix): the REQUEST-level
     // `options.attributedTo` is the ORIGIN of the turn — the Stop hook sets it to
@@ -357,33 +516,78 @@ export async function runExtractionPipeline(
   // ============================================================
   // Phase 6: batch persist (per-row fallback)
   // ============================================================
-  const persistOutcomes = await persistWithFallback(
+  const { outcomes: persistOutcomes, failure: persistFailure } = await persistWithFallback(
     deps.vectorStore,
     survivingVectors,
     survivingIds,
     survivingPayloads,
     tracer,
   );
+  if (options?.idempotencyKey !== undefined && persistOutcomes.some(outcome=>outcome.idempotentReplay===true) && deps.vectorStore.findWriteReplay!==undefined) {
+    const replay=await deps.vectorStore.findWriteReplay(options.idempotencyKey,writeRequestHash(messages,options),filters);
+    if(replay!==null)return replay.map(row=>({...toMemoryItem(row.id,String(row.payload['text']??''),String(row.payload['hash']??row.id),
+      scopeFromFilters(filters),{...row.payload},row.createdAt??new Date()),rejectedAsDuplicate:true,idempotentReplay:true}));
+  }
+  if (options?.strictExtraction === true && persistOutcomes.length !== survivingIds.length) {
+    throw new MemoryStoreError('Memory persistence was incomplete; some facts may have been saved.',
+      persistFailure === undefined ? undefined : { cause: persistFailure });
+  }
   // principles-alignment-hardening T2.1 — patch surviving items with UPSERT
   // outcomes (confirmationCount + rejectedAsDuplicate) per ADR D1 + D4.
-  const patchedItems = patchItemsWithOutcomes(survivingItems, persistOutcomes);
+  const patchedItems = await restoreDuplicateEvidence(patchItemsWithOutcomes(survivingItems, persistOutcomes), deps.vectorStore);
   // Replace the surviving items array in place so downstream history persist /
   // entity link / return path see the patched DTOs.
   survivingItems.length = 0;
   survivingItems.push(...(patchedItems as MemoryItem[]));
 
   // ============================================================
+  // Phase 6.2: supersession (ADR-0029, decided by the update judge of ADR-0036)
+  // ============================================================
+  // Only facts the store confirmed persisting may end anything, or be ended.
+  let supersessionHistory: readonly HistoryBatchRecord[] = [];
+  if (supersedeOnWrite && shownMemories.size > 0) {
+    if (persistOutcomes.length !== survivingIds.length) {
+      emitEvent(tracer, 'supersession_skipped', { reason: 'incomplete_persist', count: survivingIds.length });
+    } else {
+      try {
+        const applied = await judgeSupersessions(
+          survivingItems.filter((item) => item.rejectedAsDuplicate !== true),
+          shownMemories, filters, options?.observedAt ?? new Date(), deps.vectorStore, deps.llm, tracer);
+        supersessionHistory = applied.history;
+        for (let i = 0; i < survivingItems.length; i += 1) {
+          const replaced = applied.supersededBy.get(survivingItems[i]!.id);
+          if (replaced !== undefined) survivingItems[i] = { ...survivingItems[i]!, supersedes: replaced };
+          const endedAt = applied.endedOnArrival.get(survivingItems[i]!.id);
+          if (endedAt !== undefined) survivingItems[i] = { ...survivingItems[i]!, tInvalid: endedAt };
+        }
+      } catch (err) {
+        // The facts are committed; the memories they would end simply stay current. Observable, not silent.
+        emitEvent(tracer, 'supersession_failed', { error: err instanceof Error ? err.name : 'UnknownError' });
+      }
+    }
+  }
+
+  // ============================================================
+  // Phase 6.3: importance scoring (#238, opt-in)
+  // ============================================================
+  if (deps.importanceScoring === true) {
+    const scored = await scoreNewFacts(survivingItems, persistOutcomes, filters, deps.vectorStore, deps.llm, tracer);
+    survivingItems.length = 0;
+    survivingItems.push(...(scored as MemoryItem[]));
+  }
+
+  // ============================================================
   // Phase 6.5: batch history persist
   // ============================================================
   if (deps.historyManager !== undefined) {
-    const records: HistoryBatchRecord[] = survivingItems.map((item) => ({
+    const records: HistoryBatchRecord[] = [...survivingItems.map((item): HistoryBatchRecord => ({
       memoryId: item.id,
       previousValue: null,
       newValue: item.text,
       action: 'remember',
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
-    }));
+    })), ...supersessionHistory];
     try {
       if (deps.historyManager.batchAddHistory !== undefined) {
         await deps.historyManager.batchAddHistory(records);
@@ -422,7 +626,7 @@ export async function runExtractionPipeline(
   // ============================================================
   if (detectedLanguage !== null && (llmEntities !== undefined || relations !== undefined)) {
     try {
-      const labelFix = await correctEntityRelationLanguage(deps.llm, llmEntities, relations, detectedLanguage);
+      const labelFix = await correctEntityRelationLanguage(deps.llm, llmEntities, relations, detectedLanguage, messages.map((m) => m.content).join('\n'));
       llmEntities = labelFix.entities;
       relations = labelFix.relations;
       if (labelFix.corrected > 0) {

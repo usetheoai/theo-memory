@@ -1,0 +1,64 @@
+{
+  "controls": [
+    {
+      "user": "dtc-lior",
+      "key": "tentative",
+      "pattern": "Ghent"
+    },
+    {
+      "user": "dtc-lior",
+      "key": "mood",
+      "pattern": "sleepy"
+    },
+    {
+      "user": "dtc-graca",
+      "key": "tentative",
+      "pattern": "Aracaju"
+    },
+    {
+      "user": "dtc-graca",
+      "key": "mood",
+      "pattern": "sonolent"
+    },
+    {
+      "user": "dtc-feliciano",
+      "key": "tentative",
+      "pattern": "C[aá]diz"
+    },
+    {
+      "user": "dtc-feliciano",
+      "key": "mood",
+      "pattern": "cansado"
+    },
+    {
+      "user": "dtc-gianmaria",
+      "key": "tentative",
+      "pattern": "Trani"
+    },
+    {
+      "user": "dtc-gianmaria",
+      "key": "mood",
+      "pattern": "assonnat"
+    },
+    {
+      "user": "dtc-sidonie",
+      "key": "tentative",
+      "pattern": "Annecy"
+    },
+    {
+      "user": "dtc-sidonie",
+      "key": "mood",
+      "pattern": "somnolent"
+    },
+    {
+      "user": "dtc-wendelin",
+      "key": "tentative",
+      "pattern": "Bamberg"
+    },
+    {
+      "user": "dtc-wendelin",
+      "key": "mood",
+      "pattern": "m[üu]de"
+    }
+  ]
+}

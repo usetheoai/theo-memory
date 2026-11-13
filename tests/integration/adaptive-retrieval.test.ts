@@ -32,6 +32,7 @@ import pg from 'pg';
 import { createLocalMemory, PgvectorStore, runMigrations } from '@usetheo/memory';
 import { HeuristicAdaptiveRetrievalPolicy } from '@usetheo/memory/adaptive-local';
 import type { AdaptiveRetrievalPolicy, Embedder, LLM } from '@usetheo/memory';
+import { ENGLISH, isLanguageIdentification } from './_helpers/language-identification.js';
 
 const ROOT_PG_URI = process.env['THEOMEM_PG_URI'] ?? '';
 const ISOLATED_DB = 'themem_adaptive_goal';
@@ -65,7 +66,8 @@ function craftedEmbedder(): Embedder & { embed: ReturnType<typeof vi.fn> } {
 function makeQueueLlm(facts: readonly string[]): LLM {
   let i = 0;
   return {
-    generateResponse: async () => {
+    generateResponse: async (messages) => {
+      if (isLanguageIdentification(messages)) return ENGLISH;
       const text = facts[Math.min(i, facts.length - 1)] ?? '';
       i += 1;
       return { memory: [{ id: String(i), text }] };

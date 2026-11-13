@@ -60,6 +60,8 @@ export { InMemoryVectorStore, PgvectorStore, DrizzleHistoryManager, PgRoutingPol
  *
  */
 export { PgMemoryEntityStore } from './infrastructure/db/index.js';
+export { InMemoryMessageLog, PgMessageLog } from './infrastructure/db/index.js';
+export type { LoggedMessage, MessageLog, MessageSearchOptions, ScoredLoggedMessage, SurroundingTurns } from './domain/dip/message-log.js';
 /**
  * entity-relation-extraction-slice2 — default relation-EDGE-linking adapter,
  * wired under the same `entityBoost`/PgvectorStore gate as the node adapter.
@@ -204,3 +206,49 @@ export {
   type CleanupResult,
   type PollutionReason,
 } from './application/cleanup-write-quality.js';
+
+// Tenant isolation (migration 0029): the workspace scope bound per request and
+// the pool wrapper that pushes it down to PostgreSQL for the RLS policies.
+export {
+  withWorkspaceScope,
+  withCrossWorkspaceScope,
+  currentScope,
+  isCrossWorkspace,
+  WorkspaceScopeError,
+  tenantScopedPool,
+  describeScope,
+  assertBackgroundPoolCrossWorkspace,
+  assertRequestPoolIsolated,
+  measureRequestPosture,
+  requireStrictWorkspaceWrites,
+  currentWorkspaceWriteMode,
+  measureBackgroundReach,
+  backgroundReachRefusal,
+  type BackgroundReach,
+  type WorkspaceScope,
+  type CrossWorkspaceScope,
+} from './infrastructure/db/index.js';
+
+/** Evidence classification for contextual memory. @see docs/memory-semantics.md */
+export { MemoryEvidenceSchema } from './domain/memory-evidence.js';
+export type { MemoryEvidence } from './domain/memory-evidence.js';
+/** When a fact's event is, and how long its statement is expected to hold (ADR-0035). @see docs/memory-semantics.md */
+export type { EventTime, EventGranularity } from './domain/extraction/event-time.js';
+export type { MemoryDurability } from './domain/memory-time.js';
+
+/** Session lifecycle and exact fact-store integration. @see docs/memory-semantics.md */
+export { MemorySession, MemorySessionUnavailable } from './application/memory-session.js';
+export type { SessionFactStore, SessionObservation, MemorySessionConfig, MemoryExtractionJob, MemoryExtractionResult } from './application/memory-session.js';
+
+export type { MemoryEvidencePage, MemoryEvidenceReader } from './domain/memory-evidence.js';
+
+export { PgMemoryEvidenceStore } from './infrastructure/db/pg-memory-evidence-store.js';
+
+export { MemoryJobInputSchema, MemoryJobLeaseLost, MemoryJobUnavailable } from './domain/memory-job.js';
+export type { MemoryJobInput, MemoryJobActor, MemoryJobSummary, MemoryJobService } from './domain/memory-job.js';
+
+export { PgMemoryJobStore } from './infrastructure/db/pg-memory-job-store.js';
+
+export { MemoryJobWorker } from './application/memory-job-worker.js';
+export type { MemoryJobProcessor, MemoryJobWorkResult } from './application/memory-job-worker.js';
+export { PgMemoryJobProcessor } from './infrastructure/db/pg-memory-job-processor.js';

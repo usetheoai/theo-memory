@@ -17,7 +17,6 @@ import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 
 import type { McpServer } from '../server.js';
 
@@ -38,6 +37,12 @@ interface Session {
    * set it, so the cycle cannot start from either direction.
    */
   stopping: boolean;
+  /**
+   * The authenticated principal that opened the session, or `undefined` when the
+   * transport runs without auth. A request naming this session under another
+   * principal is answered 404, exactly like an unknown id (usetheoai/theo#477).
+   */
+  readonly owner: string | undefined;
 }
 
 /** Reads the session header, tolerating node's `string | string[]` typing. */
@@ -70,12 +75,15 @@ export class McpSessionRegistry {
   async resolve(
     req: IncomingMessage,
     res: ServerResponse,
+    owner?: string,
   ): Promise<StreamableHTTPServerTransport | undefined> {
     const sessionId = readSessionId(req);
-    if (sessionId === undefined) return this.open(res);
+    if (sessionId === undefined) return this.open(res, owner);
 
+    // A session belongs to the principal that opened it. Another principal presenting its id
+    // gets the same 404 as an unknown id — never a hint that the session exists.
     const existing = this.sessions.get(sessionId);
-    if (existing !== undefined) return existing.transport;
+    if (existing !== undefined && existing.owner === owner) return existing.transport;
 
     res.writeHead(404, { 'Content-Type': 'application/json' });
     res.end(
@@ -121,12 +129,13 @@ export class McpSessionRegistry {
     void session.server.stop();
   }
 
-  private async open(res: ServerResponse): Promise<StreamableHTTPServerTransport> {
+  private async open(res: ServerResponse, owner: string | undefined): Promise<StreamableHTTPServerTransport> {
     const server = this.createServer();
     const session: Session = {
       transport: undefined as unknown as StreamableHTTPServerTransport,
       server,
       stopping: false,
+      owner,
     };
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
@@ -166,10 +175,7 @@ export class McpSessionRegistry {
       if (id !== undefined) this.sessions.delete(id);
       this.evict(session);
     };
-    // The SDK's `onclose` type is `(() => void) | undefined`, which does not
-    // satisfy Transport's strict `() => void` under exactOptionalPropertyTypes.
-    // Cast at the boundary — the runtime contract is the SDK's, not the stub's.
-    await server.start(transport as unknown as Transport);
+    await server.start(transport);
     return transport;
   }
 }

@@ -17,6 +17,8 @@
  */
 export { DeterministicStubEmbedder } from './stub.js';
 export { OpenAIEmbedder } from './openai.js';
+export { OpenAICompatibleEmbedder } from './openai-compatible.js';
+export type { OpenAICompatibleEmbedderOptions } from './openai-compatible.js';
 export { LocalTransformerEmbedder } from './local.js';
 export { OllamaEmbedder } from './ollama.js';
 export type { OllamaEmbedderOptions } from './ollama.js';

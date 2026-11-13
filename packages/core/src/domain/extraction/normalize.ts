@@ -10,6 +10,8 @@
  * Extracted from `pipeline.ts` (single responsibility + keeps that over-budget file from
  * growing further).
  */
+const MISPLACED_DURABILITY_VALUES = new Set(['durable', 'temporary', 'tentative']);
+
 export function coerceExtractionResponse(raw: unknown): unknown {
   const obj: unknown = typeof raw === 'string' ? JSON.parse(raw) : raw;
   if (
@@ -25,11 +27,26 @@ export function coerceExtractionResponse(raw: unknown): unknown {
         text?: unknown;
         fact?: unknown;
         linked_memory_ids?: unknown;
+        evidence?: unknown;
       };
       if (typeof rec.text !== 'string' && typeof rec.fact === 'string') rec.text = rec.fact;
       if (typeof rec.id !== 'string') rec.id = String(idx + 1);
       if (Array.isArray(rec.linked_memory_ids)) {
         rec.linked_memory_ids = rec.linked_memory_ids.map(String);
+      }
+      // LLMs sometimes place a durability value in `evidence.kind` (e.g.
+      // kind="tentative"), although the schema keeps epistemic status
+      // (stated/inferred) separate from durability. Preserve the cautious signal
+      // in its correct field rather than silently dropping the whole memory.
+      if (rec.evidence !== null && typeof rec.evidence === 'object') {
+        const evidence = rec.evidence as { kind?: unknown; durability?: unknown };
+        if (
+          typeof evidence.kind === 'string' &&
+          MISPLACED_DURABILITY_VALUES.has(evidence.kind)
+        ) {
+          evidence.durability = evidence.kind;
+          evidence.kind = 'inferred';
+        }
       }
     });
   }

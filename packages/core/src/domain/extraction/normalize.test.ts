@@ -28,6 +28,21 @@ describe('coerceExtractionResponse (M27 T2.3)', () => {
     expect(out.memory[0]?.linked_memory_ids).toEqual(['1', '2']);
   });
 
+  test('moves a misplaced durability enum from evidence.kind without losing the memory', () => {
+    const out = coerceExtractionResponse({
+      memory: [{
+        id: '1',
+        text: 'user might try a new project',
+        evidence: { kind: 'tentative', sourceQuote: 'Maybe I will try it.' },
+      }],
+    }) as { memory: { evidence?: { kind?: string; durability?: string } }[] };
+    expect(out.memory[0]?.evidence).toEqual({
+      kind: 'inferred',
+      durability: 'tentative',
+      sourceQuote: 'Maybe I will try it.',
+    });
+  });
+
   test('parses a JSON string input', () => {
     const out = coerceExtractionResponse('{"memory":[{"id":"1","text":"a"}]}') as {
       memory: { text?: string }[];

@@ -25,9 +25,12 @@ import {
   EmbedderError,
   EmptyScopeError,
   InvalidScope,
+  IdempotencyConflict,
+  MemoryJobUnavailable,
   InvalidSkillError,
   MemoryNotFound,
   MemoryStoreError,
+  MessageLogNotConfigured,
   MissingScopeError,
   WorkspaceMismatch,
 } from '@usetheo/memory/contract';
@@ -60,6 +63,8 @@ function logSanitized(err: unknown): void {
 }
 
 export function mapDomainErrorToResponse(err: unknown): MappedErrorResponse {
+  if (err instanceof MemoryJobUnavailable) return { status: 409, body: { code: 'JOB_UNAVAILABLE', message: err.message } };
+  if (err instanceof IdempotencyConflict) return { status: 409, body: { code: 'IDEMPOTENCY_CONFLICT', message: err.message } };
   // Log first so even mapped errors leave an audit trail; redaction is applied.
   logSanitized(err);
 
@@ -80,6 +85,9 @@ export function mapDomainErrorToResponse(err: unknown): MappedErrorResponse {
       status: 501,
       body: { code: 'NOT_IMPLEMENTED', message: 'Feature not available on this runtime.' },
     };
+  }
+  if (err instanceof MessageLogNotConfigured) {
+    return { status: 501, body: { code: 'MESSAGE_LOG_DISABLED', message: 'This server runs without the raw message log.' } };
   }
   if (err instanceof InvalidSkillError) {
     return { status: 422, body: { code: 'INVALID_SKILL', message: 'Skill payload validation failed.' } };

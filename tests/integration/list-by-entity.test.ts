@@ -40,7 +40,7 @@ if (PG_URI === undefined || PG_URI === '') {
 
     beforeAll(async () => {
       const iso = await createIsolatedDb();
-      pool = iso.pool;
+      pool = iso.poolPinnedTo('ws1');
       dropDb = iso.dropDb;
       store = new PgvectorStore(pool);
       await seedMemory(ids.linked1, 'codex reviewed the PR');

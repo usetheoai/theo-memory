@@ -434,3 +434,52 @@ describe('runRetrievalPipeline entity boost timeout', () => {
     expect(events).toContain('entity_boost_degraded');
   });
 });
+
+describe('runRetrievalPipeline lexical-only candidates', () => {
+  test('a candidate found only by keyword search is gated on its real cosine similarity', async () => {
+    // Arrange: the semantic channel misses the row (an ANN top-k cut, say); the keyword
+    // channel finds it and reports a similarity well above the threshold.
+    const store = {
+      search: async () => [],
+      keywordSearch: async () => [{ id: 'm-kw', score: 0.1, similarity: 0.62, payload: { text: 'Gina opened her store' } }],
+    } as unknown as VectorStore;
+
+    // Act
+    const results = await runRetrievalPipeline('When did Gina open her store?', FILTERS, { vectorStore: store, embedder }, {
+      threshold: 0.3,
+      topK: 5,
+    });
+
+    // Assert
+    expect(results.map((r) => r.id)).toEqual(['m-kw']);
+  });
+
+  test('a keyword-only candidate below the semantic threshold is still dropped', async () => {
+    const store = {
+      search: async () => [],
+      keywordSearch: async () => [{ id: 'm-kw', score: 0.1, similarity: 0.12, payload: { text: 'Gina likes tea' } }],
+    } as unknown as VectorStore;
+
+    const results = await runRetrievalPipeline('When did Gina open her store?', FILTERS, { vectorStore: store, embedder }, {
+      threshold: 0.3,
+      topK: 5,
+    });
+
+    expect(results).toEqual([]);
+  });
+
+  test('the query vector is passed to keyword search so it can report similarity', async () => {
+    let received: readonly number[] | undefined;
+    const store = {
+      search: async () => [],
+      keywordSearch: async (_q: string, _k?: number, _f?: Filters, v?: readonly number[]) => {
+        received = v;
+        return [];
+      },
+    } as unknown as VectorStore;
+
+    await runRetrievalPipeline('Gina store', FILTERS, { vectorStore: store, embedder }, { threshold: 0.3 });
+
+    expect(received).toEqual([0.1, 0.2, 0.3]);
+  });
+});

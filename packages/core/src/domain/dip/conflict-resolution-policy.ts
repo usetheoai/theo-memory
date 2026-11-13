@@ -30,6 +30,14 @@ export interface ConsolidationCandidate {
   readonly text: string;
   readonly createdAt: Date;
   /**
+   * When the fact became true (`memories.t_valid`). Differs from `createdAt` when the memory was
+   * written with `observedAt`. Policies that judge which fact is older compare this, falling back
+   * to `createdAt` when absent.
+   */
+  readonly validFrom?: Date;
+  /** Facts with different authors must never be judged/superseded as one claim. */
+  readonly attributedTo?: string;
+  /**
    * M9 (session→global consolidation): the memory's `confirmation_count` — the
    * durability signal (Princípio 1) the `SessionToGlobalConsolidationPolicy` reads to
    * decide promotion. OPTIONAL + backward-compatible: the v0.7 distillation policies
@@ -38,6 +46,8 @@ export interface ConsolidationCandidate {
    * `confirmationCount` when building the M9 candidate cluster.
    */
   readonly confirmationCount?: number;
+  readonly distinctSourceCount?: number | null;
+  readonly expiresAt?: Date | null;
 }
 
 /**

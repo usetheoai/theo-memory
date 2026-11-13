@@ -3,6 +3,9 @@
  *
  * Extracted from index.ts (T1.3 of architecture-review-fixes plan).
  */
+import { drizzle as drizzleNodePostgres } from 'drizzle-orm/node-postgres';
+import type { Pool } from 'pg';
+
 import { MAX_EMBEDDING_DIM } from '../../domain/constants.js';
 import type { Embedder } from '../../domain/dip/embedder.js';
 import {
@@ -41,13 +44,17 @@ import {
   TimeBasedTrigger,
   TriadicScoringPolicy,
 } from './eviction/index.js';
+import { DrizzleHistoryManager } from './history-manager.js';
+import { InMemoryMessageLog } from './in-memory-message-log.js';
 import { type DisposableMemory, LocalMemory } from './local-memory.js';
 import { PgGraphExpansionStore } from './pg-graph-expansion-store.js';
 import { PgMemoryEntityStore } from './pg-memory-entity-store.js';
 import { PgMemoryGraphStore } from './pg-memory-graph-store.js';
+import { PgMessageLog } from './pg-message-log.js';
 import { PgUsageCounterStore } from './pg-usage-counter-store.js';
 import { PgvectorStore as PgvectorStoreClass } from './pgvector-store.js';
 import { type CreateMemoryPresetConfig, isPresetConfig, resolvePreset } from './preset.js';
+import { configureWorkspaceWritesFromPool, isTenantScopedPool } from './workspace-write-scope.js';
 
 // Re-export cache helpers so existing importers from factory.ts still work
 export {
@@ -149,6 +156,12 @@ export async function resolveRecallTraceStore(
     );
   }
   const pool = config.vectorStore.poolForEviction;
+  const { PgRecallTraceStore } = await import('./recall-trace/pg-recall-trace-store.js');
+  // A tenant-scoped pool has no workspace at construction time and refuses the
+  // catalog probe below outright (#225). Its composition root — the server —
+  // runs migrations on the raw pool before building the Memory, which is what
+  // puts the table there.
+  if (isTenantScopedPool(pool)) return new PgRecallTraceStore(pool, optIn);
   // EC-3 — the recall_traces table MUST exist (migration 0023) or tracing would
   // fail-soft-silently forever. Fail-fast at construction instead.
   const probe = await pool.query<{ reg: string | null }>(
@@ -161,7 +174,6 @@ export async function resolveRecallTraceStore(
         'table would silently write nothing.',
     );
   }
-  const { PgRecallTraceStore } = await import('./recall-trace/pg-recall-trace-store.js');
   return new PgRecallTraceStore(pool, optIn);
 }
 
@@ -239,6 +251,18 @@ export async function createLocalMemory(config: LocalMemoryConfig): Promise<Disp
     resolveOntology(config.ontology);
   }
   await probeEmbedder(config.embedder, effectiveDim);
+
+  // De onde virá o `workspace_id` de toda linha nova, decidido AQUI — o único
+  // construtor, compartilhado pelo servidor multi-inquilino e pelo SDK local.
+  // O critério é o POOL, não uma variável de ambiente: um pool marcado por
+  // `tenantScopedPool` garante contexto em cada conexão e mantém o modo
+  // estrito; um pool cru é o modo single-tenant, declarado e anunciado.
+  // O boot do servidor confirma o resultado com `requireStrictWorkspaceWrites`.
+  const poolForWriteMode = (config.vectorStore as { poolForEviction?: Pool }).poolForEviction;
+  if (poolForWriteMode !== undefined) {
+    configureWorkspaceWritesFromPool(poolForWriteMode);
+  }
+
   await config.vectorStore.initialize();
 
   // entity-extraction-nodes-slice1 T3.1 — wire Phase 7 ports when entityBoost is
@@ -265,6 +289,20 @@ export async function createLocalMemory(config: LocalMemoryConfig): Promise<Disp
             config.usageCounterStore ?? new PgUsageCounterStore(config.vectorStore.poolForEviction),
         }
       : config;
+  // #236 — the audit trail is on by default over Postgres; an explicit key, even `undefined`, wins.
+  const withHistory: LocalMemoryConfig =
+    !('historyManager' in config) && config.vectorStore instanceof PgvectorStoreClass
+      ? { ...baseConfig, historyManager: new DrizzleHistoryManager(drizzleNodePostgres(config.vectorStore.poolForEviction)) }
+      : baseConfig;
+  // ADR-0027 — raw message log, on by default; an explicit port or `false` wins.
+  const withMessageLog: LocalMemoryConfig = config.messageLog !== undefined
+    ? withHistory
+    : {
+        ...withHistory,
+        messageLog: config.vectorStore instanceof PgvectorStoreClass
+          ? new PgMessageLog(config.vectorStore.poolForEviction)
+          : new InMemoryMessageLog(),
+      };
 
   // semantic-recall-cache-v1-5 T2.1 — opt-in cache wiring.
   // Resolved BEFORE the eviction branch so both eviction-on and eviction-off
@@ -288,7 +326,7 @@ export async function createLocalMemory(config: LocalMemoryConfig): Promise<Disp
 
   if (config.eviction === undefined) {
     const memory = new LocalMemory(
-      baseConfig,
+      withMessageLog,
       resolvedReflectionPolicy,
       recallCacheStore,
       undefined,
@@ -339,8 +377,8 @@ export async function createLocalMemory(config: LocalMemoryConfig): Promise<Disp
 
   const augmentedConfig: LocalMemoryConfig =
     postRememberHook !== undefined
-      ? { ...baseConfig, postRememberHook }
-      : baseConfig;
+      ? { ...withMessageLog, postRememberHook }
+      : withMessageLog;
 
   const memory = new LocalMemory(
     augmentedConfig,

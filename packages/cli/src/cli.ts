@@ -48,6 +48,7 @@ import { Command, InvalidArgumentError, Option } from 'commander';
 // `--version` dizia 0.1.0-alpha enquanto o manifesto dizia outra coisa.
 const CLI_VERSION = '__CLI_VERSION__';
 
+import { registerCleanupWriteQualityCommand } from './run-cleanup-write-quality.js';
 import { registerConfigCommand } from './run-config.js';
 import { runForget } from './run-forget.js';
 import { runHealth } from './run-health.js';
@@ -60,7 +61,6 @@ import {
 import { runMigrate } from './run-migrate.js';
 import { runRecall } from './run-recall.js';
 import { runReflect } from './run-reflect.js';
-import { registerCleanupWriteQualityCommand } from './run-cleanup-write-quality.js';
 import { runRemember } from './run-remember.js';
 import { runServer } from './run-server.js';
 import type { RunServerOptions } from './run-server.js';
@@ -190,15 +190,13 @@ export function buildProgram(): Command {
     .addOption(
       new Option(
         '--auth <mode>',
-        'Auth mode for streamable-http transport (T4.1 + ADR-0015). ' +
-          '`api-keys` activates the Camada 2 ApiKeyAuthVerifier (theo_live_* SHA-256 lookup); ' +
-          '`oidc` activates Camada 3 OidcAuthVerifier (RFC 7662 introspection via oauth4webapi); ' +
-          '`both` enables dual-validation (theo_live_* → apiKey, else → oidc); ' +
-          '`none` (default) runs without auth — ONLY safe for localhost dev.',
-      ).choices(['none', 'api-keys', 'oidc', 'both']),
+        'Auth mode for the streamable-http transport. `oauth` makes the server an OAuth 2.1 resource ' +
+          'server: every request needs an RS256 access token from THEO_OAUTH_ISSUER whose audience is ' +
+          'THEO_MCP_RESOURCE, and its tenant_id scopes the request. Selected automatically when ' +
+          'THEO_MCP_RESOURCE is set. `none` runs without auth — ONLY for localhost dev. ' +
+          'API keys are not accepted on this transport.',
+      ).choices(['none', 'oauth']),
     )
-    .option('--issuer <url>', 'OIDC issuer URL for --auth=oidc/both (or env THEMORY_OIDC_ISSUER)', parseIssuerUrl)
-    .option('--client-id <id>', 'OIDC client_id (or env THEMORY_OIDC_CLIENT_ID). Secret env-only via THEMORY_OIDC_CLIENT_SECRET (ADR D4)')
     .option('--tls-cert <path>', 'Path to the TLS certificate PEM (required WITH --tls-key for a non-localhost --host per ADR-0015 #3)')
     .option('--tls-key <path>', 'Path to the TLS private-key PEM (required WITH --tls-cert)')
     .addOption(
@@ -214,9 +212,7 @@ export function buildProgram(): Command {
         transport?: 'stdio' | 'streamable-http';
         port?: number;
         host?: string;
-        auth?: 'none' | 'api-keys' | 'oidc' | 'both';
-        issuer?: string;
-        clientId?: string;
+        auth?: 'none' | 'oauth';
         tlsCert?: string;
         tlsKey?: string;
         compat?: 'openmemory';
@@ -227,14 +223,22 @@ export function buildProgram(): Command {
           ...(opts.port !== undefined ? { port: opts.port } : {}),
           ...(opts.host !== undefined ? { host: opts.host } : {}),
           ...(opts.auth !== undefined ? { auth: opts.auth } : {}),
-          ...(opts.issuer !== undefined ? { issuer: opts.issuer } : {}),
-          ...(opts.clientId !== undefined ? { clientId: opts.clientId } : {}),
           ...(tls !== undefined ? { tls } : {}),
           ...(opts.compat !== undefined ? { compat: opts.compat } : {}),
         };
         await runMcpServer(options);
       },
     );
+
+  program.command('worker')
+    .description('Process durable memory extraction jobs against a migrated database.')
+    .option('--once', 'Process at most one available job and exit.')
+    .option('--purge-expired', 'Physically erase expired memories, including their historical snapshots.')
+    .option('--concurrency <number>', 'Concurrent jobs (1..32)', parseIntInRange('--concurrency',1,32),2)
+    .action(async (opts:{once?:boolean;concurrency?:number;purgeExpired?:boolean})=>{
+      const {runWorker}=await import('./run-worker.js');
+      await runWorker(opts);
+    });
 
   program
     .command('server')

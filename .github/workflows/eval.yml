@@ -12,16 +12,12 @@ name: eval
 # GATILHOS: PR para `develop` ou `main` (gate antes de entrar no trunk) + push em `develop`
 # (verificação pós-merge). Ver o racional completo em `ci.yml`.
 on:
-  pull_request:
-    branches: [develop, main]
-    paths-ignore:
-      - '.claude/**'
-      - '**/*.md'
   push:
     branches: [develop]
     paths-ignore:
       - '.claude/**'
       - '**/*.md'
+      - 'docs/**'
 
 permissions:
   contents: read
@@ -33,8 +29,7 @@ concurrency:
 jobs:
   eval:
     name: LLM-stage eval (free gate always, measured tier key-gated)
-    # Blacksmith (#156) — ver integration.yml para as duas pré-condições que atrasaram a migração.
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     # Medido: max 1,3 min. 15 e' folga larga para o tier LLM-measured, que so roda com a chave presente.
     timeout-minutes: 15
 

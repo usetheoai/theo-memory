@@ -89,6 +89,9 @@ function registerCors(app: OpenAPIHono): void {
 // read-limiter on the same `/v1/scopes/*` prefix.
 function registerRateLimits(app: OpenAPIHono): void {
   app.post('/v1/remember', rateLimitMiddleware('write'));
+  app.post('/v1/memory-jobs', rateLimitMiddleware('write'));
+  app.post('/v1/memory-jobs/*/retry', rateLimitMiddleware('write'));
+  app.get('/v1/memory-jobs/*', rateLimitMiddleware('read'));
   app.post('/v1/forget', rateLimitMiddleware('write'));
   app.post('/v1/reflect', rateLimitMiddleware('write'));
   app.post('/v1/recall', rateLimitMiddleware('read'));

@@ -33,6 +33,14 @@ vi.mock('@hono/node-server', () => ({
   },
 }));
 
+const mockRequireStrictWorkspaceWrites = vi.fn();
+const mockAssertRequestPoolIsolated = vi.fn(() =>
+  Promise.resolve({ role: 'themory_app', superuser: false, bypassRls: false }),
+);
+const mockAssertBackgroundPoolCrossWorkspace = vi.fn(() =>
+  Promise.resolve({ role: 'themory_worker', bypassRls: false, policy: 'recall_traces_worker_cross_workspace' }),
+);
+
 vi.mock('@usetheo/memory', () => ({
   createLocalMemory: mockCreateLocalMemory,
   runMigrations: mockRunMigrations,
@@ -41,11 +49,47 @@ vi.mock('@usetheo/memory', () => ({
   PgvectorStore: class MockPgvectorStore {},
   PgMemoryEntityStore: class MockPgMemoryEntityStore {},
   PgMemoryGraphStore: class MockPgMemoryGraphStore {},
+  PgMemoryEvidenceStore: class MockPgMemoryEvidenceStore {},
+  PgMemoryJobStore: class MockPgMemoryJobStore {},
   PgUsageCounterStore: class MockPgUsageCounterStore {},
   // M11/M13 full-suite fix: run-server.ts also imports these two — the mock
   // must mirror the import list or vitest fails the whole file at load.
   PgRoutingPolicyStore: class MockPgRoutingPolicyStore {},
   PgRoutingAuditStore: class MockPgRoutingAuditStore {},
+  // Tenant isolation (migration 0029): runServer wraps the raw pool so every
+  // store receives the workspace-scoped view. Identity here — these tests assert
+  // composition wiring, not RLS behaviour, which is covered against a real
+  // database in the integration suite.
+  tenantScopedPool: (p: unknown) => p,
+  // O guard de modo de escrita: o servidor multi-inquilino o chama DEPOIS da
+  // fiação e se recusa a subir se os stores tiverem sido construídos sobre um
+  // pool cru. O que este arquivo prova é que a chamada existe e acontece na
+  // ordem certa; o COMPORTAMENTO do guard é provado sem banco em
+  // packages/core/src/infrastructure/db/workspace-write-scope.unit.test.ts.
+  requireStrictWorkspaceWrites: mockRequireStrictWorkspaceWrites,
+  // O guard que mede se o papel do banco é contido pelas policies. O servidor o
+  // chama ANTES de bindar a porta; o comportamento dele é provado sem banco em
+  // packages/core/src/infrastructure/db/request-pool-guard.unit.test.ts e contra
+  // papéis reais em tests/integration/tenant-isolation/request-pool-guard.test.ts.
+  assertRequestPoolIsolated: mockAssertRequestPoolIsolated,
+  assertBackgroundPoolCrossWorkspace: mockAssertBackgroundPoolCrossWorkspace,
+}));
+
+// FLAKY-boot-import — `run-server.ts` importa `@usetheo/memory-agent-core` e
+// `@usetheo/memory/recall-trace-pg` sem mock. O `await import('../run-server.js')` de cada teste pagava a
+// transformacao do grafo REAL desses tres pacotes: 10-14 s medidos em isolamento
+// contra um teto de 15 s. Sob carga da suite completa a margem sumia, e os
+// testes falhavam de forma intermitente (medido: 0 / 3 / 4 falhas em tres runs
+// da mesma arvore).
+//
+// Nenhum teste deste arquivo assere qualquer simbolo destes tres pacotes — o
+// sujeito aqui e a ORDEM de `runServer` (migrar antes de bindar) e a porta.
+// Mockar uma fronteira que o teste nao exercita e teste unitario correto, nao
+// remendo: aumentar o teto e que esconderia o custo em vez de remove-lo.
+vi.mock('@usetheo/memory/recall-trace-pg', () => ({
+  PgRecallTraceStore: class MockPgRecallTraceStore {},
+  PgRecallTraceRetention: class MockPgRecallTraceRetention {},
+  startRecallTraceRetentionCron: vi.fn().mockReturnValue({ stop: vi.fn() }),
 }));
 
 vi.mock('@usetheo/memory/embedders/stub', () => ({
@@ -101,12 +145,29 @@ afterEach(() => {
 });
 
 describe('T2.3 — runServer composition contract', () => {
+/**
+ * TIMEOUT EXPLICITO — calibrado contra medicao, nao arredondado para cima.
+ *
+ * Estes testes fazem `await import()` de um modulo de boot: o que eles medem, de
+ * fato, e TRANSFORMACAO DE MODULO, nao comportamento. Com 12 workers do vitest
+ * competindo pelo transform, o piso de infraestrutura passa dos 15 s do
+ * `testTimeout` global, e o teste falha por latencia da maquina em vez de por
+ * defeito no codigo.
+ *
+ * O custo EVITAVEL ja foi removido: `@usetheo/memory/recall-trace-pg` passou a
+ * ser mockado nestes arquivos (medido em isolamento: 14,0 s -> 5,7 s). O que
+ * resta e inerente ao import dinamico de um grafo real sob contencao.
+ *
+ * 30 s = ~4x o custo isolado medido (5,7-8,8 s), com folga para a contencao.
+ * Se voltar a estourar, o caminho e quebrar a cadeia de import do boot — nao
+ * subir este numero de novo.
+ */
   it('43. binds port 9999 via @hono/node-server serve', async () => {
     const { runServer } = await import('../run-server.js');
     await runServer({ port: 9999 });
     expect(mockServeListener).toHaveBeenCalledTimes(1);
     expect(mockServeListener.mock.calls[0]?.[0]).toMatchObject({ port: 9999 });
-  });
+  }, 30_000);
 
   it('44. runs migrations BEFORE binding port (ADR D8)', async () => {
     // Capture call order: migrations must complete before serve() is invoked.
@@ -162,6 +223,17 @@ describe('T2.3 — runServer composition contract', () => {
     await runPromise;
     const readyRes = await serveConfig.fetch(new Request('http://localhost/v1/health'));
     expect(readyRes.status).toBe(200);
+
+    // O guard de modo de escrita roda DEPOIS da fiação e ANTES de a instância
+    // ficar pronta. Se ele parasse de ser chamado, um servidor multi-inquilino
+    // construído sobre um pool cru subiria e gravaria tudo no balde `default`
+    // até alguém ler o banco e estranhar — que é o modo de falha que este
+    // trabalho inteiro existe para eliminar.
+    expect(mockRequireStrictWorkspaceWrites).toHaveBeenCalled();
+    // E o guard do pool de requisição, que é a pré-condição de tudo: sem ele o
+    // servidor pode subir sobre um papel que ignora RLS, e aí nenhuma das outras
+    // camadas está protegendo nada.
+    expect(mockAssertRequestPoolIsolated).toHaveBeenCalled();
   });
 
   it('48. fails fast with exit 1 when migrations throw (DB unreachable proxy)', async () => {

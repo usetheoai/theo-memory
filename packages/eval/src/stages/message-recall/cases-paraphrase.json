@@ -1,0 +1,103 @@
+{
+  "users": [
+    {
+      "id": "omar",
+      "conversations": [
+        [
+          { "role": "user", "content": "My knee hurts after cycling to work." },
+          { "role": "assistant", "content": "Raise the saddle a little; a low seat puts extra strain on the joint." }
+        ],
+        [
+          { "role": "user", "content": "I lent my drill to the neighbour on Saturday and he hasn't returned it." },
+          { "role": "assistant", "content": "A friendly note under his door usually works." }
+        ],
+        [
+          { "role": "user", "content": "We're debating whether to adopt a greyhound or a beagle." },
+          { "role": "assistant", "content": "Greyhounds are calm indoors; beagles need lots of exercise and can be loud." }
+        ],
+        [
+          { "role": "user", "content": "cool, thanks" },
+          { "role": "assistant", "content": "You're welcome." }
+        ]
+      ],
+      "questions": [
+        { "query": "What adjustment to my bike would ease the pain in my leg?", "pattern": "saddle", "form": "paraphrase" },
+        { "query": "Who borrowed one of my tools?", "pattern": "neighbour", "form": "paraphrase" },
+        { "query": "Which breeds are we choosing between?", "pattern": "greyhound|beagle", "form": "paraphrase" },
+        { "query": "What kind of friendly note did you suggest?", "pattern": "note under his door", "form": "lexical" }
+      ]
+    },
+    {
+      "id": "keiko",
+      "conversations": [
+        [
+          { "role": "user", "content": "The kitchen tap has been dripping all week." },
+          { "role": "assistant", "content": "It is probably a worn washer; turn off the valve under the sink before you replace it." }
+        ],
+        [
+          { "role": "user", "content": "I'm nervous about my thesis defence next month." },
+          { "role": "assistant", "content": "Rehearse the talk twice in front of a friend and prepare answers for the three hardest questions." }
+        ],
+        [
+          { "role": "user", "content": "My son wants to quit piano lessons." },
+          { "role": "assistant", "content": "Ask him whether it is the teacher or the instrument he dislikes before deciding." }
+        ],
+        [
+          { "role": "user", "content": "good night" },
+          { "role": "assistant", "content": "Good night!" }
+        ]
+      ],
+      "questions": [
+        { "query": "What part of the leaking faucet needs changing?", "pattern": "washer", "form": "paraphrase" },
+        { "query": "How can I get ready for presenting my research to the committee?", "pattern": "rehearse", "form": "paraphrase" },
+        { "query": "What should I find out from my child about his music classes?", "pattern": "teacher or the instrument", "form": "paraphrase" },
+        { "query": "When is my thesis defence?", "pattern": "next month", "form": "lexical" }
+      ]
+    },
+    {
+      "id": "ines",
+      "conversations": [
+        [
+          { "role": "user", "content": "Our basil plant keeps wilting on the balcony." },
+          { "role": "assistant", "content": "It likely gets too much afternoon sun; move it somewhere with morning light and water it in the evening." }
+        ],
+        [
+          { "role": "user", "content": "I owe Marta 40 euros from the concert tickets." },
+          { "role": "assistant", "content": "You could send it by bank transfer today so you don't forget." }
+        ],
+        [
+          { "role": "user", "content": "My laptop battery dies after an hour now." },
+          { "role": "assistant", "content": "Check the battery health report; if capacity is below 70 percent, a replacement is worth it." }
+        ]
+      ],
+      "questions": [
+        { "query": "Why is my herb drooping outside?", "pattern": "afternoon sun|morning light", "form": "paraphrase" },
+        { "query": "How much money do I still need to pay back?", "pattern": "40 euros", "form": "paraphrase" },
+        { "query": "When is replacing the computer's power cell worthwhile?", "pattern": "70 percent", "form": "paraphrase" },
+        { "query": "Who do I owe for the concert tickets?", "pattern": "marta", "form": "lexical" }
+      ]
+    },
+    {
+      "id": "bruno",
+      "conversations": [
+        [
+          { "role": "user", "content": "Meu filho está com febre desde ontem." },
+          { "role": "assistant", "content": "Se passar de 39 graus ou durar mais de três dias, leve ao pediatra." }
+        ],
+        [
+          { "role": "user", "content": "Estou pensando em trocar o pneu do carro antes da viagem para Gramado." },
+          { "role": "assistant", "content": "Verifique também o estepe e a calibragem antes de sair." }
+        ],
+        [
+          { "role": "user", "content": "valeu" },
+          { "role": "assistant", "content": "Por nada!" }
+        ]
+      ],
+      "questions": [
+        { "query": "Quando devo levar a criança ao médico?", "pattern": "pediatra|39 graus", "form": "paraphrase" },
+        { "query": "O que mais conferir no veículo antes de pegar a estrada?", "pattern": "estepe|calibragem", "form": "paraphrase" },
+        { "query": "Para onde é a viagem?", "pattern": "gramado", "form": "lexical" }
+      ]
+    }
+  ]
+}

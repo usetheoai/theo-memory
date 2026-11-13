@@ -26,7 +26,14 @@ function toWireResult(hit: MemoryItemWithScore): Record<string, unknown> {
     score: hit.score,
     scope: hit.scope,
     createdAt: hit.createdAt.toISOString(),
+    // When the fact was said, which differs from createdAt for anything written with observedAt.
+    tValid: hit.tValid?.toISOString() ?? null,
+    ...(hit.eventTime !== undefined ? { eventTime: hit.eventTime } : {}),
+    ...(hit.durability !== undefined ? { durability: hit.durability } : {}),
     metadata: hit.metadata,
+    ...(hit.sources !== undefined
+      ? { sources: hit.sources.map((s) => ({ role: s.role, content: s.content, observedAt: s.observedAt?.toISOString() ?? null })) }
+      : {}),
   };
 }
 
@@ -54,6 +61,7 @@ export async function recallHandler(
     threshold: parsed.threshold,
     ...(graphExpand !== undefined ? { graphExpand } : {}),
     ...(parsed.asOf !== undefined ? { asOf: new Date(parsed.asOf) } : {}),
+    ...(parsed.includeSources !== undefined ? { includeSources: parsed.includeSources } : {}),
   });
 
   // EC-6: empty-recall shape lock

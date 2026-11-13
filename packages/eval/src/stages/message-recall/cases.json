@@ -1,0 +1,165 @@
+{
+  "users": [
+    {
+      "id": "maya",
+      "conversations": [
+        [
+          { "role": "user", "content": "I've been having trouble sleeping lately." },
+          { "role": "assistant", "content": "If the insomnia continues, try chamomile tea about an hour before bed, and keep the bedroom cool." },
+          { "role": "user", "content": "Thanks, I'll try that." }
+        ],
+        [
+          { "role": "user", "content": "We're planning the team offsite. Probably in Lisbon, but Porto is also on the table." },
+          { "role": "assistant", "content": "Lisbon in May is lovely; book the venue early." }
+        ],
+        [
+          { "role": "user", "content": "haha that meme was great" },
+          { "role": "assistant", "content": "Glad you liked it!" }
+        ],
+        [
+          { "role": "user", "content": "My sister recommended a book called The Overstory, I might read it on the flight." },
+          { "role": "assistant", "content": "It's a beautiful novel about trees." }
+        ],
+        [
+          { "role": "user", "content": "Ugh, the printer jammed again." },
+          { "role": "assistant", "content": "Try opening the rear tray and pulling the paper straight out." }
+        ]
+      ],
+      "questions": [
+        { "query": "What did the assistant suggest for my insomnia?", "pattern": "chamomile", "form": "lexical" },
+        { "query": "What drink was recommended to help me fall asleep?", "pattern": "chamomile", "form": "paraphrase" },
+        { "query": "Which cities were considered for the offsite?", "pattern": "porto", "form": "lexical" },
+        { "query": "What book did my sister recommend?", "pattern": "overstory", "form": "lexical" },
+        { "query": "What was the advice for the stuck office device?", "pattern": "rear tray", "form": "paraphrase" }
+      ]
+    },
+    {
+      "id": "ravi",
+      "conversations": [
+        [
+          { "role": "user", "content": "I'm training for a half marathon in October." },
+          { "role": "assistant", "content": "Add one long run each Sunday and increase it by about ten percent per week." }
+        ],
+        [
+          { "role": "user", "content": "Do you know a good recipe for dal?" },
+          { "role": "assistant", "content": "Temper cumin and mustard seeds in ghee, then add the cooked lentils." },
+          { "role": "user", "content": "Nice, I have mustard seeds at home." }
+        ],
+        [
+          { "role": "user", "content": "My landlord said the rent goes up in March." },
+          { "role": "assistant", "content": "Check your lease for the notice period required." }
+        ],
+        [
+          { "role": "user", "content": "Good morning!" },
+          { "role": "assistant", "content": "Morning! How can I help?" }
+        ],
+        [
+          { "role": "user", "content": "I lent my bike pump to Jonas last week, need it back." },
+          { "role": "assistant", "content": "Maybe send him a quick reminder." }
+        ]
+      ],
+      "questions": [
+        { "query": "Which day did the assistant suggest for the long run?", "pattern": "sunday", "form": "lexical" },
+        { "query": "When should I schedule my biggest workout?", "pattern": "sunday", "form": "paraphrase" },
+        { "query": "What should I temper the spices in for the dal?", "pattern": "ghee", "form": "lexical" },
+        { "query": "When does my rent go up?", "pattern": "march", "form": "lexical" },
+        { "query": "Who has my bike pump?", "pattern": "jonas", "form": "lexical" },
+        { "query": "What should I look at in my housing contract?", "pattern": "notice period", "form": "paraphrase" }
+      ]
+    },
+    {
+      "id": "lena",
+      "conversations": [
+        [
+          { "role": "user", "content": "I just started learning the cello." },
+          { "role": "assistant", "content": "Start with open strings and long bows to build tone; rosin the bow before each session." }
+        ],
+        [
+          { "role": "user", "content": "My cat Miso has been sneezing." },
+          { "role": "assistant", "content": "If it lasts more than a few days or she stops eating, take her to the vet." }
+        ],
+        [
+          { "role": "user", "content": "I'm thinking of switching from Android to an iPhone, but I'm not sure." },
+          { "role": "assistant", "content": "The main cost is moving your apps and messages; Apple has a Move to iOS app for that." }
+        ],
+        [
+          { "role": "user", "content": "lol ok" },
+          { "role": "assistant", "content": "Glad that helped." }
+        ],
+        [
+          { "role": "user", "content": "We had dinner at a place called Tamarind on Friday, the curry was too spicy for me." },
+          { "role": "assistant", "content": "Next time ask for it mild." }
+        ]
+      ],
+      "questions": [
+        { "query": "What should I put on the bow before practicing?", "pattern": "rosin", "form": "lexical" },
+        { "query": "What substance helps my cello sound better before I play?", "pattern": "rosin", "form": "paraphrase" },
+        { "query": "When should Miso go to the vet?", "pattern": "few days|stops eating", "form": "lexical" },
+        { "query": "Which app helps me move to iOS?", "pattern": "move to ios", "form": "lexical" },
+        { "query": "How did the meal at the restaurant last week go?", "pattern": "spicy", "form": "paraphrase" },
+        { "query": "When does the pet need a doctor?", "pattern": "few days|stops eating", "form": "paraphrase" }
+      ]
+    },
+    {
+      "id": "tomas",
+      "conversations": [
+        [
+          { "role": "user", "content": "I need a gift for my dad's 60th." },
+          { "role": "assistant", "content": "A framed print of his hometown or a good pair of binoculars for birdwatching could work." },
+          { "role": "user", "content": "He does love birds." }
+        ],
+        [
+          { "role": "user", "content": "The car is making a squealing noise when I brake." },
+          { "role": "assistant", "content": "That's often worn brake pads; get them checked soon." }
+        ],
+        [
+          { "role": "user", "content": "I'm moving to Rotterdam in January for the new job." },
+          { "role": "assistant", "content": "Congrats! Register at the municipality within five days of arriving." }
+        ],
+        [
+          { "role": "user", "content": "Our team standup moved to 9:15 on Tuesdays." },
+          { "role": "assistant", "content": "Noted." }
+        ],
+        [
+          { "role": "user", "content": "thanks for the help yesterday" },
+          { "role": "assistant", "content": "Anytime!" }
+        ]
+      ],
+      "questions": [
+        { "query": "What gift ideas did the assistant give for my dad?", "pattern": "binoculars|framed print", "form": "paraphrase" },
+        { "query": "What should I buy my father for his birthday?", "pattern": "binoculars|framed print", "form": "paraphrase" },
+        { "query": "What causes the squealing when I brake?", "pattern": "pads", "form": "lexical" },
+        { "query": "Where do I need to register after moving to Rotterdam?", "pattern": "municipality", "form": "lexical" },
+        { "query": "What paperwork must I do when I get to my new city?", "pattern": "municipality", "form": "paraphrase" },
+        { "query": "When is the team standup?", "pattern": "9:15", "form": "lexical" }
+      ]
+    },
+    {
+      "id": "ana",
+      "conversations": [
+        [
+          { "role": "user", "content": "Estou com dor nas costas depois da academia." },
+          { "role": "assistant", "content": "Tente alongar os isquiotibiais e use compressa morna por vinte minutos." }
+        ],
+        [
+          { "role": "user", "content": "Vou viajar para Recife em julho com a minha mãe." },
+          { "role": "assistant", "content": "Leve protetor solar e reserve o passeio de catamarã com antecedência." }
+        ],
+        [
+          { "role": "user", "content": "kkkk boa" },
+          { "role": "assistant", "content": "Que bom!" }
+        ],
+        [
+          { "role": "user", "content": "O encanador vem na quinta para consertar o vazamento da pia." },
+          { "role": "assistant", "content": "Feche o registro até ele chegar." }
+        ]
+      ],
+      "questions": [
+        { "query": "O que o assistente sugeriu para a dor nas costas?", "pattern": "compressa|alongar", "form": "paraphrase" },
+        { "query": "Qual passeio devo reservar em Recife?", "pattern": "catamarã", "form": "lexical" },
+        { "query": "O que fazer com a água antes da visita do profissional?", "pattern": "registro", "form": "paraphrase" },
+        { "query": "Quando o encanador vem?", "pattern": "quinta", "form": "lexical" }
+      ]
+    }
+  ]
+}

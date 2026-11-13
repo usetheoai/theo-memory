@@ -1,0 +1,95 @@
+{
+  "users": [
+    {
+      "id": "elena",
+      "conversations": [
+        [
+          { "role": "user", "content": "My glasses keep fogging up when I wear a mask." },
+          { "role": "assistant", "content": "Pinch the nose wire tight and wash the lenses with a drop of dish soap." }
+        ],
+        [
+          { "role": "user", "content": "The neighbours' dog barks all night." },
+          { "role": "assistant", "content": "Keep a log of the dates and times before you talk to them or the council." }
+        ],
+        [
+          { "role": "user", "content": "I keep forgetting to take my vitamins." },
+          { "role": "assistant", "content": "Put the bottle next to your toothbrush so you see it every morning." }
+        ]
+      ],
+      "questions": [
+        { "query": "How do I stop my spectacles misting over?", "pattern": "nose wire|dish soap", "form": "paraphrase" },
+        { "query": "What should I write down about the noisy pet next door?", "pattern": "log of the dates", "form": "paraphrase" },
+        { "query": "Where should I place my supplements to remember them?", "pattern": "toothbrush", "form": "paraphrase" },
+        { "query": "What log did you tell me to start?", "pattern": "log of the dates", "form": "lexical" }
+      ]
+    },
+    {
+      "id": "tariq",
+      "conversations": [
+        [
+          { "role": "user", "content": "My bread machine loaf collapses in the middle." },
+          { "role": "assistant", "content": "Use a little less yeast and water; too much makes the dough rise and fall." }
+        ],
+        [
+          { "role": "user", "content": "I'm thinking of learning to swim at 40." },
+          { "role": "assistant", "content": "Adult beginner classes at the municipal pool start with floating drills." }
+        ],
+        [
+          { "role": "user", "content": "My phone gets hot while charging." },
+          { "role": "assistant", "content": "Take it out of the case and avoid using a fast charger overnight." }
+        ]
+      ],
+      "questions": [
+        { "query": "Why does my homemade loaf sink and what should I change?", "pattern": "less yeast", "form": "paraphrase" },
+        { "query": "Where can a grown-up get started in the water?", "pattern": "municipal pool|beginner classes", "form": "paraphrase" },
+        { "query": "How can I keep the handset cooler when it's plugged in?", "pattern": "out of the case|fast charger", "form": "paraphrase" },
+        { "query": "What swimming classes did you suggest?", "pattern": "beginner classes", "form": "lexical" }
+      ]
+    },
+    {
+      "id": "marina",
+      "conversations": [
+        [
+          { "role": "user", "content": "Meu gato arranha o sofá novo." },
+          { "role": "assistant", "content": "Coloque um arranhador vertical ao lado do sofá e passe fita dupla face no braço." }
+        ],
+        [
+          { "role": "user", "content": "Estou com dificuldade de acordar cedo." },
+          { "role": "assistant", "content": "Deixe o despertador longe da cama e abra a cortina assim que levantar." }
+        ],
+        [
+          { "role": "user", "content": "tudo certo, obrigada" },
+          { "role": "assistant", "content": "Imagina!" }
+        ]
+      ],
+      "questions": [
+        { "query": "Como impedir o felino de estragar o estofado?", "pattern": "arranhador|fita dupla face", "form": "paraphrase" },
+        { "query": "Como conseguir me pôr de pé logo cedo?", "pattern": "despertador", "form": "paraphrase" },
+        { "query": "O que você sugeriu sobre o gato e o sofá?", "pattern": "arranhador", "form": "lexical" }
+      ]
+    },
+    {
+      "id": "felix",
+      "conversations": [
+        [
+          { "role": "user", "content": "My bike chain keeps slipping on hills." },
+          { "role": "assistant", "content": "The chain is probably stretched; measure it with a chain checker and replace the cassette if needed." }
+        ],
+        [
+          { "role": "user", "content": "I want to cut down on takeaway food." },
+          { "role": "assistant", "content": "Batch-cook two big meals on Sunday and freeze them in portions." }
+        ],
+        [
+          { "role": "user", "content": "Our wifi drops in the bedroom." },
+          { "role": "assistant", "content": "A mesh extender in the hallway should cover that room." }
+        ]
+      ],
+      "questions": [
+        { "query": "What tool tells me if the drivetrain is worn?", "pattern": "chain checker", "form": "paraphrase" },
+        { "query": "How can I order less delivery food?", "pattern": "batch-cook|freeze", "form": "paraphrase" },
+        { "query": "What device would fix the weak internet signal upstairs?", "pattern": "mesh extender", "form": "paraphrase" },
+        { "query": "What did you suggest for the bike chain?", "pattern": "chain checker", "form": "lexical" }
+      ]
+    }
+  ]
+}

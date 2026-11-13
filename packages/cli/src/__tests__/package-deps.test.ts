@@ -25,10 +25,12 @@ describe('@usetheo/memory v0.3 — package.json runtime deps (T0.1)', () => {
     expect(zodRange).toBe('^3.25.0');
   });
 
-  test('@modelcontextprotocol/sdk is declared as runtime dep at ^1.29.0', () => {
-    // Per ADR D1 (transport) + Blueprint Q2.
+  test('@modelcontextprotocol/sdk is declared as runtime dep at ^1.32.2', () => {
+    // Per ADR D1 (transport) + Blueprint Q2. 1.32 is the first line without the CVEs the image
+    // gate refused on 2026-11-12 (#260); tests/integration/image-dependency-floors.test.ts holds
+    // the lockfile to it.
     const sdkRange = PACKAGE_JSON.dependencies?.['@modelcontextprotocol/sdk'];
-    expect(sdkRange).toBe('^1.29.0');
+    expect(sdkRange).toBe('^1.32.2');
   });
 
   test('zod-to-json-schema is declared as runtime dep at ^3.x', () => {

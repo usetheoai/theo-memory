@@ -27,14 +27,10 @@ name: CI
 # de push (pós-merge) pega o que só existe DEPOIS do merge — dois PRs verdes isoladamente que se
 # quebram juntos (conflito semântico). São escopos diferentes, não redundância.
 on:
+  # Invocado pelo publish.yml num push (ADR-5) e disparado direto num PR.
+  workflow_call:
   pull_request:
     branches: [develop, main]
-    paths-ignore:
-      - '.claude/**'
-      - '**/*.md'
-      - 'docs/**'
-  push:
-    branches: [develop]
     paths-ignore:
       - '.claude/**'
       - '**/*.md'
@@ -53,8 +49,7 @@ concurrency:
 jobs:
   static:
     name: lint + typecheck + build (sem banco)
-    # Blacksmith (#156) — ver integration.yml para as duas pré-condições que atrasaram a migração.
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     # Build TS de 6 pacotes. Folga sobre o observado, e muito abaixo do default de 360 min que
     # deixaria um hang segurando a fila dos 5 repositórios.
     timeout-minutes: 20

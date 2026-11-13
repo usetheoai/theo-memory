@@ -1,0 +1,166 @@
+{
+  "users": [
+    {
+      "id": "er-aurelio",
+      "facts": [
+        {
+          "key": "first",
+          "text": "Aurelio is meeting his business partner Cassiano in Gdańsk next Tuesday to sign a lease.",
+          "observedAt": "2024-06-03",
+          "role": "distinct"
+        },
+        {
+          "key": "second",
+          "text": "Aurelio's niece Dorotea, who teaches violin, might visit him this weekend.",
+          "observedAt": "2024-06-05",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Who is Aurelio's business partner?",
+          "pattern": "Cassiano"
+        },
+        {
+          "query": "What does Aurelio's niece teach?",
+          "pattern": "violin"
+        }
+      ]
+    },
+    {
+      "id": "er-hortensia",
+      "facts": [
+        {
+          "key": "first",
+          "text": "Hortênsia vai almoçar amanhã em Viseu com o cunhado, Quirino, que é dentista.",
+          "observedAt": "2024-06-03",
+          "role": "distinct"
+        },
+        {
+          "key": "second",
+          "text": "Talvez Hortênsia leve a afilhada Perpétua ao cinema no sábado.",
+          "observedAt": "2024-06-05",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Qual é a profissão do cunhado de Hortênsia?",
+          "pattern": "dentist"
+        },
+        {
+          "query": "Quem é a afilhada de Hortênsia?",
+          "pattern": "Perpétua"
+        }
+      ]
+    },
+    {
+      "id": "er-zacarias",
+      "facts": [
+        {
+          "key": "first",
+          "text": "Zacarias cenará el jueves en Ponferrada con su suegra Ofélia, que es farmacéutica.",
+          "observedAt": "2024-06-03",
+          "role": "distinct"
+        },
+        {
+          "key": "second",
+          "text": "Puede que Zacarias acompañe a su ahijado Ubaldo al partido del domingo.",
+          "observedAt": "2024-06-05",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "¿A qué se dedica la suegra de Zacarias?",
+          "pattern": "farmac"
+        },
+        {
+          "query": "¿Quién es el ahijado de Zacarias?",
+          "pattern": "Ubaldo"
+        }
+      ]
+    },
+    {
+      "id": "er-sebastiano",
+      "facts": [
+        {
+          "key": "first",
+          "text": "Sebastiano andrà domani a Pescara a trovare la cognata Teodora, che fa la veterinaria.",
+          "observedAt": "2024-06-03",
+          "role": "distinct"
+        },
+        {
+          "key": "second",
+          "text": "Forse Sebastiano porterà il nipote Nikola a vedere la mostra di sabato.",
+          "observedAt": "2024-06-05",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Che lavoro fa la cognata di Sebastiano?",
+          "pattern": "veterinari"
+        },
+        {
+          "query": "Chi è il nipote di Sebastiano?",
+          "pattern": "Nikola"
+        }
+      ]
+    },
+    {
+      "id": "er-yolande",
+      "facts": [
+        {
+          "key": "first",
+          "text": "Yolande déjeune jeudi à Vannes avec son associé Kasimir, qui dirige une imprimerie.",
+          "observedAt": "2024-06-03",
+          "role": "distinct"
+        },
+        {
+          "key": "second",
+          "text": "Yolande emmènera peut-être sa filleule Xenia au concert dimanche.",
+          "observedAt": "2024-06-05",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Que dirige l'associé de Yolande ?",
+          "pattern": "imprimerie"
+        },
+        {
+          "query": "Qui est la filleule de Yolande ?",
+          "pattern": "Xenia"
+        }
+      ]
+    },
+    {
+      "id": "er-valborg",
+      "facts": [
+        {
+          "key": "first",
+          "text": "Valborg fährt morgen nach Eutin zu ihrem Schwager Ignatz, der Tischler ist.",
+          "observedAt": "2024-06-03",
+          "role": "distinct"
+        },
+        {
+          "key": "second",
+          "text": "Vielleicht nimmt Valborg ihre Patentochter Jolanthe am Samstag mit ins Theater.",
+          "observedAt": "2024-06-05",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Welchen Beruf hat Valborgs Schwager?",
+          "pattern": "Tischler"
+        },
+        {
+          "query": "Wie heißt Valborgs Patentochter?",
+          "pattern": "Jolanthe"
+        }
+      ]
+    }
+  ]
+}

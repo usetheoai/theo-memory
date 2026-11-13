@@ -62,9 +62,11 @@ export const LOCAL_EMBEDDER_DIM = 384;
  * Single source of truth for the OpenAI-embedder path.
  */
 export const OPENAI_EMBEDDER_DIM = 1536;
+/** Default dimension of Alibaba Model Studio `text-embedding-v4`. */
+export const OPENAI_COMPATIBLE_EMBEDDER_DIM = 1024;
 
 /** Which embedder backs the runtime Memory. */
-export type EmbedderKind = 'local' | 'openai';
+export type EmbedderKind = 'local' | 'openai' | 'compatible';
 
 /**
  * @internal Resolve the embedder backend from `THEOMEM_EMBEDDER`:
@@ -72,6 +74,8 @@ export type EmbedderKind = 'local' | 'openai';
  *     for back-compat with the 384-dim local runtime).
  *   - `'openai'`               → `'openai'` (OpenAI `text-embedding-3-small`,
  *     1536-dim; requires `OPENAI_API_KEY`; no @xenova/onnx/sharp at runtime).
+ *   - `'compatible'`           → OpenAI-compatible hosted provider (default
+ *     Model Studio `text-embedding-v4`, 1024 dimensions).
  *
  * Fails LOUD (throws) on any other value — no silent fallback (Inquebrável Rule 8).
  */
@@ -79,9 +83,8 @@ export function resolveEmbedderKind(): EmbedderKind {
   const k = process.env['THEOMEM_EMBEDDER'];
   if (k === undefined || k === '' || k === 'local') return 'local';
   if (k === 'openai') return 'openai';
-  throw new Error(
-    `Unknown THEOMEM_EMBEDDER='${k}' (expected 'local' or 'openai').`,
-  );
+  if (k === 'compatible') return 'compatible';
+  throw new Error(`Unknown THEOMEM_EMBEDDER='${k}' (expected 'local', 'openai', or 'compatible').`);
 }
 
 /**
@@ -113,7 +116,16 @@ export {
 
 /** Embedding dimension for an embedder kind (must match the migration dim). */
 export function embeddingDimForKind(kind: EmbedderKind): number {
-  return kind === 'openai' ? OPENAI_EMBEDDER_DIM : LOCAL_EMBEDDER_DIM;
+  if (kind === 'openai') return OPENAI_EMBEDDER_DIM;
+  if (kind === 'local') return LOCAL_EMBEDDER_DIM;
+  const configured = process.env['THEOMEM_EMBEDDING_DIM'];
+  const dimension = configured === undefined || configured === ''
+    ? OPENAI_COMPATIBLE_EMBEDDER_DIM
+    : Number(configured);
+  if (!Number.isInteger(dimension) || dimension < 64 || dimension > 2000) {
+    throw new Error('THEOMEM_EMBEDDING_DIM must be an integer in 64..2000 for pgvector HNSW.');
+  }
+  return dimension;
 }
 
 /**
@@ -232,6 +244,10 @@ export async function wireMemoryFromPool(pool: Pool): Promise<Memory> {
  * NOT part of the public `@usetheo/memory/agent-tools` API surface.
  */
 export async function buildEmbedder(kind: EmbedderKind): Promise<Embedder> {
+  if (kind === 'compatible') {
+    const { OpenAICompatibleEmbedder } = await import('@usetheo/memory/embedders/openai-compatible');
+    return new OpenAICompatibleEmbedder();
+  }
   if (kind === 'openai') {
     const { OpenAIEmbedder } = await import('@usetheo/memory/embedders/openai');
     return new OpenAIEmbedder();

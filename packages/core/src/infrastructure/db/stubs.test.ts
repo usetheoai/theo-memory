@@ -13,6 +13,10 @@ import { InMemoryVectorStore } from './in-memory-store.js';
 
 import { createLocalMemory, PROBE_TEXT, StubEmbedder, StubLLM } from './index.js';
 
+// Static, so loading the whole barrel happens while the file is collected and does not count
+// against a test's timeout (a dynamic import inside the test timed out under parallel load).
+import * as publicBarrel from '@usetheo/memory';
+
 let warnSpy: MockInstance<(typeof console)['warn']>;
 
 beforeEach(() => {
@@ -90,9 +94,8 @@ describe('createLocalMemory with stubs — probe path (ADR D8 integration)', () 
 });
 
 describe('Public surface (top-level barrel)', () => {
-  test('StubEmbedder + StubLLM are importable from @usetheo/memory', async () => {
-    const mod = await import('@usetheo/memory');
-    expect(typeof (mod as { StubEmbedder?: unknown }).StubEmbedder).toBe('function');
-    expect(typeof (mod as { StubLLM?: unknown }).StubLLM).toBe('function');
+  test('StubEmbedder + StubLLM are importable from @usetheo/memory', () => {
+    expect(typeof publicBarrel.StubEmbedder).toBe('function');
+    expect(typeof publicBarrel.StubLLM).toBe('function');
   });
 });

@@ -41,7 +41,7 @@ export async function recallHandler(c: Context, memory: Memory): Promise<Respons
   if (!parsed.success) {
     return scopeOrValidationError(parsed.error, c);
   }
-  const { query, topK, threshold, attributedTo, asOf, graphExpand } = parsed.data;
+  const { query, topK, threshold, attributedTo, asOf, graphExpand, includeSources } = parsed.data;
   // multi-tenant-workspace-isolation T3.1: scope recall by the Principal's workspace (ADR D3).
   const scoped = resolveScope(workspaceBoundMemory(c, memory), parsed.data, actingUserId(c));
   // explainable-recall S2 (D2) — mint the recall_id HERE so it can be BOTH driven
@@ -57,6 +57,7 @@ export async function recallHandler(c: Context, memory: Memory): Promise<Respons
     // SDK recall (default OFF when absent; mirrors topK/threshold mapping).
     graphExpand,
     recallId,
+    ...(includeSources !== undefined ? { includeSources } : {}),
   });
   return c.json({ results, recallId }, 200);
 }

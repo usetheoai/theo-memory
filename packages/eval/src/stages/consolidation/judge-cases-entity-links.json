@@ -1,0 +1,214 @@
+{
+  "users": [
+    {
+      "id": "el-sigvald",
+      "facts": [
+        {
+          "key": "family",
+          "text": "Sigvald moved to Bodø last spring. His sister Torunn runs a bakery called Nordlys in Mosjøen. Sigvald's son Halvard studies marine biology at Nord University in Fauske.",
+          "observedAt": "2024-05-02",
+          "role": "distinct"
+        },
+        {
+          "key": "friend",
+          "text": "Sigvald's best friend Øyfrid works as a nurse at Vardø Hospital. Øyfrid is planning a trip to Hakodate in October with her husband Jeremias.",
+          "observedAt": "2024-05-09",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What is the name of Torunn's bakery?",
+          "pattern": "Nordlys"
+        },
+        {
+          "query": "What does Halvard study?",
+          "pattern": "marine"
+        },
+        {
+          "query": "Where is Øyfrid travelling in October?",
+          "pattern": "Hakodate"
+        },
+        {
+          "query": "Who is Øyfrid's husband?",
+          "pattern": "Jeremias"
+        }
+      ]
+    },
+    {
+      "id": "el-ismenia",
+      "facts": [
+        {
+          "key": "family",
+          "text": "Ismênia mora em Caetité desde 2019. O irmão dela, Venâncio, é dono de uma padaria chamada Pão de Serafina em Laranjeiras. A filha de Ismênia, Leocádia, estuda geologia na Universidade de Piranhas.",
+          "observedAt": "2024-05-03",
+          "role": "distinct"
+        },
+        {
+          "key": "friend",
+          "text": "A melhor amiga de Ismênia, Leandra, trabalha como enfermeira no Hospital Tibúrcio. Leandra vai viajar para Amarante em novembro com o marido, Ezequiel.",
+          "observedAt": "2024-05-10",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Como se chama a padaria de Venâncio?",
+          "pattern": "Serafina"
+        },
+        {
+          "query": "O que Leocádia estuda?",
+          "pattern": "geolog"
+        },
+        {
+          "query": "Para onde Leandra vai viajar em novembro?",
+          "pattern": "Amarante"
+        },
+        {
+          "query": "Quem é o marido de Leandra?",
+          "pattern": "Ezequiel"
+        }
+      ]
+    },
+    {
+      "id": "el-moraima",
+      "facts": [
+        {
+          "key": "family",
+          "text": "Moraima vive en Daroca desde hace tres años. Su hermano Bonifacio tiene una panadería llamada La Espiga de Ayerbe en Barbastro. El hijo de Moraima, Pacífico, estudia arquitectura en la Universidad de Huesca.",
+          "observedAt": "2024-05-04",
+          "role": "distinct"
+        },
+        {
+          "key": "friend",
+          "text": "La mejor amiga de Moraima, Graciela, trabaja como enfermera en el Hospital Marcelina. Graciela viajará a Oaxaca en diciembre con su esposo Teodomiro.",
+          "observedAt": "2024-05-11",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "¿Cómo se llama la panadería de Bonifacio?",
+          "pattern": "Espiga"
+        },
+        {
+          "query": "¿Qué estudia Pacífico?",
+          "pattern": "arquitect"
+        },
+        {
+          "query": "¿Adónde viajará Graciela en diciembre?",
+          "pattern": "Oaxaca"
+        },
+        {
+          "query": "¿Quién es el esposo de Graciela?",
+          "pattern": "Teodomiro"
+        }
+      ]
+    },
+    {
+      "id": "el-gualtiero",
+      "facts": [
+        {
+          "key": "family",
+          "text": "Gualtiero vive a Spello da due anni. Sua sorella Ottorina gestisce un forno chiamato Il Grano di Narni a Terni. Il figlio di Gualtiero, Ilario, studia ingegneria all'Università di Camerino.",
+          "observedAt": "2024-05-05",
+          "role": "distinct"
+        },
+        {
+          "key": "friend",
+          "text": "La migliore amica di Gualtiero, Romilda, lavora come infermiera all'Ospedale di Tarquinia. Romilda andrà a Siviglia a settembre con il marito Tancredi.",
+          "observedAt": "2024-05-12",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Come si chiama il forno di Ottorina?",
+          "pattern": "Grano"
+        },
+        {
+          "query": "Che cosa studia Ilario?",
+          "pattern": "ingegner"
+        },
+        {
+          "query": "Dove andrà Romilda a settembre?",
+          "pattern": "Siviglia"
+        },
+        {
+          "query": "Chi è il marito di Romilda?",
+          "pattern": "Tancredi"
+        }
+      ]
+    },
+    {
+      "id": "el-berangere",
+      "facts": [
+        {
+          "key": "family",
+          "text": "Bérangère habite à Riom depuis l'an dernier. Son frère Ferréol tient une boulangerie appelée Le Fournil de Salers à Aurillac. La fille de Bérangère, Clothilde, étudie la médecine à l'Université de Clermont-Ferrand.",
+          "observedAt": "2024-05-06",
+          "role": "distinct"
+        },
+        {
+          "key": "friend",
+          "text": "La meilleure amie de Bérangère, Philomène, travaille comme infirmière à l'hôpital de Thiézac. Philomène partira à Québec en août avec son mari Valérien.",
+          "observedAt": "2024-05-13",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Comment s'appelle la boulangerie de Ferréol ?",
+          "pattern": "Fournil"
+        },
+        {
+          "query": "Qu'étudie Clothilde ?",
+          "pattern": "médecine"
+        },
+        {
+          "query": "Où Philomène partira-t-elle en août ?",
+          "pattern": "Québec"
+        },
+        {
+          "query": "Qui est le mari de Philomène ?",
+          "pattern": "Valérien"
+        }
+      ]
+    },
+    {
+      "id": "el-hinnerk",
+      "facts": [
+        {
+          "key": "family",
+          "text": "Hinnerk wohnt seit zwei Jahren in Mölln. Seine Schwester Almuth führt eine Bäckerei namens Ratzeburger Backstube in Uelzen. Hinnerks Sohn Eckhard studiert Maschinenbau an der Universität Hamburg.",
+          "observedAt": "2024-05-07",
+          "role": "distinct"
+        },
+        {
+          "key": "friend",
+          "text": "Hinnerks beste Freundin Margarete arbeitet als Krankenschwester im Krankenhaus Ebstorf. Margarete reist im Juli mit ihrem Mann Lambrecht nach Trondheim.",
+          "observedAt": "2024-05-14",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Wie heißt Almuths Bäckerei?",
+          "pattern": "Backstube"
+        },
+        {
+          "query": "Was studiert Eckhard?",
+          "pattern": "Maschinenbau"
+        },
+        {
+          "query": "Wohin reist Margarete im Juli?",
+          "pattern": "Trondheim"
+        },
+        {
+          "query": "Wie heißt Margaretes Mann?",
+          "pattern": "Lambrecht"
+        }
+      ]
+    }
+  ]
+}

@@ -49,6 +49,8 @@ describe('memories table', () => {
         'attributed_to',
         // principles-alignment-hardening T0.1 (ADR D1 — Princípio 1 confirmação factor)
         'confirmation_count',
+        'expires_at',
+        'distinct_source_count',
         // themory-category-filter-server-side T2.1 (ADR D2 + ADR D6 — operator category filter)
         'category',
         // multi-tenant-workspace-isolation T0.2 (ADR D1 — OUTER tenant anchor)

@@ -1,0 +1,7109 @@
+{
+  "passed": true,
+  "metrics": {
+    "precision": 0.9276315789473685,
+    "recall": 0.9347826086956522,
+    "classification": 1,
+    "forbidden": 0,
+    "invalidQuotes": 0,
+    "errors": 0
+  },
+  "model": "openai/gpt-4o-mini",
+  "provider": "openrouter.ai",
+  "temperature": 0,
+  "maxOutputTokens": 1200,
+  "fixtureVersion": 2,
+  "completeCorpus": true,
+  "fixtureDigest": "4e9a70bc0d882db8532b6e195b0ac2a93411f30097675547b637b85cbb2ce06e",
+  "commit": "7cb58ee07d7cdb3808c85111d429721ea18d4f69",
+  "promptDigests": [
+    "9eb9b90891f31687fdb174ae2f68781b723d78f88e1a76cc06d33f6acf3390c4",
+    "5017312a0d0c3564fa03503efe5c4a21d8774eb50b263c59166ee17e1ceae104",
+    "46f39e0ecf61b380838b94d46108ff1fac5005fee04f39ee94c5731d6135222e",
+    "02ab034932411703dd1c216bf2daacec2929676d8901ee937bd09ed7fe186879",
+    "20054dc76155f6592df5a2b8615bacfa4ed74560d4ff023390a0f57004947790",
+    "00c3d669e25679f82fdad3e1a340f5f3af2a29055a2af2dd4cc45ebd106e6989",
+    "0f1f295c8487da8e7b826b08bef980c7b6be16ffdd16c3e4365260a7c1079991",
+    "ea758bced6285fac2c76a55e396701d9eb54cde71054f8e8e95aa0dc719da888",
+    "cff6b7f5d76f94a79ce7d140e25fafdad80c08d6519a9575f07c412134311ba2",
+    "dbfec9a09f89452ae752c7241814bcf65ae6b41993c1ac3c4792c2d6e74ed59b",
+    "1e8574bcb4c944f52ee376071b706c5290222cceb35b53f80aaf0b49aad1af97",
+    "f3b207ca50b28f175b63a94f8d0905f650244a1e770fba48751566e3220076da",
+    "3b104cfb3c4de6f0f0b5fbc71afbe9a4596a2d3f87638fd84b7ccfc544d2f75f",
+    "954b3e1b384f72a6518da731c9ddb10223fac90874a959a03e79a841b4644ab6",
+    "05a591e3817093a6156250744ef48da0438458a4fa02508dc1e6f4e67de5e1ed",
+    "d5ace4aa6b3f61dbcecddab5a9bf2072a1092428b675329dd6667458f4e3a25e",
+    "f828657c83d0d616d559534dc304ff24af76a2cfbfe0800cd6d42f93c0295972",
+    "d2c6c2b2d36bc89893c447de6558ef8ec598a188cdcff7cbfb6d54833f139993",
+    "acece53504b877f99d072f8814a8f3b1ac0b520bb8373baec4fcbeb3b4c0c7a6",
+    "761c0f531fe591c15c574fd8b1f84fef7c2084625fb5f3c7f6300cab684f0628",
+    "d0770ea8373503b28417e9adc3ad2bae7b1bf488edd2b76d6e70934f20299194",
+    "c83fe95790c191a7f92e50aa9775618967ca15edeb26128fe8cfe6bf8e7949d9",
+    "5ac65aac224306dd6f5fc65ac2bd73980dbedc03f46c0f6a6d92b08b6b565239",
+    "d636e93fbb23c1485fa8f1cb81d61ab2769302609820d3dd89067fe09c7a471e",
+    "272169ff7e8b23cb96ff4e26ba4d7693327b106df41f92df52ec75e7c4b5cf92",
+    "d5ead990754942f29fc1c2ee3a5c44fdbf8d6f28341a4716e698c55179d05147",
+    "8c1c858fc4380a7fe30ecb690c5bfda657533b5ca7df6795410a53b4842ffc3c",
+    "268322c136d34009d0424a60ff5f9f25c2d8321a8d15c6dcc711d74fc117c123",
+    "e2de2f3ff94612ec90f67376e2db7e21c3e5e0b9cc581a134c4d120e1234d825",
+    "48df505cb969883b5b1df36274d21caf879f92127f4ae80797f272011cf2ee20",
+    "f66fa414791e88fb4a30b424308c989acdb739a669ff6e3d7824f37a3ca0e840",
+    "cf71ea69203e2c4bae260a5eec59dccc7b46a672d1915ea67545b107c6360cf0",
+    "0d487574bbaae9e9963af8adae17a7089bf6af72894be4049aaf8c38e74fff2f",
+    "75743c16322ada0c3e06b81cdbdd1ec5724fe61ed9a5f34e7732f942e6d6bf78",
+    "16c4ae1041a6538ea0a90115821492bed218876ed8ccb0700eb8e967f2c57ae2",
+    "1848a60b82553db77ada71ff839adb0b1d0071cd4d00de33fea0cd210f442751",
+    "1bc158a48d4aa56f03d5fdf8aeacdfc3a823530fd4573556de7823f5851d8ee2",
+    "4476b7248c8c8ee7057f9bdb7151f6b6607df320328069e16bb2c5d3b2f99e05",
+    "22a737c3a2431e0702e62ea2f02cf1fb4c40b770abac0d37df02ba8a58e026c8",
+    "76b0d4f33fdde26156fdce00034f60c2839d7ddc985418b4e3a60ba49eda4ca7",
+    "38daa3c4af40e4bca1b095484eca342c3339fa597f5a0f9aefb6532cc8821c91",
+    "7ecca48bead321088e005d44547df19a91cd5cbe4cec8fe888c2b19d9df1e0c8",
+    "c2f79f47e5a86feced91749f012a71565b456376f0d7b3b917d3ff7d1ade6a9b",
+    "852952737272f7a93628e86413f9546bf957ab3dc277d27b7fdc412a70b73ded",
+    "338fadc5778ed286bfbb31e443c26ada3141f9d092809c285afb9968e3848066",
+    "02743691d468e7c3e1c8adb0dba4a3310572549dc48c91c1060403c1e156e1f9",
+    "3ebec2081c614e426d6ee183603fc64e615c7c7925c4ba2ef21c7407f41cb677",
+    "6c21edf6afe90aef50d5352f6bd6b8637f14c17005b3454640ee035279d5a250",
+    "178368ea9eff04aad3b34a1318272cba8fa2b0f063c30fa1cc4322696cecac83",
+    "b08a7c57128425e11cdba217ef4964775f4b7d21a139a758f148b1c68db6ec93",
+    "a1e66839fe4f534c4b9f078dcfe53c4996fc5eef8ef23753776ae007dd9b1946",
+    "c7649d6bcb5de386d0089bbf09d2f71803a86e56eef0c37b2bb36d84eb4bf093",
+    "54e1adab7fde492039a85f4ed9cc28557835f3838bb071124e61f58baab5e51d",
+    "2def73a643cd94bb270fd04cb4305b04db41365e13356dd5f8d06c2a47e9d665",
+    "959ad065536da83bbd1630502656654b74bad50c4e61a684a33124d57490449c",
+    "63ecf5882e752f0f430a3bd5d69d4aa9072656bc7fc0120b1aa6d0faaf6c6bb5",
+    "314565c109786ec27a1127ff89431ed98ddd7598f0a654b5c02e952a1ca6f168",
+    "d73d93904bca1b9a6d8983ad758f7378105830794af052d13e370f591647ddd5",
+    "4e2db819541a77e62f18cdc111680dba2d511431cc2965980e1aa8a52587010f",
+    "8bf1209275d7424106820046b71a3b182c8638e9dedf611a94c910a53f0f4ffa"
+  ],
+  "workingTreeDirty": true,
+  "calls": 214,
+  "inputTokens": 410057,
+  "outputTokens": 17160,
+  "durationMs": 485098,
+  "resumedFrom": null,
+  "parentReportDigest": null,
+  "transportRetryHistory": [],
+  "rows": [
+    {
+      "name": "dark-colors-en",
+      "language": "en",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user usually prefers dark colors"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "dark-colors-en",
+          "sourceQuote": "I usually prefer dark colors."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user usually prefers dark colors",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I usually prefer dark colors."
+            }
+          }
+        ],
+        "entities": [
+          {
+            "name": "user",
+            "type": "PERSON"
+          }
+        ],
+        "relations": []
+      }
+    },
+    {
+      "name": "dark-colors-pt",
+      "language": "pt",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user prefere cores escuras"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "dark-colors-pt",
+          "sourceQuote": "Normalmente prefiro cores escuras."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user prefere cores escuras",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Normalmente prefiro cores escuras."
+            }
+          }
+        ],
+        "entities": [],
+        "relations": []
+      }
+    },
+    {
+      "name": "simple-style-en",
+      "language": "en",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user prefers simple clothes over flashy outfits"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "simple-style-en",
+          "sourceQuote": "I prefer simple clothes over flashy outfits."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user prefers simple clothes over flashy outfits",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I prefer simple clothes over flashy outfits."
+            }
+          }
+        ],
+        "entities": [
+          {
+            "name": "user",
+            "type": "PERSON"
+          }
+        ],
+        "relations": []
+      }
+    },
+    {
+      "name": "simple-style-pt",
+      "language": "pt",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user prefere roupas simples a roupas chamativas"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "simple-style-pt",
+          "sourceQuote": "Prefiro roupas simples a roupas chamativas."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user prefere roupas simples a roupas chamativas",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Prefiro roupas simples a roupas chamativas."
+            }
+          }
+        ],
+        "entities": [],
+        "relations": []
+      }
+    },
+    {
+      "name": "comfort-en",
+      "language": "en",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 2,
+      "covered": 2,
+      "emitted": 2,
+      "relevant": 2,
+      "classified": 2,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "Alice selected cushioned sneakers rather than stiff formal shoes in five independent sessions",
+        "Alice appears to prefer cushioned sneakers in similar situations"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "comfort-en",
+          "sourceQuote": "In five independent sessions Alice selected cushioned sneakers rather than stiff formal shoes."
+        },
+        {
+          "kind": "inferred",
+          "sourceId": "comfort-en",
+          "sourceQuote": "In five independent sessions Alice selected cushioned sneakers rather than stiff formal shoes.",
+          "confidence": 0.7
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "Alice selected cushioned sneakers rather than stiff formal shoes in five independent sessions",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "In five independent sessions Alice selected cushioned sneakers rather than stiff formal shoes."
+            }
+          },
+          {
+            "id": "2",
+            "text": "Alice appears to prefer cushioned sneakers in similar situations",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "inferred",
+              "durability": "durable",
+              "confidence": 0.7,
+              "sourceQuote": "In five independent sessions Alice selected cushioned sneakers rather than stiff formal shoes."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "comfort-pt",
+      "language": "pt",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 2,
+      "covered": 2,
+      "emitted": 3,
+      "relevant": 3,
+      "classified": 2,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "Alice escolheu tênis acolchoados em vez de sapatos sociais rígidos em cinco sessões independentes",
+        "Alice nunca declarou explicitamente uma preferência de conforto",
+        "Alice parece preferir tênis acolchoados em situações semelhantes"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "comfort-pt",
+          "sourceQuote": "Em cinco sessões independentes Alice escolheu tênis acolchoados em vez de sapatos sociais rígidos."
+        },
+        {
+          "kind": "stated",
+          "sourceId": "comfort-pt",
+          "sourceQuote": "Ela nunca declarou explicitamente uma preferência de conforto."
+        },
+        {
+          "kind": "inferred",
+          "sourceId": "comfort-pt",
+          "sourceQuote": "Em cinco sessões independentes Alice escolheu tênis acolchoados em vez de sapatos sociais rígidos.",
+          "confidence": 0.7
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "Alice escolheu tênis acolchoados em vez de sapatos sociais rígidos em cinco sessões independentes",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Em cinco sessões independentes Alice escolheu tênis acolchoados em vez de sapatos sociais rígidos."
+            }
+          },
+          {
+            "id": "2",
+            "text": "Alice nunca declarou explicitamente uma preferência de conforto",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Ela nunca declarou explicitamente uma preferência de conforto."
+            }
+          },
+          {
+            "id": "3",
+            "text": "Alice parece preferir tênis acolchoados em situações semelhantes",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "inferred",
+              "durability": "durable",
+              "confidence": 0.7,
+              "sourceQuote": "Em cinco sessões independentes Alice escolheu tênis acolchoados em vez de sapatos sociais rígidos."
+            }
+          }
+        ],
+        "entities": [
+          {
+            "name": "Alice",
+            "type": "PERSON"
+          },
+          {
+            "name": "tênis acolchoados",
+            "type": "PRODUCT"
+          },
+          {
+            "name": "sapatos sociais rígidos",
+            "type": "PRODUCT"
+          }
+        ],
+        "relations": [
+          {
+            "source": "Alice",
+            "relationship": "escolheu",
+            "destination": "tênis acolchoados"
+          },
+          {
+            "source": "Alice",
+            "relationship": "escolheu",
+            "destination": "sapatos sociais rígidos"
+          }
+        ]
+      }
+    },
+    {
+      "name": "allergy-en",
+      "language": "en",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user is allergic to wool"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "allergy-en",
+          "sourceQuote": "I am allergic to wool."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user is allergic to wool",
+            "attributed_to": "user",
+            "category": "health",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I am allergic to wool."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "allergy-pt",
+      "language": "pt",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user tem alergia a lã"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "allergy-pt",
+          "sourceQuote": "Tenho alergia a lã."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user tem alergia a lã",
+            "attributed_to": "user",
+            "category": "health",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Tenho alergia a lã."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "vegetarian-en",
+      "language": "en",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user is vegetarian and does not eat meat"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "vegetarian-en",
+          "sourceQuote": "I am vegetarian and do not eat meat."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user is vegetarian and does not eat meat",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I am vegetarian and do not eat meat."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "vegetarian-pt",
+      "language": "pt",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user é vegetariano e não come carne."
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "vegetarian-pt",
+          "sourceQuote": "Sou vegetariano e não como carne."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user é vegetariano e não come carne",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Sou vegetariano e não como carne."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "language-en",
+      "language": "en",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user prefers to communicate in Portuguese"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "language-en",
+          "sourceQuote": "I prefer to communicate in Portuguese."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user prefers to communicate in Portuguese",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I prefer to communicate in Portuguese."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "language-pt",
+      "language": "pt",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user prefere conversar em português"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "language-pt",
+          "sourceQuote": "Prefiro conversar em português."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user prefere conversar em português",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Prefiro conversar em português."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "size-en",
+      "language": "en",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 2,
+      "covered": 2,
+      "emitted": 2,
+      "relevant": 2,
+      "classified": 2,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "Bruno picked plain, unadorned outfits rather than ornate ones in five independent sessions",
+        "Bruno appears to prefer plain, unadorned outfits in similar situations"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "size-en",
+          "sourceQuote": "In five independent sessions Bruno picked plain, unadorned outfits rather than ornate ones."
+        },
+        {
+          "kind": "inferred",
+          "sourceId": "size-en",
+          "sourceQuote": "In five independent sessions Bruno picked plain, unadorned outfits rather than ornate ones."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "Bruno picked plain, unadorned outfits rather than ornate ones in five independent sessions",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "In five independent sessions Bruno picked plain, unadorned outfits rather than ornate ones."
+            }
+          },
+          {
+            "id": "2",
+            "text": "Bruno appears to prefer plain, unadorned outfits in similar situations",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "inferred",
+              "durability": "durable",
+              "sourceQuote": "In five independent sessions Bruno picked plain, unadorned outfits rather than ornate ones."
+            }
+          }
+        ],
+        "entities": [
+          {
+            "name": "Bruno",
+            "type": "PERSON"
+          },
+          {
+            "name": "user",
+            "type": "PERSON"
+          }
+        ],
+        "relations": [
+          {
+            "source": "Bruno",
+            "relationship": "picked",
+            "destination": "plain, unadorned outfits"
+          },
+          {
+            "source": "Bruno",
+            "relationship": "picked",
+            "destination": "ornate ones"
+          }
+        ]
+      }
+    },
+    {
+      "name": "size-pt",
+      "language": "pt",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 2,
+      "covered": 2,
+      "emitted": 2,
+      "relevant": 2,
+      "classified": 2,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "Bruno escolheu roupas simples e sem enfeites em vez de roupas ornamentadas em cinco sessões independentes",
+        "Bruno parece preferir roupas simples em situações semelhantes"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "size-pt",
+          "sourceQuote": "Em cinco sessões independentes Bruno escolheu roupas simples e sem enfeites em vez de roupas ornamentadas."
+        },
+        {
+          "kind": "inferred",
+          "sourceId": "size-pt",
+          "sourceQuote": "Em cinco sessões independentes Bruno escolheu roupas simples e sem enfeites em vez de roupas ornamentadas."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "Bruno escolheu roupas simples e sem enfeites em vez de roupas ornamentadas em cinco sessões independentes",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Em cinco sessões independentes Bruno escolheu roupas simples e sem enfeites em vez de roupas ornamentadas."
+            }
+          },
+          {
+            "id": "2",
+            "text": "Bruno parece preferir roupas simples em situações semelhantes",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "inferred",
+              "durability": "durable",
+              "sourceQuote": "Em cinco sessões independentes Bruno escolheu roupas simples e sem enfeites em vez de roupas ornamentadas."
+            }
+          }
+        ],
+        "entities": [
+          {
+            "name": "Bruno",
+            "type": "PERSON"
+          }
+        ],
+        "relations": []
+      }
+    },
+    {
+      "name": "routine-en",
+      "language": "en",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 2,
+      "covered": 2,
+      "emitted": 2,
+      "relevant": 2,
+      "classified": 2,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "Carla selected dark clothes for formal dinners in five independent sessions.",
+        "Carla seems to prefer dark clothing for formal dinners in similar situations."
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "routine-en",
+          "sourceQuote": "Across five independent sessions Carla selected dark clothes for formal dinners rather than bright clothes."
+        },
+        {
+          "kind": "inferred",
+          "sourceId": "routine-en",
+          "sourceQuote": "Across five independent sessions Carla selected dark clothes for formal dinners rather than bright clothes.",
+          "confidence": 0.7
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "Carla selecionou roupas escuras para jantares formais em cinco sessões independentes",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Across five independent sessions Carla selected dark clothes for formal dinners rather than bright clothes."
+            }
+          },
+          {
+            "id": "2",
+            "text": "Carla parece preferir roupas escuras para jantares formais em situações semelhantes",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "inferred",
+              "durability": "durable",
+              "confidence": 0.7,
+              "sourceQuote": "Across five independent sessions Carla selected dark clothes for formal dinners rather than bright clothes."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "routine-pt",
+      "language": "pt",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 2,
+      "covered": 2,
+      "emitted": 2,
+      "relevant": 2,
+      "classified": 2,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "Carla escolheu roupas escuras para jantares formais em vez de roupas vibrantes em cinco sessões independentes",
+        "Carla parece preferir roupas escuras para jantares formais em situações semelhantes"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "routine-pt",
+          "sourceQuote": "Em cinco sessões independentes Carla escolheu roupas escuras para jantares formais em vez de roupas vibrantes."
+        },
+        {
+          "kind": "inferred",
+          "sourceId": "routine-pt",
+          "sourceQuote": "Em cinco sessões independentes Carla escolheu roupas escuras para jantares formais em vez de roupas vibrantes.",
+          "confidence": 0.7
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "Carla escolheu roupas escuras para jantares formais em vez de roupas vibrantes em cinco sessões independentes",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Em cinco sessões independentes Carla escolheu roupas escuras para jantares formais em vez de roupas vibrantes."
+            }
+          },
+          {
+            "id": "2",
+            "text": "Carla parece preferir roupas escuras para jantares formais em situações semelhantes",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "inferred",
+              "durability": "durable",
+              "confidence": 0.7,
+              "sourceQuote": "Em cinco sessões independentes Carla escolheu roupas escuras para jantares formais em vez de roupas vibrantes."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "maybe-yellow-en",
+      "language": "en",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": []
+      }
+    },
+    {
+      "name": "maybe-yellow-pt",
+      "language": "pt",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [],
+        "entities": [],
+        "relations": []
+      }
+    },
+    {
+      "name": "hypothetical-en",
+      "language": "en",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": []
+      }
+    },
+    {
+      "name": "hypothetical-pt",
+      "language": "pt",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [],
+        "entities": [],
+        "relations": []
+      }
+    },
+    {
+      "name": "trying-color-en",
+      "language": "en",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [],
+        "entities": [],
+        "relations": []
+      }
+    },
+    {
+      "name": "trying-color-pt",
+      "language": "pt",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [],
+        "entities": [],
+        "relations": []
+      }
+    },
+    {
+      "name": "passing-mood-en",
+      "language": "en",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user feels like wearing green just for this morning",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "temporary",
+              "sourceQuote": "Just for this morning I feel like wearing green."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "passing-mood-pt",
+      "language": "pt",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user está com vontade de usar verde nesta manhã",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "temporary",
+              "sourceQuote": "Só nesta manhã estou com vontade de usar verde."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "uncertain-preference-en",
+      "language": "en",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [],
+        "entities": [],
+        "relations": []
+      }
+    },
+    {
+      "name": "uncertain-preference-pt",
+      "language": "pt",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user talvez goste de amarelo, mas não tem certeza",
+            "attributed_to": "user",
+            "evidence": {
+              "kind": "stated",
+              "durability": "tentative",
+              "sourceQuote": "Talvez eu goste de amarelo; não tenho certeza."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "question-en",
+      "language": "en",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": []
+      }
+    },
+    {
+      "name": "question-pt",
+      "language": "pt",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": []
+      }
+    },
+    {
+      "name": "greeting-en",
+      "language": "en",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": []
+      }
+    },
+    {
+      "name": "greeting-pt",
+      "language": "pt",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": []
+      }
+    },
+    {
+      "name": "temporary-trial-en",
+      "language": "en",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [],
+        "entities": [],
+        "relations": []
+      }
+    },
+    {
+      "name": "temporary-trial-pt",
+      "language": "pt",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user está testando este estilo só hoje, sem mudar suas preferências habituais",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "temporary",
+              "sourceQuote": "Estou testando este estilo só hoje, sem mudar minhas preferências habituais."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "assistant-suggestion-en",
+      "language": "en",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user recommends considering a black jacket"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "assistant-suggestion-en",
+          "sourceQuote": "I recommend considering a black jacket."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user recommends considering a black jacket",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I recommend considering a black jacket."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "assistant-suggestion-pt",
+      "language": "pt",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user recomenda considerar uma jaqueta preta",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "temporary",
+              "sourceQuote": "Recomendo considerar uma jaqueta preta."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "assistant-offer-en",
+      "language": "en",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": []
+      }
+    },
+    {
+      "name": "assistant-offer-pt",
+      "language": "pt",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": []
+      }
+    },
+    {
+      "name": "assistant-proposal-en",
+      "language": "en",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user suggests trying comfortable sneakers",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "temporary",
+              "sourceQuote": "I suggest trying comfortable sneakers."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "assistant-proposal-pt",
+      "language": "pt",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user sugere experimentar tênis confortáveis",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "temporary",
+              "sourceQuote": "Sugiro experimentar tênis confortáveis."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "assistant-greeting-en",
+      "language": "en",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": []
+      }
+    },
+    {
+      "name": "assistant-greeting-pt",
+      "language": "pt",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": []
+      }
+    },
+    {
+      "name": "purchase-jacket-en",
+      "language": "en",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user bought a blue jacket yesterday"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "purchase-jacket-en",
+          "sourceQuote": "I bought a blue jacket yesterday."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user bought a blue jacket yesterday",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I bought a blue jacket yesterday."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "purchase-jacket-pt",
+      "language": "pt",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user comprou uma jaqueta azul ontem"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "purchase-jacket-pt",
+          "sourceQuote": "Comprei uma jaqueta azul ontem."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user comprou uma jaqueta azul ontem",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Comprei uma jaqueta azul ontem."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "purchase-boots-en",
+      "language": "en",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user purchased leather ankle boots last week"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "purchase-boots-en",
+          "sourceQuote": "I purchased leather ankle boots last week."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user purchased leather ankle boots last week",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I purchased leather ankle boots last week."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "purchase-boots-pt",
+      "language": "pt",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user comprou botas de couro na semana passada"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "purchase-boots-pt",
+          "sourceQuote": "Comprei botas de couro na semana passada."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user comprou botas de couro na semana passada",
+            "attributed_to": "user",
+            "category": "financial",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Comprei botas de couro na semana passada."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "purchase-dress-en",
+      "language": "en",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user bought a red cocktail dress for the event"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "purchase-dress-en",
+          "sourceQuote": "I bought a red cocktail dress for the event."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user bought a red cocktail dress for the event",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I bought a red cocktail dress for the event."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "purchase-dress-pt",
+      "language": "pt",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user comprou um vestido vermelho para o evento"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "purchase-dress-pt",
+          "sourceQuote": "Comprei um vestido vermelho para o evento."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user comprou um vestido vermelho para o evento",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Comprei um vestido vermelho para o evento."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "purchase-return-en",
+      "language": "en",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user returned the green shirt to the store"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "purchase-return-en",
+          "sourceQuote": "I returned the green shirt to the store."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user returned the green shirt to the store",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I returned the green shirt to the store."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "purchase-return-pt",
+      "language": "pt",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user devolveu a camisa verde à loja"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "purchase-return-pt",
+          "sourceQuote": "Devolvi a camisa verde à loja."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user devolveu a camisa verde à loja",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Devolvi a camisa verde à loja."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "changed-color-en",
+      "language": "en",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user prefers dark colors now"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "changed-color-en",
+          "sourceQuote": "but now I prefer dark colors."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user used to prefer bright colors",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "temporary",
+              "sourceQuote": "I used to prefer bright colors."
+            }
+          },
+          {
+            "id": "2",
+            "text": "user prefers dark colors now",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "but now I prefer dark colors."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "changed-color-pt",
+      "language": "pt",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 3,
+      "relevant": 2,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user preferia cores vibrantes",
+        "user prefere cores escuras",
+        "user parece preferir cores escuras em vez de cores vibrantes"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "changed-color-pt",
+          "sourceQuote": "Eu preferia cores vibrantes, mas agora prefiro cores escuras."
+        },
+        {
+          "kind": "stated",
+          "sourceId": "changed-color-pt",
+          "sourceQuote": "Eu preferia cores vibrantes, mas agora prefiro cores escuras."
+        },
+        {
+          "kind": "inferred",
+          "sourceId": "changed-color-pt",
+          "sourceQuote": "Eu preferia cores vibrantes, mas agora prefiro cores escuras.",
+          "confidence": 0.7
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user preferia cores vibrantes",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Eu preferia cores vibrantes, mas agora prefiro cores escuras."
+            }
+          },
+          {
+            "id": "2",
+            "text": "user prefere cores escuras",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Eu preferia cores vibrantes, mas agora prefiro cores escuras."
+            }
+          },
+          {
+            "id": "3",
+            "text": "user parece preferir cores escuras em vez de cores vibrantes",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "inferred",
+              "durability": "durable",
+              "confidence": 0.7,
+              "sourceQuote": "Eu preferia cores vibrantes, mas agora prefiro cores escuras."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "changed-diet-en",
+      "language": "en",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 2,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user used to eat meat",
+        "user is now vegetarian"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "changed-diet-en",
+          "sourceQuote": "I used to eat meat;"
+        },
+        {
+          "kind": "stated",
+          "sourceId": "changed-diet-en",
+          "sourceQuote": "I am now vegetarian."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user used to eat meat",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I used to eat meat;"
+            }
+          },
+          {
+            "id": "2",
+            "text": "user is now vegetarian",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I am now vegetarian."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "changed-diet-pt",
+      "language": "pt",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 2,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user comia carne",
+        "user é vegetariano."
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "changed-diet-pt",
+          "sourceQuote": "Eu comia carne; agora sou vegetariano."
+        },
+        {
+          "kind": "stated",
+          "sourceId": "changed-diet-pt",
+          "sourceQuote": "Eu comia carne; agora sou vegetariano."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user comia carne",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Eu comia carne; agora sou vegetariano."
+            }
+          },
+          {
+            "id": "2",
+            "text": "user é vegetariano",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Eu comia carne; agora sou vegetariano."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "changed-location-en",
+      "language": "en",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 2,
+      "relevant": 2,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user moved from Recife to São Paulo last month",
+        "user now lives in São Paulo"
+      ],
+      "evidence": [
+        {
+          "kind": "inferred",
+          "sourceId": "changed-location-en"
+        },
+        {
+          "kind": "stated",
+          "sourceId": "changed-location-en",
+          "sourceQuote": "and now live in São Paulo."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user moved from Recife to São Paulo last month",
+            "attributed_to": "user",
+            "category": "location",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I moved from Recife to São Paulo last month."
+            }
+          },
+          {
+            "id": "2",
+            "text": "user now lives in São Paulo",
+            "attributed_to": "user",
+            "category": "location",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "and now live in São Paulo."
+            }
+          }
+        ],
+        "entities": [
+          {
+            "name": "user",
+            "type": "PERSON"
+          },
+          {
+            "name": "Recife",
+            "type": "PLACE"
+          },
+          {
+            "name": "São Paulo",
+            "type": "PLACE"
+          }
+        ],
+        "relations": [
+          {
+            "source": "user",
+            "relationship": "moved from",
+            "destination": "Recife"
+          },
+          {
+            "source": "user",
+            "relationship": "lives in",
+            "destination": "São Paulo"
+          }
+        ]
+      }
+    },
+    {
+      "name": "changed-location-pt",
+      "language": "pt",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 2,
+      "relevant": 2,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user mudou de Recife para São Paulo no mês passado",
+        "user mora em São Paulo"
+      ],
+      "evidence": [
+        {
+          "kind": "inferred",
+          "sourceId": "changed-location-pt"
+        },
+        {
+          "kind": "stated",
+          "sourceId": "changed-location-pt",
+          "sourceQuote": "agora moro em São Paulo."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user mudou de Recife para São Paulo no mês passado",
+            "attributed_to": "user",
+            "category": "location",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Mudei de Recife para São Paulo no mês passado."
+            }
+          },
+          {
+            "id": "2",
+            "text": "user mora em São Paulo",
+            "attributed_to": "user",
+            "category": "location",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "agora moro em São Paulo."
+            }
+          }
+        ],
+        "entities": [
+          {
+            "name": "user",
+            "type": "PERSON"
+          },
+          {
+            "name": "Recife",
+            "type": "PLACE"
+          },
+          {
+            "name": "São Paulo",
+            "type": "PLACE"
+          }
+        ],
+        "relations": [
+          {
+            "source": "user",
+            "relationship": "mudou de",
+            "destination": "Recife"
+          },
+          {
+            "source": "user",
+            "relationship": "mora em",
+            "destination": "São Paulo"
+          },
+          {
+            "source": "user",
+            "relationship": "mudou para",
+            "destination": "São Paulo"
+          }
+        ]
+      }
+    },
+    {
+      "name": "repeated-summary-en",
+      "language": "en",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 2,
+      "relevant": 2,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user prefers simple clothing",
+        "user appears to prefer simple clothing in similar situations"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "repeated-summary-en",
+          "sourceQuote": "I prefer simple clothing."
+        },
+        {
+          "kind": "inferred",
+          "sourceId": "repeated-summary-en",
+          "sourceQuote": "I prefer simple clothing.",
+          "confidence": 0.7
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user prefers simple clothing",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I prefer simple clothing."
+            }
+          },
+          {
+            "id": "2",
+            "text": "user appears to prefer simple clothing in similar situations",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "inferred",
+              "durability": "durable",
+              "confidence": 0.7,
+              "sourceQuote": "I prefer simple clothing."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "repeated-summary-pt",
+      "language": "pt",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user prefere roupas simples"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "repeated-summary-pt",
+          "sourceQuote": "prefiro roupas simples."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user prefere roupas simples",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "prefiro roupas simples."
+            }
+          },
+          {
+            "id": "2",
+            "text": "user prefere roupas simples",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "inferred",
+              "durability": "durable",
+              "sourceQuote": "o usuário prefere roupas simples."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "repeated-purchase-en",
+      "language": "en",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user bought blue boots"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "repeated-purchase-en",
+          "sourceQuote": "I bought blue boots."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user bought blue boots",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I bought blue boots."
+            }
+          },
+          {
+            "id": "2",
+            "text": "user bought blue boots",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "bought blue boots."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "repeated-purchase-pt",
+      "language": "pt",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user comprou botas azuis"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "repeated-purchase-pt",
+          "sourceQuote": "comprei botas azuis."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user comprou botas azuis",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "comprei botas azuis."
+            }
+          },
+          {
+            "id": "2",
+            "text": "user comprou botas azuis",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "comprou botas azuis."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "repeated-comfort-en",
+      "language": "en",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user needs comfortable shoes"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "repeated-comfort-en",
+          "sourceQuote": "I need comfortable shoes."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user needs comfortable shoes",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I need comfortable shoes."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "repeated-comfort-pt",
+      "language": "pt",
+      "repetition": 0,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user precisa de sapatos confortáveis"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "repeated-comfort-pt",
+          "sourceQuote": "preciso de sapatos confortáveis."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user precisa de sapatos confortáveis",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "preciso de sapatos confortáveis."
+            }
+          },
+          {
+            "id": "2",
+            "text": "user precisa de sapatos confortáveis",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "o usuário precisa de sapatos confortáveis."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "dark-colors-en",
+      "language": "en",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user usually prefers dark colors"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "dark-colors-en",
+          "sourceQuote": "I usually prefer dark colors."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user usually prefers dark colors",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I usually prefer dark colors."
+            }
+          }
+        ],
+        "entities": [
+          {
+            "name": "user",
+            "type": "PERSON"
+          }
+        ],
+        "relations": []
+      }
+    },
+    {
+      "name": "dark-colors-pt",
+      "language": "pt",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user prefere cores escuras"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "dark-colors-pt",
+          "sourceQuote": "Normalmente prefiro cores escuras."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user prefere cores escuras",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Normalmente prefiro cores escuras."
+            }
+          }
+        ],
+        "entities": [],
+        "relations": []
+      }
+    },
+    {
+      "name": "simple-style-en",
+      "language": "en",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user prefers simple clothes over flashy outfits"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "simple-style-en",
+          "sourceQuote": "I prefer simple clothes over flashy outfits."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user prefers simple clothes over flashy outfits",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I prefer simple clothes over flashy outfits."
+            }
+          }
+        ],
+        "entities": [
+          {
+            "name": "user",
+            "type": "PERSON"
+          }
+        ],
+        "relations": []
+      }
+    },
+    {
+      "name": "simple-style-pt",
+      "language": "pt",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user prefere roupas simples a roupas chamativas"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "simple-style-pt",
+          "sourceQuote": "Prefiro roupas simples a roupas chamativas."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user prefere roupas simples a roupas chamativas",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Prefiro roupas simples a roupas chamativas."
+            }
+          }
+        ],
+        "entities": [],
+        "relations": []
+      }
+    },
+    {
+      "name": "comfort-en",
+      "language": "en",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 2,
+      "covered": 2,
+      "emitted": 2,
+      "relevant": 2,
+      "classified": 2,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "Alice selected cushioned sneakers rather than stiff formal shoes in five independent sessions",
+        "Alice appears to prefer cushioned sneakers in similar situations"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "comfort-en",
+          "sourceQuote": "In five independent sessions Alice selected cushioned sneakers rather than stiff formal shoes."
+        },
+        {
+          "kind": "inferred",
+          "sourceId": "comfort-en",
+          "sourceQuote": "In five independent sessions Alice selected cushioned sneakers rather than stiff formal shoes."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "Alice selected cushioned sneakers rather than stiff formal shoes in five independent sessions",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "In five independent sessions Alice selected cushioned sneakers rather than stiff formal shoes."
+            }
+          },
+          {
+            "id": "2",
+            "text": "Alice appears to prefer cushioned sneakers in similar situations",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "inferred",
+              "durability": "durable",
+              "sourceQuote": "In five independent sessions Alice selected cushioned sneakers rather than stiff formal shoes."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "comfort-pt",
+      "language": "pt",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 2,
+      "covered": 2,
+      "emitted": 3,
+      "relevant": 3,
+      "classified": 2,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "Alice escolheu tênis acolchoados em vez de sapatos sociais rígidos em cinco sessões independentes",
+        "Alice nunca declarou explicitamente uma preferência de conforto",
+        "Alice parece preferir tênis acolchoados em situações semelhantes"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "comfort-pt",
+          "sourceQuote": "Em cinco sessões independentes Alice escolheu tênis acolchoados em vez de sapatos sociais rígidos."
+        },
+        {
+          "kind": "stated",
+          "sourceId": "comfort-pt",
+          "sourceQuote": "Ela nunca declarou explicitamente uma preferência de conforto."
+        },
+        {
+          "kind": "inferred",
+          "sourceId": "comfort-pt",
+          "sourceQuote": "Em cinco sessões independentes Alice escolheu tênis acolchoados em vez de sapatos sociais rígidos.",
+          "confidence": 0.7
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "Alice escolheu tênis acolchoados em vez de sapatos sociais rígidos em cinco sessões independentes",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Em cinco sessões independentes Alice escolheu tênis acolchoados em vez de sapatos sociais rígidos."
+            }
+          },
+          {
+            "id": "2",
+            "text": "Alice nunca declarou explicitamente uma preferência de conforto",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Ela nunca declarou explicitamente uma preferência de conforto."
+            }
+          },
+          {
+            "id": "3",
+            "text": "Alice parece preferir tênis acolchoados em situações semelhantes",
+            "attributed_to": "user",
+            "category": "inferred",
+            "evidence": {
+              "kind": "inferred",
+              "durability": "durable",
+              "confidence": 0.7,
+              "sourceQuote": "Em cinco sessões independentes Alice escolheu tênis acolchoados em vez de sapatos sociais rígidos."
+            }
+          }
+        ],
+        "entities": [
+          {
+            "name": "Alice",
+            "type": "PERSON"
+          },
+          {
+            "name": "tênis acolchoados",
+            "type": "PRODUCT"
+          },
+          {
+            "name": "sapatos sociais rígidos",
+            "type": "PRODUCT"
+          }
+        ],
+        "relations": [
+          {
+            "source": "Alice",
+            "relationship": "escolheu",
+            "destination": "tênis acolchoados"
+          },
+          {
+            "source": "Alice",
+            "relationship": "escolheu",
+            "destination": "sapatos sociais rígidos"
+          }
+        ]
+      }
+    },
+    {
+      "name": "allergy-en",
+      "language": "en",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user is allergic to wool"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "allergy-en",
+          "sourceQuote": "I am allergic to wool."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user is allergic to wool",
+            "attributed_to": "user",
+            "category": "health",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I am allergic to wool."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "allergy-pt",
+      "language": "pt",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user tem alergia a lã"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "allergy-pt",
+          "sourceQuote": "Tenho alergia a lã."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user tem alergia a lã",
+            "attributed_to": "user",
+            "category": "health",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Tenho alergia a lã."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "vegetarian-en",
+      "language": "en",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user is vegetarian and does not eat meat"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "vegetarian-en",
+          "sourceQuote": "I am vegetarian and do not eat meat."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user is vegetarian and does not eat meat",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I am vegetarian and do not eat meat."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "vegetarian-pt",
+      "language": "pt",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user é vegetariano e não come carne."
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "vegetarian-pt",
+          "sourceQuote": "Sou vegetariano e não como carne."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user é vegetariano e não come carne",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Sou vegetariano e não como carne."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "language-en",
+      "language": "en",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user prefers to communicate in Portuguese"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "language-en",
+          "sourceQuote": "I prefer to communicate in Portuguese."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user prefers to communicate in Portuguese",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I prefer to communicate in Portuguese."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "language-pt",
+      "language": "pt",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user prefere conversar em português"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "language-pt",
+          "sourceQuote": "Prefiro conversar em português."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user prefere conversar em português",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Prefiro conversar em português."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "size-en",
+      "language": "en",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 2,
+      "covered": 2,
+      "emitted": 2,
+      "relevant": 2,
+      "classified": 2,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "Bruno picked plain, unadorned outfits rather than ornate ones in five independent sessions",
+        "Bruno appears to prefer plain, unadorned outfits in similar situations"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "size-en",
+          "sourceQuote": "In five independent sessions Bruno picked plain, unadorned outfits rather than ornate ones."
+        },
+        {
+          "kind": "inferred",
+          "sourceId": "size-en",
+          "sourceQuote": "In five independent sessions Bruno picked plain, unadorned outfits rather than ornate ones."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "Bruno picked plain, unadorned outfits rather than ornate ones in five independent sessions",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "In five independent sessions Bruno picked plain, unadorned outfits rather than ornate ones."
+            }
+          },
+          {
+            "id": "2",
+            "text": "Bruno appears to prefer plain, unadorned outfits in similar situations",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "inferred",
+              "durability": "durable",
+              "sourceQuote": "In five independent sessions Bruno picked plain, unadorned outfits rather than ornate ones."
+            }
+          }
+        ],
+        "entities": [
+          {
+            "name": "Bruno",
+            "type": "PERSON"
+          },
+          {
+            "name": "user",
+            "type": "PERSON"
+          }
+        ],
+        "relations": [
+          {
+            "source": "Bruno",
+            "relationship": "picked",
+            "destination": "plain, unadorned outfits"
+          },
+          {
+            "source": "Bruno",
+            "relationship": "picked",
+            "destination": "ornate ones"
+          }
+        ]
+      }
+    },
+    {
+      "name": "size-pt",
+      "language": "pt",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 2,
+      "covered": 2,
+      "emitted": 3,
+      "relevant": 2,
+      "classified": 2,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "Bruno escolheu roupas simples e sem enfeites em vez de roupas ornamentadas em cinco sessões independentes",
+        "Bruno nunca declarou explicitamente uma preferência de estilo",
+        "Bruno parece preferir roupas simples em situações semelhantes"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "size-pt",
+          "sourceQuote": "Em cinco sessões independentes Bruno escolheu roupas simples e sem enfeites em vez de roupas ornamentadas."
+        },
+        {
+          "kind": "stated",
+          "sourceId": "size-pt",
+          "sourceQuote": "Ele nunca declarou explicitamente uma preferência de estilo."
+        },
+        {
+          "kind": "inferred",
+          "sourceId": "size-pt",
+          "sourceQuote": "Em cinco sessões independentes Bruno escolheu roupas simples e sem enfeites em vez de roupas ornamentadas.",
+          "confidence": 0.7
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "Bruno escolheu roupas simples e sem enfeites em vez de roupas ornamentadas em cinco sessões independentes",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Em cinco sessões independentes Bruno escolheu roupas simples e sem enfeites em vez de roupas ornamentadas."
+            }
+          },
+          {
+            "id": "2",
+            "text": "Bruno nunca declarou explicitamente uma preferência de estilo",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Ele nunca declarou explicitamente uma preferência de estilo."
+            }
+          },
+          {
+            "id": "3",
+            "text": "Bruno parece preferir roupas simples em situações semelhantes",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "inferred",
+              "durability": "durable",
+              "confidence": 0.7,
+              "sourceQuote": "Em cinco sessões independentes Bruno escolheu roupas simples e sem enfeites em vez de roupas ornamentadas."
+            }
+          }
+        ],
+        "entities": [
+          {
+            "name": "Bruno",
+            "type": "PERSON"
+          },
+          {
+            "name": "roupas simples",
+            "type": "CONCEPT"
+          },
+          {
+            "name": "roupas ornamentadas",
+            "type": "CONCEPT"
+          }
+        ],
+        "relations": [
+          {
+            "source": "Bruno",
+            "relationship": "escolheu",
+            "destination": "roupas simples"
+          },
+          {
+            "source": "Bruno",
+            "relationship": "escolheu",
+            "destination": "roupas ornamentadas"
+          }
+        ]
+      }
+    },
+    {
+      "name": "routine-en",
+      "language": "en",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 2,
+      "covered": 2,
+      "emitted": 2,
+      "relevant": 2,
+      "classified": 2,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "Carla selected dark clothes for formal dinners in five independent sessions.",
+        "Carla seems to prefer dark clothing for formal dinners in similar situations."
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "routine-en",
+          "sourceQuote": "Across five independent sessions Carla selected dark clothes for formal dinners rather than bright clothes."
+        },
+        {
+          "kind": "inferred",
+          "sourceId": "routine-en",
+          "sourceQuote": "Across five independent sessions Carla selected dark clothes for formal dinners rather than bright clothes.",
+          "confidence": 0.7
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "Carla selecionou roupas escuras para jantares formais em cinco sessões independentes",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Across five independent sessions Carla selected dark clothes for formal dinners rather than bright clothes."
+            }
+          },
+          {
+            "id": "2",
+            "text": "Carla parece preferir roupas escuras para jantares formais em situações semelhantes",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "inferred",
+              "durability": "durable",
+              "confidence": 0.7,
+              "sourceQuote": "Across five independent sessions Carla selected dark clothes for formal dinners rather than bright clothes."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "routine-pt",
+      "language": "pt",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 2,
+      "covered": 2,
+      "emitted": 2,
+      "relevant": 2,
+      "classified": 2,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "Carla escolheu roupas escuras para jantares formais em vez de roupas vibrantes em cinco sessões independentes",
+        "Carla parece preferir roupas escuras para jantares formais em situações semelhantes"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "routine-pt",
+          "sourceQuote": "Em cinco sessões independentes Carla escolheu roupas escuras para jantares formais em vez de roupas vibrantes."
+        },
+        {
+          "kind": "inferred",
+          "sourceId": "routine-pt",
+          "sourceQuote": "Em cinco sessões independentes Carla escolheu roupas escuras para jantares formais em vez de roupas vibrantes.",
+          "confidence": 0.7
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "Carla escolheu roupas escuras para jantares formais em vez de roupas vibrantes em cinco sessões independentes",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Em cinco sessões independentes Carla escolheu roupas escuras para jantares formais em vez de roupas vibrantes."
+            }
+          },
+          {
+            "id": "2",
+            "text": "Carla parece preferir roupas escuras para jantares formais em situações semelhantes",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "inferred",
+              "durability": "durable",
+              "confidence": 0.7,
+              "sourceQuote": "Em cinco sessões independentes Carla escolheu roupas escuras para jantares formais em vez de roupas vibrantes."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "maybe-yellow-en",
+      "language": "en",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": []
+      }
+    },
+    {
+      "name": "maybe-yellow-pt",
+      "language": "pt",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [],
+        "entities": [],
+        "relations": []
+      }
+    },
+    {
+      "name": "hypothetical-en",
+      "language": "en",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": []
+      }
+    },
+    {
+      "name": "hypothetical-pt",
+      "language": "pt",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [],
+        "entities": [],
+        "relations": []
+      }
+    },
+    {
+      "name": "trying-color-en",
+      "language": "en",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": []
+      }
+    },
+    {
+      "name": "trying-color-pt",
+      "language": "pt",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [],
+        "entities": [],
+        "relations": []
+      }
+    },
+    {
+      "name": "passing-mood-en",
+      "language": "en",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [],
+        "entities": [],
+        "relations": []
+      }
+    },
+    {
+      "name": "passing-mood-pt",
+      "language": "pt",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user está com vontade de usar verde nesta manhã",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "temporary",
+              "sourceQuote": "Só nesta manhã estou com vontade de usar verde."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "uncertain-preference-en",
+      "language": "en",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [],
+        "entities": [],
+        "relations": []
+      }
+    },
+    {
+      "name": "uncertain-preference-pt",
+      "language": "pt",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [],
+        "entities": [],
+        "relations": []
+      }
+    },
+    {
+      "name": "question-en",
+      "language": "en",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": []
+      }
+    },
+    {
+      "name": "question-pt",
+      "language": "pt",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": []
+      }
+    },
+    {
+      "name": "greeting-en",
+      "language": "en",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": []
+      }
+    },
+    {
+      "name": "greeting-pt",
+      "language": "pt",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": []
+      }
+    },
+    {
+      "name": "temporary-trial-en",
+      "language": "en",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [],
+        "entities": [],
+        "relations": []
+      }
+    },
+    {
+      "name": "temporary-trial-pt",
+      "language": "pt",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [],
+        "entities": [],
+        "relations": []
+      }
+    },
+    {
+      "name": "assistant-suggestion-en",
+      "language": "en",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user recommends considering a black jacket"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "assistant-suggestion-en",
+          "sourceQuote": "I recommend considering a black jacket."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user recommends considering a black jacket",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I recommend considering a black jacket."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "assistant-suggestion-pt",
+      "language": "pt",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user recomenda considerar uma jaqueta preta",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "temporary",
+              "sourceQuote": "Recomendo considerar uma jaqueta preta."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "assistant-offer-en",
+      "language": "en",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": []
+      }
+    },
+    {
+      "name": "assistant-offer-pt",
+      "language": "pt",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": []
+      }
+    },
+    {
+      "name": "assistant-proposal-en",
+      "language": "en",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user suggests trying comfortable sneakers",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "temporary",
+              "sourceQuote": "I suggest trying comfortable sneakers."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "assistant-proposal-pt",
+      "language": "pt",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user sugere experimentar tênis confortáveis",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "temporary",
+              "sourceQuote": "Sugiro experimentar tênis confortáveis."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "assistant-greeting-en",
+      "language": "en",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": []
+      }
+    },
+    {
+      "name": "assistant-greeting-pt",
+      "language": "pt",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": []
+      }
+    },
+    {
+      "name": "purchase-jacket-en",
+      "language": "en",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user bought a blue jacket yesterday"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "purchase-jacket-en",
+          "sourceQuote": "I bought a blue jacket yesterday."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user bought a blue jacket yesterday",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I bought a blue jacket yesterday."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "purchase-jacket-pt",
+      "language": "pt",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user comprou uma jaqueta azul ontem"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "purchase-jacket-pt",
+          "sourceQuote": "Comprei uma jaqueta azul ontem."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user comprou uma jaqueta azul ontem",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Comprei uma jaqueta azul ontem."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "purchase-boots-en",
+      "language": "en",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user purchased leather ankle boots last week"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "purchase-boots-en",
+          "sourceQuote": "I purchased leather ankle boots last week."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user purchased leather ankle boots last week",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I purchased leather ankle boots last week."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "purchase-boots-pt",
+      "language": "pt",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user comprou botas de couro na semana passada"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "purchase-boots-pt",
+          "sourceQuote": "Comprei botas de couro na semana passada."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user comprou botas de couro na semana passada",
+            "attributed_to": "user",
+            "category": "financial",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Comprei botas de couro na semana passada."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "purchase-dress-en",
+      "language": "en",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user bought a red cocktail dress for the event"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "purchase-dress-en",
+          "sourceQuote": "I bought a red cocktail dress for the event."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user bought a red cocktail dress for the event",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I bought a red cocktail dress for the event."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "purchase-dress-pt",
+      "language": "pt",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user comprou um vestido vermelho para o evento"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "purchase-dress-pt",
+          "sourceQuote": "Comprei um vestido vermelho para o evento."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user comprou um vestido vermelho para o evento",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Comprei um vestido vermelho para o evento."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "purchase-return-en",
+      "language": "en",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user returned the green shirt to the store"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "purchase-return-en",
+          "sourceQuote": "I returned the green shirt to the store."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user returned the green shirt to the store",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I returned the green shirt to the store."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "purchase-return-pt",
+      "language": "pt",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user devolveu a camisa verde à loja"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "purchase-return-pt",
+          "sourceQuote": "Devolvi a camisa verde à loja."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user devolveu a camisa verde à loja",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Devolvi a camisa verde à loja."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "changed-color-en",
+      "language": "en",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user prefers dark colors"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "changed-color-en",
+          "sourceQuote": "but now I prefer dark colors."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user used to prefer bright colors",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "temporary",
+              "sourceQuote": "I used to prefer bright colors."
+            }
+          },
+          {
+            "id": "2",
+            "text": "user prefers dark colors",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "but now I prefer dark colors."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "changed-color-pt",
+      "language": "pt",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 3,
+      "relevant": 2,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user preferia cores vibrantes",
+        "user prefere cores escuras",
+        "user parece ter mudado de preferência de cores vibrantes para cores escuras"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "changed-color-pt",
+          "sourceQuote": "Eu preferia cores vibrantes, mas agora prefiro cores escuras."
+        },
+        {
+          "kind": "stated",
+          "sourceId": "changed-color-pt",
+          "sourceQuote": "Eu preferia cores vibrantes, mas agora prefiro cores escuras."
+        },
+        {
+          "kind": "inferred",
+          "sourceId": "changed-color-pt",
+          "sourceQuote": "Eu preferia cores vibrantes, mas agora prefiro cores escuras.",
+          "confidence": 0.7
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user preferia cores vibrantes",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Eu preferia cores vibrantes, mas agora prefiro cores escuras."
+            }
+          },
+          {
+            "id": "2",
+            "text": "user prefere cores escuras",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Eu preferia cores vibrantes, mas agora prefiro cores escuras."
+            }
+          },
+          {
+            "id": "3",
+            "text": "user parece ter mudado de preferência de cores vibrantes para cores escuras",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "inferred",
+              "durability": "durable",
+              "confidence": 0.7,
+              "sourceQuote": "Eu preferia cores vibrantes, mas agora prefiro cores escuras."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "changed-diet-en",
+      "language": "en",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 2,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user used to eat meat",
+        "user is now vegetarian"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "changed-diet-en",
+          "sourceQuote": "I used to eat meat;"
+        },
+        {
+          "kind": "stated",
+          "sourceId": "changed-diet-en",
+          "sourceQuote": "I am now vegetarian."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user used to eat meat",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I used to eat meat;"
+            }
+          },
+          {
+            "id": "2",
+            "text": "user is now vegetarian",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I am now vegetarian."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "changed-diet-pt",
+      "language": "pt",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user é vegetariano."
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "changed-diet-pt",
+          "sourceQuote": "Eu comia carne; agora sou vegetariano."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user comia carne",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "tentative",
+              "sourceQuote": "Eu comia carne; agora sou vegetariano."
+            }
+          },
+          {
+            "id": "2",
+            "text": "user é vegetariano",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Eu comia carne; agora sou vegetariano."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "changed-location-en",
+      "language": "en",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 2,
+      "relevant": 2,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user moved from Recife to São Paulo last month",
+        "user now lives in São Paulo"
+      ],
+      "evidence": [
+        {
+          "kind": "inferred",
+          "sourceId": "changed-location-en"
+        },
+        {
+          "kind": "stated",
+          "sourceId": "changed-location-en",
+          "sourceQuote": "now live in São Paulo."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user moved from Recife to São Paulo last month",
+            "attributed_to": "user",
+            "category": "location",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I moved from Recife to São Paulo last month."
+            }
+          },
+          {
+            "id": "2",
+            "text": "user now lives in São Paulo",
+            "attributed_to": "user",
+            "category": "location",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "now live in São Paulo."
+            }
+          }
+        ],
+        "entities": [
+          {
+            "name": "user",
+            "type": "PERSON"
+          },
+          {
+            "name": "Recife",
+            "type": "PLACE"
+          },
+          {
+            "name": "São Paulo",
+            "type": "PLACE"
+          }
+        ],
+        "relations": [
+          {
+            "source": "user",
+            "relationship": "moved from",
+            "destination": "Recife"
+          },
+          {
+            "source": "user",
+            "relationship": "lives in",
+            "destination": "São Paulo"
+          }
+        ]
+      }
+    },
+    {
+      "name": "changed-location-pt",
+      "language": "pt",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 2,
+      "relevant": 2,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user mudou de Recife para São Paulo no mês passado",
+        "user mora em São Paulo"
+      ],
+      "evidence": [
+        {
+          "kind": "inferred",
+          "sourceId": "changed-location-pt"
+        },
+        {
+          "kind": "stated",
+          "sourceId": "changed-location-pt",
+          "sourceQuote": "agora moro em São Paulo."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user mudou de Recife para São Paulo no mês passado",
+            "attributed_to": "user",
+            "category": "location",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Mudei de Recife para São Paulo no mês passado."
+            }
+          },
+          {
+            "id": "2",
+            "text": "user mora em São Paulo",
+            "attributed_to": "user",
+            "category": "location",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "agora moro em São Paulo."
+            }
+          }
+        ],
+        "entities": [
+          {
+            "name": "user",
+            "type": "PERSON"
+          },
+          {
+            "name": "Recife",
+            "type": "PLACE"
+          },
+          {
+            "name": "São Paulo",
+            "type": "PLACE"
+          }
+        ],
+        "relations": [
+          {
+            "source": "user",
+            "relationship": "mudou de",
+            "destination": "Recife"
+          },
+          {
+            "source": "user",
+            "relationship": "mudou para",
+            "destination": "São Paulo"
+          },
+          {
+            "source": "user",
+            "relationship": "mora em",
+            "destination": "São Paulo"
+          }
+        ]
+      }
+    },
+    {
+      "name": "repeated-summary-en",
+      "language": "en",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user prefers simple clothing"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "repeated-summary-en",
+          "sourceQuote": "I prefer simple clothing."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user prefers simple clothing",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I prefer simple clothing."
+            }
+          },
+          {
+            "id": "2",
+            "text": "user prefers simple clothing",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "inferred",
+              "durability": "durable",
+              "sourceQuote": "the user prefers simple clothing."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "repeated-summary-pt",
+      "language": "pt",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user prefere roupas simples"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "repeated-summary-pt",
+          "sourceQuote": "prefiro roupas simples."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user prefere roupas simples",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "prefiro roupas simples."
+            }
+          },
+          {
+            "id": "2",
+            "text": "user prefere roupas simples",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "inferred",
+              "durability": "durable",
+              "sourceQuote": "Resumo da mesma declaração: o usuário prefere roupas simples."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "repeated-purchase-en",
+      "language": "en",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user bought blue boots"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "repeated-purchase-en",
+          "sourceQuote": "I bought blue boots."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user bought blue boots",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I bought blue boots."
+            }
+          },
+          {
+            "id": "2",
+            "text": "user bought blue boots",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "bought blue boots."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "repeated-purchase-pt",
+      "language": "pt",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user comprou botas azuis"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "repeated-purchase-pt",
+          "sourceQuote": "comprei botas azuis."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user comprou botas azuis",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "comprei botas azuis."
+            }
+          },
+          {
+            "id": "2",
+            "text": "user comprou botas azuis",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "comprou botas azuis."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "repeated-comfort-en",
+      "language": "en",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user needs comfortable shoes"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "repeated-comfort-en",
+          "sourceQuote": "I need comfortable shoes."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user needs comfortable shoes",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I need comfortable shoes."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "repeated-comfort-pt",
+      "language": "pt",
+      "repetition": 1,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user precisa de sapatos confortáveis"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "repeated-comfort-pt",
+          "sourceQuote": "preciso de sapatos confortáveis."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user precisa de sapatos confortáveis",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "preciso de sapatos confortáveis."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "dark-colors-en",
+      "language": "en",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user usually prefers dark colors"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "dark-colors-en",
+          "sourceQuote": "I usually prefer dark colors."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user usually prefers dark colors",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I usually prefer dark colors."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "dark-colors-pt",
+      "language": "pt",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user prefere cores escuras"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "dark-colors-pt",
+          "sourceQuote": "Normalmente prefiro cores escuras."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user prefere cores escuras",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Normalmente prefiro cores escuras."
+            }
+          }
+        ],
+        "entities": [],
+        "relations": []
+      }
+    },
+    {
+      "name": "simple-style-en",
+      "language": "en",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user prefers simple clothes over flashy outfits"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "simple-style-en",
+          "sourceQuote": "I prefer simple clothes over flashy outfits."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user prefers simple clothes over flashy outfits",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I prefer simple clothes over flashy outfits."
+            }
+          }
+        ],
+        "entities": [
+          {
+            "name": "user",
+            "type": "PERSON"
+          }
+        ],
+        "relations": []
+      }
+    },
+    {
+      "name": "simple-style-pt",
+      "language": "pt",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user prefere roupas simples a roupas chamativas"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "simple-style-pt",
+          "sourceQuote": "Prefiro roupas simples a roupas chamativas."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user prefere roupas simples a roupas chamativas",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Prefiro roupas simples a roupas chamativas."
+            }
+          }
+        ],
+        "entities": [],
+        "relations": []
+      }
+    },
+    {
+      "name": "comfort-en",
+      "language": "en",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 2,
+      "covered": 2,
+      "emitted": 2,
+      "relevant": 2,
+      "classified": 2,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "Alice selected cushioned sneakers rather than stiff formal shoes in five independent sessions",
+        "Alice appears to prefer cushioned sneakers in similar situations"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "comfort-en",
+          "sourceQuote": "In five independent sessions Alice selected cushioned sneakers rather than stiff formal shoes."
+        },
+        {
+          "kind": "inferred",
+          "sourceId": "comfort-en",
+          "sourceQuote": "In five independent sessions Alice selected cushioned sneakers rather than stiff formal shoes.",
+          "confidence": 0.7
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "Alice selected cushioned sneakers rather than stiff formal shoes in five independent sessions",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "In five independent sessions Alice selected cushioned sneakers rather than stiff formal shoes."
+            }
+          },
+          {
+            "id": "2",
+            "text": "Alice appears to prefer cushioned sneakers in similar situations",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "inferred",
+              "durability": "durable",
+              "confidence": 0.7,
+              "sourceQuote": "In five independent sessions Alice selected cushioned sneakers rather than stiff formal shoes."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "comfort-pt",
+      "language": "pt",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 2,
+      "covered": 2,
+      "emitted": 2,
+      "relevant": 2,
+      "classified": 2,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "Alice escolheu tênis acolchoados em vez de sapatos sociais rígidos em cinco sessões independentes",
+        "Alice parece preferir conforto em situações semelhantes"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "comfort-pt",
+          "sourceQuote": "Em cinco sessões independentes Alice escolheu tênis acolchoados em vez de sapatos sociais rígidos."
+        },
+        {
+          "kind": "inferred",
+          "sourceId": "comfort-pt",
+          "sourceQuote": "Ela nunca declarou explicitamente uma preferência de conforto.",
+          "confidence": 0.7
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "Alice escolheu tênis acolchoados em vez de sapatos sociais rígidos em cinco sessões independentes",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Em cinco sessões independentes Alice escolheu tênis acolchoados em vez de sapatos sociais rígidos."
+            }
+          },
+          {
+            "id": "2",
+            "text": "Alice parece preferir conforto em situações semelhantes",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "inferred",
+              "durability": "durable",
+              "sourceQuote": "Ela nunca declarou explicitamente uma preferência de conforto.",
+              "confidence": 0.7
+            }
+          }
+        ],
+        "entities": [
+          {
+            "name": "Alice",
+            "type": "PERSON"
+          },
+          {
+            "name": "tênis acolchoados",
+            "type": "PRODUCT"
+          },
+          {
+            "name": "sapatos sociais rígidos",
+            "type": "PRODUCT"
+          }
+        ],
+        "relations": [
+          {
+            "source": "Alice",
+            "relationship": "escolheu",
+            "destination": "tênis acolchoados"
+          },
+          {
+            "source": "Alice",
+            "relationship": "escolheu",
+            "destination": "sapatos sociais rígidos"
+          }
+        ]
+      }
+    },
+    {
+      "name": "allergy-en",
+      "language": "en",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user is allergic to wool"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "allergy-en",
+          "sourceQuote": "I am allergic to wool."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user is allergic to wool",
+            "attributed_to": "user",
+            "category": "health",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I am allergic to wool."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "allergy-pt",
+      "language": "pt",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user tem alergia a lã"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "allergy-pt",
+          "sourceQuote": "Tenho alergia a lã."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user tem alergia a lã",
+            "attributed_to": "user",
+            "category": "health",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Tenho alergia a lã."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "vegetarian-en",
+      "language": "en",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user is vegetarian and does not eat meat"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "vegetarian-en",
+          "sourceQuote": "I am vegetarian and do not eat meat."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user is vegetarian and does not eat meat",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I am vegetarian and do not eat meat."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "vegetarian-pt",
+      "language": "pt",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user é vegetariano e não come carne."
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "vegetarian-pt",
+          "sourceQuote": "Sou vegetariano e não como carne."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user é vegetariano e não come carne",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Sou vegetariano e não como carne."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "language-en",
+      "language": "en",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user prefers to communicate in Portuguese"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "language-en",
+          "sourceQuote": "I prefer to communicate in Portuguese."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user prefers to communicate in Portuguese",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I prefer to communicate in Portuguese."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "language-pt",
+      "language": "pt",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user prefere conversar em português"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "language-pt",
+          "sourceQuote": "Prefiro conversar em português."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user prefere conversar em português",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Prefiro conversar em português."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "size-en",
+      "language": "en",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 2,
+      "covered": 2,
+      "emitted": 2,
+      "relevant": 2,
+      "classified": 2,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "Bruno picked plain, unadorned outfits rather than ornate ones in five independent sessions",
+        "Bruno appears to prefer plain, unadorned outfits in similar situations"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "size-en",
+          "sourceQuote": "In five independent sessions Bruno picked plain, unadorned outfits rather than ornate ones."
+        },
+        {
+          "kind": "inferred",
+          "sourceId": "size-en",
+          "sourceQuote": "In five independent sessions Bruno picked plain, unadorned outfits rather than ornate ones.",
+          "confidence": 0.7
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "Bruno picked plain, unadorned outfits rather than ornate ones in five independent sessions",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "In five independent sessions Bruno picked plain, unadorned outfits rather than ornate ones."
+            }
+          },
+          {
+            "id": "2",
+            "text": "Bruno appears to prefer plain, unadorned outfits in similar situations",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "inferred",
+              "durability": "durable",
+              "confidence": 0.7,
+              "sourceQuote": "In five independent sessions Bruno picked plain, unadorned outfits rather than ornate ones."
+            }
+          }
+        ],
+        "entities": [
+          {
+            "name": "Bruno",
+            "type": "PERSON"
+          },
+          {
+            "name": "user",
+            "type": "PERSON"
+          }
+        ],
+        "relations": [
+          {
+            "source": "Bruno",
+            "relationship": "picked",
+            "destination": "plain, unadorned outfits"
+          },
+          {
+            "source": "Bruno",
+            "relationship": "picked",
+            "destination": "ornate ones"
+          }
+        ]
+      }
+    },
+    {
+      "name": "size-pt",
+      "language": "pt",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 2,
+      "covered": 2,
+      "emitted": 3,
+      "relevant": 2,
+      "classified": 2,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "Bruno escolheu roupas simples e sem enfeites em vez de roupas ornamentadas em cinco sessões independentes",
+        "Bruno nunca declarou explicitamente uma preferência de estilo",
+        "Bruno parece preferir roupas simples em situações semelhantes"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "size-pt",
+          "sourceQuote": "Em cinco sessões independentes Bruno escolheu roupas simples e sem enfeites em vez de roupas ornamentadas."
+        },
+        {
+          "kind": "stated",
+          "sourceId": "size-pt",
+          "sourceQuote": "Ele nunca declarou explicitamente uma preferência de estilo."
+        },
+        {
+          "kind": "inferred",
+          "sourceId": "size-pt",
+          "sourceQuote": "Em cinco sessões independentes Bruno escolheu roupas simples e sem enfeites em vez de roupas ornamentadas.",
+          "confidence": 0.7
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "Bruno escolheu roupas simples e sem enfeites em vez de roupas ornamentadas em cinco sessões independentes",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Em cinco sessões independentes Bruno escolheu roupas simples e sem enfeites em vez de roupas ornamentadas."
+            }
+          },
+          {
+            "id": "2",
+            "text": "Bruno nunca declarou explicitamente uma preferência de estilo",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Ele nunca declarou explicitamente uma preferência de estilo."
+            }
+          },
+          {
+            "id": "3",
+            "text": "Bruno parece preferir roupas simples em situações semelhantes",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "inferred",
+              "durability": "durable",
+              "confidence": 0.7,
+              "sourceQuote": "Em cinco sessões independentes Bruno escolheu roupas simples e sem enfeites em vez de roupas ornamentadas."
+            }
+          }
+        ],
+        "entities": [
+          {
+            "name": "Bruno",
+            "type": "PERSON"
+          },
+          {
+            "name": "roupas simples",
+            "type": "CONCEPT"
+          },
+          {
+            "name": "roupas ornamentadas",
+            "type": "CONCEPT"
+          }
+        ],
+        "relations": [
+          {
+            "source": "Bruno",
+            "relationship": "escolheu",
+            "destination": "roupas simples"
+          },
+          {
+            "source": "Bruno",
+            "relationship": "escolheu",
+            "destination": "roupas ornamentadas"
+          }
+        ]
+      }
+    },
+    {
+      "name": "routine-en",
+      "language": "en",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 2,
+      "covered": 2,
+      "emitted": 2,
+      "relevant": 2,
+      "classified": 2,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "Carla selected dark clothes for formal dinners rather than bright clothes in five independent sessions",
+        "Carla appears to prefer dark clothes for formal dinners in similar situations"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "routine-en",
+          "sourceQuote": "Across five independent sessions Carla selected dark clothes for formal dinners rather than bright clothes."
+        },
+        {
+          "kind": "inferred",
+          "sourceId": "routine-en",
+          "sourceQuote": "Across five independent sessions Carla selected dark clothes for formal dinners rather than bright clothes.",
+          "confidence": 0.7
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "Carla selected dark clothes for formal dinners rather than bright clothes in five independent sessions",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Across five independent sessions Carla selected dark clothes for formal dinners rather than bright clothes."
+            }
+          },
+          {
+            "id": "2",
+            "text": "Carla appears to prefer dark clothes for formal dinners in similar situations",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "inferred",
+              "durability": "durable",
+              "confidence": 0.7,
+              "sourceQuote": "Across five independent sessions Carla selected dark clothes for formal dinners rather than bright clothes."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "routine-pt",
+      "language": "pt",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 2,
+      "covered": 2,
+      "emitted": 3,
+      "relevant": 2,
+      "classified": 2,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "Carla escolheu roupas escuras para jantares formais em vez de roupas vibrantes em cinco sessões independentes",
+        "Carla nunca declarou explicitamente uma preferência de cor",
+        "Carla parece preferir roupas escuras para jantares formais em situações semelhantes"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "routine-pt",
+          "sourceQuote": "Em cinco sessões independentes Carla escolheu roupas escuras para jantares formais em vez de roupas vibrantes."
+        },
+        {
+          "kind": "stated",
+          "sourceId": "routine-pt",
+          "sourceQuote": "Ela nunca declarou explicitamente uma preferência de cor."
+        },
+        {
+          "kind": "inferred",
+          "sourceId": "routine-pt",
+          "sourceQuote": "Em cinco sessões independentes Carla escolheu roupas escuras para jantares formais em vez de roupas vibrantes.",
+          "confidence": 0.7
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "Carla escolheu roupas escuras para jantares formais em vez de roupas vibrantes em cinco sessões independentes",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Em cinco sessões independentes Carla escolheu roupas escuras para jantares formais em vez de roupas vibrantes."
+            }
+          },
+          {
+            "id": "2",
+            "text": "Carla nunca declarou explicitamente uma preferência de cor",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Ela nunca declarou explicitamente uma preferência de cor."
+            }
+          },
+          {
+            "id": "3",
+            "text": "Carla parece preferir roupas escuras para jantares formais em situações semelhantes",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "inferred",
+              "durability": "durable",
+              "confidence": 0.7,
+              "sourceQuote": "Em cinco sessões independentes Carla escolheu roupas escuras para jantares formais em vez de roupas vibrantes."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "maybe-yellow-en",
+      "language": "en",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": []
+      }
+    },
+    {
+      "name": "maybe-yellow-pt",
+      "language": "pt",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [],
+        "entities": [],
+        "relations": []
+      }
+    },
+    {
+      "name": "hypothetical-en",
+      "language": "en",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": []
+      }
+    },
+    {
+      "name": "hypothetical-pt",
+      "language": "pt",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [],
+        "entities": [],
+        "relations": []
+      }
+    },
+    {
+      "name": "trying-color-en",
+      "language": "en",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [],
+        "entities": [],
+        "relations": []
+      }
+    },
+    {
+      "name": "trying-color-pt",
+      "language": "pt",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [],
+        "entities": [],
+        "relations": []
+      }
+    },
+    {
+      "name": "passing-mood-en",
+      "language": "en",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [],
+        "entities": [],
+        "relations": []
+      }
+    },
+    {
+      "name": "passing-mood-pt",
+      "language": "pt",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user está com vontade de usar verde nesta manhã",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "temporary",
+              "sourceQuote": "Só nesta manhã estou com vontade de usar verde."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "uncertain-preference-en",
+      "language": "en",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [],
+        "entities": [],
+        "relations": []
+      }
+    },
+    {
+      "name": "uncertain-preference-pt",
+      "language": "pt",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user talvez goste de amarelo, mas não tem certeza",
+            "attributed_to": "user",
+            "evidence": {
+              "kind": "stated",
+              "durability": "tentative",
+              "sourceQuote": "Talvez eu goste de amarelo; não tenho certeza."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "question-en",
+      "language": "en",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": []
+      }
+    },
+    {
+      "name": "question-pt",
+      "language": "pt",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": []
+      }
+    },
+    {
+      "name": "greeting-en",
+      "language": "en",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": []
+      }
+    },
+    {
+      "name": "greeting-pt",
+      "language": "pt",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": []
+      }
+    },
+    {
+      "name": "temporary-trial-en",
+      "language": "en",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [],
+        "entities": [],
+        "relations": []
+      }
+    },
+    {
+      "name": "temporary-trial-pt",
+      "language": "pt",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [],
+        "entities": [],
+        "relations": []
+      }
+    },
+    {
+      "name": "assistant-suggestion-en",
+      "language": "en",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user recommends considering a black jacket"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "assistant-suggestion-en",
+          "sourceQuote": "I recommend considering a black jacket."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user recommends considering a black jacket",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I recommend considering a black jacket."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "assistant-suggestion-pt",
+      "language": "pt",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user recomenda considerar uma jaqueta preta",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "temporary",
+              "sourceQuote": "Recomendo considerar uma jaqueta preta."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "assistant-offer-en",
+      "language": "en",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": []
+      }
+    },
+    {
+      "name": "assistant-offer-pt",
+      "language": "pt",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": []
+      }
+    },
+    {
+      "name": "assistant-proposal-en",
+      "language": "en",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user suggests trying comfortable sneakers",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "temporary",
+              "sourceQuote": "I suggest trying comfortable sneakers."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "assistant-proposal-pt",
+      "language": "pt",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user sugere experimentar tênis confortáveis",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "temporary",
+              "sourceQuote": "Sugiro experimentar tênis confortáveis."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "assistant-greeting-en",
+      "language": "en",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": []
+      }
+    },
+    {
+      "name": "assistant-greeting-pt",
+      "language": "pt",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 0,
+      "covered": 0,
+      "emitted": 0,
+      "relevant": 0,
+      "classified": 0,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [],
+      "evidence": [],
+      "primaryDrafts": {
+        "memory": []
+      }
+    },
+    {
+      "name": "purchase-jacket-en",
+      "language": "en",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user bought a blue jacket yesterday"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "purchase-jacket-en",
+          "sourceQuote": "I bought a blue jacket yesterday."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user bought a blue jacket yesterday",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I bought a blue jacket yesterday."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "purchase-jacket-pt",
+      "language": "pt",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user comprou uma jaqueta azul ontem"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "purchase-jacket-pt",
+          "sourceQuote": "Comprei uma jaqueta azul ontem."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user comprou uma jaqueta azul ontem",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Comprei uma jaqueta azul ontem."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "purchase-boots-en",
+      "language": "en",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user purchased leather ankle boots last week"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "purchase-boots-en",
+          "sourceQuote": "I purchased leather ankle boots last week."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user purchased leather ankle boots last week",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I purchased leather ankle boots last week."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "purchase-boots-pt",
+      "language": "pt",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user comprou botas de couro na semana passada"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "purchase-boots-pt",
+          "sourceQuote": "Comprei botas de couro na semana passada."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user comprou botas de couro na semana passada",
+            "attributed_to": "user",
+            "category": "financial",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Comprei botas de couro na semana passada."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "purchase-dress-en",
+      "language": "en",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user bought a red cocktail dress for the event"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "purchase-dress-en",
+          "sourceQuote": "I bought a red cocktail dress for the event."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user bought a red cocktail dress for the event",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I bought a red cocktail dress for the event."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "purchase-dress-pt",
+      "language": "pt",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user comprou um vestido vermelho para o evento"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "purchase-dress-pt",
+          "sourceQuote": "Comprei um vestido vermelho para o evento."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user comprou um vestido vermelho para o evento",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Comprei um vestido vermelho para o evento."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "purchase-return-en",
+      "language": "en",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user returned the green shirt to the store"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "purchase-return-en",
+          "sourceQuote": "I returned the green shirt to the store."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user returned the green shirt to the store",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I returned the green shirt to the store."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "purchase-return-pt",
+      "language": "pt",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user devolveu a camisa verde à loja"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "purchase-return-pt",
+          "sourceQuote": "Devolvi a camisa verde à loja."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user devolveu a camisa verde à loja",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Devolvi a camisa verde à loja."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "changed-color-en",
+      "language": "en",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user prefers dark colors now"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "changed-color-en",
+          "sourceQuote": "but now I prefer dark colors."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user used to prefer bright colors",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "temporary",
+              "sourceQuote": "I used to prefer bright colors."
+            }
+          },
+          {
+            "id": "2",
+            "text": "user prefers dark colors now",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "but now I prefer dark colors."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "changed-color-pt",
+      "language": "pt",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 3,
+      "relevant": 2,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user preferia cores vibrantes",
+        "user prefere cores escuras",
+        "user parece preferir cores escuras em vez de cores vibrantes"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "changed-color-pt",
+          "sourceQuote": "Eu preferia cores vibrantes, mas agora prefiro cores escuras."
+        },
+        {
+          "kind": "stated",
+          "sourceId": "changed-color-pt",
+          "sourceQuote": "Eu preferia cores vibrantes, mas agora prefiro cores escuras."
+        },
+        {
+          "kind": "inferred",
+          "sourceId": "changed-color-pt",
+          "sourceQuote": "Eu preferia cores vibrantes, mas agora prefiro cores escuras.",
+          "confidence": 0.7
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user preferia cores vibrantes",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Eu preferia cores vibrantes, mas agora prefiro cores escuras."
+            }
+          },
+          {
+            "id": "2",
+            "text": "user prefere cores escuras",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Eu preferia cores vibrantes, mas agora prefiro cores escuras."
+            }
+          },
+          {
+            "id": "3",
+            "text": "user parece preferir cores escuras em vez de cores vibrantes",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "inferred",
+              "durability": "durable",
+              "confidence": 0.7,
+              "sourceQuote": "Eu preferia cores vibrantes, mas agora prefiro cores escuras."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "changed-diet-en",
+      "language": "en",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 2,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user used to eat meat",
+        "user is now vegetarian"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "changed-diet-en",
+          "sourceQuote": "I used to eat meat;"
+        },
+        {
+          "kind": "stated",
+          "sourceId": "changed-diet-en",
+          "sourceQuote": "I am now vegetarian."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user used to eat meat",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I used to eat meat;"
+            }
+          },
+          {
+            "id": "2",
+            "text": "user is now vegetarian",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I am now vegetarian."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "changed-diet-pt",
+      "language": "pt",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 2,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user comia carne",
+        "user é vegetariano"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "changed-diet-pt",
+          "sourceQuote": "Eu comia carne; agora sou vegetariano."
+        },
+        {
+          "kind": "stated",
+          "sourceId": "changed-diet-pt",
+          "sourceQuote": "Eu comia carne; agora sou vegetariano."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user comia carne",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Eu comia carne; agora sou vegetariano."
+            }
+          },
+          {
+            "id": "2",
+            "text": "user é vegetariano",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Eu comia carne; agora sou vegetariano."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "changed-location-en",
+      "language": "en",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 2,
+      "relevant": 2,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user moved from Recife to São Paulo last month",
+        "user now lives in São Paulo"
+      ],
+      "evidence": [
+        {
+          "kind": "inferred",
+          "sourceId": "changed-location-en"
+        },
+        {
+          "kind": "stated",
+          "sourceId": "changed-location-en",
+          "sourceQuote": "now live in São Paulo."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user moved from Recife to São Paulo last month",
+            "attributed_to": "user",
+            "category": "location",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I moved from Recife to São Paulo last month."
+            }
+          },
+          {
+            "id": "2",
+            "text": "user now lives in São Paulo",
+            "attributed_to": "user",
+            "category": "location",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "now live in São Paulo."
+            }
+          }
+        ],
+        "entities": [
+          {
+            "name": "user",
+            "type": "PERSON"
+          },
+          {
+            "name": "Recife",
+            "type": "PLACE"
+          },
+          {
+            "name": "São Paulo",
+            "type": "PLACE"
+          }
+        ],
+        "relations": [
+          {
+            "source": "user",
+            "relationship": "moved from",
+            "destination": "Recife"
+          },
+          {
+            "source": "user",
+            "relationship": "lives in",
+            "destination": "São Paulo"
+          }
+        ]
+      }
+    },
+    {
+      "name": "changed-location-pt",
+      "language": "pt",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 2,
+      "relevant": 2,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user mudou de Recife para São Paulo no mês passado",
+        "user mora em São Paulo"
+      ],
+      "evidence": [
+        {
+          "kind": "inferred",
+          "sourceId": "changed-location-pt"
+        },
+        {
+          "kind": "stated",
+          "sourceId": "changed-location-pt",
+          "sourceQuote": "agora moro em São Paulo."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user mudou de Recife para São Paulo no mês passado",
+            "attributed_to": "user",
+            "category": "location",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "Mudei de Recife para São Paulo no mês passado."
+            }
+          },
+          {
+            "id": "2",
+            "text": "user mora em São Paulo",
+            "attributed_to": "user",
+            "category": "location",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "agora moro em São Paulo."
+            }
+          }
+        ],
+        "entities": [
+          {
+            "name": "user",
+            "type": "PERSON"
+          },
+          {
+            "name": "Recife",
+            "type": "PLACE"
+          },
+          {
+            "name": "São Paulo",
+            "type": "PLACE"
+          }
+        ],
+        "relations": [
+          {
+            "source": "user",
+            "relationship": "mudou de",
+            "destination": "Recife"
+          },
+          {
+            "source": "user",
+            "relationship": "mudou para",
+            "destination": "São Paulo"
+          },
+          {
+            "source": "user",
+            "relationship": "mora em",
+            "destination": "São Paulo"
+          }
+        ]
+      }
+    },
+    {
+      "name": "repeated-summary-en",
+      "language": "en",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user prefers simple clothing"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "repeated-summary-en",
+          "sourceQuote": "I prefer simple clothing."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user prefers simple clothing",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I prefer simple clothing."
+            }
+          },
+          {
+            "id": "2",
+            "text": "user prefers simple clothing",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "inferred",
+              "durability": "durable",
+              "sourceQuote": "the user prefers simple clothing."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "repeated-summary-pt",
+      "language": "pt",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user prefere roupas simples"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "repeated-summary-pt",
+          "sourceQuote": "prefiro roupas simples."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user prefere roupas simples",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "prefiro roupas simples."
+            }
+          },
+          {
+            "id": "2",
+            "text": "user prefere roupas simples",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "inferred",
+              "durability": "durable",
+              "sourceQuote": "Resumo da mesma declaração: o usuário prefere roupas simples."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "repeated-purchase-en",
+      "language": "en",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user bought blue boots"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "repeated-purchase-en",
+          "sourceQuote": "I bought blue boots."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user bought blue boots",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I bought blue boots."
+            }
+          },
+          {
+            "id": "2",
+            "text": "user bought blue boots",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "bought blue boots."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "repeated-purchase-pt",
+      "language": "pt",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user comprou botas azuis"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "repeated-purchase-pt",
+          "sourceQuote": "comprei botas azuis."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user comprou botas azuis",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "comprei botas azuis."
+            }
+          },
+          {
+            "id": "2",
+            "text": "user comprou botas azuis",
+            "attributed_to": "user",
+            "category": "other",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "comprou botas azuis."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "repeated-comfort-en",
+      "language": "en",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user needs comfortable shoes"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "repeated-comfort-en",
+          "sourceQuote": "I need comfortable shoes."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user needs comfortable shoes",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "I need comfortable shoes."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "repeated-comfort-pt",
+      "language": "pt",
+      "repetition": 2,
+      "transportAttempts": 1,
+      "expected": 1,
+      "covered": 1,
+      "emitted": 1,
+      "relevant": 1,
+      "classified": 1,
+      "forbidden": 0,
+      "invalidQuotes": 0,
+      "texts": [
+        "user precisa de sapatos confortáveis"
+      ],
+      "evidence": [
+        {
+          "kind": "stated",
+          "sourceId": "repeated-comfort-pt",
+          "sourceQuote": "preciso de sapatos confortáveis."
+        }
+      ],
+      "primaryDrafts": {
+        "memory": [
+          {
+            "id": "1",
+            "text": "user precisa de sapatos confortáveis",
+            "attributed_to": "user",
+            "category": "preferences",
+            "evidence": {
+              "kind": "stated",
+              "durability": "durable",
+              "sourceQuote": "preciso de sapatos confortáveis."
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

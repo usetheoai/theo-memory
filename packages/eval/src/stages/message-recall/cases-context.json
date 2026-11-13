@@ -1,0 +1,100 @@
+{
+  "users": [
+    {
+      "id": "nadia",
+      "conversations": [
+        [
+          { "role": "user", "content": "My tomato seedlings are tall and floppy." },
+          { "role": "assistant", "content": "They are reaching for light; move them under a grow lamp about ten centimetres above the leaves." },
+          { "role": "user", "content": "And should I water them every day?" },
+          { "role": "assistant", "content": "Only when the top of the soil feels dry to the touch." }
+        ],
+        [
+          { "role": "user", "content": "We finally booked the honeymoon: two weeks in Kyoto." },
+          { "role": "assistant", "content": "Lovely choice, autumn there is beautiful." }
+        ],
+        [
+          { "role": "user", "content": "My manager keeps scheduling meetings over lunch." },
+          { "role": "assistant", "content": "Block that hour in your calendar as a recurring busy slot." }
+        ]
+      ],
+      "questions": [
+        { "query": "Why are my young plants leggy, and how do I fix it?", "pattern": "grow lamp", "form": "paraphrase" },
+        { "query": "Where are we going after the wedding?", "pattern": "Kyoto", "form": "paraphrase" },
+        { "query": "How can I protect my midday break from my boss?", "pattern": "recurring busy slot", "form": "paraphrase" },
+        { "query": "How far above the tomato leaves should the grow lamp sit?", "pattern": "ten centimetres", "form": "lexical" }
+      ]
+    },
+    {
+      "id": "oscar",
+      "conversations": [
+        [
+          { "role": "user", "content": "The kitchen sink drains really slowly." },
+          { "role": "assistant", "content": "Pour baking soda and then vinegar down it, wait fifteen minutes, and flush with boiling water." }
+        ],
+        [
+          { "role": "user", "content": "I signed up for a pottery course on Thursday evenings." },
+          { "role": "assistant", "content": "Nice! Wheel throwing takes a few sessions to click." },
+          { "role": "user", "content": "My hands get really dry from the clay." },
+          { "role": "assistant", "content": "Rub in a lanolin cream after each session." }
+        ],
+        [
+          { "role": "user", "content": "My son wants a pet but we rent." },
+          { "role": "assistant", "content": "Ask the landlord about a small caged animal like a hamster first." }
+        ]
+      ],
+      "questions": [
+        { "query": "What home remedy clears a clogged basin?", "pattern": "baking soda|vinegar", "form": "paraphrase" },
+        { "query": "Which night of the week is my ceramics class?", "pattern": "Thursday", "form": "paraphrase" },
+        { "query": "What should I put on skin that cracks after working with the wheel?", "pattern": "lanolin", "form": "paraphrase" },
+        { "query": "What animal did you suggest asking the landlord about?", "pattern": "hamster", "form": "lexical" }
+      ]
+    },
+    {
+      "id": "beatriz",
+      "conversations": [
+        [
+          { "role": "user", "content": "Minha filha começou a ter medo do escuro." },
+          { "role": "assistant", "content": "Uma luz noturna fraca no quarto e uma rotina calma antes de dormir costumam ajudar." }
+        ],
+        [
+          { "role": "user", "content": "Troquei de carro, agora tenho um Corolla híbrido." },
+          { "role": "assistant", "content": "Ótimo, ele gasta bem pouco na cidade." }
+        ],
+        [
+          { "role": "user", "content": "Meu joelho dói quando desço escadas." },
+          { "role": "assistant", "content": "Vale procurar um ortopedista e fortalecer o quadríceps com exercícios leves." }
+        ]
+      ],
+      "questions": [
+        { "query": "O que tranquiliza uma criança assustada na hora de deitar?", "pattern": "luz noturna", "form": "paraphrase" },
+        { "query": "Qual é o veículo novo que eu comprei?", "pattern": "Corolla", "form": "paraphrase" },
+        { "query": "Que especialista devo ver por causa da articulação da perna?", "pattern": "ortopedista", "form": "paraphrase" },
+        { "query": "Que exercícios leves você sugeriu?", "pattern": "quadríceps", "form": "lexical" }
+      ]
+    },
+    {
+      "id": "kwame",
+      "conversations": [
+        [
+          { "role": "user", "content": "I keep losing my keys in the morning." },
+          { "role": "assistant", "content": "Mount a small hook right by the front door and hang them there every time you come in." }
+        ],
+        [
+          { "role": "user", "content": "My sister's birthday is on the 14th and she loves jazz." },
+          { "role": "assistant", "content": "Tickets to a live jazz club night would make a great gift." }
+        ],
+        [
+          { "role": "user", "content": "The printer says paper jam but there's no paper stuck." },
+          { "role": "assistant", "content": "Check the small rollers at the back; a torn scrap often hides there." }
+        ]
+      ],
+      "questions": [
+        { "query": "How can I stop misplacing what I use to lock the house?", "pattern": "hook", "form": "paraphrase" },
+        { "query": "What present would suit my sibling?", "pattern": "club night", "form": "paraphrase" },
+        { "query": "On what date does my sibling celebrate?", "pattern": "14th", "form": "paraphrase" },
+        { "query": "Where does the torn scrap hide?", "pattern": "rollers", "form": "lexical" }
+      ]
+    }
+  ]
+}

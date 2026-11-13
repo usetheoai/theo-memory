@@ -1,0 +1,741 @@
+{
+  "users": [
+    {
+      "id": "tp5-wilhelmina",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Wilhelmina restores pianos.",
+          "observedAt": "2025-10-06",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Wilhelmina's grandson Ptolemy studies geology.",
+          "observedAt": "2025-10-09",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Wilhelmina's lodger Isadora paints murals.",
+          "observedAt": "2025-10-12",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Wilhelmina drives a Humber.",
+          "observedAt": "2025-10-15",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Wilhelmina swims in Windermere each June.",
+          "observedAt": "2025-10-18",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Wilhelmina avoids caffeine.",
+          "observedAt": "2025-10-21",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What does Wilhelmina restore?",
+          "pattern": "pianos"
+        },
+        {
+          "query": "What does Wilhelmina's grandson study?",
+          "pattern": "geology"
+        },
+        {
+          "query": "What does Wilhelmina's lodger paint?",
+          "pattern": "murals"
+        },
+        {
+          "query": "What car does Wilhelmina drive?",
+          "pattern": "Humber"
+        },
+        {
+          "query": "Where does Wilhelmina swim each June?",
+          "pattern": "Windermere"
+        },
+        {
+          "query": "What does Wilhelmina avoid?",
+          "pattern": "caffeine"
+        }
+      ]
+    },
+    {
+      "id": "tp5-raimundo",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Raimundo afina violões.",
+          "observedAt": "2025-10-24",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "O genro de Raimundo, Cleiton, é bombeiro.",
+          "observedAt": "2025-10-27",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "A comadre de Raimundo, Zuleide, faz rendas.",
+          "observedAt": "2025-10-30",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Raimundo dirige um Gurgel.",
+          "observedAt": "2025-11-02",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Raimundo passa o Carnaval em Olinda.",
+          "observedAt": "2025-11-05",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Raimundo é míope.",
+          "observedAt": "2025-11-08",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "O que Raimundo afina?",
+          "pattern": "viol[õo]es"
+        },
+        {
+          "query": "O que é o genro de Raimundo?",
+          "pattern": "bombeiro"
+        },
+        {
+          "query": "O que faz a comadre de Raimundo?",
+          "pattern": "rendas"
+        },
+        {
+          "query": "Que carro Raimundo dirige?",
+          "pattern": "Gurgel"
+        },
+        {
+          "query": "Onde Raimundo passa o Carnaval?",
+          "pattern": "Olinda"
+        },
+        {
+          "query": "Que condição Raimundo tem?",
+          "pattern": "m[íi]ope"
+        }
+      ]
+    },
+    {
+      "id": "tp5-eusebia",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Eusebia teje alfombras.",
+          "observedAt": "2025-11-11",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "El yerno de Eusebia, Baldomero, es albañil.",
+          "observedAt": "2025-11-14",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "La vecina de Eusebia, Herminia, cría gallinas.",
+          "observedAt": "2025-11-17",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Eusebia conduce un Pegaso.",
+          "observedAt": "2025-11-20",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Eusebia pasa la Semana Santa en Zamora.",
+          "observedAt": "2025-11-23",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Eusebia es sorda de un oído.",
+          "observedAt": "2025-11-26",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "¿Qué teje Eusebia?",
+          "pattern": "alfombras"
+        },
+        {
+          "query": "¿Qué es el yerno de Eusebia?",
+          "pattern": "alba[ñn]il"
+        },
+        {
+          "query": "¿Qué cría la vecina de Eusebia?",
+          "pattern": "gallinas"
+        },
+        {
+          "query": "¿Qué vehículo conduce Eusebia?",
+          "pattern": "Pegaso"
+        },
+        {
+          "query": "¿Dónde pasa Eusebia la Semana Santa?",
+          "pattern": "Zamora"
+        },
+        {
+          "query": "¿Qué le pasa a Eusebia en un oído?",
+          "pattern": "sorda"
+        }
+      ]
+    },
+    {
+      "id": "tp5-lothar",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Lothar stimmt Klaviere.",
+          "observedAt": "2025-11-29",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Der Schwiegersohn von Lothar, Torben, ist Förster.",
+          "observedAt": "2025-12-02",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Die Nachbarin von Lothar, Gesine, töpfert.",
+          "observedAt": "2025-12-05",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Lothar fährt einen Goggomobil.",
+          "observedAt": "2025-12-08",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Lothar verbringt Silvester in Oberstdorf.",
+          "observedAt": "2025-12-11",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Lothar ist schwerhörig.",
+          "observedAt": "2025-12-14",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Was stimmt Lothar?",
+          "pattern": "Klaviere"
+        },
+        {
+          "query": "Was ist der Schwiegersohn von Lothar?",
+          "pattern": "F[öo]rster"
+        },
+        {
+          "query": "Was macht die Nachbarin von Lothar?",
+          "pattern": "t[öo]pfert"
+        },
+        {
+          "query": "Welches Auto fährt Lothar?",
+          "pattern": "Goggomobil"
+        },
+        {
+          "query": "Wo verbringt Lothar Silvester?",
+          "pattern": "Oberstdorf"
+        },
+        {
+          "query": "Was ist Lothar?",
+          "pattern": "schwerh[öo]rig"
+        }
+      ]
+    },
+    {
+      "id": "tp5-firmin",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Firmin accorde des pianos.",
+          "observedAt": "2025-12-17",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "La belle-fille de Firmin, Albane, est sage-femme.",
+          "observedAt": "2025-12-20",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Le voisin de Firmin, Anselme, élève des abeilles.",
+          "observedAt": "2025-12-23",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Firmin conduit une Matra.",
+          "observedAt": "2025-12-26",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Firmin passe la Toussaint à Riquewihr.",
+          "observedAt": "2025-12-29",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Firmin est myope.",
+          "observedAt": "2026-01-01",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Qu'accorde Firmin ?",
+          "pattern": "pianos"
+        },
+        {
+          "query": "Que fait la belle-fille de Firmin ?",
+          "pattern": "sage-femme"
+        },
+        {
+          "query": "Qu'élève le voisin de Firmin ?",
+          "pattern": "abeilles"
+        },
+        {
+          "query": "Quelle voiture conduit Firmin ?",
+          "pattern": "Matra"
+        },
+        {
+          "query": "Où Firmin passe-t-il la Toussaint ?",
+          "pattern": "Riquewihr"
+        },
+        {
+          "query": "Quelle condition a Firmin ?",
+          "pattern": "myope"
+        }
+      ]
+    },
+    {
+      "id": "tp5-annunziata",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Annunziata ricama tovaglie.",
+          "observedAt": "2026-01-04",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Il genero di Annunziata, Ciro, fa il pescatore.",
+          "observedAt": "2026-01-07",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "La vicina di Annunziata, Carmela, coltiva limoni.",
+          "observedAt": "2026-01-10",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Annunziata guida una Innocenti.",
+          "observedAt": "2026-01-13",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Annunziata passa la Pasqua a Procida.",
+          "observedAt": "2026-01-16",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Annunziata è miope.",
+          "observedAt": "2026-01-19",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Che cosa ricama Annunziata?",
+          "pattern": "tovaglie"
+        },
+        {
+          "query": "Che lavoro fa il genero di Annunziata?",
+          "pattern": "pescatore"
+        },
+        {
+          "query": "Che cosa coltiva la vicina di Annunziata?",
+          "pattern": "limoni"
+        },
+        {
+          "query": "Che auto guida Annunziata?",
+          "pattern": "Innocenti"
+        },
+        {
+          "query": "Dove passa Annunziata la Pasqua?",
+          "pattern": "Procida"
+        },
+        {
+          "query": "Che condizione ha Annunziata?",
+          "pattern": "miope"
+        }
+      ]
+    },
+    {
+      "id": "tp5-joris",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Joris stemt piano's.",
+          "observedAt": "2026-01-22",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "De schoonzoon van Joris, Wessel, is brandweerman.",
+          "observedAt": "2026-01-25",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "De buurvrouw van Joris, Jikke, houdt geiten.",
+          "observedAt": "2026-01-28",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Joris rijdt in een Fokker-oldtimer.",
+          "observedAt": "2026-01-31",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Joris viert Koningsdag in Zierikzee.",
+          "observedAt": "2026-02-03",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Joris is bijziend.",
+          "observedAt": "2026-02-06",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Wat stemt Joris?",
+          "pattern": "piano"
+        },
+        {
+          "query": "Wat is de schoonzoon van Joris?",
+          "pattern": "brandweerman"
+        },
+        {
+          "query": "Wat houdt de buurvrouw van Joris?",
+          "pattern": "geiten"
+        },
+        {
+          "query": "In wat voor oldtimer rijdt Joris?",
+          "pattern": "Fokker"
+        },
+        {
+          "query": "Waar viert Joris Koningsdag?",
+          "pattern": "Zierikzee"
+        },
+        {
+          "query": "Wat is Joris?",
+          "pattern": "bijziend"
+        }
+      ]
+    },
+    {
+      "id": "tp5-self-it",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Mia nuora Filomena fa la panettiera.",
+          "observedAt": "2026-02-09",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Mio cognato Gennaro aggiusta orologi.",
+          "observedAt": "2026-02-12",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Possiedo una Lambretta.",
+          "observedAt": "2026-02-15",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Trascorro l'estate a Positano.",
+          "observedAt": "2026-02-18",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Faccio il ciabattino.",
+          "observedAt": "2026-02-21",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Soffro di emicrania.",
+          "observedAt": "2026-02-24",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Che lavoro fa la nuora dell'utente?",
+          "pattern": "panettiera"
+        },
+        {
+          "query": "Che cosa aggiusta il cognato dell'utente?",
+          "pattern": "orologi"
+        },
+        {
+          "query": "Che cosa possiede l'utente?",
+          "pattern": "Lambretta"
+        },
+        {
+          "query": "Dove passa l'estate l'utente?",
+          "pattern": "Positano"
+        },
+        {
+          "query": "Che lavoro fa l'utente?",
+          "pattern": "ciabattino"
+        },
+        {
+          "query": "Di che cosa soffre l'utente?",
+          "pattern": "emicrania"
+        }
+      ]
+    },
+    {
+      "id": "tp5-self-es",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Mi cuñada Purificación es farmacéutica.",
+          "observedAt": "2026-02-27",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Mi sobrino Indalecio arregla motos.",
+          "observedAt": "2026-03-02",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Conduzco un Santana.",
+          "observedAt": "2026-03-05",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Paso la Nochevieja en Almería.",
+          "observedAt": "2026-03-08",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Trabajo de panadero.",
+          "observedAt": "2026-03-11",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Padezco de migrañas.",
+          "observedAt": "2026-03-14",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "¿Qué es la cuñada del usuario?",
+          "pattern": "farmac[ée]utica"
+        },
+        {
+          "query": "¿Qué arregla el sobrino del usuario?",
+          "pattern": "motos"
+        },
+        {
+          "query": "¿Qué vehículo conduce el usuario?",
+          "pattern": "Santana"
+        },
+        {
+          "query": "¿Dónde pasa la Nochevieja el usuario?",
+          "pattern": "Almer[íi]a"
+        },
+        {
+          "query": "¿En qué trabaja el usuario?",
+          "pattern": "panadero"
+        },
+        {
+          "query": "¿De qué padece el usuario?",
+          "pattern": "migra[ñn]as"
+        }
+      ]
+    },
+    {
+      "id": "tp5-self-pt",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Minha nora Lucimar é professora.",
+          "observedAt": "2026-03-17",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Meu sobrinho Deusdete conserta motos.",
+          "observedAt": "2026-03-20",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Dirijo um Puma.",
+          "observedAt": "2026-03-23",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Passo o Réveillon em Paraty.",
+          "observedAt": "2026-03-26",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Trabalho como serralheiro.",
+          "observedAt": "2026-03-29",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Sofro de enxaqueca.",
+          "observedAt": "2026-04-01",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "O que é a nora do usuário?",
+          "pattern": "professora"
+        },
+        {
+          "query": "O que conserta o sobrinho do usuário?",
+          "pattern": "motos"
+        },
+        {
+          "query": "Que carro o usuário dirige?",
+          "pattern": "Puma"
+        },
+        {
+          "query": "Onde o usuário passa o Réveillon?",
+          "pattern": "Paraty"
+        },
+        {
+          "query": "Qual é a profissão do usuário?",
+          "pattern": "serralheiro"
+        },
+        {
+          "query": "De que o usuário sofre?",
+          "pattern": "enxaqueca"
+        }
+      ]
+    },
+    {
+      "id": "tp5-self-en",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "My stepdaughter Imogen teaches cello.",
+          "observedAt": "2026-04-04",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "My godfather Thaddeus breeds whippets.",
+          "observedAt": "2026-04-07",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "I drive an Austin.",
+          "observedAt": "2026-04-10",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "I spend Hogmanay in Oban.",
+          "observedAt": "2026-04-13",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "I work as a thatcher.",
+          "observedAt": "2026-04-16",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "I suffer from hay fever.",
+          "observedAt": "2026-04-19",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What does the user's stepdaughter teach?",
+          "pattern": "cello"
+        },
+        {
+          "query": "What does the user's godfather breed?",
+          "pattern": "whippets"
+        },
+        {
+          "query": "What car does the user drive?",
+          "pattern": "Austin"
+        },
+        {
+          "query": "Where does the user spend Hogmanay?",
+          "pattern": "Oban"
+        },
+        {
+          "query": "What is the user's job?",
+          "pattern": "thatcher"
+        },
+        {
+          "query": "What does the user suffer from?",
+          "pattern": "hay fever"
+        }
+      ]
+    }
+  ]
+}

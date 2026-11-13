@@ -115,12 +115,13 @@ export class PgMemoryEntityStore implements MemoryEntityStore {
          -- dashboard offer "Forget N memories" for entities whose links were
          -- already forgotten (cascade then honestly deleted 0 — confusing).
          -- An entity with zero live links drops out of the listing entirely.
-         JOIN memories m ON m.id = me.memory_id AND m.t_invalid IS NULL
+         JOIN memories m ON m.id = me.memory_id AND m.t_invalid IS NULL AND (m.expires_at IS NULL OR m.expires_at>NOW())
          LEFT JOIN LATERAL (
            SELECT string_agg(rel, '; ' ORDER BY rel) AS summary
              FROM (
                SELECT DISTINCT ee.normalized_relation || ' → ' || te.name AS rel
                  FROM entity_edges ee
+                 JOIN memories source ON source.id=ee.source_memory_id AND source.t_invalid IS NULL AND (source.expires_at IS NULL OR source.expires_at>NOW())
                  JOIN entities te ON te.id = ee.target_entity_id
                 WHERE ee.source_entity_id = e.id
                   AND te.superseded_by IS NULL

@@ -14,10 +14,12 @@ import { createIsolatedDb, type IsolatedDb } from '../_helpers/isolated-db.js';
 
 const DIM = 3;
 let db: IsolatedDb;
+/** Atravessa workspaces de propósito — ver `_helpers/isolated-db.ts`. */
+let crossingPool: pg.Pool;
 
 /** Insert one recall_traces row with a controlled created_at + workspace. */
 async function seed(ws: string, recallId: string, ageSeconds: number): Promise<void> {
-  await db.pool.query(
+  await crossingPool.query(
     `INSERT INTO recall_traces
        (recall_id, workspace_id, scope_key, memory_id, semantic, bm25, entity, composite, threshold, drop_reason, created_at)
      VALUES ($1,$2,'user:u','m',0.1,0,0,0.1,0.5,'sub_threshold', NOW() - (($3)::text||' seconds')::interval)`,
@@ -26,13 +28,14 @@ async function seed(ws: string, recallId: string, ageSeconds: number): Promise<v
 }
 async function count(ws?: string): Promise<number> {
   const q = ws
-    ? await db.pool.query<{ n: string }>('SELECT COUNT(*)::int n FROM recall_traces WHERE workspace_id=$1', [ws])
-    : await db.pool.query<{ n: string }>('SELECT COUNT(*)::int n FROM recall_traces');
+    ? await crossingPool.query<{ n: string }>('SELECT COUNT(*)::int n FROM recall_traces WHERE workspace_id=$1', [ws])
+    : await crossingPool.query<{ n: string }>('SELECT COUNT(*)::int n FROM recall_traces');
   return Number(q.rows[0]?.n ?? 0);
 }
 
 beforeAll(async () => {
   db = await createIsolatedDb({ fresh: true, embeddingDim: DIM });
+  crossingPool = db.crossWorkspacePool('a varredura de retencao atravessa workspaces por desenho');
 }, 60_000);
 afterAll(async () => {
   await db?.dropDb();
@@ -42,21 +45,21 @@ test('T1.1 — sweep deletes only rows older than the window, returns the delete
   await seed('wsA', 'old-1', 10 * 24 * 3600); // 10 days
   await seed('wsA', 'old-2', 8 * 24 * 3600); //  8 days
   await seed('wsA', 'fresh-1', 3600); //         1 hour
-  const retention = new PgRecallTraceRetention(db.pool);
+  const retention = new PgRecallTraceRetention(crossingPool);
   const deleted = await retention.sweep(24 * 3600); // window = 1 day
   expect(deleted).toBe(2); // the two old rows
   expect(await count('wsA')).toBe(1); // the fresh one remains
 });
 
 test('T1.1 — sweep is race-safe under concurrent writes; fresh cross-workspace rows survive (atomic-counter invariant)', async () => {
-  await db.pool.query('TRUNCATE recall_traces');
+  await db.setupPool.query('TRUNCATE recall_traces');
   // Seed old rows (to be swept) + a fresh wsB row (must survive).
   const OLD = 20;
   for (let i = 0; i < OLD; i++) await seed('wsA', `race-old-${i}`, 5 * 24 * 3600);
   await seed('wsB', 'wsB-fresh', 3600);
 
-  const retention = new PgRecallTraceRetention(db.pool);
-  const store = new PgRecallTraceStore(db.pool);
+  const retention = new PgRecallTraceRetention(crossingPool);
+  const store = new PgRecallTraceStore(crossingPool);
   // N concurrent FRESH writes (wsA) racing the sweep.
   const N = 12;
   const writes = Array.from({ length: N }, (_, i) =>
@@ -75,21 +78,21 @@ test('T1.1 — sweep is race-safe under concurrent writes; fresh cross-workspace
   expect(deleted).toBeGreaterThanOrEqual(0);
   expect(await count('wsB')).toBe(1); // cross-workspace fresh row untouched
   // No old rows survive; the fresh writes are present (bounded: exactly N fresh wsA recall_ids exist).
-  const freshWsA = await db.pool.query<{ n: string }>(
+  const freshWsA = await crossingPool.query<{ n: string }>(
     "SELECT COUNT(DISTINCT recall_id)::int n FROM recall_traces WHERE workspace_id='wsA' AND recall_id LIKE 'race-new-%'",
   );
   expect(Number(freshWsA.rows[0]?.n ?? 0)).toBe(N);
-  const oldWsA = await db.pool.query<{ n: string }>(
+  const oldWsA = await crossingPool.query<{ n: string }>(
     "SELECT COUNT(*)::int n FROM recall_traces WHERE recall_id LIKE 'race-old-%'",
   );
   expect(Number(oldWsA.rows[0]?.n ?? 0)).toBe(0); // all old swept, no orphan
 });
 
 test('T3.1 — the retention cron drives the sweep (onTick fires with the deleted count)', async () => {
-  await db.pool.query('TRUNCATE recall_traces');
+  await db.setupPool.query('TRUNCATE recall_traces');
   await seed('wsA', 'cron-old', 5 * 24 * 3600); // 5 days — expired
   await seed('wsA', 'cron-fresh', 60); //          fresh — survives
-  const retention = new PgRecallTraceRetention(db.pool);
+  const retention = new PgRecallTraceRetention(crossingPool);
   const deleted = await new Promise<number>((resolve) => {
     const handle = startRecallTraceRetentionCron(retention, {
       maxAgeSeconds: 24 * 3600,
@@ -105,9 +108,9 @@ test('T3.1 — the retention cron drives the sweep (onTick fires with the delete
 }, 15_000);
 
 test('T1.1 — sweep returns 0 when nothing is expired', async () => {
-  await db.pool.query('TRUNCATE recall_traces');
+  await db.setupPool.query('TRUNCATE recall_traces');
   await seed('wsA', 'fresh-only', 60);
-  const deleted = await new PgRecallTraceRetention(db.pool).sweep(24 * 3600);
+  const deleted = await new PgRecallTraceRetention(crossingPool).sweep(24 * 3600);
   expect(deleted).toBe(0);
   expect(await count()).toBe(1);
 });
@@ -117,17 +120,17 @@ test('T1.1 — sweep returns 0 when nothing is expired', async () => {
 // matches EVERY row across ALL workspaces. The sweep MUST reject a non-positive /
 // non-finite window with a typed error and delete NOTHING — never wipe the audit log.
 test('FX2 — sweep rejects a negative window (typed error, deletes nothing)', async () => {
-  await db.pool.query('TRUNCATE recall_traces');
+  await db.setupPool.query('TRUNCATE recall_traces');
   await seed('wsA', 'old-a', 10 * 24 * 3600); // an OLD row a full-wipe would delete
   await seed('wsB', 'fresh-b', 60);
-  const retention = new PgRecallTraceRetention(db.pool);
+  const retention = new PgRecallTraceRetention(crossingPool);
   await expect(retention.sweep(-1)).rejects.toThrow(/positive|finite|window|seconds/i);
   expect(await count()).toBe(2); // the cross-tenant audit log is intact — NO wipe
 });
 test('FX2 — sweep rejects NaN / Infinity (fail-fast, not a silent throw-every-tick)', async () => {
-  await db.pool.query('TRUNCATE recall_traces');
+  await db.setupPool.query('TRUNCATE recall_traces');
   await seed('wsA', 'old-a', 10 * 24 * 3600);
-  const retention = new PgRecallTraceRetention(db.pool);
+  const retention = new PgRecallTraceRetention(crossingPool);
   await expect(retention.sweep(Number.NaN)).rejects.toThrow(/positive|finite|window|seconds/i);
   await expect(retention.sweep(Number.POSITIVE_INFINITY)).rejects.toThrow(/positive|finite|window|seconds/i);
   expect(await count()).toBe(1);
@@ -140,11 +143,11 @@ test('FX2 — sweep rejects NaN / Infinity (fail-fast, not a silent throw-every-
 // both sweeps resolve (retry absorbs the conflict), the old set is deleted exactly
 // once, and no 40001 escapes.
 test('FX3 — two concurrent sweeps over the same rows both resolve (40001 retried, no orphan)', async () => {
-  await db.pool.query('TRUNCATE recall_traces');
+  await db.setupPool.query('TRUNCATE recall_traces');
   const OLD = 40;
   for (let i = 0; i < OLD; i++) await seed('wsA', `dup-old-${i}`, 5 * 24 * 3600);
   await seed('wsB', 'wsB-fresh', 60); // cross-workspace fresh row must survive
-  const retention = new PgRecallTraceRetention(db.pool);
+  const retention = new PgRecallTraceRetention(crossingPool);
   // Both sweeps target the identical old set → real serialization conflict.
   const [d1, d2] = await Promise.all([retention.sweep(24 * 3600), retention.sweep(24 * 3600)]);
   // Retry absorbs 40001: both promises resolve, neither throws.

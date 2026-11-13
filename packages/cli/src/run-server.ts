@@ -1,3 +1,5 @@
+import { serve } from '@hono/node-server';
+import { PgMemoryEvidenceStore, PgMemoryJobStore } from '@usetheo/memory';
 /**
  * REST server composition root for `themory server` (Roadmap Item 16-18).
  *
@@ -10,7 +12,6 @@
  *
  * @see Plan theo-memory-standalone-p0 § T2.3 + ADR D8 + EC-31/32/33 + EC-47
  */
-import { serve } from '@hono/node-server';
 import {
   runMigrations,
   PgMemoryEntityStore,
@@ -18,6 +19,10 @@ import {
   PgUsageCounterStore,
   PgRoutingPolicyStore,
   PgRoutingAuditStore,
+  tenantScopedPool,
+  assertBackgroundPoolCrossWorkspace,
+  assertRequestPoolIsolated,
+  requireStrictWorkspaceWrites,
 } from '@usetheo/memory';
 import type { AuthVerifier } from '@usetheo/memory/contract';
 import type { Memory } from '@usetheo/memory/contract';
@@ -44,7 +49,9 @@ import { OidcAuthVerifier } from '@usetheo/memory-api';
 import { createServer, parseRequireCredentialEnv } from '@usetheo/memory-api';
 import { Pool } from 'pg';
 
+import { resolveMigratePgUri } from './resolve-migrate-pg-uri.js';
 import { resolvePgUri } from './resolve-pg-uri.js';
+import { resolveWorkerPgUri } from './resolve-worker-pg-uri.js';
 import { installServerLifecycle, type ServerListenerLike } from './server-lifecycle.js';
 import { assertDistNotStale } from './stale-dist-guard.js';
 
@@ -114,23 +121,103 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
   const port = resolvePort(options?.port);
   const host = resolveHost(options?.host);
 
-  // Embedder selection (THEOMEM_EMBEDDER): local (Xenova 384) | openai (1536).
+  // Embedder selection (THEOMEM_EMBEDDER): local (384) | openai (1536) | compatible (configured; default 1024).
   // Migration dim MUST match the embedder; resolve once and reuse.
   const embedderKind = resolveEmbedderKind();
   const embedderDim = embeddingDimForKind(embedderKind);
 
-  const pool = new Pool({ connectionString: pgUri });
+  // Two views of one pool, and the split is the point.
+  //
+  // `rawPool` is used for schema migrations and liveness probes — work that has
+  // no tenant and must not pretend to have one.
+  //
+  // `pool` is the workspace-scoped view every store receives: each connection it
+  // hands out carries `app.workspace_id` from the request scope, which is what
+  // the fail-closed policies in migration 0029 read. Stores are unchanged; they
+  // still just receive "a Pool".
+  //
+  // Handing the raw pool to a store would silently disable tenant isolation for
+  // that store alone — the failure mode this whole change exists to remove — so
+  // the raw handle is deliberately named apart and used in exactly two places.
+  // Pool bounds are DECLARED, never inherited.
+  //
+  // node-postgres defaults to an unbounded connection lifetime: a client taken once
+  // is reused until it errors. Against a managed Postgres that fails over, or a proxy
+  // that recycles behind the scenes, the pool keeps handing out connections to a
+  // server that is no longer there — and the symptom is a slow trickle of failed
+  // queries rather than a restart anyone would notice. `maxLifetimeSeconds` retires
+  // each client on a schedule instead.
+  //
+  // Absent configuration is worse than a wrong value: a wrong one is visible in a
+  // diff and arguable, an absent one is invisible and inherited from whatever the
+  // library ships next.
+  const rawPool = new Pool({
+    connectionString: pgUri,
+    max: 10,
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 5_000,
+    maxLifetimeSeconds: 3_600,
+  });
+  const pool = tenantScopedPool(rawPool);
 
-  // ADR D8 — migrate-on-startup BEFORE port binds.
+  // A PRÉ-CONDIÇÃO DE TUDO, medida antes de bindar a porta.
+  //
+  // O pool escopado aplica `app.workspace_id` em cada conexão, e as policies da
+  // 0029 leem esse valor — mas nada disso vale se o papel do banco IGNORA row
+  // level security. Superusuário e BYPASSRLS ignoram: sobre eles o FORCE não faz
+  // nada, o WITH CHECK não recusa nada, e um vazamento entre inquilinos não
+  // produz erro algum. Todo o resto deste arquivo estaria protegendo um controle
+  // desligado, e a suíte continuaria verde porque roda no mesmo papel.
+  //
+  // Recusar aqui é a diferença entre descobrir isso em segundos e descobrir numa
+  // auditoria. A mensagem diz qual papel usar e onde ele é criado.
+  try {
+    const posture = await assertRequestPoolIsolated(rawPool);
+    process.stderr.write(
+      `themory server: conexão de requisição contida pelas policies (papel "${posture.role}").\n`,
+    );
+  } catch (err) {
+    process.stderr.write(
+      `themory server: ${err instanceof Error ? err.message : String(err)}\n`,
+    );
+    process.exit(1);
+    return;
+  }
+
+  // ADR D8 — migrate-on-startup ANTES de bindar a porta. DDL não tem workspace,
+  // então roda no pool CRU; o escopado (corretamente) recusaria por falta de escopo.
+  //
+  // E ROda NO PAPEL DO DONO, não no de requisição. A colisão é real e apareceu no
+  // teste de boot da CLI: o papel de aplicação é `NOSUPERUSER NOBYPASSRLS` e
+  // deliberadamente não tem DDL — se as migrations rodassem por ele, o boot
+  // morreria em `permission denied`. Separar as duas conexões é o que o engine já
+  // faz, e é a consequência natural de ter um papel contido atendendo requisição.
+  //
+  // `THEOMEM_MIGRATE_PG_URI` ausente → migra pela própria conexão de requisição,
+  // que é o comportamento anterior e continua correto em qualquer ambiente cujo
+  // papel de requisição seja o dono (o guard acima recusa apenas superusuário e
+  // BYPASSRLS, não o dono comum).
+  const migrateUri = resolveMigratePgUri() ?? process.env['THEOMEM_MIGRATE_PG_URI'] ?? pgUri;
   if (!shouldSkipMigrations()) {
+    const migratePool =
+      migrateUri === pgUri
+        ? rawPool
+        : new Pool({ connectionString: migrateUri, max: 2, connectionTimeoutMillis: 5_000 });
     try {
-      await runMigrations(pool, { embeddingDim: embedderDim });
+      await runMigrations(migratePool, { embeddingDim: embedderDim });
     } catch (err) {
       process.stderr.write(
-        `themory server: migrations failed (${err instanceof Error ? err.message : String(err)})\n`,
+        `themory server: migrations failed (${err instanceof Error ? err.message : String(err)})\n` +
+          (migrateUri === pgUri
+            ? 'themory server: as migrations rodaram pela conexão de REQUISIÇÃO. Se ela é o ' +
+              'papel de aplicação (sem DDL, por desenho), aponte THEOMEM_MIGRATE_PG_URI para o ' +
+              'dono do schema — ver docs/security/database-roles.md.\n'
+            : ''),
       );
       process.exit(1);
       return;
+    } finally {
+      if (migratePool !== rawPool) await migratePool.end().catch(() => undefined);
     }
   }
 
@@ -155,12 +242,20 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
   // unchanged).
   const warmPromise = (async () => {
     memory = await wireMemoryFromPool(pool);
+    // A confirmação, e não a esperança: se algo entregou aos stores um pool CRU
+    // em vez do escopado, o modo de escrita teria caído para single-tenant e
+    // toda escrita sem contexto iria para o balde `default` — que a policy da
+    // 0029 recusaria, uma requisição por vez, em produção. Aqui isso derruba o
+    // boot, que é onde um erro de fiação custa segundos em vez de meses.
+    requireStrictWorkspaceWrites();
     isReady = true;
   })();
 
   // dbProbe closure — thin (no timeout); healthDbHandler owns the 2s race.
+  // Raw pool: a liveness probe has no workspace, and the scoped pool would
+  // (correctly) refuse rather than invent one.
   const dbProbe = async (): Promise<void> => {
-    await pool.query('SELECT 1');
+    await rawPool.query('SELECT 1');
   };
 
   const apiKey = readApiKey();
@@ -203,13 +298,21 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
   // and now answers 401 SCOPE_INSUFFICIENT — same net rejection but
   // different envelope, breaks the contract).
   const bootstrapToken = resolveBootstrapToken();
+  // Both of these run BEFORE the workspace scope exists, so both take the RAW
+  // pool — the scoped one would (correctly) refuse for lack of a scope.
+  //
+  //   * Credential resolution is what DISCOVERS the workspace. Scoping it would
+  //     be circular: you would need the workspace to read the row that says
+  //     which workspace the key belongs to.
+  //   * The admin sub-app mounts ahead of bearerAuth by design (it resolves
+  //     theo_live_* keys through its own lookup), so no scope is bound yet.
   const adminApi = bootstrapToken !== undefined
-    ? { pool, bootstrapToken }
+    ? { pool: rawPool, bootstrapToken }
     : undefined;
   // When admin path active without OIDC, swap to ApiKeyAuthVerifier so
   // theo_live_* keys auth via SHA-256 lookup against theo_api_keys.
   if (adminApi !== undefined && oidcCfg === null) {
-    authVerifier = new ApiKeyAuthVerifier(pool);
+    authVerifier = new ApiKeyAuthVerifier(rawPool);
   }
 
   // Memory is injected via a small shim that surfaces an honest error if
@@ -241,6 +344,8 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
     // F-M1 (/review): wire the entities read port so GET /v1/scopes/:type/:id/entities
     // serves REAL extracted entities (not the attributed_to fallback) in production.
     // Shares the same pool the Memory factory uses; closes the slice's goal loop.
+    memoryEvidenceStore: new PgMemoryEvidenceStore(pool),
+    ...(process.env['THEOMEM_MEMORY_JOBS'] === 'true' ? { memoryJobs: new PgMemoryJobStore(pool) } : {}),
     memoryEntityStore: new PgMemoryEntityStore(pool),
     // slice2 T3.2 — wire the edges read port so GET /v1/scopes/:type/:id/graph
     // serves REAL relation edges in production (mirrors the entity-port F-M1 fix).
@@ -262,11 +367,59 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
   // M4 T3.1 — start the recall-trace retention cron under the same opt-in flag.
   // maxAge from THEOMEM_RECALL_TRACE_MAX_AGE_SECONDS (validated: fail-fast on a
   // non-positive/non-finite value — FX2 /review M4-R2 — never a silent full-wipe).
-  const retentionCron = resolveRecallTraceEnabled()
-    ? startRecallTraceRetentionCron(new PgRecallTraceRetention(pool), {
-        maxAgeSeconds: resolveRecallTraceMaxAgeSeconds(),
-      })
-    : undefined;
+  //
+  // Retention prunes traces across EVERY workspace, so it cannot run on the
+  // scoped pool — there is no single workspace to scope it to. It also cannot
+  // run on the raw application pool: migration 0029 is fail-closed, so over that
+  // connection the DELETE matches nothing, commits, and reports success. The
+  // cron keeps "succeeding" while the table grows forever.
+  //
+  // So it gets its own pool, on `themory_worker`, and the reach is ASSERTED
+  // before the first tick. The assertion refuses two connections for opposite
+  // reasons: one that cannot cross workspaces (silent no-op) and one that
+  // crosses via BYPASSRLS (silent bypass, invisible in pg_policies). Booting
+  // without it is what turned a broken job into an invisible one.
+  let workerPool: Pool | undefined;
+  let retentionCron: { stop: () => Promise<void> } | undefined;
+  if (resolveRecallTraceEnabled()) {
+    const workerUri = resolveWorkerPgUri() ?? process.env['THEOMEM_WORKER_PG_URI'];
+    if (workerUri === undefined || workerUri.length === 0) {
+      process.stderr.write(
+        'themory server: recall-trace retention is enabled but THEOMEM_WORKER_PG_URI is unset. ' +
+          'The sweep spans every workspace; over the application connection the fail-closed ' +
+          'policies of migration 0029 would make it delete zero rows and report success. ' +
+          'Point THEOMEM_WORKER_PG_URI at the themory_worker role, or unset THEOMEM_RECALL_TRACE.\n',
+      );
+      process.exit(1);
+      return;
+    }
+    workerPool = new Pool({
+      connectionString: workerUri,
+      // Small on purpose: one cron tick at a time. Same declared lifetime as the
+      // request pool — an inherited default is invisible, a wrong value is not.
+      max: 2,
+      idleTimeoutMillis: 30_000,
+      connectionTimeoutMillis: 5_000,
+      maxLifetimeSeconds: 3_600,
+    });
+    try {
+      const reach = await assertBackgroundPoolCrossWorkspace(workerPool, 'recall_traces');
+      process.stderr.write(
+        `themory server: recall-trace retention crosses workspaces as "${reach.role}" ` +
+          `via policy "${reach.policy}".\n`,
+      );
+    } catch (err) {
+      process.stderr.write(
+        `themory server: refusing to start recall-trace retention — ${err instanceof Error ? err.message : String(err)}\n`,
+      );
+      await workerPool.end().catch(() => undefined);
+      process.exit(1);
+      return;
+    }
+    retentionCron = startRecallTraceRetentionCron(new PgRecallTraceRetention(workerPool), {
+      maxAgeSeconds: resolveRecallTraceMaxAgeSeconds(),
+    });
+  }
 
   const listener = serve({ fetch: app.fetch, port, hostname: host }, (info: { port: number }) => {
     process.stdout.write(`themory server: listening on ${host}:${String(info.port)}\n`);
@@ -277,8 +430,9 @@ export async function runServer(options?: RunServerOptions): Promise<void> {
   installServerLifecycle({
     listener,
     port,
-    pool,
+    pool: rawPool,
     ...(retentionCron !== undefined ? { retentionCron } : {}),
+    ...(workerPool !== undefined ? { workerPool } : {}),
     shutdownTimeoutMs: SHUTDOWN_TIMEOUT_MS,
   });
 

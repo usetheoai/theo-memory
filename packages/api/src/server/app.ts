@@ -12,6 +12,7 @@
  */
 import { OpenAPIHono } from '@hono/zod-openapi';
 import type { Tracer } from '@opentelemetry/api';
+import type { MemoryEvidenceReader, MemoryJobService } from '@usetheo/memory/contract';
 import type { AuthVerifier } from '@usetheo/memory/contract';
 import type { Memory } from '@usetheo/memory/contract';
 import type { MemoryEntityStore, MemoryGraphStore } from '@usetheo/memory/contract';
@@ -46,6 +47,8 @@ export interface AdminApiOptions {
 }
 
 export interface CreateServerOptions {
+  readonly memoryEvidenceStore?: MemoryEvidenceReader;
+  readonly memoryJobs?: MemoryJobService;
   readonly memory: Memory;
   readonly authVerifier?: AuthVerifier;
   /**

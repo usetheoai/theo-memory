@@ -49,7 +49,7 @@ if (PG_URI === undefined || PG_URI === '') {
 
     beforeAll(async () => {
       const iso = await createIsolatedDb();
-      pool = iso.pool;
+      pool = iso.crossWorkspacePool('mede o isolamento da governanca entre workspaces');
       dropDb = iso.dropDb;
       policies = new PgRoutingPolicyStore(pool);
       audit = new PgRoutingAuditStore(pool);
@@ -132,16 +132,10 @@ if (PG_URI === undefined || PG_URI === '') {
 
     test('test_m9_promotion_is_audited', async () => {
       // F-tests-1: a session→global PROMOTION (M9 reflect) emits a queryable audit row.
+      // Promotion counts distinct identified origins (default threshold two), so the
+      // fact is written from two separate conversations.
       const user = `erin-${randomUUID()}`;
       const session = `s-${randomUUID()}`;
-      const embedding = new Array<number>(1536).fill(0);
-      embedding[0] = 0.1;
-      // Seed a DURABLE session fact (confirmation_count >= 3) — the M9 promotion candidate.
-      await pool.query(
-        `INSERT INTO memories (text, hash, embedding, payload, workspace_id, user_id, session_id, confirmation_count, kind)
-         VALUES ($1,$2,$3::vector,'{}'::jsonb,$4,$5,$6,3,'extracted')`,
-        ['erin durable fact', `h-${randomUUID()}`, `[${embedding.join(',')}]`, WS, user, session],
-      );
       const memory = await createLocalMemory({
         vectorStore: new PgvectorStore(pool),
         embedder: new StubEmbedder(),
@@ -149,11 +143,40 @@ if (PG_URI === undefined || PG_URI === '') {
         reflectionPolicy: { kind: 'manual' },
         routingAuditStore: audit,
       });
-      await memory.session(session, user).reflect({ conflictResolution: new SessionToGlobalConsolidationPolicy(3) });
+      for (const origin of ['conversation-1', 'conversation-2']) {
+        await memory.session(session, user).remember('erin durable fact', {
+          infer: false,
+          evidence: { kind: 'stated', originSourceId: origin },
+        });
+      }
+      await memory.session(session, user).reflect({ conflictResolution: new SessionToGlobalConsolidationPolicy() });
       // The promotion decision is retrievable via the audit surface for (WS, user).
       const rows = await audit.list(WS, user);
-      expect(rows.some((r) => r.why === 'promotion-confirmation-threshold' && r.chosenScope === 'global')).toBe(true);
+      expect(rows.some((r) => r.why === 'promotion-distinct-source-threshold' && r.chosenScope === 'global')).toBe(true);
       expect(rows.every((r) => r.userId === user)).toBe(true); // isolation held
+      await memory.dispose();
+    });
+
+    test('test_m9_repeated_single_origin_records_no_promotion', async () => {
+      // Five assertions from one origin are one source: no promotion, so no promotion audit row.
+      const user = `frank-${randomUUID()}`;
+      const session = `s-${randomUUID()}`;
+      const memory = await createLocalMemory({
+        vectorStore: new PgvectorStore(pool),
+        embedder: new StubEmbedder(),
+        llm: emptyLlm,
+        reflectionPolicy: { kind: 'manual' },
+        routingAuditStore: audit,
+      });
+      for (let i = 0; i < 5; i += 1) {
+        await memory.session(session, user).remember('frank repeated fact', {
+          infer: false,
+          evidence: { kind: 'stated', originSourceId: 'one-conversation' },
+        });
+      }
+      await memory.session(session, user).reflect({ conflictResolution: new SessionToGlobalConsolidationPolicy() });
+      const rows = await audit.list(WS, user);
+      expect(rows.filter((r) => r.decidedBy === 'm9-promotion')).toEqual([]);
       await memory.dispose();
     });
 

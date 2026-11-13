@@ -16,6 +16,7 @@ import type { EntityExtractor } from '../../domain/dip/entity-extractor.js';
 import type { GraphExpansionStore } from '../../domain/dip/graph-expansion-store.js';
 import type { MemoryEntityStore } from '../../domain/dip/memory-entity-store.js';
 import type { MemoryGraphStore } from '../../domain/dip/memory-graph-store.js';
+import type { MessageLog } from '../../domain/dip/message-log.js';
 import type {
   RecallCacheStore,
   RecallCacheStoreConfig,
@@ -66,6 +67,31 @@ export interface LocalMemoryConfig extends MemoryConfig {
    * ports. A consumer MAY inject their own.
    */
   readonly memoryGraphStore?: MemoryGraphStore;
+  /**
+   * ADR-0029 — supersession on write. On by default: when a new fact makes an existing memory
+   * of the scope no longer true, the extractor names it and the store sets its `t_invalid` to
+   * the new fact's valid time. The old memory leaves current recall, stays readable through
+   * `asOf`, and the change is recorded in `history` as `supersede`. `false` keeps every memory
+   * current until a forget or a reflect.
+   */
+  readonly supersedeOnWrite?: boolean;
+  /**
+   * #238 — importance scoring on write. Off by default: when `true`, each fact the store newly
+   * persists gets one short LLM rating of its future relevance, stored in [0, 1] as
+   * `llmImportanceScore` and read by the eviction policy. A failed rating leaves the fact stored
+   * and unscored and emits `importance_scoring_failed`. Costs one LLM call per new fact. Durable
+   * jobs (`themory worker`) do not score.
+   */
+  readonly importanceScoring?: boolean;
+  /**
+   * ADR-0027 — raw message log. On by default: `createLocalMemory` builds a PgMessageLog over a
+   * PgvectorStore's pool, or an InMemoryMessageLog otherwise. Every write is logged and linked to
+   * the memories it produced, and the extractor sees the scope's preceding turns as context. A hard
+   * forget erases a memory's source messages. `false` disables the log.
+   */
+  readonly messageLog?: MessageLog | false;
+  /** How many preceding turns the extractor sees (default 10, DEFAULT_CONTEXT_MESSAGE_COUNT). */
+  readonly contextMessageCount?: number;
   /**
    * themory-scoped-forget-and-retrieval-counter T2.2 — per-scope recall counter
    * port (`retrieval_api_usage`). Built by `createLocalMemory` (PgUsageCounterStore)

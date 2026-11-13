@@ -31,6 +31,8 @@ import type { Context } from 'hono';
 import type { AuthPool } from '../auth/api-key-verifier.js';
 import { isBootstrapAllowed, markBootstrapConsumedTx } from '../auth/bootstrap-token.js';
 import { scopeSatisfies } from '../auth/scope-hierarchy.js';
+import { withWorkspaceContext } from '../auth/workspace-context.js';
+import { redactSecrets } from '../errors.js';
 
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 
@@ -88,9 +90,24 @@ function generateSecret(): { raw: string; hash: string; prefix12: string } {
   return { raw, hash, prefix12: raw.slice(0, 12) };
 }
 
-function isUniqueViolation(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message : String(err);
-  return msg.includes('duplicate key value') || (err as { code?: string })?.code === '23505';
+/**
+ * A member's role in one workspace, read under that workspace's row-level context.
+ * `null` when the key is bound to no user, or the user holds no membership row —
+ * both resolve to the default-deny role at the call site.
+ */
+async function readMemberRole(
+  pool: AuthPool,
+  workspaceId: string,
+  userId: string | null,
+): Promise<string | null> {
+  if (userId === null) return null;
+  return withWorkspaceContext(pool, workspaceId, async (q) => {
+    const { rows } = await q.query<{ role: string }>(
+      `SELECT role FROM workspace_users WHERE workspace_id = $1 AND user_id = $2 LIMIT 1`,
+      [workspaceId, userId],
+    );
+    return rows[0]?.role ?? null;
+  });
 }
 
 interface ApiKeyView {
@@ -139,6 +156,23 @@ function rowToView(row: {
           ? row.expires_at.toISOString()
           : row.expires_at,
   };
+}
+
+/**
+ * Logs why an admin-key operation failed before the handler answers a generic 500.
+ *
+ * The response body stays generic on purpose, so the log is the only place the cause
+ * survives — without it a row-level-security refusal looked exactly like a transient
+ * fault and took a live deployment to find (#227). Only the error's name, message and
+ * SQLSTATE are written: the secret is never passed to the database (only its hash is),
+ * and `redactSecrets` strips any bearer token that reaches a message anyway.
+ */
+function logAdminKeyFailure(operation: string, err: unknown): void {
+  const code = (err as { code?: unknown } | null)?.code;
+  const raw = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+  const sqlstate = typeof code === 'string' ? ` (SQLSTATE ${code})` : '';
+  // eslint-disable-next-line no-console -- intentional log sink at the error boundary
+  console.error(redactSecrets(`[themory] admin keys: ${operation} failed: ${raw}${sqlstate}`));
 }
 
 // ============================================================================
@@ -256,17 +290,24 @@ export async function createKeyHandler(
     // bypassed by a thrown second query.
     let cr: { workspace_id: string; role: string | null; scopes: unknown } | undefined;
     try {
-      const callerRow = await pool.query<{ workspace_id: string; role: string | null; scopes: unknown }>(
-        `SELECT k.workspace_id, k.scopes, m.role
-           FROM theo_api_keys k
-           LEFT JOIN workspace_users m
-             ON m.workspace_id = k.workspace_id AND m.user_id = k.user_id
-          WHERE k.key_hash = $1 AND k.revoked_at IS NULL AND k.tenant_id = 'self'
+      // Two reads, not one JOIN: `theo_api_keys` carries no row-level security and
+      // says which workspace the key belongs to; `workspace_users` does, and admits
+      // only rows of the workspace named in `app.workspace_id`. The JOIN ran with no
+      // context and resolved every caller's role to NULL under the application role.
+      const keyRow = await pool.query<{ workspace_id: string; user_id: string | null; scopes: unknown }>(
+        `SELECT workspace_id, user_id, scopes
+           FROM theo_api_keys
+          WHERE key_hash = $1 AND revoked_at IS NULL AND tenant_id = 'self'
           LIMIT 1`,
         [callerHash],
       );
-      cr = callerRow.rows[0];
-    } catch {
+      const key = keyRow.rows[0];
+      if (key !== undefined) {
+        const role = await readMemberRole(pool, key.workspace_id, key.user_id);
+        cr = { workspace_id: key.workspace_id, scopes: key.scopes, role };
+      }
+    } catch (err) {
+      logAdminKeyFailure('resolve the calling key', err);
       // Fail closed on auth-backend failure (ADR D5) — never proceed with a
       // privileged default.
       return c.json({ code: 'SERVICE_UNAVAILABLE', message: 'Authentication backend unavailable.' }, 503);
@@ -336,11 +377,7 @@ export async function createKeyHandler(
     // to), which equals callerWorkspace unless a platform-admin targeted another.
     const targetRole = await opts.getMemberRole?.(targetWorkspace, requestedUserId)
       ?? (await (async (): Promise<WorkspaceRole | null> => {
-        const targetRow = await pool.query<{ role: string }>(
-          `SELECT role FROM workspace_users WHERE workspace_id = $1 AND user_id = $2 LIMIT 1`,
-          [targetWorkspace, requestedUserId],
-        );
-        const r = targetRow.rows[0]?.role;
+        const r = await readMemberRole(pool, targetWorkspace, requestedUserId);
         return r === 'owner' || r === 'admin' || r === 'member' ? r : null;
       })());
     if (targetRole === null) {
@@ -376,6 +413,9 @@ export async function createKeyHandler(
       const q = client ?? pool;
       try {
         await q.query('BEGIN', []);
+        // The workspace rows below are under FORCE ROW LEVEL SECURITY; name the
+        // target for this transaction only, or the INSERT fails its WITH CHECK (#227).
+        await q.query(`SELECT set_config('app.workspace_id', $1, true)`, [targetWorkspace]);
         const allowed = await isBootstrapAllowed(q);
         if (!allowed) {
           await q.query('ROLLBACK', []);
@@ -399,34 +439,32 @@ export async function createKeyHandler(
         await q.query('COMMIT', []);
       } catch (innerErr) {
         try { await q.query('ROLLBACK', []); } catch { /* swallow double-rollback */ }
-        if (isUniqueViolation(innerErr)) {
-          return c.json({ code: 'INTERNAL', message: 'Could not create API key. Try again.' }, 500);
-        }
+        logAdminKeyFailure('mint via the bootstrap token', innerErr);
         return c.json({ code: 'INTERNAL', message: 'Could not create API key. Try again.' }, 500);
       } finally {
         client?.release();
       }
     } else {
       // Non-bootstrap path. Model B (ADR D3): provision the target workspace
-      // (idempotent) before the key INSERT so the FK resolves. Two statements
-      // (not a tx) is acceptable: ON CONFLICT DO NOTHING is idempotent under
-      // concurrency, and a key INSERT failing after a workspace upsert leaves
-      // only an empty workspace row (harmless, reused on retry).
-      await pool.query(
-        `INSERT INTO workspaces (id, name) VALUES ($1, $1) ON CONFLICT (id) DO NOTHING`,
-        [targetWorkspace],
-      );
-      await pool.query(
-        `INSERT INTO theo_api_keys (id, subject, tenant_id, workspace_id, user_id, key_name, key_hash, key_prefix, scopes, expires_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-        [id, subject, TENANT_SELF, targetWorkspace, boundUserId, trimmed, hash, prefix12, JSON.stringify(dedupedScopes), body.expires_at ?? null],
-      );
+      // (idempotent) before the key INSERT so the FK resolves. Both statements run
+      // in one transaction because the workspace row is under FORCE ROW LEVEL
+      // SECURITY and needs `app.workspace_id` set for the target (#227).
+      await withWorkspaceContext(pool, targetWorkspace, async (q) => {
+        await q.query(
+          `INSERT INTO workspaces (id, name) VALUES ($1, $1) ON CONFLICT (id) DO NOTHING`,
+          [targetWorkspace],
+        );
+        await q.query(
+          `INSERT INTO theo_api_keys (id, subject, tenant_id, workspace_id, user_id, key_name, key_hash, key_prefix, scopes, expires_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+          [id, subject, TENANT_SELF, targetWorkspace, boundUserId, trimmed, hash, prefix12, JSON.stringify(dedupedScopes), body.expires_at ?? null],
+        );
+      });
     }
   } catch (err: unknown) {
-    if (isUniqueViolation(err)) {
-      // EC-6: id or hash collision (astronomically unlikely; honest 500)
-      return c.json({ code: 'INTERNAL', message: 'Could not create API key. Try again.' }, 500);
-    }
+    // EC-6: an id or hash collision (astronomically unlikely) lands here too; the
+    // answer is the same honest 500, and the log says which failure it was.
+    logAdminKeyFailure('mint', err);
     return c.json({ code: 'INTERNAL', message: 'Could not create API key. Try again.' }, 500);
   }
 
@@ -453,7 +491,8 @@ export async function listKeysHandler(
   try {
     const { rows } = await pool.query<Parameters<typeof rowToView>[0]>(sql, [subject, TENANT_SELF]);
     return c.json({ keys: rows.map(rowToView) }, 200);
-  } catch {
+  } catch (err) {
+    logAdminKeyFailure('list', err);
     return c.json({ code: 'INTERNAL', message: 'Could not list API keys. Try again.' }, 500);
   }
 }
@@ -485,7 +524,8 @@ export async function revokeKeyHandler(
       return c.json({ code: 'NOT_FOUND', message: 'API key not found.' }, 404);
     }
     return new Response(null, { status: 204 });
-  } catch {
+  } catch (err) {
+    logAdminKeyFailure('revoke', err);
     return c.json({ code: 'INTERNAL', message: 'Could not revoke API key. Try again.' }, 500);
   }
 }
@@ -602,8 +642,9 @@ export async function rotateKeyHandler(
       },
       200,
     );
-  } catch {
+  } catch (err) {
     try { await q.query('ROLLBACK', []); } catch { /* ignore double-rollback */ }
+    logAdminKeyFailure('rotate', err);
     return c.json({ code: 'INTERNAL', message: 'Could not rotate API key. Try again.' }, 500);
   } finally {
     client?.release();
@@ -693,7 +734,8 @@ export async function lineageKeyHandler(
       };
     });
     return c.json({ lineage }, 200);
-  } catch {
+  } catch (err) {
+    logAdminKeyFailure('lineage', err);
     return c.json({ code: 'INTERNAL', message: 'Could not load lineage. Try again.' }, 500);
   }
 }

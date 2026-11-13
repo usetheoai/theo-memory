@@ -57,7 +57,10 @@ describe.skipIf(!hasDockerCompose() || !existsSync(COMPOSE_FILE))(
       // Default version interpolation must surface in resolved output.
       // Docker Hub is now the primary registry (THEMORY_IMAGE default
       // `usetheo/themory:<version>`); GHCR is the documented alternative.
-      expect(result.stdout).toMatch(/usetheo\/themory:\S+/);
+      // `ghcr.io/usetheoai/theo-memory` — o nome do repositorio, que e o que o `publish` empurra e o
+      // que o host de fato roda. MEDIDO: `ghcr.io/usetheoai/themory:develop` NAO existe. O Docker Hub
+      // (`usetheo/themory`) esta dormente: nenhum irmao publica la, por falta de `DOCKERHUB_TOKEN`.
+      expect(result.stdout).toMatch(/usetheoai\/theo-memory:\S+/);
     }, 15_000);
 
     test('44. compose declares pgvector + themory services with healthchecks', () => {

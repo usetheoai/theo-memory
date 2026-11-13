@@ -1,0 +1,613 @@
+{
+  "users": [
+    {
+      "id": "lng-adebayo",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Adebayo Okonkwo teaches chemistry at a school in Leeds.",
+          "observedAt": "2023-01-04",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Adebayo's wife is called Chiamaka.",
+          "observedAt": "2023-02-11",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Adebayo owns a 2018 Skoda Octavia.",
+          "observedAt": "2023-03-09",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Adebayo is allergic to shellfish.",
+          "observedAt": "2023-04-20",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Adebayo ran 14 km on Sunday.",
+          "observedAt": "2023-05-15",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Adebayo's brother Tunde lives in Lagos.",
+          "observedAt": "2023-06-01",
+          "role": "distinct"
+        },
+        {
+          "key": "f6",
+          "text": "Adebayo plays the saxophone.",
+          "observedAt": "2023-07-07",
+          "role": "distinct"
+        },
+        {
+          "key": "f7",
+          "text": "Adebayo grows chillies in his garden.",
+          "observedAt": "2023-08-19",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What subject does Adebayo teach?",
+          "pattern": "chemistry"
+        },
+        {
+          "query": "What is Adebayo's wife called?",
+          "pattern": "Chiamaka"
+        },
+        {
+          "query": "What car does Adebayo own?",
+          "pattern": "Skoda"
+        },
+        {
+          "query": "What is Adebayo allergic to?",
+          "pattern": "shellfish"
+        },
+        {
+          "query": "How far did Adebayo run on Sunday?",
+          "pattern": "\\b14 km"
+        },
+        {
+          "query": "Where does Adebayo's brother live?",
+          "pattern": "Lagos"
+        },
+        {
+          "query": "What instrument does Adebayo play?",
+          "pattern": "saxophone"
+        },
+        {
+          "query": "What does Adebayo grow in his garden?",
+          "pattern": "chillies"
+        }
+      ]
+    },
+    {
+      "id": "lng-siobhan",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Siobhán Ní Bhriain works as a midwife in Galway.",
+          "observedAt": "2023-01-08",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Siobhán's daughter Aoife is seven.",
+          "observedAt": "2023-02-02",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Siobhán speaks Irish at home.",
+          "observedAt": "2023-03-13",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Siobhán cycled 60 km in April 2023.",
+          "observedAt": "2023-04-04",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Siobhán keeps two goats called Bríd and Nuala.",
+          "observedAt": "2023-05-21",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Siobhán is learning to sail.",
+          "observedAt": "2023-06-30",
+          "role": "distinct"
+        },
+        {
+          "key": "f6",
+          "text": "Siobhán's favourite author is Eimear McBride.",
+          "observedAt": "2023-07-14",
+          "role": "distinct"
+        },
+        {
+          "key": "f7",
+          "text": "Siobhán bakes soda bread every Friday.",
+          "observedAt": "2023-09-02",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What is Siobhán's job?",
+          "pattern": "midwife"
+        },
+        {
+          "query": "How old is Siobhán's daughter?",
+          "pattern": "seven"
+        },
+        {
+          "query": "What language does Siobhán speak at home?",
+          "pattern": "Irish"
+        },
+        {
+          "query": "How far did Siobhán cycle in April 2023?",
+          "pattern": "\\b60 km"
+        },
+        {
+          "query": "What are Siobhán's goats called?",
+          "pattern": "Nuala"
+        },
+        {
+          "query": "What is Siobhán learning?",
+          "pattern": "sail"
+        },
+        {
+          "query": "Who is Siobhán's favourite author?",
+          "pattern": "McBride"
+        },
+        {
+          "query": "What does Siobhán bake every Friday?",
+          "pattern": "soda bread"
+        }
+      ]
+    },
+    {
+      "id": "lng-dragan",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Dragan Petrović repairs bicycles in Bristol.",
+          "observedAt": "2023-01-12",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Dragan's partner is Zorana.",
+          "observedAt": "2023-02-17",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Dragan drinks his coffee black.",
+          "observedAt": "2023-03-03",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Dragan has a dog named Lav.",
+          "observedAt": "2023-04-26",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Dragan swam 3 km in the lake.",
+          "observedAt": "2023-05-30",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Dragan supports Red Star Belgrade.",
+          "observedAt": "2023-06-18",
+          "role": "distinct"
+        },
+        {
+          "key": "f6",
+          "text": "Dragan is building a wooden boat.",
+          "observedAt": "2023-08-08",
+          "role": "distinct"
+        },
+        {
+          "key": "f7",
+          "text": "Dragan's mother Milica visits every Christmas.",
+          "observedAt": "2023-10-10",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What does Dragan repair?",
+          "pattern": "bicycles"
+        },
+        {
+          "query": "Who is Dragan's partner?",
+          "pattern": "Zorana"
+        },
+        {
+          "query": "How does Dragan drink his coffee?",
+          "pattern": "black"
+        },
+        {
+          "query": "What is the name of Dragan's dog?",
+          "pattern": "\\bLav\\b"
+        },
+        {
+          "query": "How far did Dragan swim in the lake?",
+          "pattern": "\\b3 km"
+        },
+        {
+          "query": "Which football club does Dragan support?",
+          "pattern": "Red Star"
+        },
+        {
+          "query": "What is Dragan building?",
+          "pattern": "boat"
+        },
+        {
+          "query": "When does Dragan's mother visit?",
+          "pattern": "Christmas"
+        }
+      ]
+    },
+    {
+      "id": "lng-thiago",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Thiago Andrade é professor de história em Belo Horizonte.",
+          "observedAt": "2023-01-05",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "A esposa de Thiago se chama Renata.",
+          "observedAt": "2023-02-09",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Thiago tem um Fiat Uno de 2009.",
+          "observedAt": "2023-03-18",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Thiago é intolerante a glúten.",
+          "observedAt": "2023-04-02",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Thiago correu 8 km no domingo.",
+          "observedAt": "2023-05-25",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Thiago toca cavaquinho.",
+          "observedAt": "2023-06-12",
+          "role": "distinct"
+        },
+        {
+          "key": "f6",
+          "text": "O irmão de Thiago mora em Recife.",
+          "observedAt": "2023-07-29",
+          "role": "distinct"
+        },
+        {
+          "key": "f7",
+          "text": "Thiago cultiva orquídeas na varanda.",
+          "observedAt": "2023-09-15",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "O que Thiago ensina?",
+          "pattern": "hist[oó]ria"
+        },
+        {
+          "query": "Como se chama a esposa de Thiago?",
+          "pattern": "Renata"
+        },
+        {
+          "query": "Que carro Thiago tem?",
+          "pattern": "Fiat"
+        },
+        {
+          "query": "Thiago é intolerante a quê?",
+          "pattern": "gl[uú]ten"
+        },
+        {
+          "query": "Quanto Thiago correu no domingo?",
+          "pattern": "\\b8 km"
+        },
+        {
+          "query": "Que instrumento Thiago toca?",
+          "pattern": "cavaquinho"
+        },
+        {
+          "query": "Onde mora o irmão de Thiago?",
+          "pattern": "Recife"
+        },
+        {
+          "query": "O que Thiago cultiva na varanda?",
+          "pattern": "orqu[ií]deas"
+        }
+      ]
+    },
+    {
+      "id": "lng-carmen",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Carmen Ortega trabaja como enfermera en Zaragoza.",
+          "observedAt": "2023-01-07",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "El marido de Carmen se llama Javier.",
+          "observedAt": "2023-02-14",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Carmen tiene un gato llamado Bigotes.",
+          "observedAt": "2023-03-22",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Carmen nada todos los martes.",
+          "observedAt": "2023-04-11",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Carmen leyó 15 novelas el año pasado.",
+          "observedAt": "2023-05-05",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Carmen es vegetariana.",
+          "observedAt": "2023-06-27",
+          "role": "distinct"
+        },
+        {
+          "key": "f6",
+          "text": "La hija de Carmen estudia en Salamanca.",
+          "observedAt": "2023-08-03",
+          "role": "distinct"
+        },
+        {
+          "key": "f7",
+          "text": "Carmen colecciona sellos antiguos.",
+          "observedAt": "2023-10-01",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "¿En qué trabaja Carmen?",
+          "pattern": "enfermera"
+        },
+        {
+          "query": "¿Cómo se llama el marido de Carmen?",
+          "pattern": "Javier"
+        },
+        {
+          "query": "¿Cómo se llama el gato de Carmen?",
+          "pattern": "Bigotes"
+        },
+        {
+          "query": "¿Qué día nada Carmen?",
+          "pattern": "martes"
+        },
+        {
+          "query": "¿Cuántas novelas leyó Carmen el año pasado?",
+          "pattern": "\\b15\\b"
+        },
+        {
+          "query": "¿Qué dieta sigue Carmen?",
+          "pattern": "vegetariana"
+        },
+        {
+          "query": "¿Dónde estudia la hija de Carmen?",
+          "pattern": "Salamanca"
+        },
+        {
+          "query": "¿Qué colecciona Carmen?",
+          "pattern": "sellos"
+        }
+      ]
+    },
+    {
+      "id": "lng-giulia",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Giulia Ferri lavora come architetta a Torino.",
+          "observedAt": "2023-01-09",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Il compagno di Giulia si chiama Marco.",
+          "observedAt": "2023-02-19",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Giulia ha una Vespa del 2015.",
+          "observedAt": "2023-03-27",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Giulia è allergica alle noci.",
+          "observedAt": "2023-04-15",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Giulia ha corso 10 km sabato.",
+          "observedAt": "2023-05-19",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Giulia suona il violino.",
+          "observedAt": "2023-07-02",
+          "role": "distinct"
+        },
+        {
+          "key": "f6",
+          "text": "La sorella di Giulia vive a Bari.",
+          "observedAt": "2023-08-21",
+          "role": "distinct"
+        },
+        {
+          "key": "f7",
+          "text": "Giulia coltiva basilico sul balcone.",
+          "observedAt": "2023-10-12",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Che lavoro fa Giulia?",
+          "pattern": "architett"
+        },
+        {
+          "query": "Come si chiama il compagno di Giulia?",
+          "pattern": "Marco"
+        },
+        {
+          "query": "Che scooter ha Giulia?",
+          "pattern": "Vespa"
+        },
+        {
+          "query": "A cosa è allergica Giulia?",
+          "pattern": "noci"
+        },
+        {
+          "query": "Quanti chilometri ha corso Giulia sabato?",
+          "pattern": "\\b10 km"
+        },
+        {
+          "query": "Che strumento suona Giulia?",
+          "pattern": "violino"
+        },
+        {
+          "query": "Dove vive la sorella di Giulia?",
+          "pattern": "Bari"
+        },
+        {
+          "query": "Cosa coltiva Giulia sul balcone?",
+          "pattern": "basilico"
+        }
+      ]
+    },
+    {
+      "id": "lng-lukas",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Lukas Brandt arbeitet als Tischler in Freiburg.",
+          "observedAt": "2023-01-10",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Die Frau von Lukas heißt Sabine.",
+          "observedAt": "2023-02-21",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Lukas fährt einen VW Golf von 2012.",
+          "observedAt": "2023-03-30",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Lukas trinkt keinen Alkohol.",
+          "observedAt": "2023-04-18",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Lukas ist am Sonntag 20 km gewandert.",
+          "observedAt": "2023-05-28",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Lukas spielt Trompete.",
+          "observedAt": "2023-07-09",
+          "role": "distinct"
+        },
+        {
+          "key": "f6",
+          "text": "Der Bruder von Lukas wohnt in Leipzig.",
+          "observedAt": "2023-08-25",
+          "role": "distinct"
+        },
+        {
+          "key": "f7",
+          "text": "Lukas sammelt alte Landkarten.",
+          "observedAt": "2023-10-15",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Als was arbeitet Lukas?",
+          "pattern": "Tischler"
+        },
+        {
+          "query": "Wie heißt die Frau von Lukas?",
+          "pattern": "Sabine"
+        },
+        {
+          "query": "Welches Auto fährt Lukas?",
+          "pattern": "Golf"
+        },
+        {
+          "query": "Was trinkt Lukas nicht?",
+          "pattern": "Alkohol"
+        },
+        {
+          "query": "Wie weit ist Lukas am Sonntag gewandert?",
+          "pattern": "\\b20 km"
+        },
+        {
+          "query": "Welches Instrument spielt Lukas?",
+          "pattern": "Trompete"
+        },
+        {
+          "query": "Wo wohnt der Bruder von Lukas?",
+          "pattern": "Leipzig"
+        },
+        {
+          "query": "Was sammelt Lukas?",
+          "pattern": "Landkarten"
+        }
+      ]
+    }
+  ]
+}

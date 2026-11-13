@@ -17,6 +17,7 @@ import {
   EmbedderError,
   EntityForgetScopeError,
   MemoryStoreError,
+  MessageLogNotConfigured,
   MissingScopeError,
 } from '@usetheo/memory/contract';
 import { classifyError, UnknownToolError } from '../error-classifier.js';
@@ -40,6 +41,10 @@ describe('classifyError — Tool Execution Error mappings (ADR D6)', () => {
       classifyError(new EntityForgetScopeError('forgetEntity(X) requires filters.user_id')),
       /user scope|fail-closed/i,
     );
+  });
+
+  it('maps MessageLogNotConfigured to an execution error naming the disabled log', () => {
+    assertExecution(classifyError(new MessageLogNotConfigured('searchMessages')), /message log/i);
   });
 
   it('maps MemoryStoreError to an execution error with retry-in-a-moment text', () => {

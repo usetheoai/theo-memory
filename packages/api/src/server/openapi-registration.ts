@@ -12,8 +12,11 @@
  * @see Plan theo-memory-standalone-p0 § T1.4 + ADR D1 + EC-19
  */
 import type { OpenAPIRegistry } from '@asteasolutions/zod-to-openapi';
+import { MemoryEvidenceSchema } from '@usetheo/memory/contract';
 import { z } from 'zod';
 
+import { MessageSearchItemSchema, MessageSearchQuerySchema } from './handlers/messages-search.js';
+import { registerMemoryJobPaths } from './openapi-memory-jobs.js';
 import {
   AddMemberBody,
   ForgetBody,
@@ -38,6 +41,10 @@ const ScopeTypeEnum = z
   );
 
 const MemoryItemSchema = z.object({
+  evidence: MemoryEvidenceSchema.optional(),
+  expiresAt: z.string().datetime().nullable().optional(),
+  distinctSourceCount: z.number().int().nonnegative().nullable().optional(),
+  idempotentReplay: z.boolean().optional(),
   id: z.string().uuid(),
   text: z.string(),
   hash: z.string(),
@@ -58,6 +65,7 @@ const ErrorEnvelopeSchema = z.object({
 });
 
 export function registerAllPaths(registry: OpenAPIRegistry): void {
+  registerMemoryJobPaths(registry);
   registry.registerPath({
     method: 'post',
     path: '/v1/remember',
@@ -160,7 +168,7 @@ export function registerAllPaths(registry: OpenAPIRegistry): void {
     method: 'get',
     path: '/v1/health',
     operationId: 'getHealth',
-    summary: 'Readiness probe — process alive.',
+    summary: 'Liveness — the process is up.',
     responses: {
       200: {
         description: 'Ready.',
@@ -173,12 +181,54 @@ export function registerAllPaths(registry: OpenAPIRegistry): void {
     method: 'get',
     path: '/v1/health/db',
     operationId: 'getHealthDb',
-    summary: 'Liveness probe — DB reachable within 2s.',
+    summary: 'The database check that backs readiness — reachable within 2s.',
     responses: {
       200: { description: 'DB OK.', content: { 'application/json': { schema: z.object({ status: z.literal('ok') }) } } },
       503: {
         description: 'DB unreachable, timed out, or no probe configured.',
         content: { 'application/json': { schema: z.object({ status: z.literal('unavailable'), reason: z.string().optional() }) } },
+      },
+    },
+  });
+
+  // B-118 — the canonical readiness and provenance names. Both were SERVED and absent from this
+  // document, and the ecosystem contract checker only reads the document: a route it cannot see is
+  // a route it never checks.
+  //
+  // The two summaries above were also swapped — `/v1/health` was labelled "readiness" and
+  // `/v1/health/db` "liveness", which is the inverse of what each answers.
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/health/ready',
+    operationId: 'getHealthReady',
+    summary: 'Readiness — the service can serve, database included.',
+    responses: {
+      200: { description: 'Ready.', content: { 'application/json': { schema: z.object({ status: z.literal('ok') }) } } },
+      503: {
+        description: 'A dependency is unavailable; do not send traffic here.',
+        content: { 'application/json': { schema: z.object({ status: z.literal('unavailable'), reason: z.string().optional() }) } },
+      },
+    },
+  });
+
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/version',
+    operationId: 'getVersion',
+    summary: 'Which build is answering.',
+    responses: {
+      200: {
+        description: 'Build provenance.',
+        content: {
+          'application/json': {
+            schema: z.object({
+              name: z.string(),
+              version: z.string(),
+              git_sha: z.string().optional(),
+              built_at: z.string().optional(),
+            }),
+          },
+        },
       },
     },
   });
@@ -249,6 +299,32 @@ export function registerAllPaths(registry: OpenAPIRegistry): void {
       },
       404: { description: 'Unknown scope type or empty id.' },
       422: { description: 'Invalid query (bad limit / cursor / asOf, or both after+before).' },
+    },
+  });
+
+  // ADR-0031 — hybrid (BM25 + embedding, fused by rank) search over the raw message log.
+  registry.registerPath({
+    method: 'get',
+    path: '/v1/scopes/{type}/{id}/messages/search',
+    operationId: 'searchScopeMessages',
+    summary:
+      'Search over the raw messages the scope can see, by words and by meaning (BM25 and embedding similarity fused by rank), best first. Reaches a turn extraction kept no fact of. The list is ranked, not filtered. With surroundingTurns, each result also carries the turns logged just before and after it in the same stream.',
+    request: {
+      params: z.object({ type: ScopeTypeEnum, id: z.string().min(1) }),
+      query: MessageSearchQuerySchema,
+    },
+    responses: {
+      200: {
+        description: 'Messages by fused rank score, best first. A foreign or empty scope returns no items.',
+        content: {
+          'application/json': {
+            schema: z.object({ items: z.array(MessageSearchItemSchema) }),
+          },
+        },
+      },
+      404: { description: 'Unknown scope type or empty id.' },
+      422: { description: 'Invalid query (missing q, limit outside 1..100, surroundingTurns outside 0..5, unknown parameter, or invalid asOf).' },
+      501: { description: 'The server runs without the raw message log (MESSAGE_LOG_DISABLED).' },
     },
   });
 

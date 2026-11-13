@@ -1,7 +1,7 @@
 /**
  * M9 T4.1 + T4.2 — the isolation + promotion hard gate, end-to-end through reflect()
  * against real ankane/pgvector. A reflect on a SESSION scope with the
- * SessionToGlobalConsolidationPolicy promotes the durable fact (confirmation_count ≥ 3)
+ * SessionToGlobalConsolidationPolicy promotes the durable fact (distinct_source_count ≥ 3)
  * to GLOBAL (session_id→NULL) with a consolidation_history audit row; a one-off session
  * fact is NOT promoted (it stays session-scoped and decays via eviction); and another
  * user in the same workspace sees NONE of it (the (workspace, user) isolation hard gate).
@@ -48,7 +48,7 @@ if (PG_URI === undefined || PG_URI === '') {
 
     beforeAll(async () => {
       const iso = await createIsolatedDb();
-      pool = iso.pool;
+      pool = iso.poolPinnedTo('default');
       dropDb = iso.dropDb;
       memory = await createLocalMemory({
         vectorStore: new PgvectorStore(pool),
@@ -68,21 +68,21 @@ if (PG_URI === undefined || PG_URI === '') {
       await pool.query(`DELETE FROM consolidation_history`);
     });
 
-    /** Seed a session-scoped extracted row for a user with a given confirmation_count. */
+    /** Seed a session-scoped extracted row for a user with explicit distinct-source provenance. */
     async function seed(user: string, text: string, seed: number, confirmations: number): Promise<string> {
       const embedding = new Array<number>(1536).fill(0);
       embedding[0] = seed;
       const { rows } = await pool.query<{ id: string }>(
-        `INSERT INTO memories (text, hash, embedding, payload, workspace_id, user_id, session_id, confirmation_count, kind)
-         VALUES ($1,$2,$3::vector,$4::jsonb,'default',$5,$6,$7,'extracted') RETURNING id`,
+        `INSERT INTO memories (text, hash, embedding, payload, workspace_id, user_id, session_id, confirmation_count, distinct_source_count, kind)
+         VALUES ($1,$2,$3::vector,$4::jsonb,'default',$5,$6,$7,$7,'extracted') RETURNING id`,
         [text, `h-${seed}-${randomUUID()}`, `[${embedding.join(',')}]`, JSON.stringify({}), user, SESSION, confirmations],
       );
       return rows[0]!.id;
     }
 
     test('test_durable_session_fact_promotes_to_global_isolated', async () => {
-      const durable = await seed(USER_A, 'alice durable fact', 1, 3); // confirmation_count 3
-      const oneOff = await seed(USER_A, 'alice one-off fact', 2, 1); // count 1 → not promoted
+      const durable = await seed(USER_A, 'alice durable fact', 1, 3); // three identified origins
+      const oneOff = await seed(USER_A, 'alice one-off fact', 2, 1); // one origin → not promoted
       await seed(USER_B, 'bob private fact', 3, 5); // user B's own durable fact (different user)
 
       // Reflect on user A's SESSION scope with the M9 policy.
@@ -122,10 +122,7 @@ if (PG_URI === undefined || PG_URI === '') {
     });
 
     test('test_lone_durable_fact_promotes_even_as_the_only_session_memory', async () => {
-      // The literal DoD scenario: 3 exact mentions of ONE fact dedup (composite UPSERT) to
-      // ONE row with confirmation_count=3, and it is the ONLY memory in the session. It MUST
-      // still promote — M9 promotes individual durable memories; it is NOT gated on a ≥2
-      // multi-memory cluster (that is the v0.7 distillation assumption, not M9's).
+      // Three independently sourced assertions can promote a single memory.
       const lone = await seed(USER_A, 'the only durable fact', 7, 3);
       await memory
         .session(SESSION, USER_A)
@@ -149,21 +146,33 @@ if (PG_URI === undefined || PG_URI === '') {
       expect(row.rows[0].t_invalid).toBeNull(); // NOT soft-deleted by M9 (left to eviction)
     });
 
+    test('repeated assertions from one origin never satisfy independent-source promotion', async () => {
+      for (let i = 0; i < 5; i += 1) {
+        await memory.session(SESSION, USER_A).remember('same source repeated', {
+          infer: false, evidence: { kind: 'stated', originSourceId: 'one-conversation' },
+        });
+      }
+      await memory.session(SESSION, USER_A).reflect({ conflictResolution: new SessionToGlobalConsolidationPolicy() });
+      const rows = await pool.query('SELECT session_id, confirmation_count, distinct_source_count FROM memories WHERE user_id=$1', [USER_A]);
+      expect(rows.rows).toEqual([expect.objectContaining({session_id: SESSION, confirmation_count: 5, distinct_source_count: 1})]);
+    });
+
     test('test_three_real_remember_mentions_dedup_to_one_row_then_promote', async () => {
-      // F-tests-6 (review) — the LITERAL DoD metric: 3 exact mentions via remember() dedup
-      // (composite UPSERT, Princípio 1) to ONE row with confirmation_count=3, which then
-      // promotes. Exercises the mention→dedup→promote chain, not a pre-seeded count-3 row.
+      // Distinct original sources deduplicate to one row and support promotion.
       const fact = 'alice always uses tabs not spaces';
       for (let i = 0; i < 3; i += 1) {
-        await memory.session(SESSION, USER_A).remember(fact, { infer: false });
+        await memory.session(SESSION, USER_A).remember(fact, {
+          infer: false, evidence: { kind: 'stated', originSourceId: `conversation-${i}`, sourceQuote: fact },
+        });
       }
       // The 3 mentions dedup to one row at confirmation_count 3.
-      const before = await pool.query<{ id: string; confirmation_count: number }>(
-        `SELECT id, confirmation_count FROM memories WHERE user_id = $1 AND session_id = $2`,
+      const before = await pool.query<{ id: string; confirmation_count: number; distinct_source_count: number }>(
+        `SELECT id, confirmation_count, distinct_source_count FROM memories WHERE user_id = $1 AND session_id = $2`,
         [USER_A, SESSION],
       );
       expect(before.rowCount).toBe(1);
       expect(before.rows[0].confirmation_count).toBe(3);
+      expect(before.rows[0].distinct_source_count).toBe(3);
       // Needs ≥1 source memory (the M9 guard) — the lone durable row must still promote.
       await memory
         .session(SESSION, USER_A)

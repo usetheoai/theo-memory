@@ -22,34 +22,37 @@ import { createIsolatedDb, type IsolatedDb } from '../_helpers/isolated-db.js';
 
 const ROWS = 50_000;
 let db: IsolatedDb;
+/** O papel contido, fixado no workspace do arquivo — ver `_helpers/isolated-db.ts`. */
+let scopedPool: pg.Pool;
 let probeIds: string[] = [];
 
 beforeAll(async () => {
   db = await createIsolatedDb({ embeddingDim: 384 });
+  scopedPool = db.poolPinnedTo('default');
   const zeroVec = `[${Array(384).fill(0).join(',')}]`;
 
   // Seeded server-side: shipping 50k uuids over the wire would dominate the runtime.
-  await db.pool.query(
+  await scopedPool.query(
     `INSERT INTO memories (id, workspace_id, text, hash, embedding, payload)
      SELECT gen_random_uuid(), 'default', 'seed', md5(g::text), $1::vector, '{}'::jsonb
        FROM generate_series(1, $2) g`,
     [zeroVec, ROWS],
   );
-  await db.pool.query(
+  await scopedPool.query(
     `INSERT INTO entities (id, workspace_id, name, embedding, payload, type, normalized_key)
      SELECT gen_random_uuid(), 'default', 'seed', $1::vector, '{}'::jsonb, 'NOUN', 'k_' || g
        FROM generate_series(1, $2) g`,
     [zeroVec, ROWS],
   );
-  await db.pool.query(
+  await scopedPool.query(
     `INSERT INTO memory_entities (memory_id, entity_id)
      SELECT m.id, e.id
        FROM (SELECT id, row_number() OVER () rn FROM memories) m
        JOIN (SELECT id, row_number() OVER () rn FROM entities) e USING (rn)`,
   );
-  await db.pool.query('ANALYZE memory_entities');
+  await scopedPool.query('ANALYZE memory_entities');
 
-  const probe = await db.pool.query<{ memory_id: string }>(
+  const probe = await scopedPool.query<{ memory_id: string }>(
     'SELECT memory_id FROM memory_entities LIMIT 20',
   );
   probeIds = probe.rows.map((r) => r.memory_id);
@@ -61,7 +64,7 @@ afterAll(async () => {
 
 describe('entity boost query plan', () => {
   test('test_index_with_memory_id_as_leading_column_exists', async () => {
-    const { rows } = await db.pool.query<{ indexdef: string }>(
+    const { rows } = await scopedPool.query<{ indexdef: string }>(
       `SELECT indexdef FROM pg_indexes WHERE tablename = 'memory_entities'`,
     );
 
@@ -71,7 +74,7 @@ describe('entity boost query plan', () => {
   });
 
   test('test_query_plan_uses_index_scan', async () => {
-    const { rows } = await db.pool.query<{ 'QUERY PLAN': string }>(
+    const { rows } = await scopedPool.query<{ 'QUERY PLAN': string }>(
       `EXPLAIN SELECT memory_id, entity_id FROM memory_entities WHERE memory_id = ANY($1::uuid[])`,
       [probeIds],
     );

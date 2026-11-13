@@ -16,6 +16,12 @@
  * translation, so a relation endpoint stays connected to its renamed node
  * (referential integrity). The literal speaker token `user` is never translated.
  *
+ * A label whose words all occur in the source message is already in the input language
+ * and is never sent nor rewritten (#256): asked to normalize such labels, `gpt-4o-mini`
+ * translated correct Portuguese labels ("trabalha como", "mora em") into English. The
+ * remaining labels go to the model together with the source message, so it sees the
+ * language instead of inferring it from one word of the instruction.
+ *
  * FAIL-SOFT: any error keeps the original labels; the caller never fails `remember()`.
  *
  */
@@ -61,6 +67,14 @@ function collectDistinctLabels(
   return [...set];
 }
 
+const words = (text: string): string[] => text.toLowerCase().match(/[\p{L}\p{M}\p{N}]+/gu) ?? [];
+
+/** True when every word of `label` occurs in the source message. */
+function takenFromSource(label: string, sourceWords: ReadonlySet<string>): boolean {
+  const labelWords = words(label);
+  return labelWords.length > 0 && labelWords.every((w) => sourceWords.has(w));
+}
+
 /** Parse the corrective LLM response into a flat string→string map. Accepts the
  *  object shape (OpenAILLM `{type:'json'}`) or a JSON string (stubs/other impls). */
 function parseTranslationMap(raw: unknown): Record<string, string> {
@@ -93,10 +107,13 @@ export async function correctEntityRelationLanguage(
   entities: readonly LlmEntityLabel[] | undefined,
   relations: readonly RelationTriple[] | undefined,
   target: DetectedLanguage,
+  source: string,
 ): Promise<LabelCorrectionResult> {
   const distinct = collectDistinctLabels(entities, relations);
-  if (distinct.length === 0) {
-    return { entities, relations, labelCount: 0, corrected: 0 };
+  const sourceWords = new Set(words(source));
+  const toCheck = distinct.filter((label) => !takenFromSource(label, sourceWords));
+  if (toCheck.length === 0) {
+    return { entities, relations, labelCount: distinct.length, corrected: 0 };
   }
 
   // Always-on normalization (D1): ask the model for the target-language form of EVERY
@@ -109,13 +126,14 @@ export async function correctEntityRelationLanguage(
       {
         role: 'system',
         content:
-          `The user's message is a JSON array of short entity/relationship labels. Return a JSON object ` +
+          `The user's message is a JSON object: "source" is a message written in ${target.name}, and ` +
+          `"labels" are short entity/relationship labels extracted from it. Return a JSON object ` +
           `with EVERY label as a key, mapping it to its ${target.name} form: translate labels that are ` +
           `in another language into ${target.name}; keep labels already in ${target.name} unchanged; keep ` +
           'proper names (people, organizations, products, places) unchanged. Use the EXACT original string ' +
           'as each key. Return ONLY the JSON object, no commentary.',
       },
-      { role: 'user', content: JSON.stringify(distinct) },
+      { role: 'user', content: JSON.stringify({ source, labels: toCheck }) },
     ];
     const raw = await llm.generateResponse(messages, { type: 'json' });
     map = parseTranslationMap(raw);
@@ -125,7 +143,9 @@ export async function correctEntityRelationLanguage(
   }
 
   let corrected = 0;
-  for (const label of distinct) {
+  // Labels taken from the source are not in `toCheck`, so a map entry for one is ignored.
+  map = Object.fromEntries(Object.entries(map).filter(([label]) => toCheck.includes(label)));
+  for (const label of toCheck) {
     const t = map[label];
     if (t !== undefined && t !== label) corrected += 1;
   }

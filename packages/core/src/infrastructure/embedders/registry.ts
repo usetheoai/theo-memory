@@ -20,7 +20,7 @@ import type { Embedder } from '../../domain/dip/embedder.js';
 import { EmbedderError, EmbedderUnavailableError } from '../../domain/errors.js';
 
 /** Provider keys recognized by {@link createEmbedder}. */
-export type EmbedderProvider = 'stub' | 'openai' | 'local' | 'ollama' | 'voyage' | 'google';
+export type EmbedderProvider = 'stub' | 'openai' | 'openai-compatible' | 'local' | 'ollama' | 'voyage' | 'google';
 
 /** Declarative spec consumed by {@link createEmbedder}. */
 export interface EmbedderSpec {
@@ -31,6 +31,8 @@ export interface EmbedderSpec {
   readonly apiKey?: string;
   /** Base URL override (`ollama`/`google`). */
   readonly baseUrl?: string;
+  /** Requested vector dimensions for providers that support them. */
+  readonly dimensions?: number;
   /** Injectable `fetch` for the fetch-based adapters (`ollama`/`voyage`/`google`). */
   readonly fetchImpl?: typeof fetch;
 }
@@ -69,6 +71,24 @@ export const EMBEDDER_REGISTRY: Readonly<
     } catch (err) {
       if (isModuleNotFound(err)) {
         throw new EmbedderUnavailableError('openai', 'openai', {
+          cause: err instanceof Error ? err : undefined,
+        });
+      }
+      throw err;
+    }
+  },
+  'openai-compatible': async (spec) => {
+    try {
+      const { OpenAICompatibleEmbedder } = await import('./openai-compatible.js');
+      return new OpenAICompatibleEmbedder({
+        ...(spec.model !== undefined ? { model: spec.model } : {}),
+        ...(spec.apiKey !== undefined ? { apiKey: spec.apiKey } : {}),
+        ...(spec.baseUrl !== undefined ? { baseUrl: spec.baseUrl } : {}),
+        ...(spec.dimensions !== undefined ? { dimensions: spec.dimensions } : {}),
+      });
+    } catch (err) {
+      if (isModuleNotFound(err)) {
+        throw new EmbedderUnavailableError('openai-compatible', 'openai', {
           cause: err instanceof Error ? err : undefined,
         });
       }

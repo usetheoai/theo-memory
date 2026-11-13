@@ -28,14 +28,18 @@ export function composeTemporalWhere(
   asOf: Date | undefined,
   startParamIndex: number,
   columnPrefix = '',
+  includeExpiration = true,
 ): TemporalWhere {
   const tValid = `${columnPrefix}t_valid`;
   const tInvalid = `${columnPrefix}t_invalid`;
+  const expires = `${columnPrefix}expires_at`;
+  const expiryNow = includeExpiration ? ` AND (${expires} IS NULL OR ${expires} > NOW())` : '';
+  const expiryThen = includeExpiration ? ` AND (${expires} IS NULL OR ${expires} > $${startParamIndex})` : '';
   if (asOf === undefined) {
-    return { sql: `${tInvalid} IS NULL`, params: [], nextParamIndex: startParamIndex };
+    return { sql: `${tInvalid} IS NULL${expiryNow}`, params: [], nextParamIndex: startParamIndex };
   }
   return {
-    sql: `(${tValid} IS NULL OR ${tValid} <= $${startParamIndex}) AND (${tInvalid} IS NULL OR ${tInvalid} > $${startParamIndex + 1})`,
+    sql: `(${tValid} IS NULL OR ${tValid} <= $${startParamIndex}) AND (${tInvalid} IS NULL OR ${tInvalid} > $${startParamIndex + 1})${expiryThen}`,
     params: [asOf, asOf],
     nextParamIndex: startParamIndex + 2,
   };

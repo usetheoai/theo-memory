@@ -193,6 +193,7 @@ export class LocalScopedSkillMemory implements ScopedSkillMemory {
       },
       options,
     );
+    await this.deps.vectorStore.recordAccess?.(results.map((r) => r.id));
     const skills: SkillWithScore[] = [];
     for (const r of results) {
       const projected = decodeSkillPayload(r.id, r.metadata, this.scope, r.score);

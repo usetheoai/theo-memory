@@ -4,9 +4,31 @@
  * @see ADR-0001 — upstream-shape architecture (hash dedup + bi-temporal data model).
  * @see ADR-0006 — bi-temporal columns: schema-yes-in-local, query-API-no-until-v0.5.
  */
+import type { LoggedMessage } from './dip/message-log.js';
+import type { EventTime } from './extraction/event-time.js';
+import type { MemoryEvidence } from './memory-evidence.js';
+import type { MemoryDurability } from './memory-time.js';
 import type { Scope } from './scope.js';
 
 export interface MemoryItem {
+  /** This request had already committed; no assertion or post-write hook ran again. */
+  readonly idempotentReplay?: boolean;
+  /** Distinct identified origins; null means legacy provenance is unknown. */
+  readonly distinctSourceCount?: number | null;
+  /** Explicit deadline, independent of forgetting. A passing state of the moment gets one at write (ADR-0035). */
+  readonly expiresAt?: Date | null;
+
+  /** When the fact's event is, counted from when it was said. Absent when the fact names no time. */
+  readonly eventTime?: EventTime;
+
+  /** How long the extractor expected the statement to hold. Absent on memories written without extraction. */
+  readonly durability?: MemoryDurability;
+
+  /** How this context was obtained. Undefined on legacy/unclassified memories.
+   * @see docs/memory-semantics.md
+   */
+  readonly evidence?: MemoryEvidence;
+
   /** UUID v4 generated at write time. Globally unique across scopes. */
   readonly id: string;
 
@@ -114,6 +136,13 @@ export interface MemoryItem {
   readonly rejectedAsDuplicate?: boolean;
 
   /**
+   * ADR-0029 — ids of the existing memories this write marked as no longer true. Present only
+   * when the write superseded something; each one keeps its row and an `asOf` before the
+   * change still returns it.
+   */
+  readonly supersedes?: readonly string[];
+
+  /**
    * themory-category-filter-server-side T1.1: operator-supplied category tag
    * projected from the top-level `category` column. NULL on pre-2026-06-09 rows
    * AND on rows written without `RememberOptions.category` (per ADR D1 no
@@ -138,4 +167,6 @@ export interface MemoryItem {
 export interface MemoryItemWithScore extends MemoryItem {
   /** Additive composite score in [0, 1]. Higher = better match. */
   readonly score: number;
+  /** The raw messages that produced this memory, when `RecallOptions.includeSources` is set (ADR-0027). */
+  readonly sources?: readonly LoggedMessage[];
 }

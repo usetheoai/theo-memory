@@ -20,11 +20,11 @@ import { describe, expect, test } from 'vitest';
 import { buildToolsListResponse } from './list-handler.js';
 
 describe('buildToolsListResponse (T2.2 — tools/list emitter)', () => {
-  test('returns exactly 13 tools (9 prior + M14 get_memory/list_entities/update_memory/delete_entities; no pagination per ADR D2 listChanged:false)', () => {
+  test('returns exactly 14 tools (9 prior + M14 get_memory/list_entities/update_memory/delete_entities + search_messages; no pagination per ADR D2 listChanged:false)', () => {
     const response = buildToolsListResponse();
     // skills-write-surface (D3) grew 4→6; agentic-skill-execution-sandbox T2.4 → 7; mcp-episodes-tool (G3-MCP) → 8;
     // recall-trace explain_recall → 9; M14 kit-recall-parity adds the 4 read/update/delete tools → 13.
-    expect(response.tools).toHaveLength(13);
+    expect(response.tools).toHaveLength(14);
     // No nextCursor for a static list (plan T2.2 Deep Dives; listChanged:false)
     expect(response).not.toHaveProperty('nextCursor');
   });
@@ -40,6 +40,7 @@ describe('buildToolsListResponse (T2.2 — tools/list emitter)', () => {
       'forget',
       'reflect',
       'episodes',
+      'search_messages',
       'add_skill',
       'forget_skill',
       'execute_skill',

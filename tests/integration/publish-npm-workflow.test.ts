@@ -79,4 +79,24 @@ describe('publish-npm — trusted publishing por OIDC', () => {
     // workflow faz o claim divergir e a autorizacao e negada.
     expect(workflow()).not.toMatch(/^\s+environment:/m);
   });
+
+  test('test_publish_npm_exige_tag_no_head_de_main', () => {
+    // T1.1 — o canal npm dispara no MESMO evento que o da imagem
+    // (`push: tags: v*`), mas nascia sem guarda: `npm publish --access public`
+    // saia de qualquer tag, promovida ou nao.
+    //
+    // EC-4 — aceita SO `identical`, nao `identical|behind`. A guarda da imagem
+    // aceita `behind` porque re-release de versao antiga e legitimo la. No npm
+    // e o oposto: uma versao NOVA apontando para codigo ANTIGO publica sem
+    // conflito e vira `latest` no registry, sem sinal algum. Releases de npm
+    // saem sempre do head de `main`.
+    const yaml = workflow();
+
+    expect(yaml).toMatch(/guard-release-on-main:/);
+    expect(yaml).toMatch(/needs:\s*guard-release-on-main/);
+    expect(yaml).toMatch(/identical\)/);
+    expect(yaml, 'behind abriria caminho de downgrade no registry').not.toMatch(
+      /identical\|behind/,
+    );
+  });
 });

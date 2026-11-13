@@ -1,0 +1,741 @@
+{
+  "users": [
+    {
+      "id": "tp4-perpetua",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Perpetua repairs clocks.",
+          "observedAt": "2025-08-04",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Perpetua's son Lysander sails dinghies.",
+          "observedAt": "2025-08-07",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Perpetua's friend Odalys teaches Latin.",
+          "observedAt": "2025-08-10",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Perpetua owns a Datsun.",
+          "observedAt": "2025-08-13",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Perpetua walks on Dartmoor every Easter.",
+          "observedAt": "2025-08-16",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Perpetua avoids gluten.",
+          "observedAt": "2025-08-19",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What does Perpetua repair?",
+          "pattern": "clocks"
+        },
+        {
+          "query": "What does Perpetua's son sail?",
+          "pattern": "dinghies"
+        },
+        {
+          "query": "What does Perpetua's friend teach?",
+          "pattern": "Latin"
+        },
+        {
+          "query": "What car does Perpetua own?",
+          "pattern": "Datsun"
+        },
+        {
+          "query": "Where does Perpetua walk every Easter?",
+          "pattern": "Dartmoor"
+        },
+        {
+          "query": "What does Perpetua avoid?",
+          "pattern": "gluten"
+        }
+      ]
+    },
+    {
+      "id": "tp4-crisanto",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Crisanto conserta geladeiras.",
+          "observedAt": "2025-08-22",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "A filha de Crisanto, Rosimeire, é veterinária.",
+          "observedAt": "2025-08-25",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "O vizinho de Crisanto, Juvenal, cria cabras.",
+          "observedAt": "2025-08-28",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Crisanto tem um Opala.",
+          "observedAt": "2025-08-31",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Crisanto passa o Natal em Garanhuns.",
+          "observedAt": "2025-09-03",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Crisanto é gago.",
+          "observedAt": "2025-09-06",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "O que Crisanto conserta?",
+          "pattern": "geladeiras"
+        },
+        {
+          "query": "O que é a filha de Crisanto?",
+          "pattern": "veterin[áa]ria"
+        },
+        {
+          "query": "O que o vizinho de Crisanto cria?",
+          "pattern": "cabras"
+        },
+        {
+          "query": "Que carro Crisanto tem?",
+          "pattern": "Opala"
+        },
+        {
+          "query": "Onde Crisanto passa o Natal?",
+          "pattern": "Garanhuns"
+        },
+        {
+          "query": "Que condição Crisanto tem?",
+          "pattern": "gago"
+        }
+      ]
+    },
+    {
+      "id": "tp4-bonifacia",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Bonifacia restaura muebles.",
+          "observedAt": "2025-09-09",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "El marido de Bonifacia, Gumersindo, es pescador.",
+          "observedAt": "2025-09-12",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "La comadre de Bonifacia, Remigia, vende quesos.",
+          "observedAt": "2025-09-15",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Bonifacia tiene un Barreiros.",
+          "observedAt": "2025-09-18",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Bonifacia veranea en Cudillero.",
+          "observedAt": "2025-09-21",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Bonifacia es zurda.",
+          "observedAt": "2025-09-24",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "¿Qué restaura Bonifacia?",
+          "pattern": "muebles"
+        },
+        {
+          "query": "¿Qué es el marido de Bonifacia?",
+          "pattern": "pescador"
+        },
+        {
+          "query": "¿Qué vende la comadre de Bonifacia?",
+          "pattern": "quesos"
+        },
+        {
+          "query": "¿Qué coche tiene Bonifacia?",
+          "pattern": "Barreiros"
+        },
+        {
+          "query": "¿Dónde veranea Bonifacia?",
+          "pattern": "Cudillero"
+        },
+        {
+          "query": "¿Qué mano usa Bonifacia?",
+          "pattern": "zurda"
+        }
+      ]
+    },
+    {
+      "id": "tp4-hartmut",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Hartmut repariert Fahrräder.",
+          "observedAt": "2025-09-27",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Die Tochter von Hartmut, Hilke, studiert Physik.",
+          "observedAt": "2025-09-30",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Der Kollege von Hartmut, Volkmar, segelt.",
+          "observedAt": "2025-10-03",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Hartmut fährt einen Käfer.",
+          "observedAt": "2025-10-06",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Hartmut wandert jeden Sommer im Allgäu.",
+          "observedAt": "2025-10-09",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Hartmut ist Frühaufsteher.",
+          "observedAt": "2025-10-12",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Was repariert Hartmut?",
+          "pattern": "Fahrr[äa]der"
+        },
+        {
+          "query": "Was studiert die Tochter von Hartmut?",
+          "pattern": "Physik"
+        },
+        {
+          "query": "Was macht der Kollege von Hartmut?",
+          "pattern": "segel"
+        },
+        {
+          "query": "Welches Auto fährt Hartmut?",
+          "pattern": "K[äa]fer"
+        },
+        {
+          "query": "Wo wandert Hartmut jeden Sommer?",
+          "pattern": "Allg[äa]u"
+        },
+        {
+          "query": "Wann steht Hartmut auf?",
+          "pattern": "Fr[üu]haufsteher"
+        }
+      ]
+    },
+    {
+      "id": "tp4-ombeline",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Ombeline répare des horloges.",
+          "observedAt": "2025-10-15",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Le mari d'Ombeline, Évariste, est vigneron.",
+          "observedAt": "2025-10-18",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "L'amie d'Ombeline, Mahaut, enseigne le grec.",
+          "observedAt": "2025-10-21",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Ombeline conduit une Panhard.",
+          "observedAt": "2025-10-24",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Ombeline passe Noël à Colmar.",
+          "observedAt": "2025-10-27",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Ombeline est insomniaque.",
+          "observedAt": "2025-10-30",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Que répare Ombeline ?",
+          "pattern": "horloges"
+        },
+        {
+          "query": "Que fait le mari d'Ombeline ?",
+          "pattern": "vigneron"
+        },
+        {
+          "query": "Qu'enseigne l'amie d'Ombeline ?",
+          "pattern": "grec"
+        },
+        {
+          "query": "Quelle voiture conduit Ombeline ?",
+          "pattern": "Panhard"
+        },
+        {
+          "query": "Où Ombeline passe-t-elle Noël ?",
+          "pattern": "Colmar"
+        },
+        {
+          "query": "Quelle condition a Ombeline ?",
+          "pattern": "insomniaque"
+        }
+      ]
+    },
+    {
+      "id": "tp4-gaudenzio",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Gaudenzio ripara fisarmoniche.",
+          "observedAt": "2025-11-02",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "La figlia di Gaudenzio, Ottavina, fa la farmacista.",
+          "observedAt": "2025-11-05",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Il cugino di Gaudenzio, Settimio, coltiva olivi.",
+          "observedAt": "2025-11-08",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Gaudenzio guida una Topolino.",
+          "observedAt": "2025-11-11",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Gaudenzio passa il Ferragosto a Gaeta.",
+          "observedAt": "2025-11-14",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Gaudenzio è daltonico.",
+          "observedAt": "2025-11-17",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Che cosa ripara Gaudenzio?",
+          "pattern": "fisarmoniche"
+        },
+        {
+          "query": "Che lavoro fa la figlia di Gaudenzio?",
+          "pattern": "farmacista"
+        },
+        {
+          "query": "Che cosa coltiva il cugino di Gaudenzio?",
+          "pattern": "olivi"
+        },
+        {
+          "query": "Che auto guida Gaudenzio?",
+          "pattern": "Topolino"
+        },
+        {
+          "query": "Dove passa Gaudenzio il Ferragosto?",
+          "pattern": "Gaeta"
+        },
+        {
+          "query": "Che condizione ha Gaudenzio?",
+          "pattern": "daltonico"
+        }
+      ]
+    },
+    {
+      "id": "tp4-sjoerd",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Sjoerd repareert orgels.",
+          "observedAt": "2025-11-20",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "De zus van Sjoerd, Marijke, is tandarts.",
+          "observedAt": "2025-11-23",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "De buurman van Sjoerd, Hidde, kweekt tulpen.",
+          "observedAt": "2025-11-26",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Sjoerd rijdt in een DAF.",
+          "observedAt": "2025-11-29",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Sjoerd fietst elke zomer naar Texel.",
+          "observedAt": "2025-12-02",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Sjoerd is kleurenblind.",
+          "observedAt": "2025-12-05",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Wat repareert Sjoerd?",
+          "pattern": "orgels"
+        },
+        {
+          "query": "Wat is de zus van Sjoerd?",
+          "pattern": "tandarts"
+        },
+        {
+          "query": "Wat kweekt de buurman van Sjoerd?",
+          "pattern": "tulpen"
+        },
+        {
+          "query": "In welke auto rijdt Sjoerd?",
+          "pattern": "DAF"
+        },
+        {
+          "query": "Waar fietst Sjoerd elke zomer naartoe?",
+          "pattern": "Texel"
+        },
+        {
+          "query": "Welke aandoening heeft Sjoerd?",
+          "pattern": "kleurenblind"
+        }
+      ]
+    },
+    {
+      "id": "tp4-self-en",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "My niece Clementine studies law.",
+          "observedAt": "2025-12-08",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "My landlord Ambrose collects maps.",
+          "observedAt": "2025-12-11",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "I drive a Reliant.",
+          "observedAt": "2025-12-14",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "I spend Easter in Whitby.",
+          "observedAt": "2025-12-17",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "I work as a joiner.",
+          "observedAt": "2025-12-20",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "I am allergic to latex.",
+          "observedAt": "2025-12-23",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What does the user's niece study?",
+          "pattern": "\\blaw\\b"
+        },
+        {
+          "query": "What does the user's landlord collect?",
+          "pattern": "maps"
+        },
+        {
+          "query": "What car does the user drive?",
+          "pattern": "Reliant"
+        },
+        {
+          "query": "Where does the user spend Easter?",
+          "pattern": "Whitby"
+        },
+        {
+          "query": "What is the user's job?",
+          "pattern": "joiner"
+        },
+        {
+          "query": "What is the user allergic to?",
+          "pattern": "latex"
+        }
+      ]
+    },
+    {
+      "id": "tp4-self-it",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Mia sorella Loredana fa la sarta.",
+          "observedAt": "2025-12-26",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Mio suocero Dionigi alleva api.",
+          "observedAt": "2025-12-29",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Guido una Autobianchi.",
+          "observedAt": "2026-01-01",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Passo il Natale a Bressanone.",
+          "observedAt": "2026-01-04",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Lavoro come idraulico.",
+          "observedAt": "2026-01-07",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Sono intollerante al lattosio.",
+          "observedAt": "2026-01-10",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Che lavoro fa la sorella dell'utente?",
+          "pattern": "sarta"
+        },
+        {
+          "query": "Che cosa alleva il suocero dell'utente?",
+          "pattern": "\\bapi\\b"
+        },
+        {
+          "query": "Che auto guida l'utente?",
+          "pattern": "Autobianchi"
+        },
+        {
+          "query": "Dove passa il Natale l'utente?",
+          "pattern": "Bressanone"
+        },
+        {
+          "query": "Che lavoro fa l'utente?",
+          "pattern": "idraulico"
+        },
+        {
+          "query": "A che cosa è intollerante l'utente?",
+          "pattern": "lattosio"
+        }
+      ]
+    },
+    {
+      "id": "tp4-self-nl",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Mijn oom Gerolf is bakker.",
+          "observedAt": "2026-01-13",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Mijn dochter Sanne speelt hockey.",
+          "observedAt": "2026-01-16",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Ik rijd in een Spyker.",
+          "observedAt": "2026-01-19",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Ik vier Pasen in Hoorn.",
+          "observedAt": "2026-01-22",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Ik werk als stukadoor.",
+          "observedAt": "2026-01-25",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Ik ben allergisch voor pinda's.",
+          "observedAt": "2026-01-28",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Wat is de oom van de gebruiker?",
+          "pattern": "bakker"
+        },
+        {
+          "query": "Welke sport speelt de dochter van de gebruiker?",
+          "pattern": "hockey"
+        },
+        {
+          "query": "In welke auto rijdt de gebruiker?",
+          "pattern": "Spyker"
+        },
+        {
+          "query": "Waar viert de gebruiker Pasen?",
+          "pattern": "Hoorn"
+        },
+        {
+          "query": "Wat is het beroep van de gebruiker?",
+          "pattern": "stukadoor"
+        },
+        {
+          "query": "Waarvoor is de gebruiker allergisch?",
+          "pattern": "pinda"
+        }
+      ]
+    },
+    {
+      "id": "tp4-self-de",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Meine Schwester Roswitha ist Tischlerin.",
+          "observedAt": "2026-01-31",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Mein Schwiegervater Eberhard angelt.",
+          "observedAt": "2026-02-03",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Ich fahre einen Borgward.",
+          "observedAt": "2026-02-06",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Ich verbringe Ostern in Lindau.",
+          "observedAt": "2026-02-09",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Ich arbeite als Uhrmacher.",
+          "observedAt": "2026-02-12",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Ich bin gegen Erdbeeren allergisch.",
+          "observedAt": "2026-02-15",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Was ist die Schwester des Nutzers?",
+          "pattern": "Tischlerin"
+        },
+        {
+          "query": "Was macht der Schwiegervater des Nutzers?",
+          "pattern": "angel"
+        },
+        {
+          "query": "Welches Auto fährt der Nutzer?",
+          "pattern": "Borgward"
+        },
+        {
+          "query": "Wo verbringt der Nutzer Ostern?",
+          "pattern": "Lindau"
+        },
+        {
+          "query": "Als was arbeitet der Nutzer?",
+          "pattern": "Uhrmacher"
+        },
+        {
+          "query": "Wogegen ist der Nutzer allergisch?",
+          "pattern": "Erdbeeren"
+        }
+      ]
+    }
+  ]
+}

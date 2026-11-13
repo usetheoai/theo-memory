@@ -64,6 +64,8 @@ if (PG_URI === undefined || PG_URI === '') {
   describe('M14 Phase 5 — kit-recall-parity (workspace, user) isolation HARD GATE', () => {
     let pool: pg.Pool;
     let dropDb: () => Promise<void>;
+    /** DDL e TRUNCATE: privilégio que o papel de aplicação não tem, por desenho. */
+    let setupPool: pg.Pool;
     let base: Memory;
     let store: PgMemoryEntityStore;
 
@@ -74,8 +76,15 @@ if (PG_URI === undefined || PG_URI === '') {
 
     beforeAll(async () => {
       const iso = await createIsolatedDb();
-      pool = iso.pool;
+      // Deliberately a connection that CAN cross: this gate measures the MCP
+      // surfaces' own `(workspace, user)` enforcement. The user axis is not a
+      // database policy at all — user-X and user-Y share a workspace, so the
+      // policy admits both and only the application code separates them. Running
+      // this over the contained pool would keep the tenant axis honest and make
+      // the user axis untested, which is half of what the gate exists for.
+      pool = iso.crossWorkspacePool('measures the MCP surfaces, incl. the user axis no policy covers');
       dropDb = iso.dropDb;
+      setupPool = iso.setupPool;
       base = await createLocalMemory({
         vectorStore: new PgvectorStore(pool),
         embedder: new DeterministicStubEmbedder(),
@@ -89,7 +98,7 @@ if (PG_URI === undefined || PG_URI === '') {
     });
 
     beforeEach(async () => {
-      await pool.query('TRUNCATE memories, entities, memory_entities, entity_edges, history RESTART IDENTITY CASCADE');
+      await setupPool.query('TRUNCATE memories, entities, memory_entities, entity_edges, history RESTART IDENTITY CASCADE');
     });
 
     const deps = () => ({ memoryFactory: () => base, memoryEntityStore: store });
@@ -184,6 +193,23 @@ if (PG_URI === undefined || PG_URI === '') {
         `SELECT count(*)::int c FROM memories WHERE workspace_id='tn-A' AND user_id='user-X' AND t_invalid IS NULL`,
       );
       expect(attackerRows.rows[0]?.c).toBeGreaterThanOrEqual(1);
+    });
+
+    test('search_messages — (A,X) finds ZERO of (B) and ZERO of (A,Y) logged messages', async () => {
+      await setupPool.query('TRUNCATE memory_messages CASCADE');
+      await setupPool.query("INSERT INTO workspaces (id, name) VALUES ('tn-A', 'A'), ('tn-B', 'B') ON CONFLICT DO NOTHING");
+      for (const [p, content] of [[B, 'kumquat from B'], [AY, 'kumquat from AY'], [AX, 'kumquat from AX']] as const) {
+        await pool.query(
+          'INSERT INTO memory_messages (workspace_id, user_id, role, content) VALUES ($1, $2, $3, $4)',
+          [p.workspaceId, p.userId, 'user', content],
+        );
+      }
+
+      const res = await withScope(ctxOf(AX), () => dispatch('search_messages', { query: 'kumquat', limit: 10 }, deps()));
+
+      expect(res.isError ?? false).toBe(false);
+      const found = (res.structuredContent as { messages: { content: string }[] }).messages.map((m) => m.content);
+      expect(found).toEqual(['kumquat from AX']);
     });
 
     test('delete_entities — (A,X) deletes ZERO of (B) and (A,Y); targets survive', async () => {

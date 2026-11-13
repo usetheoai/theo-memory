@@ -16,6 +16,7 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "verbatimModuleSyntax": true,
+    "rootDir": "src",
     "outDir": "dist"
   },
   "include": ["src/**/*.ts"],

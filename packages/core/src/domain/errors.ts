@@ -158,6 +158,16 @@ export class BiTemporalNotSupportedLocally extends Error {
   }
 }
 
+/** A raw-message operation was called on a memory created with `messageLog: false`. */
+export class MessageLogNotConfigured extends Error {
+  override readonly name = 'MessageLogNotConfigured' as const;
+
+  constructor(operation: string, options?: ErrorOptions) {
+    super(`${operation} needs the raw message log, but this memory was created with messageLog: false.`, options);
+    Object.setPrototypeOf(this, MessageLogNotConfigured.prototype);
+  }
+}
+
 export class ReflectionNotConfigured extends Error {
   override readonly name = 'ReflectionNotConfigured' as const;
 
@@ -167,6 +177,29 @@ export class ReflectionNotConfigured extends Error {
       options,
     );
     Object.setPrototypeOf(this, ReflectionNotConfigured.prototype);
+  }
+}
+
+/**
+ * A reflection draft cited source memories that became unavailable before the
+ * derived row could be committed (for example, another writer superseded or
+ * expired a source during reflection). This is a per-draft conflict, not a
+ * storage outage: callers may quarantine that draft while continuing the batch.
+ */
+export class DerivedMemorySourcesUnavailableError extends Error {
+  override readonly name = 'DerivedMemorySourcesUnavailableError' as const;
+
+  readonly expectedSources: number;
+  readonly availableSources: number;
+
+  constructor(expectedSources: number, availableSources: number, options?: ErrorOptions) {
+    super(
+      `Derived memory source set changed before persistence (${String(availableSources)}/${String(expectedSources)} sources available).`,
+      options,
+    );
+    this.expectedSources = expectedSources;
+    this.availableSources = availableSources;
+    Object.setPrototypeOf(this, DerivedMemorySourcesUnavailableError.prototype);
   }
 }
 
@@ -580,4 +613,32 @@ export class SessionsListingNotSupported extends Error {
     super(message, options);
     Object.setPrototypeOf(this, SessionsListingNotSupported.prototype);
   }
+}
+
+/**
+ * Thrown at boot when a pool intended for background, workspace-spanning work
+ * cannot actually reach across workspaces — or reaches through a privilege
+ * nobody declared.
+ *
+ * A retention sweep exists to look at every workspace's rows. Migration 0029
+ * made the tables fail-closed, so over a connection with no cross-workspace
+ * policy the sweep does not error: it deletes zero rows and returns, which
+ * looks exactly like a quiet night. Refusing to start is the only way that
+ * silence becomes something a person can read.
+ *
+ * @see infrastructure/db/background-pool-reach.ts — the measurement
+ */
+export class BackgroundPoolReachError extends Error {
+  override readonly name = 'BackgroundPoolReachError' as const;
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    Object.setPrototypeOf(this, BackgroundPoolReachError.prototype);
+  }
+}
+
+/** Reusing an idempotency key for another request is a caller conflict, not a retry. */
+export class IdempotencyConflict extends Error {
+  override readonly name = 'IdempotencyConflict';
+  constructor() { super('Idempotency key was already used for different content.'); }
 }

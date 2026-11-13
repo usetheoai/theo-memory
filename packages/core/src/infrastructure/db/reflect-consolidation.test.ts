@@ -5,7 +5,8 @@
  * The M23 wall: with > clusterCap candidates the policy abstains (no LLM call),
  * so the contradiction pair never reaches the judge. Bounded clustering must
  * split the candidates so each `consolidate` call is <= cap and never a single
- * 25-candidate call (which would abstain). M9 promotion is exempt (whole-scope).
+ * 25-candidate call (which would abstain). M9 promotion is exempt from proximity
+ * clustering, but source authors remain isolated.
  */
 import { describe, expect, test } from 'vitest';
 
@@ -113,13 +114,41 @@ describe('consolidateInBoundedClusters (M24 T3.1)', () => {
     expect(agg.length).toBeGreaterThanOrEqual(2);
   });
 
-  test('M9 promotion is exempt — whole scope passed as ONE cluster', async () => {
+  test('M9 promotion is exempt — each speaker whole-scope set is one cluster', async () => {
     const callSizes = await callSizesFor(build25(), {
       scope: { kind: 'session', sessionId: 's1' },
       isM9Promotion: true,
       kind: 'session-to-global',
     });
     expect(callSizes).toEqual([25]); // one whole-scope call — M9 reads the full set
+  });
+
+  test('never judges or supersedes candidates across speaker attribution', async () => {
+    const seen: (string | undefined)[][] = [];
+    const policy: ConflictResolutionPolicy = {
+      kind: 'llm-judged-merge',
+      consolidate(candidates): Promise<readonly ConflictResolutionResult[]> {
+        seen.push(candidates.map((candidate) => candidate.attributedTo));
+        return Promise.resolve([]);
+      },
+    };
+    const vector = [1, 0, 0];
+    await consolidateInBoundedClusters({
+      candidates: [
+        { memoryId: 'u1', text: 'user says record 27:12', createdAt: new Date(1), attributedTo: 'user', embedding: vector },
+        { memoryId: 'u2', text: 'user repeats record 27:12', createdAt: new Date(2), attributedTo: 'user', embedding: vector },
+        { memoryId: 'a1', text: 'assistant claims target 25:50', createdAt: new Date(2), attributedTo: 'assistant', embedding: vector },
+        { memoryId: 'a2', text: 'assistant repeats target 25:50', createdAt: new Date(3), attributedTo: 'assistant', embedding: vector },
+        { memoryId: 'unknown1', text: 'unattributed claim', createdAt: new Date(3), embedding: vector },
+        { memoryId: 'unknown2', text: 'unattributed duplicate', createdAt: new Date(4), embedding: vector },
+      ],
+      conflictPolicy: policy,
+      scope: SCOPE,
+      cap: 20,
+      isM9Promotion: false,
+    });
+
+    expect(seen).toEqual([['user', 'user'], ['assistant', 'assistant'], [undefined, undefined]]);
   });
 
   test('candidates without embedding degrade to a single whole-scope cluster', async () => {

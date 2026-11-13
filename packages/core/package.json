@@ -1,6 +1,6 @@
 {
   "name": "@usetheo/memory",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "The open-source memory layer for AI agents — persistent, multi-tenant memory (facts, conversations & executable skills) on your own Postgres. TypeScript SDK, REST & MCP. Pre-release.",
   "type": "module",
   "license": "Apache-2.0",
@@ -77,6 +77,10 @@
       "types": "./dist/infrastructure/embedders/openai.d.ts",
       "default": "./dist/infrastructure/embedders/openai.js"
     },
+    "./embedders/openai-compatible": {
+      "types": "./dist/infrastructure/embedders/openai-compatible.d.ts",
+      "default": "./dist/infrastructure/embedders/openai-compatible.js"
+    },
     "./embedders/local": {
       "types": "./dist/infrastructure/embedders/local.d.ts",
       "default": "./dist/infrastructure/embedders/local.js"
@@ -142,7 +146,7 @@
     "@xenova/transformers": "^2.17.2",
     "compromise": "^14.15.1",
     "isolated-vm": "^6.1.2",
-    "natural": "^8.1.0",
+    "natural": "^8.2.6",
     "openai": "^4.77.0"
   },
   "devDependencies": {

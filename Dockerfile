@@ -9,8 +9,8 @@
 #   Stage 2 `production-deps`— Same Node 22 slim base; npm ci --omit=dev
 #                              produces a lean node_modules suitable for
 #                              copying into the distroless runtime.
-#   Stage 3 runtime          — gcr.io/distroless/nodejs22-debian12:nonroot
-#                              (Debian 12 glibc → @xenova/transformers ONNX
+#   Stage 3 runtime          — gcr.io/distroless/nodejs22-debian13:nonroot
+#                              (Debian 13 glibc → @xenova/transformers ONNX
 #                              runtime + native deps compatible per EC-38).
 #                              No shell present (EC-47 hard requirement);
 #                              entrypoint invokes node binary directly per
@@ -29,12 +29,14 @@
 # @see EC-38 (glibc distroless) + EC-39 (optional deps included) + EC-40
 #      (tsc gate in build) + EC-47 (distroless no-shell invariant)
 
-ARG NODE_VERSION=22
-
 ###############################################################################
 # Stage 1 — builder: install ALL deps + emit dist/ via tsc
 ###############################################################################
-FROM node:${NODE_VERSION}-bookworm-slim AS builder
+# Digest de INDICE (multi-arch), nao de plataforma — a release e amd64+arm64 e pinar o
+# manifesto de uma arquitetura quebraria a outra, so na tag. Obtido com
+# `docker buildx imagetools inspect node:22-bookworm-slim`.
+# tag original: node:22-bookworm-slim
+FROM node@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee AS builder
 
 WORKDIR /build
 
@@ -96,7 +98,8 @@ RUN pnpm build
 ###############################################################################
 # Stage 2 — production-deps: prune dev deps for the runtime image
 ###############################################################################
-FROM node:${NODE_VERSION}-bookworm-slim AS production-deps
+# tag original: node:22-bookworm-slim
+FROM node@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee AS production-deps
 
 WORKDIR /build
 
@@ -153,7 +156,12 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
 ###############################################################################
 # Stage 3 — runtime: distroless Node 22 (no shell, nonroot)
 ###############################################################################
-FROM gcr.io/distroless/nodejs22-debian12:nonroot AS runtime
+# tag original: gcr.io/distroless/nodejs22-debian13:nonroot
+# Debian 13, not 12: the debian12 distroless image stopped being rebuilt in June 2026 and kept
+# shipping libssl3 3.0.18 after Debian had published the fixes, so the Trivy gate could only pass
+# through an ever-growing allowlist. The builder stages stay on bookworm; their glibc is older than
+# trixie's, and binaries built against an older glibc run on a newer one.
+FROM gcr.io/distroless/nodejs22-debian13@sha256:34985bab6fd6981259f18ab7555995a911ca3bee4b0d38bacdc63932df1dc6cb AS runtime
 
 WORKDIR /app
 

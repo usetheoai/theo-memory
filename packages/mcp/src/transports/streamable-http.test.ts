@@ -20,80 +20,39 @@ import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 
-import { attachWorkspace, markGatewayTrusted } from '../auth/request-workspace.js';
+import { attachUser, attachWorkspace } from '../auth/request-workspace.js';
 import type { McpServer } from '../server.js';
-import { connectStreamableHttp, scopeFromHeaders, scopeFromRequest } from '../transports/streamable-http.js';
+import { connectStreamableHttp, scopeFromRequest } from '../transports/streamable-http.js';
 
-// T2.2 (#82) — scopeFromRequest threads the AUTH-TRUSTED workspace into the ctx.
-// M16 (#121, /review Finding 2) hardened the user tier: `X-Theo-User-Id` is honoured ONLY
-// when the request is gateway-trusted (a workspace-level credential bearing
-// `memory:platform-admin`). Absent that mark, a workspace-level key used directly cannot pick
-// a user via a header — otherwise any unbound key is a workspace-wide impersonation primitive.
-describe('scopeFromRequest (workspace from auth + userId from header)', () => {
-  function reqWith(headers: Record<string, string>, workspaceId?: string): IncomingMessage {
+// T2.2 (#82), M16 (#121), usetheoai/theo#477 — the scope comes from what the auth gate
+// attached (the token's tenant and subject). No client header reaches it.
+describe('scopeFromRequest (workspace and user from the auth attachment only)', () => {
+  function reqWith(headers: Record<string, string>, workspaceId?: string, userId?: string): IncomingMessage {
     const req = { headers } as unknown as IncomingMessage;
     if (workspaceId !== undefined) attachWorkspace(req, workspaceId);
-    return req;
-  }
-  function gatewayReq(headers: Record<string, string>, workspaceId: string): IncomingMessage {
-    const req = reqWith(headers, workspaceId);
-    markGatewayTrusted(req);
+    if (userId !== undefined) attachUser(req, userId);
     return req;
   }
 
-  it('carries the auth workspace + the header user ONLY under gateway trust', () => {
-    // Gateway topology: the platform-admin credential authorizes the injected user header.
-    const ctx = scopeFromRequest(gatewayReq({ 'x-theo-user-id': 'alice' }, 'tn-A'));
-    expect(ctx).toEqual({ workspaceId: 'tn-A', session: { userId: 'alice' } });
+  it('carries the attached workspace and user', () => {
+    expect(scopeFromRequest(reqWith({}, 'tn-A', 'alice'))).toEqual({
+      workspaceId: 'tn-A',
+      session: { userId: 'alice' },
+    });
   });
 
-  it('IGNORES the header user for a workspace key used directly (M16 Finding 2)', () => {
-    // No gateway mark: a plain workspace-level key cannot pick a user via a header.
-    const ctx = scopeFromRequest(reqWith({ 'x-theo-user-id': 'alice' }, 'tn-A'));
+  it('IGNORES the X-Theo-User-Id header even when a workspace is attached', () => {
+    const ctx = scopeFromRequest(reqWith({ 'x-theo-user-id': 'mallory' }, 'tn-A'));
     expect(ctx).toEqual({ workspaceId: 'tn-A' });
-    expect(ctx?.session).toBeUndefined();
   });
 
   it('IGNORES a client-supplied x-workspace-id header — only the auth attachment sets the workspace (ADR D2)', () => {
-    // No workspace attachment and no gateway mark → neither the evil workspace header nor the
-    // user header is honoured. Fail closed to no scope.
     const ctx = scopeFromRequest(reqWith({ 'x-workspace-id': 'tn-EVIL', 'x-theo-user-id': 'alice' }));
     expect(ctx).toBeUndefined();
   });
 
-  it('workspace-only request (no userId header) yields a workspace-scoped ctx', () => {
-    const ctx = scopeFromRequest(reqWith({}, 'tn-A'));
-    expect(ctx).toEqual({ workspaceId: 'tn-A' });
-  });
-
-  it('no workspace + no userId → undefined (scope-required tools fail closed)', () => {
-    const ctx = scopeFromRequest(reqWith({}));
-    expect(ctx).toBeUndefined();
-  });
-});
-
-// theo-workspace#10 follow-up / ADR D3 — the deferred per-request scope-binding for
-// the native streamable-HTTP transport. The header binds the userId tier (the only
-// tier memoryFromCtx resolves); EC-16 sanitization is enforced here.
-describe('scopeFromHeaders (native streamable-http scope binding)', () => {
-  it('binds the userId tier from a valid X-Theo-User-Id header', () => {
-    expect(scopeFromHeaders({ 'x-theo-user-id': 'alice' })).toEqual({ session: { userId: 'alice' } });
-  });
-  it('returns undefined when the header is absent (fail-closed: tools see no scope)', () => {
-    expect(scopeFromHeaders({})).toBeUndefined();
-  });
-  it('rejects empty / whitespace-only values', () => {
-    expect(scopeFromHeaders({ 'x-theo-user-id': '   ' })).toBeUndefined();
-    expect(scopeFromHeaders({ 'x-theo-user-id': '' })).toBeUndefined();
-  });
-  it('rejects unsafe characters and oversize ids (EC-16 sanitization)', () => {
-    expect(scopeFromHeaders({ 'x-theo-user-id': 'a/../b' })).toBeUndefined();
-    expect(scopeFromHeaders({ 'x-theo-user-id': 'a b' })).toBeUndefined();
-    expect(scopeFromHeaders({ 'x-theo-user-id': 'x'.repeat(201) })).toBeUndefined();
-  });
-  it('accepts the safe id charset (alnum . _ : -) and the first value of an array header', () => {
-    expect(scopeFromHeaders({ 'x-theo-user-id': 't-1:u_2.3-4' })).toEqual({ session: { userId: 't-1:u_2.3-4' } });
-    expect(scopeFromHeaders({ 'x-theo-user-id': ['first', 'second'] })).toEqual({ session: { userId: 'first' } });
+  it('no attachment → undefined (scope-required tools fail closed)', () => {
+    expect(scopeFromRequest(reqWith({}))).toBeUndefined();
   });
 });
 

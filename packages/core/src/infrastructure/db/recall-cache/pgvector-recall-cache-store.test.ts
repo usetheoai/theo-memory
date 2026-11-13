@@ -17,6 +17,16 @@ import type { MemoryItemWithScore } from '../../../domain/memory-item.js';
 import type { Scope } from '../../../domain/scope.js';
 
 import { PgvectorRecallCacheStore } from './pgvector-recall-cache-store.js';
+import { withWorkspaceScope } from '../workspace-scope.js';
+
+/**
+ * `set()` escreve numa tabela escopada, e escrever sem escopo passou a lançar
+ * (workspace-write-scope.ts). Estes casos exercitam a COMPOSIÇÃO do SQL, então
+ * declaram um escopo em vez de contornar o guard — e de quebra o `workspace_id`
+ * que chega ao INSERT vira observável.
+ */
+const WS = 'ws-cache-mock';
+const inScope = <T>(fn: () => Promise<T>): Promise<T> => withWorkspaceScope(WS, fn);
 import { deriveScopeKey } from './scope-key.js';
 
 interface MockPool {
@@ -139,7 +149,7 @@ describe('PgvectorRecallCacheStore — SQL composition (mocked Pool)', () => {
     };
     const pool = buildPool(queryHandler);
     const store = new PgvectorRecallCacheStore(pool as unknown as Pool);
-    await store.set([0.1, 0.2, 0.3], ALICE, SAMPLE_RESULTS, 600);
+    await inScope(() => store.set([0.1, 0.2, 0.3], ALICE, SAMPLE_RESULTS, 600));
     const sqls = sequence.map((s) => s.sql.split(/\s+/, 2).join(' '));
     expect(sqls).toContain('BEGIN ISOLATION');
     expect(sqls).toContain('COMMIT');
@@ -158,7 +168,7 @@ describe('PgvectorRecallCacheStore — SQL composition (mocked Pool)', () => {
     };
     const pool = buildPool(queryHandler);
     const store = new PgvectorRecallCacheStore(pool as unknown as Pool, { maxSizePerScope: 1000 });
-    await store.set([0.1, 0.2, 0.3], ALICE, SAMPLE_RESULTS, 600);
+    await inScope(() => store.set([0.1, 0.2, 0.3], ALICE, SAMPLE_RESULTS, 600));
     const deleteIdx = sequence.findIndex((s) => s.includes('DELETE FROM recall_cache') && s.includes('ORDER BY created_at'));
     const insertIdx = sequence.findIndex((s) => s.includes('INSERT INTO recall_cache'));
     expect(deleteIdx).toBeGreaterThan(-1);
@@ -174,7 +184,7 @@ describe('PgvectorRecallCacheStore — SQL composition (mocked Pool)', () => {
     };
     const pool = buildPool(queryHandler);
     const store = new PgvectorRecallCacheStore(pool as unknown as Pool, { maxSizePerScope: 1000 });
-    await store.set([0.1, 0.2, 0.3], ALICE, SAMPLE_RESULTS, 600);
+    await inScope(() => store.set([0.1, 0.2, 0.3], ALICE, SAMPLE_RESULTS, 600));
     expect(sequence.some((s) => s.includes('DELETE FROM recall_cache') && s.includes('ORDER BY created_at'))).toBe(false);
   });
 
@@ -222,7 +232,8 @@ describe('PgvectorRecallCacheStore — SQL composition (mocked Pool)', () => {
       }),
     };
     const store = new PgvectorRecallCacheStore(pool as unknown as Pool);
-    await expect(store.set([0.1, 0.2, 0.3], ALICE, SAMPLE_RESULTS, 600)).resolves.toBeUndefined();
+    await expect(inScope(() => store.set([0.1, 0.2, 0.3], ALICE, SAMPLE_RESULTS, 600)))
+      .resolves.toBeUndefined();
     expect(connectCalls).toBe(2); // 1 failed + 1 retry
   });
 
@@ -248,7 +259,8 @@ describe('PgvectorRecallCacheStore — SQL composition (mocked Pool)', () => {
       }),
     };
     const store = new PgvectorRecallCacheStore(pool as unknown as Pool);
-    await expect(store.set([0.1, 0.2, 0.3], ALICE, SAMPLE_RESULTS, 600)).rejects.toThrow(/foreign key/);
+    await expect(inScope(() => store.set([0.1, 0.2, 0.3], ALICE, SAMPLE_RESULTS, 600)))
+      .rejects.toThrow(/foreign key/);
     expect(connectCalls).toBe(1); // failed once, NOT retried
   });
 

@@ -9,7 +9,11 @@
  * touched neighbourhoods grows with prompt diversity.
  *
  * This benchmark measures the never-read fraction under both regimes against real pgvector,
- * with a corpus larger than the recall neighbourhood so the two regimes discriminate. The
+ * with a corpus larger than what one recall returns so the two regimes discriminate. A memory
+ * counts as read when recall RETURNED it; internal search candidates the caller never received
+ * do not count (before that fix this benchmark counted the over-fetched neighbourhood, so its
+ * numbers overstated coverage). The stub vectors are unrelated to the text, so the recalls use
+ * threshold 0 to return their top-K instead of being gated out. The
  * DeterministicStubEmbedder gives a distinct, reproducible vector per text (no API key, no
  * flake), so the result is a deterministic real number (plan § Benchmark, "real number, not
  * estimate"). The numbers are persisted to a JSON the implementation report cites.
@@ -39,8 +43,9 @@ const emptyJsonLlm: LLM = {
 
 const WS = 'tn-bench';
 const USER = 'user-bench';
-// Corpus larger than the recall neighbourhood (~60) so the two regimes discriminate.
+// Corpus larger than one recall's result set (TOP_K) so the two regimes discriminate.
 const CORPUS_SIZE = 300;
+const TOP_K = 5;
 const WINDOW = 12; // messages in a session (the OLD hook fires 1 recall/session; NEW fires 1/message)
 
 // A window of distinct user prompts (what the per-prompt hook searches by). Each targets a
@@ -70,12 +75,15 @@ if (PG_URI === undefined || PG_URI === '') {
   describe('M14 Phase 5 — per-prompt recall coverage benchmark', () => {
     let pool: pg.Pool;
     let dropDb: () => Promise<void>;
+    /** DDL e TRUNCATE: privilégio que o papel de aplicação não tem, por desenho. */
+    let setupPool: pg.Pool;
     let memory: Memory;
 
     beforeAll(async () => {
       const iso = await createIsolatedDb();
-      pool = iso.pool;
+      pool = iso.poolPinnedTo('tn-bench');
       dropDb = iso.dropDb;
+      setupPool = iso.setupPool;
       memory = (
         await createLocalMemory({
           vectorStore: new PgvectorStore(pool),
@@ -90,7 +98,7 @@ if (PG_URI === undefined || PG_URI === '') {
     });
 
     beforeEach(async () => {
-      await pool.query('TRUNCATE memories, entities, memory_entities, entity_edges, history RESTART IDENTITY CASCADE');
+      await setupPool.query('TRUNCATE memories, entities, memory_entities, entity_edges, history RESTART IDENTITY CASCADE');
     });
 
     /** Fraction of live memories never read (last_accessed_at IS NULL) in the bench scope. */
@@ -118,22 +126,28 @@ if (PG_URI === undefined || PG_URI === '') {
       // OLD regime: the SAME constant query (project name) once per session — every session
       // touches the SAME neighbourhood, so distinct coverage never grows past one recall's set.
       await resetAccess();
+      const projectRead = new Set<string>();
       for (let s = 0; s < WINDOW; s++) {
-        await scoped.recall('tn-bench', { topK: 5 });
+        for (const m of await scoped.recall('tn-bench', { topK: TOP_K, threshold: 0 })) projectRead.add(m.id);
       }
       const afterProjectRecall = await neverReadFraction();
 
       // NEW regime: a DISTINCT query per message over the same-size window.
       await resetAccess();
+      const promptRead = new Set<string>();
       for (const prompt of DISTINCT_PROMPTS) {
-        await scoped.recall(prompt, { topK: 5 });
+        for (const m of await scoped.recall(prompt, { topK: TOP_K, threshold: 0 })) promptRead.add(m.id);
       }
       const afterPromptRecall = await neverReadFraction();
 
+      // Read means returned: the never-read fraction is exactly what recall did not hand back.
+      expect(afterProjectRecall).toBeCloseTo(1 - projectRead.size / CORPUS_SIZE, 10);
+      expect(afterPromptRecall).toBeCloseTo(1 - promptRead.size / CORPUS_SIZE, 10);
+      // The constant query returns the same memories every session.
+      expect(projectRead.size).toBe(TOP_K);
       // The per-prompt window reads STRICTLY more of the corpus than the repeated constant query.
+      expect(promptRead.size).toBeGreaterThan(projectRead.size);
       expect(afterPromptRecall).toBeLessThan(afterProjectRecall);
-      // And it materially reduces the never-read fraction from the ~100% baseline (well under half).
-      expect(afterPromptRecall).toBeLessThan(0.5);
 
       // Persist the real numbers for the implementation report (§ Benchmark) — the plan's
       // "real number, not estimate" gate.
@@ -146,6 +160,8 @@ if (PG_URI === undefined || PG_URI === '') {
             metric: 'never_read_fraction (last_accessed_at IS NULL / total live memories)',
             corpus_size: CORPUS_SIZE,
             window: WINDOW,
+            top_k: TOP_K,
+            read_means: 'returned by recall (not internal search candidates)',
             baseline_fraction: baseline,
             after_constant_project_query_fraction: afterProjectRecall,
             after_distinct_per_prompt_query_fraction: afterPromptRecall,
@@ -153,7 +169,7 @@ if (PG_URI === undefined || PG_URI === '') {
             reduction_points_vs_baseline: baseline - afterPromptRecall,
             embedder: 'DeterministicStubEmbedder (Lehmer LCG, deterministic distinct vector per text)',
             db: 'ankane/pgvector:v0.5.1',
-            note: 'Corpus > recall neighbourhood (~60) so the constant-query regime (old SessionStart hook) and the distinct-per-prompt regime (new UserPromptSubmit hook) discriminate. Deterministic, no API key.',
+            note: 'Corpus > one recall result set so the constant-query regime (old SessionStart hook) and the distinct-per-prompt regime (new UserPromptSubmit hook) discriminate. Deterministic, no API key.',
           },
           null,
           2,

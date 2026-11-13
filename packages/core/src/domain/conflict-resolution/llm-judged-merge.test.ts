@@ -36,8 +36,9 @@ class FakeLLM implements LLM {
 }
 
 const fixture: ConsolidationCandidate[] = [
-  { memoryId: 'mem-a', text: 'Paulo prefers oat milk', createdAt: new Date('2026-06-01T10:00:00Z') },
-  { memoryId: 'mem-b', text: 'Paulo likes milk', createdAt: new Date('2026-06-01T11:00:00Z') },
+  // mem-a is the newer memory: the judge may only reject memories no newer than the kept one (#237).
+  { memoryId: 'mem-a', text: 'Paulo prefers oat milk', createdAt: new Date('2026-06-01T11:00:00Z') },
+  { memoryId: 'mem-b', text: 'Paulo likes milk', createdAt: new Date('2026-06-01T10:00:00Z') },
 ];
 
 describe('LlmJudgedMergeConflictPolicy (T1.3 / ADR D2 / EC-2 + EC-4 + EC-6)', () => {

@@ -1,0 +1,741 @@
+{
+  "users": [
+    {
+      "id": "tp-anneliese",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Anneliese owns a Jeep Renegade.",
+          "observedAt": "2025-02-03",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Anneliese works as a pharmacist in Bolton.",
+          "observedAt": "2025-02-06",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Anneliese keeps two cats.",
+          "observedAt": "2025-02-09",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Anneliese is allergic to penicillin.",
+          "observedAt": "2025-02-12",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Anneliese plays the oboe.",
+          "observedAt": "2025-02-15",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Anneliese supports Bolton Wanderers.",
+          "observedAt": "2025-02-18",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What car does Anneliese own?",
+          "pattern": "Renegade"
+        },
+        {
+          "query": "What is Anneliese's job?",
+          "pattern": "pharmacist"
+        },
+        {
+          "query": "What pets does Anneliese keep?",
+          "pattern": "cats"
+        },
+        {
+          "query": "What is Anneliese allergic to?",
+          "pattern": "penicillin"
+        },
+        {
+          "query": "What instrument does Anneliese play?",
+          "pattern": "oboe"
+        },
+        {
+          "query": "Which club does Anneliese support?",
+          "pattern": "Wanderers"
+        }
+      ]
+    },
+    {
+      "id": "tp-kwabena",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Kwabena drives a Tesla Model 3.",
+          "observedAt": "2025-02-21",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Kwabena teaches history in Stoke.",
+          "observedAt": "2025-02-24",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Kwabena keeps a tortoise.",
+          "observedAt": "2025-02-27",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Kwabena is vegetarian.",
+          "observedAt": "2025-03-02",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Kwabena collects stamps.",
+          "observedAt": "2025-03-05",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Kwabena's daughter Abena is a nurse.",
+          "observedAt": "2025-03-08",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What car does Kwabena drive?",
+          "pattern": "Tesla"
+        },
+        {
+          "query": "What does Kwabena teach?",
+          "pattern": "history"
+        },
+        {
+          "query": "What pet does Kwabena keep?",
+          "pattern": "tortoise"
+        },
+        {
+          "query": "What diet does Kwabena follow?",
+          "pattern": "vegetarian"
+        },
+        {
+          "query": "What does Kwabena collect?",
+          "pattern": "stamps"
+        },
+        {
+          "query": "What is Kwabena's daughter?",
+          "pattern": "nurse"
+        }
+      ]
+    },
+    {
+      "id": "tp-svetlana",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Svetlana runs a bakery in Hove.",
+          "observedAt": "2025-03-11",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Svetlana owns an MG ZS.",
+          "observedAt": "2025-03-14",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Svetlana swims every morning.",
+          "observedAt": "2025-03-17",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Svetlana hates coffee.",
+          "observedAt": "2025-03-20",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Svetlana reads Chekhov.",
+          "observedAt": "2025-03-23",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Svetlana's son Pavel studies law.",
+          "observedAt": "2025-03-26",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What does Svetlana run?",
+          "pattern": "bakery"
+        },
+        {
+          "query": "What car does Svetlana own?",
+          "pattern": "\\bMG\\b"
+        },
+        {
+          "query": "What does Svetlana do every morning?",
+          "pattern": "swim"
+        },
+        {
+          "query": "What does Svetlana hate?",
+          "pattern": "coffee"
+        },
+        {
+          "query": "Which author does Svetlana read?",
+          "pattern": "Chekhov"
+        },
+        {
+          "query": "What does Svetlana's son study?",
+          "pattern": "\\blaw\\b"
+        }
+      ]
+    },
+    {
+      "id": "tp-hamid",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Hamid repairs phones in Watford.",
+          "observedAt": "2025-03-29",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Hamid owns a Smart Fortwo.",
+          "observedAt": "2025-04-01",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Hamid keeps pigeons on his roof.",
+          "observedAt": "2025-04-04",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Hamid is training for a marathon.",
+          "observedAt": "2025-04-07",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Hamid speaks Farsi and Urdu.",
+          "observedAt": "2025-04-10",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Hamid's wife Leila is a dentist.",
+          "observedAt": "2025-04-13",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What does Hamid repair?",
+          "pattern": "phones"
+        },
+        {
+          "query": "What car does Hamid own?",
+          "pattern": "Fortwo"
+        },
+        {
+          "query": "What birds does Hamid keep?",
+          "pattern": "pigeons"
+        },
+        {
+          "query": "What is Hamid training for?",
+          "pattern": "marathon"
+        },
+        {
+          "query": "Which languages does Hamid speak?",
+          "pattern": "Farsi"
+        },
+        {
+          "query": "What is Hamid's wife?",
+          "pattern": "dentist"
+        }
+      ]
+    },
+    {
+      "id": "tp-joaquim",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Joaquim tem um Chevrolet Onix.",
+          "observedAt": "2025-04-16",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Joaquim trabalha como eletricista em Jundiaí.",
+          "observedAt": "2025-04-19",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Joaquim cria galinhas no quintal.",
+          "observedAt": "2025-04-22",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Joaquim é diabético.",
+          "observedAt": "2025-04-25",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Joaquim toca cavaquinho.",
+          "observedAt": "2025-04-28",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "A neta de Joaquim se chama Lívia.",
+          "observedAt": "2025-05-01",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Que carro Joaquim tem?",
+          "pattern": "Onix"
+        },
+        {
+          "query": "Qual é a profissão de Joaquim?",
+          "pattern": "eletricista"
+        },
+        {
+          "query": "O que Joaquim cria no quintal?",
+          "pattern": "galinhas"
+        },
+        {
+          "query": "Que condição Joaquim tem?",
+          "pattern": "diab"
+        },
+        {
+          "query": "Que instrumento Joaquim toca?",
+          "pattern": "cavaquinho"
+        },
+        {
+          "query": "Como se chama a neta de Joaquim?",
+          "pattern": "L[íi]via"
+        }
+      ]
+    },
+    {
+      "id": "tp-almudena",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Almudena tiene un Alfa Romeo Tonale.",
+          "observedAt": "2025-05-04",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Almudena trabaja como bibliotecaria en Gijón.",
+          "observedAt": "2025-05-07",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Almudena tiene dos hurones.",
+          "observedAt": "2025-05-10",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Almudena es celíaca.",
+          "observedAt": "2025-05-13",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Almudena canta en un coro.",
+          "observedAt": "2025-05-16",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "El sobrino de Almudena se llama Iker.",
+          "observedAt": "2025-05-19",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "¿Qué coche tiene Almudena?",
+          "pattern": "Tonale"
+        },
+        {
+          "query": "¿En qué trabaja Almudena?",
+          "pattern": "bibliotecaria"
+        },
+        {
+          "query": "¿Qué mascotas tiene Almudena?",
+          "pattern": "hurones"
+        },
+        {
+          "query": "¿Qué condición tiene Almudena?",
+          "pattern": "cel[íi]aca"
+        },
+        {
+          "query": "¿Dónde canta Almudena?",
+          "pattern": "coro"
+        },
+        {
+          "query": "¿Cómo se llama el sobrino de Almudena?",
+          "pattern": "Iker"
+        }
+      ]
+    },
+    {
+      "id": "tp-reinhard",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Reinhard fährt einen Opel Astra.",
+          "observedAt": "2025-05-22",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Reinhard arbeitet als Schreiner in Gotha.",
+          "observedAt": "2025-05-25",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Reinhard hält Bienen.",
+          "observedAt": "2025-05-28",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Reinhard ist Vegetarier.",
+          "observedAt": "2025-05-31",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Reinhard spielt Posaune.",
+          "observedAt": "2025-06-03",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Die Tochter von Reinhard heißt Svenja.",
+          "observedAt": "2025-06-06",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Welches Auto fährt Reinhard?",
+          "pattern": "Astra"
+        },
+        {
+          "query": "Als was arbeitet Reinhard?",
+          "pattern": "Schreiner"
+        },
+        {
+          "query": "Was hält Reinhard?",
+          "pattern": "Bienen"
+        },
+        {
+          "query": "Wie ernährt sich Reinhard?",
+          "pattern": "Vegetarier"
+        },
+        {
+          "query": "Welches Instrument spielt Reinhard?",
+          "pattern": "Posaune"
+        },
+        {
+          "query": "Wie heißt die Tochter von Reinhard?",
+          "pattern": "Svenja"
+        }
+      ]
+    },
+    {
+      "id": "tp-clemence",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Clémence conduit une Mini Cooper.",
+          "observedAt": "2025-06-09",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Clémence travaille comme sage-femme à Lille.",
+          "observedAt": "2025-06-12",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Clémence élève des lapins.",
+          "observedAt": "2025-06-15",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Clémence est allergique au gluten.",
+          "observedAt": "2025-06-18",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Clémence joue de la harpe.",
+          "observedAt": "2025-06-21",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Le frère de Clémence s'appelle Gaspard.",
+          "observedAt": "2025-06-24",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Quelle voiture conduit Clémence ?",
+          "pattern": "Cooper"
+        },
+        {
+          "query": "Quel est le métier de Clémence ?",
+          "pattern": "sage-femme"
+        },
+        {
+          "query": "Qu'élève Clémence ?",
+          "pattern": "lapins"
+        },
+        {
+          "query": "À quoi Clémence est-elle allergique ?",
+          "pattern": "gluten"
+        },
+        {
+          "query": "De quel instrument joue Clémence ?",
+          "pattern": "harpe"
+        },
+        {
+          "query": "Comment s'appelle le frère de Clémence ?",
+          "pattern": "Gaspard"
+        }
+      ]
+    },
+    {
+      "id": "tp-self-en",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "I own a Porsche Macan.",
+          "observedAt": "2025-06-27",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "I work as a welder in Grantham.",
+          "observedAt": "2025-06-30",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "I keep three hens.",
+          "observedAt": "2025-07-03",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "I am allergic to cats.",
+          "observedAt": "2025-07-06",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "I play the banjo.",
+          "observedAt": "2025-07-09",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "My brother Callum is a chef.",
+          "observedAt": "2025-07-12",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "What car does the user own?",
+          "pattern": "Macan"
+        },
+        {
+          "query": "What is the user's job?",
+          "pattern": "welder"
+        },
+        {
+          "query": "What animals does the user keep?",
+          "pattern": "hens"
+        },
+        {
+          "query": "What is the user allergic to?",
+          "pattern": "cats"
+        },
+        {
+          "query": "What instrument does the user play?",
+          "pattern": "banjo"
+        },
+        {
+          "query": "What is the user's brother?",
+          "pattern": "chef"
+        }
+      ]
+    },
+    {
+      "id": "tp-self-pt",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Eu tenho um Gol vermelho.",
+          "observedAt": "2025-07-15",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Eu trabalho como cozinheira em Belém.",
+          "observedAt": "2025-07-18",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Eu crio patos no sítio.",
+          "observedAt": "2025-07-21",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Eu sou alérgica a camarão.",
+          "observedAt": "2025-07-24",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Eu toco sanfona.",
+          "observedAt": "2025-07-27",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Minha irmã Jussara é advogada.",
+          "observedAt": "2025-07-30",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Que carro o usuário tem?",
+          "pattern": "Gol"
+        },
+        {
+          "query": "Qual é a profissão do usuário?",
+          "pattern": "cozinheira"
+        },
+        {
+          "query": "O que o usuário cria?",
+          "pattern": "patos"
+        },
+        {
+          "query": "A que o usuário é alérgico?",
+          "pattern": "camar"
+        },
+        {
+          "query": "Que instrumento o usuário toca?",
+          "pattern": "sanfona"
+        },
+        {
+          "query": "O que é a irmã do usuário?",
+          "pattern": "advogada"
+        }
+      ]
+    },
+    {
+      "id": "tp-self-de",
+      "facts": [
+        {
+          "key": "f0",
+          "text": "Ich fahre einen Audi A3.",
+          "observedAt": "2025-08-02",
+          "role": "distinct"
+        },
+        {
+          "key": "f1",
+          "text": "Ich arbeite als Bäcker in Gera.",
+          "observedAt": "2025-08-05",
+          "role": "distinct"
+        },
+        {
+          "key": "f2",
+          "text": "Ich halte zwei Ziegen.",
+          "observedAt": "2025-08-08",
+          "role": "distinct"
+        },
+        {
+          "key": "f3",
+          "text": "Ich bin allergisch gegen Nüsse.",
+          "observedAt": "2025-08-11",
+          "role": "distinct"
+        },
+        {
+          "key": "f4",
+          "text": "Ich spiele Akkordeon.",
+          "observedAt": "2025-08-14",
+          "role": "distinct"
+        },
+        {
+          "key": "f5",
+          "text": "Mein Bruder Holger ist Polizist.",
+          "observedAt": "2025-08-17",
+          "role": "distinct"
+        }
+      ],
+      "questions": [
+        {
+          "query": "Welches Auto fährt der Nutzer?",
+          "pattern": "Audi"
+        },
+        {
+          "query": "Als was arbeitet der Nutzer?",
+          "pattern": "B[äa]cker"
+        },
+        {
+          "query": "Welche Tiere hält der Nutzer?",
+          "pattern": "Ziegen"
+        },
+        {
+          "query": "Wogegen ist der Nutzer allergisch?",
+          "pattern": "N[üu]sse"
+        },
+        {
+          "query": "Welches Instrument spielt der Nutzer?",
+          "pattern": "Akkordeon"
+        },
+        {
+          "query": "Was ist der Bruder des Nutzers?",
+          "pattern": "Polizist"
+        }
+      ]
+    }
+  ]
+}

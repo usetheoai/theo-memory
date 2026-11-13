@@ -5,7 +5,7 @@
 # Boots TWO services:
 # - `themory` — REST API server image from GHCR (T3.1 + T3.3); runs
 #   Drizzle migrations on startup per ADR D8 + T2.3.
-# - `pgvector` — Postgres + pgvector extension (`ankane/pgvector:v0.5.1`
+# - `pgvector` — Postgres + pgvector extension (`pgvector/pgvector:0.8.7-pg18`
 #   convergent across + blueprint Q7).
 #
 # Reverse proxy (Nginx / Caddy / Cloudflare) is NOT bundled — consumer
@@ -31,9 +31,18 @@ services:
   themory:
     # THEMORY_IMAGE override exists so the T3.5 GOAL TEST (and any operator
     # running the compose against a locally-built image) can point at
-    # `themory:dev` without forking this file. Default keeps the public
-    # Docker Hub coordinate (also available at ghcr.io/usetheoai/theo-memory).
-    image: ${THEMORY_IMAGE:-usetheo/theo-memory:${VERSION:-0.2.0}}
+    # `themory:dev` without forking this file.
+    #
+    # O default aponta para o GHCR porque e o unico registry para onde publicamos.
+    # Ate 2026-07-28 este default era `usetheo/theo-memory:0.2.0` — uma coordenada
+    # de Docker Hub que NUNCA existiu: nao ha credencial DOCKERHUB_* configurada,
+    # entao o passo de push era pulado em silencio, e quem seguia este arquivo
+    # recebia `manifest unknown`.
+    #
+    # `latest` como default de VERSION: medido, as tags versionadas ainda nao
+    # existem sob o nome novo (`0.56.0` nao resolve; `latest` e `develop` sim).
+    # Fixe VERSION assim que a primeira release versionada for publicada.
+    image: ${THEMORY_IMAGE:-ghcr.io/usetheoai/theo-memory:${VERSION:-latest}}
     container_name: themory_app
     restart: unless-stopped
     depends_on:
@@ -66,15 +75,19 @@ services:
       start_period: 30s
 
   pgvector:
-    image: ankane/pgvector:v0.5.1
+    image: pgvector/pgvector:0.8.7-pg18@sha256:c29f30688a9ad961691bdf0ec1650717cc132a5814619d80f80463d6e4c42e47
     container_name: themory_pgvector
+    # Parallel HNSW index builds use dynamic shared memory; Docker's 64 MB default /dev/shm
+    # fails them with "could not resize shared memory segment" on large tables.
+    shm_size: 1gb
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-themem}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-themem}
       POSTGRES_DB: ${POSTGRES_DB:-themem}
     volumes:
-      - themory_pgdata:/var/lib/postgresql/data
+      # Postgres 18 keeps its data under /var/lib/postgresql/18/docker; mount the parent.
+      - themory_pgdata:/var/lib/postgresql
     healthcheck:
       test:
         - "CMD-SHELL"
@@ -86,4 +99,5 @@ services:
 
 volumes:
   themory_pgdata:
-    name: themory_pgdata
+    # New name for the Postgres 18 layout; the old `themory_pgdata` volume is left untouched.
+    name: themory_pgdata_pg18

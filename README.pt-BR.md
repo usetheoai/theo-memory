@@ -94,7 +94,7 @@ const facts = await memory.user('alice').recall('UI preferences');
 - **Três superfícies** — API REST (Hono + OpenAPI 3.1) · servidor MCP · CLI
 - **Drop-in de OpenMemory** — `themory mcp --compat openmemory` serve a superfície de ferramentas do OpenMemory sobre SSE para Cursor / Claude Desktop / Windsurf / Cline
 - **Embedder selecionável** — `THEOMEM_EMBEDDER=local` (Xenova MiniLM on-device) ou `openai` (`text-embedding-3-small`, sem modelo local)
-- **Pronto para Docker** — imagem distroless < 200 MB com healthcheck
+- **Pronto para Docker** — imagem distroless (~170 MB comprimida / ~541 MB descomprimida no disco) com healthcheck
 - **Observável** — 56 eventos OpenTelemetry tipados + spans por handler
 - **Testado** — ~970 testes de contrato/unidade + 540+ de integração contra pgvector real, em 400+ arquivos de teste
 
@@ -119,7 +119,7 @@ const facts = await memory.user('alice').recall('UI preferences');
 ```bash
 # 1. Suba Postgres + pgvector
 docker run -d --name pgvector -e POSTGRES_USER=themem -e POSTGRES_PASSWORD=themem \
-  -e POSTGRES_DB=themem -p 5432:5432 ankane/pgvector:v0.5.1
+  -e POSTGRES_DB=themem -p 5432:5432 pgvector/pgvector:0.8.7-pg18
 
 # 2. Suba o servidor — ele aplica as migrations pendentes antes de abrir a porta
 docker run -p 8080:8080 \
@@ -305,20 +305,43 @@ partir da imagem Docker, use o transporte streamable-HTTP abaixo em vez do stdio
 `OPENAI_BASE_URL` é respeitada para gateways compatíveis com OpenAI — por exemplo, aponte para o OpenRouter com `OPENAI_BASE_URL=https://openrouter.ai/api/v1` para usar o embedder local gratuito + um modelo de chat do OpenRouter.
 
 **Ferramentas:** `remember` · `recall` · `forget` · `reflect`
-**Transportes:** stdio (padrão) · streamable-HTTP (selecionado automaticamente quando `THEMEMORY_API_KEY` está definida)
+**Transportes:** stdio (padrão) · streamable-HTTP (selecionado automaticamente quando `THEO_MCP_RESOURCE` está definida)
 
-#### streamable-HTTP sobre TLS (binds fora de localhost)
+#### streamable-HTTP como resource server OAuth 2.1
 
-Quando o servidor MCP precisa escutar num host **fora de localhost** (por exemplo, para um container
-alcançá-lo via `host.docker.internal`), HTTPS é obrigatório. Passe um par cert/key:
+Em streamable-HTTP o servidor é um resource server OAuth 2.1, conforme a especificação de
+autorização do MCP. Toda requisição precisa de `Authorization: Bearer <access token>` — um JWT
+RS256 do seu authorization server cuja audiência inclui o URI de recurso deste servidor. API keys
+**não** são aceitas no transporte MCP.
+
+| Variável | Obrigatória | Significado |
+|---|---|---|
+| `THEO_MCP_RESOURCE` | sim | URI canônico do servidor, sem barra final — ex.: `https://app.example.com/mcp/memory`. O token precisa trazê-lo em `aud`. |
+| `THEO_OAUTH_ISSUER` | sim | `iss` esperado, comparado exatamente — ex.: `https://auth.example.com/`. |
+| `THEO_OAUTH_JWKS_URI` | não | Chaves de assinatura. Padrão: `<issuer>.well-known/jwks.json`. |
+| `THEO_MCP_SCOPES_SUPPORTED` | não | Separados por vírgula, anunciados no documento de metadados. |
+| `THEO_MCP_REQUIRED_SCOPES` | não | Scopes exigidos de todo token; sem eles, `403 insufficient_scope`. |
+| `THEO_MCP_TLS_TERMINATED_UPSTREAM` | não | `true` permite HTTP puro num bind fora de localhost porque um gateway ou mesh à frente termina o TLS. |
+
+O claim `tenant_id` (no topo do token) define o workspace de toda operação e `sub` é o usuário;
+token sem `tenant_id` é recusado. O documento de metadados é servido sem autenticação em
+`/.well-known/oauth-protected-resource` e na forma com sufixo de caminho
+(`/.well-known/oauth-protected-resource/mcp/memory`), e todo `401` aponta para ele.
+
+Nesse caminho a conexão com o banco precisa ser o papel de aplicação contido (`themory_app`): o
+servidor recusa subir como superusuário ou papel com `BYPASSRLS`. Aponte `THEOMEM_MIGRATE_PG_URI`
+para o dono do schema para as migrations.
 
 ```bash
-themory mcp --transport streamable-http --host 0.0.0.0 --port 18091 \
-  --auth api-keys --tls-cert path/to/cert.pem --tls-key path/to/key.pem
+THEO_MCP_RESOURCE=https://app.example.com/mcp/memory \
+THEO_OAUTH_ISSUER=https://auth.example.com/ \
+THEO_MCP_TLS_TERMINATED_UPSTREAM=true \
+themory mcp --transport streamable-http --auth oauth --host 0.0.0.0 --port 18091
 ```
 
-As duas flags são obrigatórias juntas (uma sozinha falha imediatamente); fazer bind num host fora de
-localhost sem elas é recusado. Bind em localhost segue em HTTP puro.
+Sem gateway terminando TLS, um bind fora de localhost exige par cert/key
+(`--tls-cert path/to/cert.pem --tls-key path/to/key.pem`, os dois juntos); sem nenhum dos dois o bind é
+recusado. Bind em localhost segue em HTTP puro, e `--auth none` é só para desenvolvimento local.
 
 ### Modo compatível com OpenMemory
 
@@ -344,7 +367,7 @@ docker run -p 8080:8080 \
 
 > A tag publicada no momento é `0.1.0-alpha`; tags de release são publicadas no GHCR pelo CI a cada tag de versão. A imagem padrão embute o embedder local (Xenova/ONNX) — defina `THEOMEM_EMBEDDER=openai` para usar a API de embedding da OpenAI (sem modelo on-device, sem download do HuggingFace em runtime).
 
-Imagem distroless Node 22, < 200 MB, com gate do Trivy (zero CVE CRITICAL/HIGH) e healthcheck embutido. A imagem não tem shell, então subcomandos pontuais como `migrate` / `health` rodam sobrescrevendo o entrypoint para invocar o Node diretamente:
+Imagem distroless Node 22 — ~170 MB comprimida (o que o registry reporta) e ~541 MB descomprimida no disco (o que `docker images` mostra); medido em 2026-07-28 sobre `:develop`. Com gate do Trivy (zero CVE CRITICAL/HIGH) e healthcheck embutido. A imagem não tem shell, então subcomandos pontuais como `migrate` / `health` rodam sobrescrevendo o entrypoint para invocar o Node diretamente:
 
 ```bash
 # Aplique migrations (ou `health`) contra a imagem distroless
@@ -355,13 +378,20 @@ docker run --rm --entrypoint /nodejs/bin/node \
 
 ## CI/CD
 
-Toda imagem de release é **assinada com cosign, com verificação fixada por identidade**, e acompanha **SBOM + proveniência SLSA** — então dá para verificar o que você baixa. As imagens são publicadas no GHCR (e no Docker Hub) automaticamente a cada tag de versão.
+Toda imagem publicada é **assinada com cosign (keyless)** e acompanha **SBOM + proveniência SLSA** — então dá para verificar o que você baixa. As imagens são publicadas no GHCR automaticamente a cada tag de versão. A identidade da assinatura é o workflow de build compartilhado da organização:
+
+```sh
+cosign verify ghcr.io/usetheoai/theo-memory:<tag> \
+  --certificate-identity-regexp '^https://github\.com/usetheoai/theo/\.github/workflows/build-publish\.yml@' \
+  --certificate-github-workflow-repository usetheoai/theo-memory \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
 
 | Gatilho | Canal | Resultado |
 |---|---|---|
-| push em `develop` | preview | `ghcr.io/usetheoai/theo-memory:develop` (+ `:develop-<short>`) |
-| tag semver `v*` | release | `ghcr.io/usetheoai/theo-memory:<version>` — **assinada com cosign + verificação fixada por identidade** + SBOM/SLSA (+ Docker Hub `usetheo/theo-memory` quando `DOCKERHUB_TOKEN` está definida) |
-| dispatch manual | smoke | build sem assinatura |
+| push em `develop` | preview | `ghcr.io/usetheoai/theo-memory:develop` (+ `:develop-<short>`) — **assinado com cosign** + SBOM/SLSA |
+| tag semver `v*` | release | `ghcr.io/usetheoai/theo-memory:<version>` — **assinada com cosign** + SBOM/SLSA |
+| dispatch manual | smoke | mesmo build do `develop`, **assinado com cosign** (a assinatura é incondicional) |
 
 > **Imagem renomeada (2026-07-28): `themory` → `theo-memory`.** A imagem passa a carregar o nome do
 > repositório, como em todos os projetos irmãos (`theo-lens`, `theo-rag`, `theo-db`).
@@ -479,7 +509,7 @@ npm run lint                # Zero warnings
 |---|---|
 | Testes de contrato / unidade | ~970 passando |
 | Arquivos de teste | 400+ |
-| Testes de integração | 540+ (contra `ankane/pgvector:v0.5.1`) |
+| Testes de integração | 540+ (contra `pgvector/pgvector:0.8.7-pg18`) |
 | Linhas de código-fonte | ~20.000 |
 | Interfaces DIP | 13 |
 | Migrations | 29 |

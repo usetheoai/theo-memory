@@ -81,4 +81,16 @@ describe('executeReflection — batching at real-scope scale (#112)', () => {
     expect(drafts).toHaveLength(1);
     expect(drafts[0]!.text).toBe('insight cercado');
   });
+
+  test('normalizes a single derived_from source ID into a one-item array', async () => {
+    const source = [item(1, 'User is planning a trip to Hawaii.')];
+    const { llm } = recordingLlm([
+      '[{"text":"User is planning a trip to Hawaii.","derived_from":"00000000-0000-4000-8000-000000000001"}]',
+    ]);
+    const drafts = await executeReflection({ scope: SCOPE, sourceMemories: source, llm });
+    expect(drafts).toEqual([{
+      text: 'User is planning a trip to Hawaii.',
+      derivedFrom: ['00000000-0000-4000-8000-000000000001'],
+    }]);
+  });
 });

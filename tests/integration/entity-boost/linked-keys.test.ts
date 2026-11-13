@@ -19,6 +19,8 @@ const WORKSPACE = 'default';
 const OTHER_WORKSPACE = 'other-workspace';
 
 let db: IsolatedDb;
+/** O papel contido, fixado no workspace do arquivo — ver `_helpers/isolated-db.ts`. */
+let scopedPool: pg.Pool;
 let store: PgMemoryEntityStore;
 
 /** Seeds one memory plus one entity linked to it, and returns the memory id. */
@@ -63,7 +65,7 @@ function countingPool(): { pool: pg.Pool; queries: () => number } {
   const pool = {
     query: async (...args: unknown[]) => {
       queries += 1;
-      return db.pool.query(...(args as Parameters<pg.Pool['query']>));
+      return scopedPool.query(...(args as Parameters<pg.Pool['query']>));
     },
   } as unknown as pg.Pool;
   return { pool, queries: () => queries };
@@ -71,7 +73,8 @@ function countingPool(): { pool: pg.Pool; queries: () => number } {
 
 beforeAll(async () => {
   db = await createIsolatedDb({ embeddingDim: 384 });
-  store = new PgMemoryEntityStore(db.pool);
+  scopedPool = db.poolPinnedTo('default');
+  store = new PgMemoryEntityStore(scopedPool);
 }, 180_000);
 
 afterAll(async () => {
@@ -80,7 +83,7 @@ afterAll(async () => {
 
 describe('linkedKeysForMemories', () => {
   test('test_returns_linked_keys_for_candidate_memories', async () => {
-    const memoryId = await seedLinkedMemory(db.pool, {
+    const memoryId = await seedLinkedMemory(scopedPool, {
       workspaceId: WORKSPACE,
       normalizedKey: 'paulo',
     });
@@ -106,10 +109,15 @@ describe('linkedKeysForMemories', () => {
   });
 
   test('test_foreign_workspace_rows_are_not_returned', async () => {
-    const foreignId = await seedLinkedMemory(db.pool, {
-      workspaceId: OTHER_WORKSPACE,
-      normalizedKey: 'berlim',
-    });
+    // A linha estrangeira é semeada pelo pool de travessia: escrevê-la é, por
+    // definição, atravessar. O que está sob teste é o filtro do STORE, que roda
+    // sobre o pool contido logo abaixo — semear pelo contido seria impossível
+    // (a policy recusa) e semear pelo superusuário esconderia que isto é uma
+    // travessia.
+    const foreignId = await seedLinkedMemory(
+      db.crossWorkspacePool('semeia a linha estrangeira que o filtro do store deve ignorar'),
+      { workspaceId: OTHER_WORKSPACE, normalizedKey: 'berlim' },
+    );
 
     const result = await store.linkedKeysForMemories({
       memoryIds: [foreignId],
@@ -122,7 +130,7 @@ describe('linkedKeysForMemories', () => {
   test('test_absent_workspace_resolves_to_default_scope', async () => {
     // EC-4: letting `undefined` reach the SQL comparison would compare against NULL, match
     // nothing, and leave the boost permanently at zero without raising anything.
-    const memoryId = await seedLinkedMemory(db.pool, {
+    const memoryId = await seedLinkedMemory(scopedPool, {
       workspaceId: 'default',
       normalizedKey: 'sao_carlos',
     });
@@ -135,7 +143,7 @@ describe('linkedKeysForMemories', () => {
   test('test_single_query_for_many_candidates', async () => {
     const ids: string[] = [];
     for (let i = 0; i < 20; i += 1) {
-      ids.push(await seedLinkedMemory(db.pool, { workspaceId: WORKSPACE, normalizedKey: `ent_${i}` }));
+      ids.push(await seedLinkedMemory(scopedPool, { workspaceId: WORKSPACE, normalizedKey: `ent_${i}` }));
     }
 
     const spy = countingPool();

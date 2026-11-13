@@ -26,7 +26,7 @@ test('addHistory accepts the 7 locked parameters', () => {
       string,
       string | null,
       string | null,
-      'remember' | 'forget' | 'reflect',
+      'remember' | 'forget' | 'reflect' | 'supersede',
       Date?,
       Date?,
       boolean?,
@@ -49,7 +49,7 @@ test('close returns void (synchronous)', () => {
 });
 
 test('HistoryBatchRecord.action is the string-union (D8 — not upstream string)', () => {
-  expectTypeOf<HistoryBatchRecord['action']>().toEqualTypeOf<'remember' | 'forget' | 'reflect'>();
+  expectTypeOf<HistoryBatchRecord['action']>().toEqualTypeOf<'remember' | 'forget' | 'reflect' | 'supersede'>();
 });
 
 test('HistoryBatchRecord shape mirrors addHistory but as record', () => {
@@ -57,7 +57,7 @@ test('HistoryBatchRecord shape mirrors addHistory but as record', () => {
     readonly memoryId: string;
     readonly previousValue: string | null;
     readonly newValue: string | null;
-    readonly action: 'remember' | 'forget' | 'reflect';
+    readonly action: 'remember' | 'forget' | 'reflect' | 'supersede';
   }>();
 });
 
@@ -67,7 +67,7 @@ test('minimal stub implementing only the 4 required methods compiles', () => {
       _memoryId: string,
       _previousValue: string | null,
       _newValue: string | null,
-      _action: 'remember' | 'forget' | 'reflect',
+      _action: 'remember' | 'forget' | 'reflect' | 'supersede',
       _createdAt?: Date,
       _updatedAt?: Date,
       _isDeleted?: boolean,
@@ -90,7 +90,7 @@ test('full stub implementing all 7 methods compiles', () => {
       _memoryId: string,
       _previousValue: string | null,
       _newValue: string | null,
-      _action: 'remember' | 'forget' | 'reflect',
+      _action: 'remember' | 'forget' | 'reflect' | 'supersede',
       _createdAt?: Date,
       _updatedAt?: Date,
       _isDeleted?: boolean,
@@ -125,7 +125,7 @@ test('broken stub missing close() does NOT compile (required method invariant)',
       _memoryId: string,
       _previousValue: string | null,
       _newValue: string | null,
-      _action: 'remember' | 'forget' | 'reflect',
+      _action: 'remember' | 'forget' | 'reflect' | 'supersede',
       _createdAt?: Date,
       _updatedAt?: Date,
       _isDeleted?: boolean,

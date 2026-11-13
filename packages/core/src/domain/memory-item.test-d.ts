@@ -1,10 +1,20 @@
 import { expectTypeOf, test } from 'vitest';
 
 import type { MemoryItem, MemoryItemWithScore } from './memory-item.js';
+import type { EventTime } from './extraction/event-time.js';
+import type { MemoryEvidence } from './memory-evidence.js';
+import type { MemoryDurability } from './memory-time.js';
 import type { Scope } from './scope.js';
 
 test('MemoryItem has the locked field shape', () => {
   expectTypeOf<MemoryItem>().toEqualTypeOf<{
+    readonly evidence?: MemoryEvidence;
+    readonly supersedes?: readonly string[];
+    readonly idempotentReplay?: boolean;
+    readonly expiresAt?: Date | null;
+    readonly eventTime?: EventTime;
+    readonly durability?: MemoryDurability;
+    readonly distinctSourceCount?: number | null;
     readonly id: string;
     readonly text: string;
     readonly hash: string;

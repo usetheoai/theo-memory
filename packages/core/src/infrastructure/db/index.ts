@@ -18,6 +18,8 @@ export { InMemoryVectorStore } from './in-memory-store.js';
 export { PgvectorStore } from './pgvector-store.js';
 export { DrizzleHistoryManager } from './history-manager.js';
 export { PgMemoryEntityStore } from './pg-memory-entity-store.js';
+export { PgMessageLog } from './pg-message-log.js';
+export { InMemoryMessageLog } from './in-memory-message-log.js';
 export { PgMemoryGraphStore } from './pg-memory-graph-store.js';
 export { PgGraphExpansionStore } from './pg-graph-expansion-store.js';
 export { PgUsageCounterStore } from './pg-usage-counter-store.js';
@@ -67,3 +69,38 @@ export { createLocalMemory, createMemory } from './factory.js';
 export { type CreateMemoryPresetConfig, InvalidPresetConfig } from './preset.js';
 // T1.4: migrations
 export { runMigrations } from './migrations-runner.js';
+// Tenant isolation: the request-bound workspace context and the pool that
+// applies it. Exported so the API layer can bind the scope per request and
+// wrap the pool it hands to the stores.
+export {
+  withWorkspaceScope,
+  withCrossWorkspaceScope,
+  currentScope,
+  isCrossWorkspace,
+  requireScopeValue,
+  WorkspaceScopeError,
+  type WorkspaceScope,
+  type CrossWorkspaceScope,
+} from './workspace-scope.js';
+export { tenantScopedPool, describeScope } from './tenant-scoped-pool.js';
+// The other half of the same guarantee: work that must span workspaces asserts
+// that it CAN, over a named policy, before it starts.
+export {
+  requireStrictWorkspaceWrites,
+  currentWorkspaceWriteMode,
+  configureWorkspaceWritesFromPool,
+  workspaceIdForWrite,
+  resetWorkspaceWriteModeForTests,
+} from './workspace-write-scope.js';
+export {
+  assertRequestPoolIsolated,
+  measureRequestPosture,
+  requestPostureRefusal,
+  type RequestPosture,
+} from './request-pool-guard.js';
+export {
+  assertBackgroundPoolCrossWorkspace,
+  measureBackgroundReach,
+  backgroundReachRefusal,
+  type BackgroundReach,
+} from './background-pool-reach.js';

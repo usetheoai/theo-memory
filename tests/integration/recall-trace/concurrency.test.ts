@@ -36,12 +36,15 @@ const llm: LLM = {
 };
 
 let db: IsolatedDb;
+/** O papel contido, fixado no workspace do arquivo — ver `_helpers/isolated-db.ts`. */
+let scopedPool: pg.Pool;
 let memory: Memory;
 let farId: string;
 
 beforeAll(async () => {
   db = await createIsolatedDb({ fresh: true, embeddingDim: DIM });
-  const vectorStore = new PgvectorStore(db.pool, { embeddingDim: DIM });
+  scopedPool = db.poolPinnedTo('default');
+  const vectorStore = new PgvectorStore(scopedPool, { embeddingDim: DIM });
   await vectorStore.initialize();
   memory = await createLocalMemory({ vectorStore, embedder, embeddingDim: DIM, llm, recallTrace: {} });
   await memory.user('alice').remember('match here');
@@ -59,7 +62,7 @@ test('concurrent recalls each mint a DISTINCT recall_id (no shared/collided id)'
     memory.user('alice').recall('match', { threshold: 0.5, topK: 10 }),
     memory.user('alice').recall('match', { threshold: 0.5, topK: 10 }),
   ]);
-  const { rows } = await db.pool.query<{ recall_id: string }>(
+  const { rows } = await scopedPool.query<{ recall_id: string }>(
     `SELECT DISTINCT recall_id FROM recall_traces WHERE memory_id = $1`,
     [farId],
   );
@@ -68,7 +71,7 @@ test('concurrent recalls each mint a DISTINCT recall_id (no shared/collided id)'
 });
 
 test('N concurrent record() calls with distinct recallIds all persist independently (atomic)', async () => {
-  const store = new PgRecallTraceStore(db.pool);
+  const store = new PgRecallTraceStore(scopedPool);
   const N = 8;
   const ids = Array.from({ length: N }, (_, i) => `rc-${i}`);
   await Promise.all(

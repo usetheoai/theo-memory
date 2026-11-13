@@ -18,6 +18,25 @@ const emptyJsonLlm: LLM = {
   },
 };
 
+const deriveFromActivePromptLlm: LLM = {
+  async generateResponse(_messages: readonly Message[]): Promise<unknown> {
+    return Promise.resolve([]);
+  },
+  async generateChat(messages: readonly Message[]): Promise<LLMResponse> {
+    const prompt = String(messages[0]?.content ?? '');
+    const lines = prompt.split('\n');
+    // Before the regression fix, reflection receives the pre-consolidation
+    // snapshot and would cite this now-invalid source. After the fix, only the
+    // kept source is presented, so select the first active ID instead.
+    const olderLine = lines.find((line) => line.includes(': older fact'));
+    const selectedLine = olderLine ?? lines.find((line) => line.includes('id="'));
+    const id = selectedLine?.match(/id="([0-9a-f-]{36})"/)?.[1];
+    return { role: 'assistant', content: JSON.stringify(id === undefined ? [] : [
+      { text: 'consolidated fact', derived_from: [id] },
+    ]) };
+  },
+};
+
 /**
  * T2.1 — wiring `Memory.reflect({ conflictResolution })` end-to-end:
  * given 2 contradictory memories in the same scope and a
@@ -125,6 +144,32 @@ describe.skipIf(PG_URI === '')(
       expect(auditRows[0]?.rejected_memory_ids).toEqual([idOlder]);
       expect(auditRows[0]?.reason).toBe('last-write-wins');
 
+      await memory.dispose();
+    });
+
+    it('reflects only over active sources after LWW consolidation', async () => {
+      const memory = await createLocalMemory({
+        vectorStore: new PgvectorStore(pool),
+        embedder: new StubEmbedder(),
+        llm: deriveFromActivePromptLlm,
+        reflectionPolicy: { kind: 'manual' },
+      });
+      const idOlder = await seed('older fact', -5_000);
+      const idNewer = await seed('newer fact', +5_000);
+
+      const result = await memory
+        .user(TEST_USER)
+        .reflect({ conflictResolution: new LastWriteWinsConflictPolicy() });
+
+      expect(result.derivedMemoriesCreated).toBe(1);
+      expect(result.sourceIds).toEqual([idNewer]);
+      const { rows } = await pool.query<{ id: string; derived_from: string[] }>(
+        `SELECT id, derived_from FROM memories WHERE user_id = $1 AND kind = 'derived'`,
+        [TEST_USER],
+      );
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.derived_from).toEqual([idNewer]);
+      expect(rows[0]?.derived_from).not.toContain(idOlder);
       await memory.dispose();
     });
   },

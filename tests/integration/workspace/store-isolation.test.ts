@@ -39,7 +39,13 @@ if (PG_URI === undefined || PG_URI === '') {
 
     beforeAll(async () => {
       const iso = await createIsolatedDb();
-      pool = iso.pool;
+      // Uma conexão que ATRAVESSA workspaces, de propósito. O teste existe para
+      // provar que o filtro do STORE isola — e para isso a conexão precisa ser
+      // capaz de vazar. Rodá-lo sobre o pool contido inverteria o que ele mede:
+      // passaria mesmo se o `WHERE workspace_id` fosse removido, porque a policy
+      // seguraria. Duas camadas independentes; um teste de uma não pode ser
+      // satisfeito em silêncio pela outra.
+      pool = iso.crossWorkspacePool('mede o filtro do store, que precisa poder vazar para falhar');
       dropDb = iso.dropDb;
       store = new PgvectorStore(pool);
     }, 30_000);

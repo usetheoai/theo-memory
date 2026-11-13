@@ -76,7 +76,17 @@ describe('T3.4 — ENTRYPOINT direct Node binary per ADR D13', () => {
   test('53. README documents the --entrypoint override pattern for migrate/health', () => {
     const readme = readFileSync(resolve(REPO_ROOT, 'README.md'), 'utf-8');
     expect(readme).toMatch(/--entrypoint\s+\/nodejs\/bin\/node/);
-    expect(readme).toMatch(/themory:\S+/);
+    // A imagem chama-se `theo-memory`, nao `themory` (renomeada para o nome do repositorio, como em
+    // todos os irmaos). MEDIDO em 2026-07-30 com credencial no host:
+    //   ghcr.io/usetheoai/theo-memory:develop  EXISTE
+    //   ghcr.io/usetheoai/themory:develop      nao existe
+    // Este teste ficou no nome antigo e reprovava — e o CHANGELOG da renomeacao prometia justamente
+    // que "o teste trava as duas pontas". Travamos as duas de verdade abaixo.
+    expect(readme).toMatch(/usetheoai\/theo-memory:\S+/);
+    // O caminho antigo nao pode voltar como ALVO DE PULL em silencio. Ele ainda aparece no README numa
+    // nota explicando que nao resolve — por isso o negativo e sobre `pull ...themory:<tag>`, nao sobre
+    // a string solta, que e documentacao legitima.
+    expect(readme).not.toMatch(/pull\s+ghcr\.io\/usetheoai\/themory:/);
     expect(readme).toMatch(/migrate/);
     expect(readme).toMatch(/health/);
   });
@@ -84,6 +94,6 @@ describe('T3.4 — ENTRYPOINT direct Node binary per ADR D13', () => {
   test('54. Dockerfile exists + uses distroless nodejs base image (D13)', () => {
     const text = readFileSync(DOCKERFILE, 'utf-8');
     expect(existsSync(DOCKERFILE)).toBe(true);
-    expect(text).toMatch(/gcr\.io\/distroless\/nodejs22-debian12:nonroot/);
+    expect(text).toMatch(/gcr\.io\/distroless\/nodejs22-debian13:nonroot/);
   });
 });

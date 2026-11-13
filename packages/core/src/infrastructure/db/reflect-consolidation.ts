@@ -69,19 +69,30 @@ function clusterCandidates(
   if (candidates.length === 0) {
     return [];
   }
-  // M9 promotion judges the whole session scope as ONE set (NOT pre-clustered).
-  if (isM9Promotion) {
-    return [candidates];
+  // Attribution is a hard boundary for conflict resolution. An assistant claim
+  // must never supersede the user's statement, even when both embeddings are
+  // nearly identical. Unknown attribution is its own group.
+  const bySpeaker = new Map<string | undefined, BoundedCandidate[]>();
+  for (const candidate of candidates) {
+    const speakerGroup = bySpeaker.get(candidate.attributedTo) ?? [];
+    speakerGroup.push(candidate);
+    bySpeaker.set(candidate.attributedTo, speakerGroup);
   }
-  // Backward-compat: a store that does not project embeddings degrades to whole-scope.
-  if (candidates.some((c) => c.embedding === undefined)) {
-    return [candidates];
+
+  const clusters: (readonly BoundedCandidate[])[] = [];
+  for (const speakerCandidates of bySpeaker.values()) {
+    // M9 promotion keeps each speaker's whole session set together.
+    if (isM9Promotion || speakerCandidates.some((candidate) => candidate.embedding === undefined)) {
+      clusters.push(speakerCandidates);
+      continue;
+    }
+    const withEmbedding = speakerCandidates.map((candidate) => ({
+      ...candidate,
+      embedding: candidate.embedding as readonly number[],
+    }));
+    clusters.push(...clusterByProximity(withEmbedding, cap));
   }
-  const withEmbedding = candidates.map((c) => ({
-    ...c,
-    embedding: c.embedding as readonly number[],
-  }));
-  return clusterByProximity(withEmbedding, cap);
+  return clusters;
 }
 
 /**
@@ -157,7 +168,7 @@ async function auditM9Promotion(
       chosenScope: 'global',
       attribution: 'agent',
       decidedBy: 'm9-promotion',
-      why: 'promotion-confirmation-threshold',
+      why: 'promotion-distinct-source-threshold',
       at: new Date(),
     },
     tracer,

@@ -75,6 +75,11 @@ const facts = await memory.user('alice').recall('UI preferences');
 
 ## Features
 
+For exact application records, contextual evidence, and asynchronous session extraction, see
+[Memory semantics and session lifecycle](docs/memory-semantics.md),
+[durable worker operations](docs/memory-jobs.md), and the
+[runnable wishlist example](examples/wishlist/README.md).
+
 - **Three-tier scope** — `user` (cross-session) · `session` (conversation) · `agent` (procedural) + `skills` (code-as-skill library)
 - **4-verb API** — `remember` · `recall` · `forget` · `reflect` — consistent across all tiers
 - **Hybrid retrieval** — semantic (cosine) + BM25 (lexical) + entity boost with threshold gating
@@ -89,7 +94,7 @@ const facts = await memory.user('alice').recall('UI preferences');
 - **Three surfaces** — REST API (Hono + OpenAPI 3.1) · MCP server · CLI
 - **OpenMemory drop-in** — `themory mcp --compat openmemory` serves the OpenMemory tool surface over SSE for Cursor / Claude Desktop / Windsurf / Cline
 - **Selectable embedder** — `THEOMEM_EMBEDDER=local` (on-device Xenova MiniLM) or `openai` (`text-embedding-3-small`, no on-device model)
-- **Docker-ready** — distroless image < 200 MB with healthcheck
+- **Docker-ready** — distroless image (~170 MB compressed / ~541 MB uncompressed on disk) with healthcheck
 - **Observable** — 56 typed OpenTelemetry events + per-handler spans
 - **Tested** — ~970 contract/unit tests + 540+ integration tests against real pgvector, across 400+ test files
 
@@ -114,7 +119,7 @@ const facts = await memory.user('alice').recall('UI preferences');
 ```bash
 # 1. Start Postgres + pgvector
 docker run -d --name pgvector -e POSTGRES_USER=themem -e POSTGRES_PASSWORD=themem \
-  -e POSTGRES_DB=themem -p 5432:5432 ankane/pgvector:v0.5.1
+  -e POSTGRES_DB=themem -p 5432:5432 pgvector/pgvector:0.8.7-pg18
 
 # 2. Start the server — it applies pending migrations before it binds the port
 docker run -p 8080:8080 \
@@ -300,20 +305,45 @@ instead, use the streamable-HTTP transport below rather than stdio.
 `OPENAI_BASE_URL` is honored for OpenAI-compatible gateways — e.g. point at OpenRouter with `OPENAI_BASE_URL=https://openrouter.ai/api/v1` to use the free local-embedder + an OpenRouter chat model.
 
 **Tools:** `remember` · `recall` · `forget` · `reflect`
-**Transports:** stdio (default) · streamable-HTTP (auto-selects when `THEMEMORY_API_KEY` is set)
+**Transports:** stdio (default) · streamable-HTTP (auto-selects when `THEO_MCP_RESOURCE` is set)
 
-#### streamable-HTTP over TLS (non-localhost binds)
+#### streamable-HTTP as an OAuth 2.1 resource server
 
-When the MCP server must listen on a **non-localhost** host (e.g. so a container reaches it
-over `host.docker.internal`), HTTPS is required. Pass a cert/key pair:
+Over streamable-HTTP the server is an OAuth 2.1 resource server, per the MCP authorization
+specification. Every request must carry `Authorization: Bearer <access token>` — an RS256 JWT
+from your authorization server whose audience includes this server's resource URI. API keys
+are **not** accepted on the MCP transport.
+
+| Variable | Required | Meaning |
+|---|---|---|
+| `THEO_MCP_RESOURCE` | yes | The server's canonical URI, no trailing slash — e.g. `https://app.example.com/mcp/memory`. Tokens must carry it in `aud`. |
+| `THEO_OAUTH_ISSUER` | yes | Expected `iss`, compared exactly — e.g. `https://auth.example.com/`. |
+| `THEO_OAUTH_JWKS_URI` | no | Signing keys. Defaults to `<issuer>.well-known/jwks.json`. |
+| `THEO_MCP_SCOPES_SUPPORTED` | no | Comma-separated, advertised in the metadata document. |
+| `THEO_MCP_REQUIRED_SCOPES` | no | Comma-separated scopes every token must carry; otherwise `403 insufficient_scope`. |
+| `THEO_MCP_TLS_TERMINATED_UPSTREAM` | no | `true` lets a non-localhost bind speak plain HTTP because a gateway or mesh in front terminates TLS. |
+
+The token's top-level `tenant_id` claim scopes every operation (it is the workspace) and `sub`
+is the user; a token without `tenant_id` is refused. The metadata document is served
+unauthenticated at `/.well-known/oauth-protected-resource` and at the path-suffixed form
+(`/.well-known/oauth-protected-resource/mcp/memory`), and every `401` points at it.
+
+On this path the database connection must be the contained application role (`themory_app`):
+the server refuses to start as a superuser or a `BYPASSRLS` role, because row-level security
+is what confines each statement to the token's tenant. Point `THEOMEM_MIGRATE_PG_URI` at the
+schema owner for migrations.
 
 ```bash
-themory mcp --transport streamable-http --host 0.0.0.0 --port 18091 \
-  --auth api-keys --tls-cert path/to/cert.pem --tls-key path/to/key.pem
+THEO_MCP_RESOURCE=https://app.example.com/mcp/memory \
+THEO_OAUTH_ISSUER=https://auth.example.com/ \
+THEO_MCP_TLS_TERMINATED_UPSTREAM=true \
+themory mcp --transport streamable-http --auth oauth --host 0.0.0.0 --port 18091
 ```
 
-Both flags are required together (one alone fails fast); binding a non-localhost host without
-them is refused. A localhost bind stays plain HTTP.
+Without a gateway terminating TLS, a non-localhost bind needs a cert/key pair
+(`--tls-cert path/to/cert.pem --tls-key path/to/key.pem`, both together); binding a non-localhost host with
+neither is refused. A localhost bind stays plain HTTP, and `--auth none` is for localhost
+development only.
 
 ### OpenMemory-compatible mode
 
@@ -339,7 +369,7 @@ docker run -p 8080:8080 \
 
 > The currently published tag is `0.1.0-alpha`; release tags are published to GHCR by CI on each version tag. The default image bundles the local embedder (Xenova/ONNX) — set `THEOMEM_EMBEDDER=openai` to use the OpenAI embedding API instead (no on-device model, no HuggingFace download at runtime).
 
-Distroless Node 22 image, < 200 MB, Trivy-gated (zero CRITICAL/HIGH CVE), healthcheck built in. The image has no shell, so one-shot subcommands like `migrate` / `health` run by overriding the entrypoint to invoke Node directly:
+Distroless Node 22 image — ~170 MB compressed (what the registry reports) and ~541 MB uncompressed on disk (what `docker images` shows); measured 2026-07-28 on `:develop`. Trivy-gated (zero CRITICAL/HIGH CVE), healthcheck built in. The image has no shell, so one-shot subcommands like `migrate` / `health` run by overriding the entrypoint to invoke Node directly:
 
 ```bash
 # Apply migrations (or `health`) against the distroless image
@@ -350,13 +380,20 @@ docker run --rm --entrypoint /nodejs/bin/node \
 
 ## CI/CD
 
-Every release image is **cosign-signed with identity-pinned verification** and ships an **SBOM + SLSA provenance** — so you can verify what you pull. Images publish to GHCR (and Docker Hub) automatically on each version tag.
+Every published image is **cosign-signed (keyless)** and ships an **SBOM + SLSA provenance** — so you can verify what you pull. Images publish to GHCR automatically on each version tag. The signing identity is the org's shared build workflow:
+
+```sh
+cosign verify ghcr.io/usetheoai/theo-memory:<tag> \
+  --certificate-identity-regexp '^https://github\.com/usetheoai/theo/\.github/workflows/build-publish\.yml@' \
+  --certificate-github-workflow-repository usetheoai/theo-memory \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
 
 | Trigger | Channel | Result |
 |---|---|---|
-| push to `develop` | preview | `ghcr.io/usetheoai/theo-memory:develop` (+ `:develop-<short>`) |
-| semver tag `v*` | release | `ghcr.io/usetheoai/theo-memory:<version>` — **cosign-signed + identity-pinned verify** + SBOM/SLSA (+ Docker Hub `usetheo/theo-memory` when `DOCKERHUB_TOKEN` is set) |
-| manual dispatch | smoke | unsigned build |
+| push to `develop` | preview | `ghcr.io/usetheoai/theo-memory:develop` (+ `:develop-<short>`) — **cosign-signed** + SBOM/SLSA |
+| semver tag `v*` | release | `ghcr.io/usetheoai/theo-memory:<version>` — **cosign-signed** + SBOM/SLSA attestations |
+| manual dispatch | smoke | same build as `develop`, **cosign-signed** (signing is unconditional) |
 
 > **Image renamed (2026-07-28): `themory` → `theo-memory`.** The image now carries the repository
 > name, matching every sibling project (`theo-lens`, `theo-rag`, `theo-db`).
@@ -472,7 +509,7 @@ npm run lint                # Zero warnings
 |---|---|
 | Contract / unit tests | ~970 passing |
 | Test files | 400+ |
-| Integration tests | 540+ (against `ankane/pgvector:v0.5.1`) |
+| Integration tests | 540+ (against `pgvector/pgvector:0.8.7-pg18`) |
 | Source lines | ~20,000 |
 | DIP interfaces | 13 |
 | Migrations | 29 |

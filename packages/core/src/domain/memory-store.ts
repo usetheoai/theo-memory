@@ -20,9 +20,11 @@
  * @see ADR-0008 — DIP method counts (5 DIPs: VectorStore 11, LLM 2, Embedder 2, HistoryManager 4+3, ReflectionPolicy 1+2)
  * @see ADR-0009 — cloud auth: THEOKIT_API_KEY reuse + optional apiKey override
  */
+import type { ScoredLoggedMessage } from './dip/message-log.js';
 import type { EpisodeListOptions, EpisodePage } from './episode.js';
 import type { HistoryEntry } from './history-entry.js';
 import type { MemoryItem, MemoryItemWithScore } from './memory-item.js';
+import type { Message } from './message.js';
 import type {
   ForgetOptions,
   GetAllOptions,
@@ -86,6 +88,20 @@ export interface SessionSummary {
  * leak), so a multi-tenant gateway can delete-by-id without an O(scope)
  * ownership pre-check.
  */
+/** Options of `ScopedMemory.searchMessages`. */
+export interface SearchMessagesOptions {
+  /** Maximum number of messages, 1..100. Default 5. */
+  readonly limit?: number;
+  /** Leave out messages observed (or, without an observation time, logged) after this instant. */
+  readonly asOf?: Date;
+  /**
+   * Turns to return on each side of every result, 0..5. Default 0. With 1, a matching question
+   * comes back with the reply logged after it (ADR-0031). The turns come from the result's own
+   * stream, in logging order, and respect `asOf`.
+   */
+  readonly surroundingTurns?: number;
+}
+
 export interface ScopedMemory {
   /**
    * @param text — free-form natural language. **Storage is verbatim** — see
@@ -93,6 +109,12 @@ export interface ScopedMemory {
    *   MUST escape on render; no input sanitization applied).
    */
   remember(text: string, options?: RememberOptions): Promise<readonly MemoryItem[]>;
+  /**
+   * Extract and persist a batch of already-attributed conversation turns in one
+   * pipeline invocation. Role labels are preserved as source evidence. This is
+   * useful for ingesting a session atomically without flattening its speakers.
+   */
+  rememberMessages(messages: readonly Message[], options?: RememberOptions): Promise<readonly MemoryItem[]>;
   recall(query: string, options?: RecallOptions): Promise<readonly MemoryItemWithScore[]>;
   reflect(options?: ReflectOptions): Promise<ReflectionResult>;
   getAll(options?: GetAllOptions): Promise<readonly MemoryItem[]>;
@@ -111,6 +133,18 @@ export interface ScopedMemory {
    * without it the M8 session tier was unenumerable, so no UI session picker).
    */
   listSessions(): Promise<readonly SessionSummary[]>;
+
+  /**
+   * Search over the raw messages this scope can see, best first, separate from `recall`: BM25
+   * fused with embedding similarity by Reciprocal Rank Fusion (ADR-0031), so a paraphrase finds
+   * the turn too, and neighbours by meaning can fill the list. `score` is the fused score. It
+   * reaches what was said even when extraction kept no fact of it. The query is embedded with the
+   * memory's embedder, and an embedder failure throws, as in `recall`. A user-bound
+   * session sees its own messages and the user's global ones, like `recall`. `limit` defaults
+   * to 5 and must be an integer in 1..100 (`RangeError` otherwise); throws
+   * `MessageLogNotConfigured` when the memory was created with `messageLog: false`.
+   */
+  searchMessages(query: string, options?: SearchMessagesOptions): Promise<readonly ScoredLoggedMessage[]>;
 
   /**
    * Episodic / message-log read surface (M2 / gap G3): list this scope's

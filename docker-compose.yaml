@@ -16,8 +16,11 @@
 
 services:
   pgvector:
-    image: ankane/pgvector:v0.5.1
+    image: pgvector/pgvector:0.8.7-pg18@sha256:c29f30688a9ad961691bdf0ec1650717cc132a5814619d80f80463d6e4c42e47
     container_name: themem_pgvector
+    # Parallel HNSW index builds use dynamic shared memory; Docker's 64 MB default /dev/shm
+    # fails them with "could not resize shared memory segment" on large tables.
+    shm_size: 1gb
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-themem}
@@ -26,7 +29,15 @@ services:
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      # Cria `themory_app` e `themory_worker` na primeira subida do volume. O
+      # usuário do compose é SUPERUSUÁRIO e superusuário ignora row level
+      # security: apontar o serviço para ele faz a isolação da 0029 valer zero,
+      # e o guard de boot recusa subir. Este arquivo é o que dá ao dev um papel
+      # correto para apontar. Volume já existente: rode `dev/roles.sql` à mão.
+      - ./dev/roles.sql:/docker-entrypoint-initdb.d/10-roles.sql:ro
+      # Postgres 18 keeps its data under /var/lib/postgresql/18/docker, so the volume mounts
+      # the parent directory. A volume written by an older major version does not start here.
+      - pgdata:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-themem} -d ${POSTGRES_DB:-themem}"]
       interval: 5s
@@ -36,4 +47,6 @@ services:
 
 volumes:
   pgdata:
-    name: themem_pgdata
+    # New name for the Postgres 18 layout; the old `themem_pgdata` volume (Postgres 15) is left
+    # untouched. Move data with `pg_dumpall` from the old server into this one.
+    name: themem_pgdata_pg18

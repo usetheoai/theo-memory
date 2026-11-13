@@ -15,6 +15,8 @@ import { createIsolatedDb, type IsolatedDb } from '../_helpers/isolated-db.js';
 const DIM = 3;
 const RUNS = 3;
 let db: IsolatedDb;
+/** Atravessa workspaces de propósito — ver `_helpers/isolated-db.ts`. */
+let crossingPool: pg.Pool;
 
 function stats(xs: number[]): { mean: number; std: number } {
   const mean = xs.reduce((a, b) => a + b, 0) / xs.length;
@@ -33,7 +35,7 @@ async function seedOld(ws: string, n: number): Promise<void> {
     );
     vals.push(`r-${ws}-${i}`, ws);
   }
-  await db.pool.query(
+  await crossingPool.query(
     `INSERT INTO recall_traces (recall_id, workspace_id, scope_key, memory_id, semantic, bm25, entity, composite, threshold, drop_reason, created_at) VALUES ${tuples.join(',')}`,
     vals,
   );
@@ -41,6 +43,7 @@ async function seedOld(ws: string, n: number): Promise<void> {
 
 beforeAll(async () => {
   db = await createIsolatedDb({ fresh: true, embeddingDim: DIM });
+  crossingPool = db.crossWorkspacePool('a varredura de retencao atravessa workspaces por desenho');
 }, 60_000);
 afterAll(async () => {
   await db?.dropDb();
@@ -48,10 +51,10 @@ afterAll(async () => {
 
 test('T5.1 — sweep throughput (rows/sec, ≥3 runs mean±stddev)', async () => {
   const N = 5000;
-  const retention = new PgRecallTraceRetention(db.pool);
+  const retention = new PgRecallTraceRetention(crossingPool);
   const rates: number[] = [];
   for (let run = 0; run < RUNS; run++) {
-    await db.pool.query('TRUNCATE recall_traces');
+    await db.setupPool.query('TRUNCATE recall_traces');
     await seedOld('wsA', N);
     const t0 = performance.now();
     const deleted = await retention.sweep(24 * 3600);
@@ -66,7 +69,7 @@ test('T5.1 — sweep throughput (rows/sec, ≥3 runs mean±stddev)', async () =>
 }, 120_000);
 
 test('T5.1 — recall-trace write overhead (batch INSERT ms, ≥3 runs)', async () => {
-  const store = new PgRecallTraceStore(db.pool);
+  const store = new PgRecallTraceStore(crossingPool);
   const DROPS = 50; // a recall dropping 50 candidates
   const times: number[] = [];
   for (let run = 0; run < RUNS; run++) {
