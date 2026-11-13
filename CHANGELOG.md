@@ -3,6 +3,8 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
+## [0.58.0] - 2026-11-13
+
 ### Added
 
 - The MCP `recall` tool returns `tValid` (when the fact was said), `eventTime` and `durability` on each result, as REST already does. `createdAt` is the write time, so a fact imported with `observedAt` had no visible date of its own. (#253)

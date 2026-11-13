@@ -1,6 +1,6 @@
 {
   "name": "@usetheo/memory",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "The open-source memory layer for AI agents — persistent, multi-tenant memory (facts, conversations & executable skills) on your own Postgres. TypeScript SDK, REST & MCP. Pre-release.",
   "type": "module",
   "license": "Apache-2.0",
