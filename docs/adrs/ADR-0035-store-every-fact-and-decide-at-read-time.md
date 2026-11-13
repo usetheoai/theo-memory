@@ -140,6 +140,23 @@ reader of time expressions on free conversation, which needs sentences written b
 not give. `named-facts` leans to the base by two questions, within noise at 60 questions; it stays
 on the list of sets that stage 2 must not lose.
 
+### Free sentences, measured after the merge
+
+The limit above was then measured. An agent that saw neither the repository nor the rules wrote one
+chat message for each of 120 seeded combinations of language, sending day and target date; another
+agent, shown only the message and the sending day, read the same date in all 120.
+
+| Path | Dated | Right | Wrong |
+|---|---|---|---|
+| Base: the model counts the date | 71 | 62 | 9 |
+| Stage 1 as merged | 111 | 97 | 14 |
+
+Stage 1 dates more sentences at the same error rate among the dated ones (87% right in both). The
+93% of the template set does not hold on free wording. Filling a date where the model wrote none
+is right 37 times and wrong 3; replacing a date the model wrote spoils 8 right ones and fixes 6
+wrong ones. How the date is accepted is therefore reopened, and decided by a measurement on sets
+kept apart from this one; until then stage 1 stays as merged.
+
 ## Consequences
 
 - More rows are stored. The earlier measurement saw secondary-detail facts go from 17 to 33 on one
