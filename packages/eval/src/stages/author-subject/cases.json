@@ -1,0 +1,3268 @@
+[
+  {
+    "id": "author-self-en-00",
+    "language": "en",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Sunniva: Heads up for Friday dinner, I'm allergic to shellfish, so please keep the prawns off my plate."
+      }
+    ],
+    "expected": [
+      {
+        "value": "shellfish",
+        "subject": "Sunniva"
+      }
+    ],
+    "notSubjects": [
+      "Sunniva"
+    ]
+  },
+  {
+    "id": "author-self-en-01",
+    "language": "en",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Ines: I drive a Peugeot 208, so parking near the venue should be easy enough for me."
+      }
+    ],
+    "expected": [
+      {
+        "value": "a Peugeot 208",
+        "subject": "Ines"
+      }
+    ],
+    "notSubjects": [
+      "Ines"
+    ]
+  },
+  {
+    "id": "author-self-en-02",
+    "language": "en",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Darius: I'm studying soil chemistry this term, which explains the jars of dirt on my desk."
+      }
+    ],
+    "expected": [
+      {
+        "value": "soil chemistry",
+        "subject": "Darius"
+      }
+    ],
+    "notSubjects": [
+      "Darius"
+    ]
+  },
+  {
+    "id": "author-self-en-03",
+    "language": "en",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Clementine: I live in Valparaíso, so the hills give my legs a workout every single morning."
+      }
+    ],
+    "expected": [
+      {
+        "value": "Valparaíso",
+        "subject": "Clementine"
+      }
+    ],
+    "notSubjects": [
+      "Clementine"
+    ]
+  },
+  {
+    "id": "author-self-en-04",
+    "language": "en",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Odalys: I drive a Dacia Duster, which handles the muddy track to the campsite without any trouble."
+      }
+    ],
+    "expected": [
+      {
+        "value": "a Dacia Duster",
+        "subject": "Odalys"
+      }
+    ],
+    "notSubjects": [
+      "Odalys"
+    ]
+  },
+  {
+    "id": "author-self-en-05",
+    "language": "en",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Kenji: Happy to give people a lift on Saturday, I drive a Peugeot 208 with room for three."
+      }
+    ],
+    "expected": [
+      {
+        "value": "a Peugeot 208",
+        "subject": "Kenji"
+      }
+    ],
+    "notSubjects": [
+      "Kenji"
+    ]
+  },
+  {
+    "id": "author-self-en-06",
+    "language": "en",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Ines: I work as a cartographer, so yes, I really do get paid to stare at maps."
+      }
+    ],
+    "expected": [
+      {
+        "value": "a cartographer",
+        "subject": "Ines"
+      }
+    ],
+    "notSubjects": [
+      "Ines"
+    ]
+  },
+  {
+    "id": "author-self-en-07",
+    "language": "en",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Clementine: I'm studying woodturning at evening class, and my first bowl came out surprisingly round."
+      }
+    ],
+    "expected": [
+      {
+        "value": "woodturning",
+        "subject": "Clementine"
+      }
+    ],
+    "notSubjects": [
+      "Clementine"
+    ]
+  },
+  {
+    "id": "author-self-en-08",
+    "language": "en",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Yusuf: I play the banjo, mostly on the porch after dinner when the neighbours are out."
+      }
+    ],
+    "expected": [
+      {
+        "value": "the banjo",
+        "subject": "Yusuf"
+      }
+    ],
+    "notSubjects": [
+      "Yusuf"
+    ]
+  },
+  {
+    "id": "author-self-en-09",
+    "language": "en",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Farah: Just so everyone's aware, I'm allergic to penicillin, it's written on my medical bracelet too."
+      }
+    ],
+    "expected": [
+      {
+        "value": "penicillin",
+        "subject": "Farah"
+      }
+    ],
+    "notSubjects": [
+      "Farah"
+    ]
+  },
+  {
+    "id": "author-self-en-10",
+    "language": "en",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Maeve: I work as a court stenographer, so my fingers are exhausted by the end of each week."
+      }
+    ],
+    "expected": [
+      {
+        "value": "a court stenographer",
+        "subject": "Maeve"
+      }
+    ],
+    "notSubjects": [
+      "Maeve"
+    ]
+  },
+  {
+    "id": "author-self-en-11",
+    "language": "en",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Delphine: I live in Dunedin, and the wind off the harbour is brutal this time of year."
+      }
+    ],
+    "expected": [
+      {
+        "value": "Dunedin",
+        "subject": "Delphine"
+      }
+    ],
+    "notSubjects": [
+      "Delphine"
+    ]
+  },
+  {
+    "id": "author-self-en-12",
+    "language": "en",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Darius: My commute is short because I drive a Peugeot 208 and it slips through traffic nicely."
+      }
+    ],
+    "expected": [
+      {
+        "value": "a Peugeot 208",
+        "subject": "Darius"
+      }
+    ],
+    "notSubjects": [
+      "Darius"
+    ]
+  },
+  {
+    "id": "author-self-en-13",
+    "language": "en",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Saoirse: I play the mandolin, usually for an hour after work to clear my head."
+      }
+    ],
+    "expected": [
+      {
+        "value": "the mandolin",
+        "subject": "Saoirse"
+      }
+    ],
+    "notSubjects": [
+      "Saoirse"
+    ]
+  },
+  {
+    "id": "author-self-en-14",
+    "language": "en",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Marisol: Please check the buns for me, I'm allergic to sesame and it hides in everything."
+      }
+    ],
+    "expected": [
+      {
+        "value": "sesame",
+        "subject": "Marisol"
+      }
+    ],
+    "notSubjects": [
+      "Marisol"
+    ]
+  },
+  {
+    "id": "author-self-en-15",
+    "language": "en",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Delphine: I drive a Peugeot 208, and honestly the fuel economy is the best thing about it."
+      }
+    ],
+    "expected": [
+      {
+        "value": "a Peugeot 208",
+        "subject": "Delphine"
+      }
+    ],
+    "notSubjects": [
+      "Delphine"
+    ]
+  },
+  {
+    "id": "author-self-en-16",
+    "language": "en",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Kenji: I play the accordion at family gatherings, whether or not anybody actually asks me to."
+      }
+    ],
+    "expected": [
+      {
+        "value": "the accordion",
+        "subject": "Kenji"
+      }
+    ],
+    "notSubjects": [
+      "Kenji"
+    ]
+  },
+  {
+    "id": "author-self-en-17",
+    "language": "en",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Maeve: I live in Graz, so I can walk to the old town market on Saturdays."
+      }
+    ],
+    "expected": [
+      {
+        "value": "Graz",
+        "subject": "Maeve"
+      }
+    ],
+    "notSubjects": [
+      "Maeve"
+    ]
+  },
+  {
+    "id": "author-self-en-18",
+    "language": "en",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Maeve: I play the trombone, which my downstairs neighbours have very politely learned to tolerate."
+      }
+    ],
+    "expected": [
+      {
+        "value": "the trombone",
+        "subject": "Maeve"
+      }
+    ],
+    "notSubjects": [
+      "Maeve"
+    ]
+  },
+  {
+    "id": "author-self-en-19",
+    "language": "en",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Darius: I'm studying actuarial science, and the probability exams are eating all of my weekends."
+      }
+    ],
+    "expected": [
+      {
+        "value": "actuarial science",
+        "subject": "Darius"
+      }
+    ],
+    "notSubjects": [
+      "Darius"
+    ]
+  },
+  {
+    "id": "author-about-third-en-00",
+    "language": "en",
+    "family": "author-about-third",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Farah: Did you hear that Maeve plays the cello? She practises every evening in the spare room."
+      }
+    ],
+    "expected": [
+      {
+        "value": "the cello",
+        "subject": "Maeve"
+      }
+    ],
+    "notSubjects": [
+      "Farah",
+      "Maeve"
+    ]
+  },
+  {
+    "id": "author-about-third-en-01",
+    "language": "en",
+    "family": "author-about-third",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Callum: Our friend Anneliese plays the oboe, and she brought it along to the picnic last weekend."
+      }
+    ],
+    "expected": [
+      {
+        "value": "the oboe",
+        "subject": "Anneliese"
+      }
+    ],
+    "notSubjects": [
+      "Anneliese",
+      "Callum"
+    ]
+  },
+  {
+    "id": "author-about-third-en-02",
+    "language": "en",
+    "family": "author-about-third",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Kenji: If we need a lift, Marisol drives a Subaru Outback with plenty of space in the back."
+      }
+    ],
+    "expected": [
+      {
+        "value": "a Subaru Outback",
+        "subject": "Marisol"
+      }
+    ],
+    "notSubjects": [
+      "Kenji",
+      "Marisol"
+    ]
+  },
+  {
+    "id": "author-about-third-en-03",
+    "language": "en",
+    "family": "author-about-third",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Bram: I heard Osgood is studying soil chemistry, he spends most afternoons in the lab."
+      }
+    ],
+    "expected": [
+      {
+        "value": "soil chemistry",
+        "subject": "Osgood"
+      }
+    ],
+    "notSubjects": [
+      "Bram",
+      "Osgood"
+    ]
+  },
+  {
+    "id": "author-about-third-en-04",
+    "language": "en",
+    "family": "author-about-third",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Farah: Ask Maeve about the music for the party, she plays the mandolin really beautifully."
+      }
+    ],
+    "expected": [
+      {
+        "value": "the mandolin",
+        "subject": "Maeve"
+      }
+    ],
+    "notSubjects": [
+      "Farah",
+      "Maeve"
+    ]
+  },
+  {
+    "id": "author-about-third-en-05",
+    "language": "en",
+    "family": "author-about-third",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Wendell: Careful with the fruit salad, Saoirse is allergic to kiwi and it makes her lips swell."
+      }
+    ],
+    "expected": [
+      {
+        "value": "kiwi",
+        "subject": "Saoirse"
+      }
+    ],
+    "notSubjects": [
+      "Saoirse",
+      "Wendell"
+    ]
+  },
+  {
+    "id": "author-about-third-en-06",
+    "language": "en",
+    "family": "author-about-third",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Osgood: Spring is rough on Emeka because he is allergic to birch pollen and sneezes all day."
+      }
+    ],
+    "expected": [
+      {
+        "value": "birch pollen",
+        "subject": "Emeka"
+      }
+    ],
+    "notSubjects": [
+      "Emeka",
+      "Osgood"
+    ]
+  },
+  {
+    "id": "author-about-third-en-07",
+    "language": "en",
+    "family": "author-about-third",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Anneliese: From what I gather, Ravi lives in Dunedin and loves how close the beach is."
+      }
+    ],
+    "expected": [
+      {
+        "value": "Dunedin",
+        "subject": "Ravi"
+      }
+    ],
+    "notSubjects": [
+      "Anneliese",
+      "Ravi"
+    ]
+  },
+  {
+    "id": "author-about-third-en-08",
+    "language": "en",
+    "family": "author-about-third",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Kenji: It turns out Clementine lives in Tromsø, where she gets to see the northern lights often."
+      }
+    ],
+    "expected": [
+      {
+        "value": "Tromsø",
+        "subject": "Clementine"
+      }
+    ],
+    "notSubjects": [
+      "Clementine",
+      "Kenji"
+    ]
+  },
+  {
+    "id": "author-about-third-en-09",
+    "language": "en",
+    "family": "author-about-third",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Emeka: I found out Marisol works as an orthoptist, she helps kids with their eye exercises."
+      }
+    ],
+    "expected": [
+      {
+        "value": "an orthoptist",
+        "subject": "Marisol"
+      }
+    ],
+    "notSubjects": [
+      "Emeka",
+      "Marisol"
+    ]
+  },
+  {
+    "id": "author-about-third-en-10",
+    "language": "en",
+    "family": "author-about-third",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Maeve: By the way, Marisol plays the oboe, and her tone is lovely in the quiet pieces."
+      }
+    ],
+    "expected": [
+      {
+        "value": "the oboe",
+        "subject": "Marisol"
+      }
+    ],
+    "notSubjects": [
+      "Maeve",
+      "Marisol"
+    ]
+  },
+  {
+    "id": "author-about-third-en-11",
+    "language": "en",
+    "family": "author-about-third",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Emeka: We should visit Anneliese, she lives in Kraków right beside a lovely little bakery."
+      }
+    ],
+    "expected": [
+      {
+        "value": "Kraków",
+        "subject": "Anneliese"
+      }
+    ],
+    "notSubjects": [
+      "Anneliese",
+      "Emeka"
+    ]
+  },
+  {
+    "id": "author-about-third-en-12",
+    "language": "en",
+    "family": "author-about-third",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Delphine: Apparently Saoirse lives in Tromsø, and the dark winters there do not bother her at all."
+      }
+    ],
+    "expected": [
+      {
+        "value": "Tromsø",
+        "subject": "Saoirse"
+      }
+    ],
+    "notSubjects": [
+      "Delphine",
+      "Saoirse"
+    ]
+  },
+  {
+    "id": "author-about-third-en-13",
+    "language": "en",
+    "family": "author-about-third",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Odalys: For the concert, remember that Delphine plays the mandolin and would happily join in."
+      }
+    ],
+    "expected": [
+      {
+        "value": "the mandolin",
+        "subject": "Delphine"
+      }
+    ],
+    "notSubjects": [
+      "Delphine",
+      "Odalys"
+    ]
+  },
+  {
+    "id": "author-about-third-en-14",
+    "language": "en",
+    "family": "author-about-third",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Thaddeus: My cousin Bram is studying Old Norse, he reads sagas on the train every morning."
+      }
+    ],
+    "expected": [
+      {
+        "value": "Old Norse",
+        "subject": "Bram"
+      }
+    ],
+    "notSubjects": [
+      "Bram",
+      "Thaddeus"
+    ]
+  },
+  {
+    "id": "unnamed-en-00",
+    "language": "en",
+    "family": "unnamed",
+    "messages": [
+      {
+        "role": "user",
+        "content": "I drive a Subaru Outback, mostly because the dog needs the whole back seat."
+      }
+    ],
+    "expected": [
+      {
+        "value": "a Subaru Outback",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": []
+  },
+  {
+    "id": "unnamed-en-01",
+    "language": "en",
+    "family": "unnamed",
+    "messages": [
+      {
+        "role": "user",
+        "content": "I live in Dunedin, in a little house up a ridiculously steep street."
+      }
+    ],
+    "expected": [
+      {
+        "value": "Dunedin",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": []
+  },
+  {
+    "id": "unnamed-en-02",
+    "language": "en",
+    "family": "unnamed",
+    "messages": [
+      {
+        "role": "user",
+        "content": "I play the trombone in a community band that rehearses on Thursday nights."
+      }
+    ],
+    "expected": [
+      {
+        "value": "the trombone",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": []
+  },
+  {
+    "id": "unnamed-en-03",
+    "language": "en",
+    "family": "unnamed",
+    "messages": [
+      {
+        "role": "user",
+        "content": "I work as an orthoptist, so I spend my days checking how people's eyes move together."
+      }
+    ],
+    "expected": [
+      {
+        "value": "an orthoptist",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": []
+  },
+  {
+    "id": "unnamed-en-04",
+    "language": "en",
+    "family": "unnamed",
+    "messages": [
+      {
+        "role": "user",
+        "content": "I drive an old Volvo 240, and it rattles a bit but never lets me down."
+      }
+    ],
+    "expected": [
+      {
+        "value": "an old Volvo 240",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": []
+  },
+  {
+    "id": "unnamed-en-05",
+    "language": "en",
+    "family": "unnamed",
+    "messages": [
+      {
+        "role": "user",
+        "content": "I live in Valparaíso, and the view of the bay from my window is unreal."
+      }
+    ],
+    "expected": [
+      {
+        "value": "Valparaíso",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": []
+  },
+  {
+    "id": "unnamed-en-06",
+    "language": "en",
+    "family": "unnamed",
+    "messages": [
+      {
+        "role": "user",
+        "content": "I'm studying actuarial science, so spreadsheets and coffee are basically my whole life."
+      }
+    ],
+    "expected": [
+      {
+        "value": "actuarial science",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": []
+  },
+  {
+    "id": "unnamed-en-07",
+    "language": "en",
+    "family": "unnamed",
+    "messages": [
+      {
+        "role": "user",
+        "content": "I'm studying soil chemistry, and tomorrow we collect samples from the river bank."
+      }
+    ],
+    "expected": [
+      {
+        "value": "soil chemistry",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": []
+  },
+  {
+    "id": "unnamed-en-08",
+    "language": "en",
+    "family": "unnamed",
+    "messages": [
+      {
+        "role": "user",
+        "content": "I drive a Peugeot 208, it's small but it fits all my shopping just fine."
+      }
+    ],
+    "expected": [
+      {
+        "value": "a Peugeot 208",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": []
+  },
+  {
+    "id": "unnamed-en-09",
+    "language": "en",
+    "family": "unnamed",
+    "messages": [
+      {
+        "role": "user",
+        "content": "I work as a court stenographer, so typing fast in this chat comes naturally."
+      }
+    ],
+    "expected": [
+      {
+        "value": "a court stenographer",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": []
+  },
+  {
+    "id": "unnamed-en-10",
+    "language": "en",
+    "family": "unnamed",
+    "messages": [
+      {
+        "role": "user",
+        "content": "I play the cello, and carrying the case on the bus is my daily workout."
+      }
+    ],
+    "expected": [
+      {
+        "value": "the cello",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": []
+  },
+  {
+    "id": "unnamed-en-11",
+    "language": "en",
+    "family": "unnamed",
+    "messages": [
+      {
+        "role": "user",
+        "content": "I'm studying archival studies, which means a lot of dusty boxes and careful labelling."
+      }
+    ],
+    "expected": [
+      {
+        "value": "archival studies",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": []
+  },
+  {
+    "id": "unnamed-en-12",
+    "language": "en",
+    "family": "unnamed",
+    "messages": [
+      {
+        "role": "user",
+        "content": "This semester I'm studying archival studies, and the preservation module is my favourite so far."
+      }
+    ],
+    "expected": [
+      {
+        "value": "archival studies",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": []
+  },
+  {
+    "id": "unnamed-en-13",
+    "language": "en",
+    "family": "unnamed",
+    "messages": [
+      {
+        "role": "user",
+        "content": "I work as a cartographer, and today I spent hours fixing a single coastline."
+      }
+    ],
+    "expected": [
+      {
+        "value": "a cartographer",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": []
+  },
+  {
+    "id": "unnamed-en-14",
+    "language": "en",
+    "family": "unnamed",
+    "messages": [
+      {
+        "role": "user",
+        "content": "I live in Valparaíso, so I take the funicular up the hill almost every day."
+      }
+    ],
+    "expected": [
+      {
+        "value": "Valparaíso",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": []
+  },
+  {
+    "id": "non-name-prefix-en-00",
+    "language": "en",
+    "family": "non-name-prefix",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Heads up: I'm studying bookbinding on weekends, and my fingers are permanently covered in glue."
+      }
+    ],
+    "expected": [
+      {
+        "value": "bookbinding",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": [
+      "Heads up"
+    ]
+  },
+  {
+    "id": "non-name-prefix-en-01",
+    "language": "en",
+    "family": "non-name-prefix",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Update: I live in Coimbra, just a short walk from the river and the old university steps."
+      }
+    ],
+    "expected": [
+      {
+        "value": "Coimbra",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": [
+      "Update"
+    ]
+  },
+  {
+    "id": "non-name-prefix-en-02",
+    "language": "en",
+    "family": "non-name-prefix",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Quick thing: I drive an old Volvo 240, so I always leave ten minutes early just in case."
+      }
+    ],
+    "expected": [
+      {
+        "value": "an old Volvo 240",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": [
+      "Quick thing"
+    ]
+  },
+  {
+    "id": "non-name-prefix-en-03",
+    "language": "en",
+    "family": "non-name-prefix",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Update: I play the cello, mostly Bach in the mornings while the kettle boils."
+      }
+    ],
+    "expected": [
+      {
+        "value": "the cello",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": [
+      "Update"
+    ]
+  },
+  {
+    "id": "non-name-prefix-en-04",
+    "language": "en",
+    "family": "non-name-prefix",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Update: I work as a marine surveyor, so I'm climbing around ship hulls most of the week."
+      }
+    ],
+    "expected": [
+      {
+        "value": "a marine surveyor",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": [
+      "Update"
+    ]
+  },
+  {
+    "id": "non-name-prefix-en-05",
+    "language": "en",
+    "family": "non-name-prefix",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Heads up: I'm studying soil chemistry, and the lab report on nitrogen is due this Friday."
+      }
+    ],
+    "expected": [
+      {
+        "value": "soil chemistry",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": [
+      "Heads up"
+    ]
+  },
+  {
+    "id": "non-name-prefix-en-06",
+    "language": "en",
+    "family": "non-name-prefix",
+    "messages": [
+      {
+        "role": "user",
+        "content": "PS: I live in Graz, and the tram stops right outside my front door."
+      }
+    ],
+    "expected": [
+      {
+        "value": "Graz",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": [
+      "PS"
+    ]
+  },
+  {
+    "id": "non-name-prefix-en-07",
+    "language": "en",
+    "family": "non-name-prefix",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Correction: I'm studying bookbinding, and tonight I'm stitching my very first leather journal."
+      }
+    ],
+    "expected": [
+      {
+        "value": "bookbinding",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": [
+      "Correction"
+    ]
+  },
+  {
+    "id": "non-name-prefix-en-08",
+    "language": "en",
+    "family": "non-name-prefix",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Reminder: I play the tabla, and my teacher says my rhythm is finally getting steadier."
+      }
+    ],
+    "expected": [
+      {
+        "value": "the tabla",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": [
+      "Reminder"
+    ]
+  },
+  {
+    "id": "non-name-prefix-en-09",
+    "language": "en",
+    "family": "non-name-prefix",
+    "messages": [
+      {
+        "role": "user",
+        "content": "FYI: Quick reminder for the clinic form, I'm allergic to penicillin and get a nasty rash."
+      }
+    ],
+    "expected": [
+      {
+        "value": "penicillin",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": [
+      "FYI"
+    ]
+  },
+  {
+    "id": "non-name-prefix-en-10",
+    "language": "en",
+    "family": "non-name-prefix",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Reminder: I work as a cartographer, which makes me insufferable on any road trip."
+      }
+    ],
+    "expected": [
+      {
+        "value": "a cartographer",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": [
+      "Reminder"
+    ]
+  },
+  {
+    "id": "non-name-prefix-en-11",
+    "language": "en",
+    "family": "non-name-prefix",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Correction: I play the trombone, and my lips are sore after two hours of practice today."
+      }
+    ],
+    "expected": [
+      {
+        "value": "the trombone",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": [
+      "Correction"
+    ]
+  },
+  {
+    "id": "non-name-prefix-en-12",
+    "language": "en",
+    "family": "non-name-prefix",
+    "messages": [
+      {
+        "role": "user",
+        "content": "PS: I'm allergic to birch pollen, so I'll be hiding indoors with tissues all of April."
+      }
+    ],
+    "expected": [
+      {
+        "value": "birch pollen",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": [
+      "PS"
+    ]
+  },
+  {
+    "id": "non-name-prefix-en-13",
+    "language": "en",
+    "family": "non-name-prefix",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Note: I'm allergic to latex, so please bring the vinyl gloves for the cleanup day."
+      }
+    ],
+    "expected": [
+      {
+        "value": "latex",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": [
+      "Note"
+    ]
+  },
+  {
+    "id": "non-name-prefix-en-14",
+    "language": "en",
+    "family": "non-name-prefix",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Update: I'm studying actuarial science, and the next exam is only three weeks away, wish me luck."
+      }
+    ],
+    "expected": [
+      {
+        "value": "actuarial science",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": [
+      "Update"
+    ]
+  },
+  {
+    "id": "two-authors-en-00",
+    "language": "en",
+    "family": "two-authors",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Darius: I work as a marine surveyor, so I'm down at the docks by six most mornings."
+      },
+      {
+        "role": "user",
+        "content": "Saoirse: I'm studying woodturning in my garage, and the shavings get absolutely everywhere."
+      }
+    ],
+    "expected": [
+      {
+        "value": "a marine surveyor",
+        "subject": "Darius"
+      },
+      {
+        "value": "woodturning",
+        "subject": "Saoirse"
+      }
+    ],
+    "notSubjects": [
+      "Darius",
+      "Saoirse"
+    ]
+  },
+  {
+    "id": "two-authors-en-01",
+    "language": "en",
+    "family": "two-authors",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Linnea: I live in Kraków, a few minutes from the main square, so come by anytime."
+      },
+      {
+        "role": "user",
+        "content": "Emeka: I'm allergic to penicillin, so the pharmacy always double checks my prescriptions."
+      }
+    ],
+    "expected": [
+      {
+        "value": "Kraków",
+        "subject": "Linnea"
+      },
+      {
+        "value": "penicillin",
+        "subject": "Emeka"
+      }
+    ],
+    "notSubjects": [
+      "Emeka",
+      "Linnea"
+    ]
+  },
+  {
+    "id": "two-authors-en-02",
+    "language": "en",
+    "family": "two-authors",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Darius: I drive a Dacia Duster, so I can bring the tents and the cooler on Saturday."
+      },
+      {
+        "role": "user",
+        "content": "Rhys: I'm allergic to sesame, so I'll skip the hummus and stick with the salad."
+      }
+    ],
+    "expected": [
+      {
+        "value": "a Dacia Duster",
+        "subject": "Darius"
+      },
+      {
+        "value": "sesame",
+        "subject": "Rhys"
+      }
+    ],
+    "notSubjects": [
+      "Darius",
+      "Rhys"
+    ]
+  },
+  {
+    "id": "two-authors-en-03",
+    "language": "en",
+    "family": "two-authors",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Emeka: I drive a 2011 Skoda Fabia, and it still starts first time on cold mornings."
+      },
+      {
+        "role": "user",
+        "content": "Farah: I play the harp, and tuning all those strings takes me longer than actually practising."
+      }
+    ],
+    "expected": [
+      {
+        "value": "a 2011 Skoda Fabia",
+        "subject": "Emeka"
+      },
+      {
+        "value": "the harp",
+        "subject": "Farah"
+      }
+    ],
+    "notSubjects": [
+      "Emeka",
+      "Farah"
+    ]
+  },
+  {
+    "id": "two-authors-en-04",
+    "language": "en",
+    "family": "two-authors",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Rhys: I'm studying Old Norse, and the grammar tables are giving me a proper headache this week."
+      },
+      {
+        "role": "user",
+        "content": "Osgood: I live in Graz, up near the castle hill, and the view is worth the climb."
+      }
+    ],
+    "expected": [
+      {
+        "value": "Old Norse",
+        "subject": "Rhys"
+      },
+      {
+        "value": "Graz",
+        "subject": "Osgood"
+      }
+    ],
+    "notSubjects": [
+      "Osgood",
+      "Rhys"
+    ]
+  },
+  {
+    "id": "two-authors-en-05",
+    "language": "en",
+    "family": "two-authors",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Maeve: I work as a piano tuner, so my ears are pretty tired by the evening."
+      },
+      {
+        "role": "user",
+        "content": "Rhys: I'm allergic to buckwheat, so those pancakes are sadly off the menu for me."
+      }
+    ],
+    "expected": [
+      {
+        "value": "a piano tuner",
+        "subject": "Maeve"
+      },
+      {
+        "value": "buckwheat",
+        "subject": "Rhys"
+      }
+    ],
+    "notSubjects": [
+      "Maeve",
+      "Rhys"
+    ]
+  },
+  {
+    "id": "two-authors-en-06",
+    "language": "en",
+    "family": "two-authors",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Clementine: I live in Kraków, and the winters here make me grateful for a good coat."
+      },
+      {
+        "role": "user",
+        "content": "Callum: I work as a piano tuner, and today's job was a dusty old upright in a school hall."
+      }
+    ],
+    "expected": [
+      {
+        "value": "Kraków",
+        "subject": "Clementine"
+      },
+      {
+        "value": "a piano tuner",
+        "subject": "Callum"
+      }
+    ],
+    "notSubjects": [
+      "Callum",
+      "Clementine"
+    ]
+  },
+  {
+    "id": "two-authors-en-07",
+    "language": "en",
+    "family": "two-authors",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Linnea: I'm allergic to latex, so I always carry my own gloves to the clinic."
+      },
+      {
+        "role": "user",
+        "content": "Tobias: I'm studying actuarial science, and tonight is all mortality tables and cold pizza."
+      }
+    ],
+    "expected": [
+      {
+        "value": "latex",
+        "subject": "Linnea"
+      },
+      {
+        "value": "actuarial science",
+        "subject": "Tobias"
+      }
+    ],
+    "notSubjects": [
+      "Linnea",
+      "Tobias"
+    ]
+  },
+  {
+    "id": "two-authors-en-08",
+    "language": "en",
+    "family": "two-authors",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Ravi: I'm allergic to sesame, so could we pick a restaurant with a clear ingredients list?"
+      },
+      {
+        "role": "user",
+        "content": "Yusuf: I drive an old Volvo 240, and the heater takes forever to warm up in winter."
+      }
+    ],
+    "expected": [
+      {
+        "value": "sesame",
+        "subject": "Ravi"
+      },
+      {
+        "value": "an old Volvo 240",
+        "subject": "Yusuf"
+      }
+    ],
+    "notSubjects": [
+      "Ravi",
+      "Yusuf"
+    ]
+  },
+  {
+    "id": "two-authors-en-09",
+    "language": "en",
+    "family": "two-authors",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Maeve: I'm studying bookbinding, and I just finished sewing the pages of a small notebook."
+      },
+      {
+        "role": "user",
+        "content": "Rhys: I live in Halifax, close enough to the harbour to hear the ferries in the morning."
+      }
+    ],
+    "expected": [
+      {
+        "value": "bookbinding",
+        "subject": "Maeve"
+      },
+      {
+        "value": "Halifax",
+        "subject": "Rhys"
+      }
+    ],
+    "notSubjects": [
+      "Maeve",
+      "Rhys"
+    ]
+  },
+  {
+    "id": "two-authors-en-10",
+    "language": "en",
+    "family": "two-authors",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Thaddeus: I live in Kraków, and my flat is above a noisy but wonderful pierogi place."
+      },
+      {
+        "role": "user",
+        "content": "Kenji: I'm allergic to wool, so that lovely scarf would have me itching within minutes."
+      }
+    ],
+    "expected": [
+      {
+        "value": "Kraków",
+        "subject": "Thaddeus"
+      },
+      {
+        "value": "wool",
+        "subject": "Kenji"
+      }
+    ],
+    "notSubjects": [
+      "Kenji",
+      "Thaddeus"
+    ]
+  },
+  {
+    "id": "two-authors-en-11",
+    "language": "en",
+    "family": "two-authors",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Anneliese: I drive a Toyota Hilux, so hauling the firewood up the hill is no problem."
+      },
+      {
+        "role": "user",
+        "content": "Darius: I work as a wind turbine technician, so I spend a lot of time very high up."
+      }
+    ],
+    "expected": [
+      {
+        "value": "a Toyota Hilux",
+        "subject": "Anneliese"
+      },
+      {
+        "value": "a wind turbine technician",
+        "subject": "Darius"
+      }
+    ],
+    "notSubjects": [
+      "Anneliese",
+      "Darius"
+    ]
+  },
+  {
+    "id": "author-self-pt-00",
+    "language": "pt",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Gilda: Eu moro em Lençóis, então trilha e cachoeira fazem parte do meu fim de semana."
+      }
+    ],
+    "expected": [
+      {
+        "value": "Lençóis",
+        "subject": "Gilda"
+      }
+    ],
+    "notSubjects": [
+      "Gilda"
+    ]
+  },
+  {
+    "id": "author-self-pt-01",
+    "language": "pt",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Cauã: Eu toco violoncelo e ensaio toda noite, para desespero dos vizinhos do andar de baixo."
+      }
+    ],
+    "expected": [
+      {
+        "value": "violoncelo",
+        "subject": "Cauã"
+      }
+    ],
+    "notSubjects": [
+      "Cauã"
+    ]
+  },
+  {
+    "id": "author-self-pt-02",
+    "language": "pt",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Valdir: Trabalho como ortoptista, passo o dia ajudando crianças com exercícios para os olhos."
+      }
+    ],
+    "expected": [
+      {
+        "value": "ortoptista",
+        "subject": "Valdir"
+      }
+    ],
+    "notSubjects": [
+      "Valdir"
+    ]
+  },
+  {
+    "id": "author-self-pt-03",
+    "language": "pt",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Nivaldo: Gente, tenho alergia a látex, então preciso de luvas de outro material na limpeza."
+      }
+    ],
+    "expected": [
+      {
+        "value": "látex",
+        "subject": "Nivaldo"
+      }
+    ],
+    "notSubjects": [
+      "Nivaldo"
+    ]
+  },
+  {
+    "id": "author-self-pt-04",
+    "language": "pt",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Valdir: Eu toco harpa desde pequena, e afinar todas as cordas leva uma eternidade."
+      }
+    ],
+    "expected": [
+      {
+        "value": "harpa",
+        "subject": "Valdir"
+      }
+    ],
+    "notSubjects": [
+      "Valdir"
+    ]
+  },
+  {
+    "id": "author-self-pt-05",
+    "language": "pt",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Otávio: Toco oboé na orquestra da igreja e passo horas preparando as palhetas."
+      }
+    ],
+    "expected": [
+      {
+        "value": "oboé",
+        "subject": "Otávio"
+      }
+    ],
+    "notSubjects": [
+      "Otávio"
+    ]
+  },
+  {
+    "id": "author-self-pt-06",
+    "language": "pt",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Cauã: Eu dirijo um Corsa antigo, ele faz barulho mas me leva para todo lado."
+      }
+    ],
+    "expected": [
+      {
+        "value": "um Corsa antigo",
+        "subject": "Cauã"
+      }
+    ],
+    "notSubjects": [
+      "Cauã"
+    ]
+  },
+  {
+    "id": "author-self-pt-07",
+    "language": "pt",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Tainá: Trabalho como chaveiro, então podem me chamar se alguém ficar trancado para fora de casa."
+      }
+    ],
+    "expected": [
+      {
+        "value": "chaveiro",
+        "subject": "Tainá"
+      }
+    ],
+    "notSubjects": [
+      "Tainá"
+    ]
+  },
+  {
+    "id": "author-self-pt-08",
+    "language": "pt",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Cauã: Posso dar carona no sábado, dirijo um Corsa antigo e cabem mais três pessoas."
+      }
+    ],
+    "expected": [
+      {
+        "value": "um Corsa antigo",
+        "subject": "Cauã"
+      }
+    ],
+    "notSubjects": [
+      "Cauã"
+    ]
+  },
+  {
+    "id": "author-self-pt-09",
+    "language": "pt",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Yara: Só para avisar sobre a sobremesa, tenho alergia a kiwi e minha boca incha na hora."
+      }
+    ],
+    "expected": [
+      {
+        "value": "kiwi",
+        "subject": "Yara"
+      }
+    ],
+    "notSubjects": [
+      "Yara"
+    ]
+  },
+  {
+    "id": "author-self-pt-10",
+    "language": "pt",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Aluísio: Pessoal, tenho alergia a amendoim, então vou passar longe da paçoca na festa junina."
+      }
+    ],
+    "expected": [
+      {
+        "value": "amendoim",
+        "subject": "Aluísio"
+      }
+    ],
+    "notSubjects": [
+      "Aluísio"
+    ]
+  },
+  {
+    "id": "author-self-pt-11",
+    "language": "pt",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Wagner: Na salada de frutas eu passo, porque tenho alergia a kiwi e fico toda empolada."
+      }
+    ],
+    "expected": [
+      {
+        "value": "kiwi",
+        "subject": "Wagner"
+      }
+    ],
+    "notSubjects": [
+      "Wagner"
+    ]
+  },
+  {
+    "id": "author-self-pt-12",
+    "language": "pt",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Nivaldo: Eu moro em Sobral, e o calor daqui não dá trégua nem de madrugada."
+      }
+    ],
+    "expected": [
+      {
+        "value": "Sobral",
+        "subject": "Nivaldo"
+      }
+    ],
+    "notSubjects": [
+      "Nivaldo"
+    ]
+  },
+  {
+    "id": "author-self-pt-13",
+    "language": "pt",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Valdir: Eu toco pandeiro na roda de samba do bairro toda sexta à noite."
+      }
+    ],
+    "expected": [
+      {
+        "value": "pandeiro",
+        "subject": "Valdir"
+      }
+    ],
+    "notSubjects": [
+      "Valdir"
+    ]
+  },
+  {
+    "id": "author-self-pt-14",
+    "language": "pt",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Cauã: Preciso sempre ler os rótulos no mercado porque tenho alergia a amendoim desde criança."
+      }
+    ],
+    "expected": [
+      {
+        "value": "amendoim",
+        "subject": "Cauã"
+      }
+    ],
+    "notSubjects": [
+      "Cauã"
+    ]
+  },
+  {
+    "id": "author-self-pt-15",
+    "language": "pt",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Jorge: Moro em Sobral, pertinho da praça, então é fácil me encontrar no fim da tarde."
+      }
+    ],
+    "expected": [
+      {
+        "value": "Sobral",
+        "subject": "Jorge"
+      }
+    ],
+    "notSubjects": [
+      "Jorge"
+    ]
+  },
+  {
+    "id": "author-self-pt-16",
+    "language": "pt",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Wagner: Eu estudo Libras duas vezes por semana e já consigo conversar um pouquinho com as mãos."
+      }
+    ],
+    "expected": [
+      {
+        "value": "Libras",
+        "subject": "Wagner"
+      }
+    ],
+    "notSubjects": [
+      "Wagner"
+    ]
+  },
+  {
+    "id": "author-self-pt-17",
+    "language": "pt",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Gilda: Eu toco oboé e amanhã tenho ensaio cedo, então vou dormir daqui a pouco."
+      }
+    ],
+    "expected": [
+      {
+        "value": "oboé",
+        "subject": "Gilda"
+      }
+    ],
+    "notSubjects": [
+      "Gilda"
+    ]
+  },
+  {
+    "id": "author-self-pt-18",
+    "language": "pt",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Dandara: Eu moro em Itacaré, então acordo com o barulho do mar todos os dias."
+      }
+    ],
+    "expected": [
+      {
+        "value": "Itacaré",
+        "subject": "Dandara"
+      }
+    ],
+    "notSubjects": [
+      "Dandara"
+    ]
+  },
+  {
+    "id": "author-self-pt-19",
+    "language": "pt",
+    "family": "author-self",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Gilda: Moro em Itacaré e adoro caminhar na praia quando o sol está se pondo."
+      }
+    ],
+    "expected": [
+      {
+        "value": "Itacaré",
+        "subject": "Gilda"
+      }
+    ],
+    "notSubjects": [
+      "Gilda"
+    ]
+  },
+  {
+    "id": "author-about-third-pt-00",
+    "language": "pt",
+    "family": "author-about-third",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Dandara: Cuidado com o cardápio do almoço, porque a Jussara tem alergia a camarão e passa muito mal."
+      }
+    ],
+    "expected": [
+      {
+        "value": "camarão",
+        "subject": "Jussara"
+      }
+    ],
+    "notSubjects": [
+      "Dandara",
+      "Jussara"
+    ]
+  },
+  {
+    "id": "author-about-third-pt-01",
+    "language": "pt",
+    "family": "author-about-third",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Cauã: Fiquei sabendo que o Wagner dirige um Corsa antigo e cuida dele com o maior carinho."
+      }
+    ],
+    "expected": [
+      {
+        "value": "um Corsa antigo",
+        "subject": "Wagner"
+      }
+    ],
+    "notSubjects": [
+      "Cauã",
+      "Wagner"
+    ]
+  },
+  {
+    "id": "author-about-third-pt-02",
+    "language": "pt",
+    "family": "author-about-third",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Thaís: Pelo que me contaram, a Rosângela mora em Itacaré e vai à praia quase todo dia."
+      }
+    ],
+    "expected": [
+      {
+        "value": "Itacaré",
+        "subject": "Rosângela"
+      }
+    ],
+    "notSubjects": [
+      "Rosângela",
+      "Thaís"
+    ]
+  },
+  {
+    "id": "author-about-third-pt-03",
+    "language": "pt",
+    "family": "author-about-third",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Aluísio: Vocês sabiam que a Simone mora em Garanhuns e adora o friozinho do inverno de lá?"
+      }
+    ],
+    "expected": [
+      {
+        "value": "Garanhuns",
+        "subject": "Simone"
+      }
+    ],
+    "notSubjects": [
+      "Aluísio",
+      "Simone"
+    ]
+  },
+  {
+    "id": "author-about-third-pt-04",
+    "language": "pt",
+    "family": "author-about-third",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Hélio: A Gilda mora em Garanhuns, numa casa com um jardim lindo cheio de flores."
+      }
+    ],
+    "expected": [
+      {
+        "value": "Garanhuns",
+        "subject": "Gilda"
+      }
+    ],
+    "notSubjects": [
+      "Gilda",
+      "Hélio"
+    ]
+  },
+  {
+    "id": "author-about-third-pt-05",
+    "language": "pt",
+    "family": "author-about-third",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Otávio: Para levar as caixas, falem com o Edson, ele dirige uma Fiorino com bastante espaço."
+      }
+    ],
+    "expected": [
+      {
+        "value": "uma Fiorino",
+        "subject": "Edson"
+      }
+    ],
+    "notSubjects": [
+      "Edson",
+      "Otávio"
+    ]
+  },
+  {
+    "id": "author-about-third-pt-06",
+    "language": "pt",
+    "family": "author-about-third",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Jorge: Descobri que a Gilda trabalha como taquígrafa e digita numa velocidade impressionante."
+      }
+    ],
+    "expected": [
+      {
+        "value": "taquígrafa",
+        "subject": "Gilda"
+      }
+    ],
+    "notSubjects": [
+      "Gilda",
+      "Jorge"
+    ]
+  },
+  {
+    "id": "author-about-third-pt-07",
+    "language": "pt",
+    "family": "author-about-third",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Yara: Semana passada soube que a Gilda mora em Pelotas e ama os doces da região."
+      }
+    ],
+    "expected": [
+      {
+        "value": "Pelotas",
+        "subject": "Gilda"
+      }
+    ],
+    "notSubjects": [
+      "Gilda",
+      "Yara"
+    ]
+  },
+  {
+    "id": "author-about-third-pt-08",
+    "language": "pt",
+    "family": "author-about-third",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Raul: Minha amiga Thaís mora em Paraty, numa ruazinha de pedra bem perto do cais."
+      }
+    ],
+    "expected": [
+      {
+        "value": "Paraty",
+        "subject": "Thaís"
+      }
+    ],
+    "notSubjects": [
+      "Raul",
+      "Thaís"
+    ]
+  },
+  {
+    "id": "author-about-third-pt-09",
+    "language": "pt",
+    "family": "author-about-third",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Jorge: Não coloquem nada com semente no pão, o Otávio tem alergia a gergelim e pode passar mal."
+      }
+    ],
+    "expected": [
+      {
+        "value": "gergelim",
+        "subject": "Otávio"
+      }
+    ],
+    "notSubjects": [
+      "Jorge",
+      "Otávio"
+    ]
+  },
+  {
+    "id": "author-about-third-pt-10",
+    "language": "pt",
+    "family": "author-about-third",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Otávio: No forró de sábado a Lorena toca sanfona, e ela anima qualquer festa em minutos."
+      }
+    ],
+    "expected": [
+      {
+        "value": "sanfona",
+        "subject": "Lorena"
+      }
+    ],
+    "notSubjects": [
+      "Lorena",
+      "Otávio"
+    ]
+  },
+  {
+    "id": "author-about-third-pt-11",
+    "language": "pt",
+    "family": "author-about-third",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Ícaro: Olha, a Marlene dirige um Corsa antigo e jura que ele nunca a deixou na mão."
+      }
+    ],
+    "expected": [
+      {
+        "value": "um Corsa antigo",
+        "subject": "Marlene"
+      }
+    ],
+    "notSubjects": [
+      "Marlene",
+      "Ícaro"
+    ]
+  },
+  {
+    "id": "author-about-third-pt-12",
+    "language": "pt",
+    "family": "author-about-third",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Jorge: Chamem o Hélio para a roda, ele toca pandeiro como ninguém nesse bairro."
+      }
+    ],
+    "expected": [
+      {
+        "value": "pandeiro",
+        "subject": "Hélio"
+      }
+    ],
+    "notSubjects": [
+      "Hélio",
+      "Jorge"
+    ]
+  },
+  {
+    "id": "author-about-third-pt-13",
+    "language": "pt",
+    "family": "author-about-third",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Edson: Achei incrível saber que a Simone trabalha como restauradora de livros numa biblioteca bem antiga."
+      }
+    ],
+    "expected": [
+      {
+        "value": "restauradora de livros",
+        "subject": "Simone"
+      }
+    ],
+    "notSubjects": [
+      "Edson",
+      "Simone"
+    ]
+  },
+  {
+    "id": "author-about-third-pt-14",
+    "language": "pt",
+    "family": "author-about-third",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Hélio: Quem entende de terreno é a Jussara, ela trabalha como topógrafa e vive medindo lotes."
+      }
+    ],
+    "expected": [
+      {
+        "value": "topógrafa",
+        "subject": "Jussara"
+      }
+    ],
+    "notSubjects": [
+      "Hélio",
+      "Jussara"
+    ]
+  },
+  {
+    "id": "unnamed-pt-00",
+    "language": "pt",
+    "family": "unnamed",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Eu tenho alergia a camarão, então na moqueca de hoje vou só no arroz."
+      }
+    ],
+    "expected": [
+      {
+        "value": "camarão",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": []
+  },
+  {
+    "id": "unnamed-pt-01",
+    "language": "pt",
+    "family": "unnamed",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Eu estudo química do solo e passei a tarde inteira coletando amostras na fazenda da faculdade."
+      }
+    ],
+    "expected": [
+      {
+        "value": "química do solo",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": []
+  },
+  {
+    "id": "unnamed-pt-02",
+    "language": "pt",
+    "family": "unnamed",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Toco violoncelo e carregar o estojo no ônibus lotado é sempre uma aventura."
+      }
+    ],
+    "expected": [
+      {
+        "value": "violoncelo",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": []
+  },
+  {
+    "id": "unnamed-pt-03",
+    "language": "pt",
+    "family": "unnamed",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Eu trabalho como chaveiro e hoje abri três portas de carro só pela manhã."
+      }
+    ],
+    "expected": [
+      {
+        "value": "chaveiro",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": []
+  },
+  {
+    "id": "unnamed-pt-04",
+    "language": "pt",
+    "family": "unnamed",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Eu toco sanfona nas festas da família, principalmente quando chega o mês de junho."
+      }
+    ],
+    "expected": [
+      {
+        "value": "sanfona",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": []
+  },
+  {
+    "id": "unnamed-pt-05",
+    "language": "pt",
+    "family": "unnamed",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Trabalho como topógrafa, então passo boa parte do dia no sol medindo terreno."
+      }
+    ],
+    "expected": [
+      {
+        "value": "topógrafa",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": []
+  },
+  {
+    "id": "unnamed-pt-06",
+    "language": "pt",
+    "family": "unnamed",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Eu estudo encadernação num ateliê aos sábados e já costurei meu primeiro caderno."
+      }
+    ],
+    "expected": [
+      {
+        "value": "encadernação",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": []
+  },
+  {
+    "id": "unnamed-pt-07",
+    "language": "pt",
+    "family": "unnamed",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Eu dirijo um Palio Weekend, e o porta-malas dele salva todas as nossas viagens."
+      }
+    ],
+    "expected": [
+      {
+        "value": "um Palio Weekend",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": []
+  },
+  {
+    "id": "unnamed-pt-08",
+    "language": "pt",
+    "family": "unnamed",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Dirijo uma Saveiro, então posso buscar as cadeiras e a churrasqueira para o domingo."
+      }
+    ],
+    "expected": [
+      {
+        "value": "uma Saveiro",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": []
+  },
+  {
+    "id": "unnamed-pt-09",
+    "language": "pt",
+    "family": "unnamed",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Eu trabalho como topógrafa e amanhã tenho levantamento cedo numa área bem grande."
+      }
+    ],
+    "expected": [
+      {
+        "value": "topógrafa",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": []
+  },
+  {
+    "id": "unnamed-pt-10",
+    "language": "pt",
+    "family": "unnamed",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Eu dirijo um Fusca 1974, herança do meu avô, e ele ainda sobe ladeira direitinho."
+      }
+    ],
+    "expected": [
+      {
+        "value": "um Fusca 1974",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": []
+  },
+  {
+    "id": "unnamed-pt-11",
+    "language": "pt",
+    "family": "unnamed",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Tenho alergia a lã, então aquele cachecol lindo me deixaria me coçando o dia todo."
+      }
+    ],
+    "expected": [
+      {
+        "value": "lã",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": []
+  },
+  {
+    "id": "unnamed-pt-12",
+    "language": "pt",
+    "family": "unnamed",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Eu toco violoncelo e estou ensaiando uma peça difícil para a apresentação do mês que vem."
+      }
+    ],
+    "expected": [
+      {
+        "value": "violoncelo",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": []
+  },
+  {
+    "id": "unnamed-pt-13",
+    "language": "pt",
+    "family": "unnamed",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Eu dirijo uma Fiorino, então se precisarem carregar alguma coisa grande é só avisar."
+      }
+    ],
+    "expected": [
+      {
+        "value": "uma Fiorino",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": []
+  },
+  {
+    "id": "unnamed-pt-14",
+    "language": "pt",
+    "family": "unnamed",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Moro em Itacaré, numa casinha simples a poucos minutos da praia."
+      }
+    ],
+    "expected": [
+      {
+        "value": "Itacaré",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": []
+  },
+  {
+    "id": "non-name-prefix-pt-00",
+    "language": "pt",
+    "family": "non-name-prefix",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Só uma coisa: Eu trabalho como restauradora de livros e hoje recuperei uma capa de couro centenária."
+      }
+    ],
+    "expected": [
+      {
+        "value": "restauradora de livros",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": [
+      "Só uma coisa"
+    ]
+  },
+  {
+    "id": "non-name-prefix-pt-01",
+    "language": "pt",
+    "family": "non-name-prefix",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Só uma coisa: Dirijo uma Fiorino todos os dias e ela aguenta bem o peso das encomendas."
+      }
+    ],
+    "expected": [
+      {
+        "value": "uma Fiorino",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": [
+      "Só uma coisa"
+    ]
+  },
+  {
+    "id": "non-name-prefix-pt-02",
+    "language": "pt",
+    "family": "non-name-prefix",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Só uma coisa: Eu moro em Bagé, e o vento frio daqui no inverno corta até a alma."
+      }
+    ],
+    "expected": [
+      {
+        "value": "Bagé",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": [
+      "Só uma coisa"
+    ]
+  },
+  {
+    "id": "non-name-prefix-pt-03",
+    "language": "pt",
+    "family": "non-name-prefix",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Nota: Eu dirijo uma Saveiro, é econômica e a caçamba ajuda muito nas compras do mês."
+      }
+    ],
+    "expected": [
+      {
+        "value": "uma Saveiro",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": [
+      "Nota"
+    ]
+  },
+  {
+    "id": "non-name-prefix-pt-04",
+    "language": "pt",
+    "family": "non-name-prefix",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Correção: Tenho alergia a lã, por isso só uso casaco de algodão quando esfria."
+      }
+    ],
+    "expected": [
+      {
+        "value": "lã",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": [
+      "Correção"
+    ]
+  },
+  {
+    "id": "non-name-prefix-pt-05",
+    "language": "pt",
+    "family": "non-name-prefix",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Lembrete: Eu tenho alergia a látex, sempre aviso a equipe quando vou fazer algum exame."
+      }
+    ],
+    "expected": [
+      {
+        "value": "látex",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": [
+      "Lembrete"
+    ]
+  },
+  {
+    "id": "non-name-prefix-pt-06",
+    "language": "pt",
+    "family": "non-name-prefix",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Nota: Trabalho como topógrafa e adoro quando o serviço é em área de serra."
+      }
+    ],
+    "expected": [
+      {
+        "value": "topógrafa",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": [
+      "Nota"
+    ]
+  },
+  {
+    "id": "non-name-prefix-pt-07",
+    "language": "pt",
+    "family": "non-name-prefix",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Obs: Obrigada pelo presente, mas tenho alergia a lã e não consigo usar a blusa."
+      }
+    ],
+    "expected": [
+      {
+        "value": "lã",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": [
+      "Obs"
+    ]
+  },
+  {
+    "id": "non-name-prefix-pt-08",
+    "language": "pt",
+    "family": "non-name-prefix",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Correção: Eu toco bandolim num grupo de choro que se reúne aos domingos na praça."
+      }
+    ],
+    "expected": [
+      {
+        "value": "bandolim",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": [
+      "Correção"
+    ]
+  },
+  {
+    "id": "non-name-prefix-pt-09",
+    "language": "pt",
+    "family": "non-name-prefix",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Aviso: Eu trabalho como chaveiro e tenho uma banquinha perto da estação há muitos anos."
+      }
+    ],
+    "expected": [
+      {
+        "value": "chaveiro",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": [
+      "Aviso"
+    ]
+  },
+  {
+    "id": "non-name-prefix-pt-10",
+    "language": "pt",
+    "family": "non-name-prefix",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Aviso: Toco harpa e amanhã me apresento num casamento, estou com um friozinho na barriga."
+      }
+    ],
+    "expected": [
+      {
+        "value": "harpa",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": [
+      "Aviso"
+    ]
+  },
+  {
+    "id": "non-name-prefix-pt-11",
+    "language": "pt",
+    "family": "non-name-prefix",
+    "messages": [
+      {
+        "role": "user",
+        "content": "PS: Eu toco bandolim e passei a noite tentando tirar um choro bem rápido de ouvido."
+      }
+    ],
+    "expected": [
+      {
+        "value": "bandolim",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": [
+      "PS"
+    ]
+  },
+  {
+    "id": "non-name-prefix-pt-12",
+    "language": "pt",
+    "family": "non-name-prefix",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Nota: Eu estudo marcenaria à noite e acabei de terminar meu primeiro banquinho de madeira."
+      }
+    ],
+    "expected": [
+      {
+        "value": "marcenaria",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": [
+      "Nota"
+    ]
+  },
+  {
+    "id": "non-name-prefix-pt-13",
+    "language": "pt",
+    "family": "non-name-prefix",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Lembrete: Na primavera eu sofro, tenho alergia a pólen e espirro o dia inteiro."
+      }
+    ],
+    "expected": [
+      {
+        "value": "pólen",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": [
+      "Lembrete"
+    ]
+  },
+  {
+    "id": "non-name-prefix-pt-14",
+    "language": "pt",
+    "family": "non-name-prefix",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Só uma coisa: Estudo química do solo e a prova sobre acidez é na próxima quinta, torçam por mim."
+      }
+    ],
+    "expected": [
+      {
+        "value": "química do solo",
+        "subject": "user"
+      }
+    ],
+    "notSubjects": [
+      "Só uma coisa"
+    ]
+  },
+  {
+    "id": "two-authors-pt-00",
+    "language": "pt",
+    "family": "two-authors",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Aluísio: Eu moro em Paraty, então quando chove forte as ruas de pedra viram um rio."
+      },
+      {
+        "role": "user",
+        "content": "Edson: Eu dirijo uma Kombi, cabe a turma toda e ainda sobra lugar para as mochilas."
+      }
+    ],
+    "expected": [
+      {
+        "value": "Paraty",
+        "subject": "Aluísio"
+      },
+      {
+        "value": "uma Kombi",
+        "subject": "Edson"
+      }
+    ],
+    "notSubjects": [
+      "Aluísio",
+      "Edson"
+    ]
+  },
+  {
+    "id": "two-authors-pt-01",
+    "language": "pt",
+    "family": "two-authors",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Rosângela: Eu toco violoncelo e hoje o ensaio durou três horas, estou com os dedos doendo."
+      },
+      {
+        "role": "user",
+        "content": "Valdir: Eu estudo química do solo e amanhã tenho aula prática no laboratório bem cedo."
+      }
+    ],
+    "expected": [
+      {
+        "value": "violoncelo",
+        "subject": "Rosângela"
+      },
+      {
+        "value": "química do solo",
+        "subject": "Valdir"
+      }
+    ],
+    "notSubjects": [
+      "Rosângela",
+      "Valdir"
+    ]
+  },
+  {
+    "id": "two-authors-pt-02",
+    "language": "pt",
+    "family": "two-authors",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Gilda: Trabalho como soldador naval, passo o dia no estaleiro e chego em casa exausto."
+      },
+      {
+        "role": "user",
+        "content": "Tainá: Eu toco bandolim para relaxar depois do expediente, geralmente na varanda de casa."
+      }
+    ],
+    "expected": [
+      {
+        "value": "soldador naval",
+        "subject": "Gilda"
+      },
+      {
+        "value": "bandolim",
+        "subject": "Tainá"
+      }
+    ],
+    "notSubjects": [
+      "Gilda",
+      "Tainá"
+    ]
+  },
+  {
+    "id": "two-authors-pt-03",
+    "language": "pt",
+    "family": "two-authors",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Valdir: Eu toco trombone na banda da cidade e domingo temos apresentação no coreto."
+      },
+      {
+        "role": "user",
+        "content": "Mirela: Tenho alergia a gergelim, então sempre pergunto o que vai no pão do hambúrguer."
+      }
+    ],
+    "expected": [
+      {
+        "value": "trombone",
+        "subject": "Valdir"
+      },
+      {
+        "value": "gergelim",
+        "subject": "Mirela"
+      }
+    ],
+    "notSubjects": [
+      "Mirela",
+      "Valdir"
+    ]
+  },
+  {
+    "id": "two-authors-pt-04",
+    "language": "pt",
+    "family": "two-authors",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Hélio: Eu trabalho como topógrafa e hoje caminhei quilômetros carregando equipamento no mato."
+      },
+      {
+        "role": "user",
+        "content": "Lorena: Eu estudo latim por conta própria e as declinações estão me dando um nó na cabeça."
+      }
+    ],
+    "expected": [
+      {
+        "value": "topógrafa",
+        "subject": "Hélio"
+      },
+      {
+        "value": "latim",
+        "subject": "Lorena"
+      }
+    ],
+    "notSubjects": [
+      "Hélio",
+      "Lorena"
+    ]
+  },
+  {
+    "id": "two-authors-pt-05",
+    "language": "pt",
+    "family": "two-authors",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Hélio: Trabalho como restauradora de livros, e o cheiro de papel velho é meu perfume diário."
+      },
+      {
+        "role": "user",
+        "content": "Gilda: Tenho alergia a pólen, então piquenique no parque florido para mim é sofrimento garantido."
+      }
+    ],
+    "expected": [
+      {
+        "value": "restauradora de livros",
+        "subject": "Hélio"
+      },
+      {
+        "value": "pólen",
+        "subject": "Gilda"
+      }
+    ],
+    "notSubjects": [
+      "Gilda",
+      "Hélio"
+    ]
+  },
+  {
+    "id": "two-authors-pt-06",
+    "language": "pt",
+    "family": "two-authors",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Ícaro: Eu trabalho como soldador naval e esta semana estamos reparando o casco de um navio enorme."
+      },
+      {
+        "role": "user",
+        "content": "Nivaldo: Eu toco harpa e sempre preciso de ajuda para levar o instrumento até o carro."
+      }
+    ],
+    "expected": [
+      {
+        "value": "soldador naval",
+        "subject": "Ícaro"
+      },
+      {
+        "value": "harpa",
+        "subject": "Nivaldo"
+      }
+    ],
+    "notSubjects": [
+      "Nivaldo",
+      "Ícaro"
+    ]
+  },
+  {
+    "id": "two-authors-pt-07",
+    "language": "pt",
+    "family": "two-authors",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Gilda: Eu estudo islandês pela internet e a pronúncia é o que mais me dá trabalho."
+      },
+      {
+        "role": "user",
+        "content": "Marlene: Moro em Itacaré e sempre que posso dou um mergulho no fim da tarde."
+      }
+    ],
+    "expected": [
+      {
+        "value": "islandês",
+        "subject": "Gilda"
+      },
+      {
+        "value": "Itacaré",
+        "subject": "Marlene"
+      }
+    ],
+    "notSubjects": [
+      "Gilda",
+      "Marlene"
+    ]
+  },
+  {
+    "id": "two-authors-pt-08",
+    "language": "pt",
+    "family": "two-authors",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Dandara: Eu moro em Itacaré, pertinho do centro, então faço quase tudo a pé."
+      },
+      {
+        "role": "user",
+        "content": "Mirela: Eu toco cavaquinho e levo ele para qualquer churrasco que me convidam."
+      }
+    ],
+    "expected": [
+      {
+        "value": "Itacaré",
+        "subject": "Dandara"
+      },
+      {
+        "value": "cavaquinho",
+        "subject": "Mirela"
+      }
+    ],
+    "notSubjects": [
+      "Dandara",
+      "Mirela"
+    ]
+  },
+  {
+    "id": "two-authors-pt-09",
+    "language": "pt",
+    "family": "two-authors",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Gilda: Tenho alergia a látex, então nem posso encher os balões da festa, desculpem."
+      },
+      {
+        "role": "user",
+        "content": "Otávio: Eu dirijo um Fusca 1974 azul, e todo mundo sorri quando passo na rua."
+      }
+    ],
+    "expected": [
+      {
+        "value": "látex",
+        "subject": "Gilda"
+      },
+      {
+        "value": "um Fusca 1974",
+        "subject": "Otávio"
+      }
+    ],
+    "notSubjects": [
+      "Gilda",
+      "Otávio"
+    ]
+  },
+  {
+    "id": "two-authors-pt-10",
+    "language": "pt",
+    "family": "two-authors",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Cauã: Dirijo uma Kombi, então deixem comigo o transporte das caixas de som no sábado."
+      },
+      {
+        "role": "user",
+        "content": "Edson: Eu trabalho como soldador naval, por isso vivo com cheiro de fumaça na roupa."
+      }
+    ],
+    "expected": [
+      {
+        "value": "uma Kombi",
+        "subject": "Cauã"
+      },
+      {
+        "value": "soldador naval",
+        "subject": "Edson"
+      }
+    ],
+    "notSubjects": [
+      "Cauã",
+      "Edson"
+    ]
+  },
+  {
+    "id": "two-authors-pt-11",
+    "language": "pt",
+    "family": "two-authors",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Rosângela: Eu moro em Cáceres, e o pôr do sol na beira do rio é sempre um espetáculo."
+      },
+      {
+        "role": "user",
+        "content": "Raul: Eu tenho alergia a látex e sempre levo minhas próprias luvas quando ajudo na cozinha."
+      }
+    ],
+    "expected": [
+      {
+        "value": "Cáceres",
+        "subject": "Rosângela"
+      },
+      {
+        "value": "látex",
+        "subject": "Raul"
+      }
+    ],
+    "notSubjects": [
+      "Raul",
+      "Rosângela"
+    ]
+  }
+]
