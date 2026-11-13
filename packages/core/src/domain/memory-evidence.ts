@@ -2,7 +2,9 @@ import { z } from 'zod';
 
 import type { VectorStore } from './dip/vector-store.js';
 import { InvalidScope } from './errors.js';
+import type { EventTime } from './extraction/event-time.js';
 import type { MemoryItem } from './memory-item.js';
+import { factTimeFromPayload, type MemoryDurability } from './memory-time.js';
 import type { Filters } from './scope.js';
 
 /**
@@ -36,8 +38,9 @@ export function validateMemoryEvidence(value: unknown): MemoryEvidence {
 /** Old or externally written rows with invalid evidence retain unknown provenance. */
 export function evidenceFromPayload(
   payload: Readonly<Record<string, string | number | boolean | null>>,
-): { readonly evidence?: MemoryEvidence; readonly expiresAt?: Date | null; readonly confirmationCount?: number; readonly distinctSourceCount?: number | null; readonly tValid?: Date | null; readonly tInvalid?: Date | null } {
+): { readonly evidence?: MemoryEvidence; readonly expiresAt?: Date | null; readonly confirmationCount?: number; readonly distinctSourceCount?: number | null; readonly tValid?: Date | null; readonly tInvalid?: Date | null; readonly eventTime?: EventTime; readonly durability?: MemoryDurability } {
   const lifecycle = {
+    ...factTimeFromPayload(payload),
     ...(typeof payload['confirmation_count'] === 'number' ? { confirmationCount: payload['confirmation_count'] } : {}),
     ...(payload['t_valid'] === null ? { tValid: null } : typeof payload['t_valid'] === 'string' ? { tValid: new Date(payload['t_valid']) } : {}),
     ...(payload['t_invalid'] === null ? { tInvalid: null } : typeof payload['t_invalid'] === 'string' ? { tInvalid: new Date(payload['t_invalid']) } : {}),

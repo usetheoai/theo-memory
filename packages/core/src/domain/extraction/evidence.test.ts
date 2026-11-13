@@ -116,6 +116,34 @@ describe('contextual evidence through the memory SDK', () => {
     expect(await empty.memory.user('alice').remember('Hello', { strictExtraction: true })).toEqual([]);
   });
 
+  test('stores a stated plan the extractor labeled temporary, with the date of its event', async () => {
+    const said = "I'm picking up my sister from the airport tomorrow.";
+    const { memory } = await fixture({ memory: [
+      { id: '1', text: 'user is picking up their sister from the airport tomorrow', evidence: { kind: 'stated', durability: 'temporary', time: 'future', sourceQuote: said } },
+    ] });
+
+    const items = await memory.user('alice').remember(said, { observedAt: new Date('2025-05-09T15:30:00Z') });
+
+    expect(items.map((item) => [item.text, item.durability, item.eventTime?.start, item.expiresAt])).toEqual([
+      ['user is picking up their sister from the airport tomorrow (2025-05-10)', 'temporary', '2025-05-10', undefined],
+    ]);
+  });
+
+  test('stores a passing state of the moment and stops showing it after the day it was said', async () => {
+    const said = 'Ahora mismo tengo muchísimo sueño.';
+    const { memory } = await fixture({ memory: [
+      { id: '1', text: 'user tiene mucho sueño', evidence: { kind: 'stated', durability: 'temporary', time: 'present', sourceQuote: said } },
+    ] });
+    const scope = memory.user('alice');
+
+    const items = await scope.remember(said, { observedAt: new Date('2025-05-09T15:30:00Z') });
+
+    expect(items.map((item) => item.expiresAt)).toEqual([new Date('2025-05-09T23:59:59.999Z')]);
+    expect(await scope.getAll()).toEqual([]);
+    expect((await scope.recall('sueño', { threshold: 0, asOf: new Date('2025-05-09T18:00:00Z') })).map((item) => item.text))
+      .toEqual(['user tiene mucho sueño']);
+  });
+
   test('rejected preferences cannot survive as batch graph nodes or edges on a kept fact', async () => {
     const memoryEntityStore = mock<MemoryEntityStore>();
     const memoryGraphStore = mock<MemoryGraphStore>();
@@ -142,10 +170,11 @@ describe('contextual evidence through the memory SDK', () => {
     prepareExtractedEvidence([
       { text: 'user likes yellow', evidence: { kind: 'inferred', durability: 'tentative' } },
       { text: 'user prefers blue', evidence: { kind: 'stated', durability: 'durable', sourceQuote: 'invented source' } },
-    ], [{ role: 'user', content: 'A conversation' }], tracer);
+      { text: 'user is tired', evidence: { kind: 'stated', durability: 'temporary', sourceQuote: 'I am tired' } },
+    ], [{ role: 'user', content: 'A conversation. I am tired.' }], tracer);
     const spans = exporter.getFinishedSpans();
-    expect(spans.map((span) => span.name)).toEqual(['extraction_evidence_dropped', 'extraction_evidence_downgraded']);
-    expect(spans.map((span) => span.attributes)).toEqual([{ reason: 'tentative' }, { reason: 'ungrounded_source' }]);
+    expect(spans.map((span) => span.name)).toEqual(['extraction_evidence_dropped', 'extraction_evidence_downgraded', 'extraction_short_lived_kept']);
+    expect(spans.map((span) => span.attributes)).toEqual([{ reason: 'tentative' }, { reason: 'ungrounded_source' }, { durability: 'temporary' }]);
   });
 
   test('strict verbatim writes also report incomplete persistence', async () => {

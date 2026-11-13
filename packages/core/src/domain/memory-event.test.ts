@@ -8,8 +8,12 @@ import { MEMORY_EVENTS, emitEvent } from './memory-event.js';
 import type { MemoryEvent } from './memory-event.js';
 
 describe('MEMORY_EVENTS', () => {
-  test('has 68 values including evidence drop, downgrade, retry, message log, supersession and importance decisions', () => {
-    expect(MEMORY_EVENTS).toHaveLength(68);
+  test('has 72 values including evidence drop, downgrade, retry, message log, supersession and importance decisions', () => {
+    expect(MEMORY_EVENTS).toHaveLength(72);
+    expect(MEMORY_EVENTS).toContain('extraction_short_lived_kept');
+    expect(MEMORY_EVENTS).toContain('event_time_resolved');
+    expect(MEMORY_EVENTS).toContain('event_time_ambiguous');
+    expect(MEMORY_EVENTS).toContain('short_lived_expiry_set');
     expect(MEMORY_EVENTS).toContain('extraction_subject_restored');
     expect(MEMORY_EVENTS).toContain('importance_scored');
     expect(MEMORY_EVENTS).toContain('importance_scoring_failed');

@@ -25,6 +25,7 @@ import { lemmatizeForBm25 } from '../lemmatization.js';
 import { emitEvent } from '../memory-event.js';
 import { attachEvidence, validateMemoryEvidence, restoreDuplicateEvidence } from '../memory-evidence.js';
 import type { MemoryItem } from '../memory-item.js';
+import { attachFactTime } from '../memory-time.js';
 import type { Message } from '../message.js';
 import { DEFAULT_ENTITY_TAXONOMY } from '../ontology.js';
 import type { RememberOptions } from '../options.js';
@@ -34,6 +35,7 @@ import { attachWriteContext, validateWriteContext, writeRequestHash } from '../w
 import { keepAnnotationsNamedBy, linkEntities, type RelationTriple } from './entity-linking.js';
 import { prepareExtractedEvidence, extractedMemoryEvidence } from './evidence.js';
 import { applyFactGate } from './fact-gate.js';
+import { timeOfFact } from './fact-time.js';
 import { scoreNewFacts } from './importance-scoring.js';
 import { correctEntityRelationLanguage } from './label-language.js';
 import { identifyInputLanguage } from './language-identification.js';
@@ -397,6 +399,13 @@ async function extractAndPersist(
     return [];
   }
 
+  // ADR-0035: the date of each fact's event is counted in code from when the messages were said,
+  // and a passing state of the moment gets an end. Done before embedding so the stored text,
+  // its hash and its vector all carry the date.
+  const saidAt = options?.observedAt ?? new Date();
+  const factTimes = extracted.map((draft) => timeOfFact(draft, saidAt, detectedLanguage?.iso6391, tracer));
+  extracted = extracted.map((draft, index) => ({ ...draft, text: factTimes[index]?.text ?? draft.text }));
+
   // ============================================================
   // Phase 3: batch embed (per-row fallback)
   // ============================================================
@@ -448,6 +457,7 @@ async function extractAndPersist(
     const payload = buildPayload(text, hash, filters, metadata);
     attachWriteContext(payload, messages, options);
     attachEvidence(payload, extractedMemoryEvidence(extracted[i]?.evidence, sourceEvidence));
+    attachFactTime(payload, extracted[i]?.evidence, factTimes[i], options?.expiresAt !== undefined);
     payload['text_lemmatized'] = lemmatizeForBm25(text).join(' ');
     // Attribution authority (claude-code-kit fix): the REQUEST-level
     // `options.attributedTo` is the ORIGIN of the turn — the Stop hook sets it to

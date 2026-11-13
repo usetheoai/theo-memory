@@ -1,7 +1,8 @@
 # ADR-0035: Every extracted fact is stored, and event time decides what recall shows
 
-Status: Proposed (2026-11-12). Each stage below becomes Accepted when its experiment passes and is
-withdrawn when it fails; the criteria are written before each run and do not change after it.
+Status: Stage 1 accepted (2026-11-12, see Outcome of stage 1); stages 2 to 4 proposed. Each stage
+becomes Accepted when its experiment passes and is withdrawn when it fails; the criteria are written
+before each run and do not change after it.
 
 ## Context
 
@@ -44,19 +45,25 @@ when the event is, and how long the statement is expected to hold. Recall decide
 
 ### Stage 1: write
 
-- Every grounded, stated draft is stored. `durability` becomes an attribute of the memory. The
-  durable-only gate of ADR-0025 is removed; ADR-0025 is superseded when this stage is accepted.
-- A memory gains a typed event time: start, end and granularity (instant, day, week, month, year,
-  unknown), plus the temporal expression as it was said.
-- The extractor copies the temporal expression and classifies the statement as plan, past event or
-  state. Code resolves the expression against `observedAt`. The model no longer does the calendar
-  arithmetic.
+- Every grounded, stated draft is stored. `durability` becomes an attribute of the memory
+  (`MemoryItem.durability`). The durable-only gate of ADR-0025 is removed, and this stage supersedes
+  that part of ADR-0025. A temporary or tentative draft that has no quote in the input, or is only
+  the extractor's inference, is still dropped: nothing was said to keep.
+- A memory gains an event time: start, end, granularity (day or month) and the words that named it
+  (`MemoryItem.eventTime`). As built, the four values ride in the payload; typed columns wait for
+  the stage that filters on them.
+- The extractor adds one field to its evidence: `time`, the direction of the statement (`future`,
+  `past`, `present`). Code reads the time expression from the grounded quote and counts the date
+  from `observedAt` (`resolveEventTime`, six languages). The date is written into the fact text, and
+  a date the model wrote that disagrees is replaced. A quote that names two times gets no event
+  time. A bare weekday, a day and month with no year, or a bare month is resolved only when the
+  direction is known.
 - `t_valid` is `observedAt` for a plan too. A future date never becomes `t_valid` or `t_invalid`.
-- `expires_at` is derived for a state said with a marker of the moment ("today", "right now",
-  "this afternoon"): the end of the period the marker names. A plan or a past event gets no
-  `expires_at`.
-- Each derivation emits an event; a draft that is dropped is dropped only for the reasons that
-  remain (ungrounded quote, not stated), with the existing events.
+- `expires_at` is set for a passing state of the moment: a draft that is not durable, has no
+  resolved date, and whose `time` is `present` or absent. It ends with the UTC day it was said. A
+  plan or a past event gets no `expires_at`, whatever its label. A deadline the caller gave wins.
+- Each decision emits an event: `extraction_short_lived_kept`, `event_time_resolved`,
+  `event_time_ambiguous`, `short_lived_expiry_set`, and the existing `extraction_evidence_dropped`.
 
 ### Stage 2: read
 
@@ -107,6 +114,31 @@ in this ADR.
 
 An LLM judge is used only after calibration against about 200 answers labelled by people who did not
 write the change (100 per class), with sensitivity and specificity reported beside each result.
+
+## Outcome of stage 1
+
+Base (`380bac0`) and arm ran back to back with `gpt-4o-mini`, criteria H177 to H183 fixed before the
+runs.
+
+| Measure | Base | Arm |
+|---|---|---|
+| Right event date, 468 writes of the frozen set (156 sentences, 3 repetitions) | 226 | 435 |
+| Wrong date | 18 | 0 |
+| Plan writes that stored nothing, of 288 | 103 | 0 |
+| Stored with no absolute date | 121 | 33 |
+| Paired, per sentence: arm wins, base wins, ties | | 82, 0, 74 (p below 0.001) |
+| `memory-semantics`, lasting memories only | | passes, `forbidden = 0` |
+| Filler controls, facts stored (expiring ones counted) | 0 | 0 |
+| Advice between people, extraction fidelity | 3 of 12 | 12 of 12 |
+| `named-facts`, per question: arm wins, base wins | | 1, 3 (p 0.63) |
+| `entity-links`, per question: arm wins, base wins | | 8, 0 (p 0.008) |
+
+What this does not show. The sentences of the date set come from templates written by the author of
+the change; they are short and clean. The result measures the write path on those forms, not the
+reader of time expressions on free conversation, which needs sentences written by someone else. The
+33 writes still undated are almost all a bare month ("in March") whose direction the extractor did
+not give. `named-facts` leans to the base by two questions, within noise at 60 questions; it stays
+on the list of sets that stage 2 must not lose.
 
 ## Consequences
 

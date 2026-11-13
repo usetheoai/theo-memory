@@ -8,8 +8,15 @@ export interface SemanticCase {
   readonly forbidden: readonly string[];
 }
 
-/** Evaluate coverage separately from precision so empty output cannot pass the gate. */
-export function scoreCase(fixture: SemanticCase, items: readonly MemoryItem[]) {
+/**
+ * Evaluate coverage separately from precision so empty output cannot pass the gate.
+ *
+ * Only lasting memories are scored. A passing state of the moment is stored with an end
+ * (ADR-0035) and recall stops showing it after the day it was said, so it is not a mood that
+ * became a lasting fact. A mood stored with no end still counts as forbidden.
+ */
+export function scoreCase(fixture: SemanticCase, stored: readonly MemoryItem[]) {
+  const items = stored.filter((item) => item.expiresAt === undefined || item.expiresAt === null);
   const used = new Set<number>();
   const matches = fixture.expected.map((expected) => {
     const candidates = items.flatMap((item,index) => !used.has(index) && new RegExp(expected.pattern,'iu').test(item.text) ? [index] : []);

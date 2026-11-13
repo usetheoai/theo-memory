@@ -5,7 +5,9 @@
  * @see ADR-0006 — bi-temporal columns: schema-yes-in-local, query-API-no-until-v0.5.
  */
 import type { LoggedMessage } from './dip/message-log.js';
+import type { EventTime } from './extraction/event-time.js';
 import type { MemoryEvidence } from './memory-evidence.js';
+import type { MemoryDurability } from './memory-time.js';
 import type { Scope } from './scope.js';
 
 export interface MemoryItem {
@@ -13,8 +15,14 @@ export interface MemoryItem {
   readonly idempotentReplay?: boolean;
   /** Distinct identified origins; null means legacy provenance is unknown. */
   readonly distinctSourceCount?: number | null;
-  /** Explicit deadline, independent of forgetting. */
+  /** Explicit deadline, independent of forgetting. A passing state of the moment gets one at write (ADR-0035). */
   readonly expiresAt?: Date | null;
+
+  /** When the fact's event is, counted from when it was said. Absent when the fact names no time. */
+  readonly eventTime?: EventTime;
+
+  /** How long the extractor expected the statement to hold. Absent on memories written without extraction. */
+  readonly durability?: MemoryDurability;
 
   /** How this context was obtained. Undefined on legacy/unclassified memories.
    * @see docs/memory-semantics.md
