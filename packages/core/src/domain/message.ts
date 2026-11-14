@@ -17,6 +17,12 @@ export interface Message {
    * with this name. Leave it out in a one-to-one chat: the author stays the speaker `user`.
    */
   readonly name?: string;
+  /**
+   * True when the content is material the author passed along (a pasted document, an email, a
+   * tool result) and not something they said. The write path leaves it out: it is not
+   * extracted, not logged and not embedded, so nothing in it becomes a memory.
+   */
+  readonly reference?: boolean;
 }
 
 export interface LLMResponse {

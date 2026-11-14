@@ -1,0 +1,562 @@
+[
+  {
+    "id": "profile-en-00",
+    "language": "en",
+    "family": "profile",
+    "request": "Can you tell me the main point of this PDF excerpt? I only skimmed it.",
+    "material": "\n---\nMeal Box Service Summary, page 2\n\nThe customer receives a weekly box every Tuesday between 8 and 11 a.m. The customer follows the lumen protocol diet, so each box is packed from the matching menu. Starting next month, the delivery day moves to Wednesday because the kitchen is changing its preparation schedule. The price per box stays the same, and the insulated packaging is still collected by the driver on the following visit.",
+    "value": "the lumen protocol diet"
+  },
+  {
+    "id": "profile-en-01",
+    "language": "en",
+    "family": "profile",
+    "request": "Could you check this support ticket for typos before I file it away?",
+    "material": "\nSubject: Late parcel, second attempt\nStatus: Open\n\nThe customer reported that a parcel with a kitchen scale did not arive on the promised date. The customer lives in Harrow Lane Heights and was at home all afternoon. The courier's log shows one failed attempt at 3 p.m. with no card left at the door. A second delivery is scheduled for Friday morning, and the shipping fee has been refunded.",
+    "value": "Harrow Lane Heights"
+  },
+  {
+    "id": "profile-en-02",
+    "language": "en",
+    "family": "profile",
+    "request": "Please list the action items from this support ticket for me.",
+    "material": "\nSubject: Wrong menu at cooking class\nStatus: Pending\n\nThe customer booked the Saturday cooking class and was served a dish outside her plan. Her record states that the customer follows the harrow protocol diet. The front desk will issue a voucher for a free class this week. The kitchen lead will update the booking form so the plan shows on the class roster, and the manager will call her on Monday to confirm.",
+    "value": "the harrow protocol diet"
+  },
+  {
+    "id": "profile-en-03",
+    "language": "en",
+    "family": "profile",
+    "request": "My colleague sent me this chat export and it's full of jargon. Can you translate it into plain language?",
+    "material": "\n---\n[09:14] Priya: Checked the gym account from this morning's escalation.\n[09:15] Tom: And?\n[09:15] Priya: The customer's membership code is MARLOW-POINT-358. Tier is legacy flex, and the billing cycle got desynced after the freeze lapsed.\n[09:17] Tom: So the double charge is a proration artifact.\n[09:18] Priya: Right. Finance is reversing the duplicate, and the cycle resets on the first.",
+    "value": "MARLOW-POINT-358"
+  },
+  {
+    "id": "profile-en-04",
+    "language": "en",
+    "family": "profile",
+    "request": "Got this chat export from a coworker. Could you translate it into plain language for me?",
+    "material": "\n---\n[14:02] Luis: The broadband install got bumped again.\n[14:03] Karen: Which one?\n[14:03] Luis: The customer lives in Quartz Field Heights, and the last-mile crew has no capacity in that zone until the 12th.\n[14:05] Karen: So the provisioning window slips a week.\n[14:06] Luis: Yes. The router already shipped, and the activation fee is waived as a goodwill credit.",
+    "value": "Quartz Field Heights"
+  },
+  {
+    "id": "profile-en-05",
+    "language": "en",
+    "family": "profile",
+    "request": "I need to forward this support ticket to my manager. Can you check it for typos first?",
+    "material": "\nSubject: Furniture delivery reschedule\nStatus: In progress\n\nThe customer ordered a bookshelf and two chairs for delivery last Thursday. According to the account, the customer lives in Marlow Gate Heights, wich is served by the northern depot. The truck broke down that morning and the order went back to the warehouse. A new slot is confirmed for Tuesday between noon and four, with free assembley included as an apology.",
+    "value": "Marlow Gate Heights"
+  },
+  {
+    "id": "profile-en-06",
+    "language": "en",
+    "family": "profile",
+    "request": "Can you translate this web page into plain language? The wording is confusing.",
+    "material": "\nTitle: Subscription overview - Greenleaf Pantry\n\nPlan: Fortnightly staples box. Dietary plan on file for the account holder: the vesper protocol diet. Substitutions are applied automatically when an item is out of stock, subject to equivalence within the same category. Billing recurs on the anniversary of enrolment, and a lapse in payment suspends dispatch without terminating the agreement. Accrued loyalty points remain valid for twelve months from issuance.",
+    "value": "the vesper protocol diet"
+  },
+  {
+    "id": "profile-en-07",
+    "language": "en",
+    "family": "profile",
+    "request": "Could you summarize this chat export a teammate shared with me?",
+    "material": "\n---\n[11:20] Mei: The piano tuner booking fell through again.\n[11:21] Joao: Same client as last week?\n[11:21] Mei: Yes. The customer lives in Quartz Gate Heights, and our only tuner out there was sick on both dates.\n[11:23] Joao: What did we offer?\n[11:24] Mei: A visit next Wednesday at ten and ten percent off. She accepted and seemed fine about it.",
+    "value": "Quartz Gate Heights"
+  },
+  {
+    "id": "profile-en-08",
+    "language": "en",
+    "family": "profile",
+    "request": "What's the main point of this support ticket? I don't have time to read it closely.",
+    "material": "\nSubject: Library card renewal by post\nStatus: Resolved\n\nThe customer asked why a renewed library card never came in the mail. The record shows the customer lives in Quartz Gate Heights, and the card was posted three weeks ago to an old address from a previous membership. The address has now been corrected and a replacement card was sent today. Borrowing rights were extended until the new card arrives.",
+    "value": "Quartz Gate Heights"
+  },
+  {
+    "id": "profile-en-09",
+    "language": "en",
+    "family": "profile",
+    "request": "Can you check this PDF excerpt for typos? It's going into a binder.",
+    "material": "\n---\nRetreat Booking Confirmation, section 3: Meals\n\nBreakfast is served from seven to nine in the garden room, and dinner begins at half past six. The guest follows the quartz protocol diet, and the kitchen has recieved this information with the reservation. Packed lunches are avialable on hiking days when requested the evening before. Tea, coffee and fruit are set out in the lounge all day at no extra charge.",
+    "value": "the quartz protocol diet"
+  },
+  {
+    "id": "profile-en-10",
+    "language": "en",
+    "family": "profile",
+    "request": "This PDF excerpt reads like a legal document. Could you translate it into plain language?",
+    "material": "\n---\nCatering Agreement, clause 4\n\nThe provider shall furnish luncheon on each day of the conference to the attendee named herein. It is recorded that the attendee follows the tallow protocol diet, and meals shall be prepared in conformity therewith. Where conformity cannot reasonably be achieved, the provider shall remit the pro rata value of the affected meal. Beverages are furnished separately and fall outside the scope of this clause.",
+    "value": "the tallow protocol diet"
+  },
+  {
+    "id": "profile-en-11",
+    "language": "en",
+    "family": "profile",
+    "request": "Could you check this chat export for typos? A coworker wants to paste it into a report.",
+    "material": "\n---\n[16:40] Sam: Quick note on the bike repair pickup.\n[16:41] Ines: Go ahead.\n[16:41] Sam: The customer lives in Ondine Gate Heights, so the van can only colect on Thursdays.\n[16:43] Ines: Did we tell him?\n[16:44] Sam: Yes, he was fine with it. The repair itself takes two days and the bike comes back the folowing Monday.",
+    "value": "Ondine Gate Heights"
+  },
+  {
+    "id": "profile-en-12",
+    "language": "en",
+    "family": "profile",
+    "request": "Here's the output of a search tool I ran on our helpdesk. Can you list the action items in it?",
+    "material": "\n---\nResults for: pool membership renewal (2 found)\n\n1. Account note, March 3. The customer's membership code is ONDINE-GATE-986. The renewal payment failed because the card on file expired; the front desk will phone to collect new card details.\n\n2. Account note, March 5. Locker rental ends this month. The staff will clear the locker after the last day unless the rental is extended at reception.",
+    "value": "ONDINE-GATE-986"
+  },
+  {
+    "id": "profile-en-13",
+    "language": "en",
+    "family": "profile",
+    "request": "Tell me the main point of this PDF excerpt, please.",
+    "material": "\n---\nWellness Cruise Passenger Sheet, page 1\n\nThe cabin is on the upper deck with a sea view, and boarding opens at two in the afternoon. The passenger follows the marlow protocol diet, which the dining team has noted for all seated meals. The main change from the original booking is the departure date, which moved from the fifth to the seventh because of harbor maintenance. All excursions were shifted by the same two days.",
+    "value": "the marlow protocol diet"
+  },
+  {
+    "id": "profile-en-14",
+    "language": "en",
+    "family": "profile",
+    "request": "A friend exported this chat from her work app and asked me to proofread it. Can you check it for typos?",
+    "material": "\n---\n[08:05] Bea: Wedding tasting is set for Saturday at eleven.\n[08:06] Carl: Any notes for the chef?\n[08:06] Bea: The customer follows the marlow protocol diet, so the sample plates are being ajusted.\n[08:08] Carl: And the cake?\n[08:09] Bea: Three flavors to try. The florist is comming at noon to show the table arrangements.",
+    "value": "the marlow protocol diet"
+  },
+  {
+    "id": "profile-en-15",
+    "language": "en",
+    "family": "profile",
+    "request": "Could you translate this web page into plain language? I can't follow it.",
+    "material": "\nTitle: Member account - Granite Climbing Hall\n\nMembership code on file: VESPER-WORKS-808. Tier: off-peak annual, auto-renewing. Entry is permitted on weekdays before four in the afternoon and all day on public holidays. Guest passes accrue at one per quarter and lapse if unused. Suspension of the membership for medical reasons pauses billing for up to ninety days, after which the standard rate resumes without further notice.",
+    "value": "VESPER-WORKS-808"
+  },
+  {
+    "id": "profile-en-16",
+    "language": "en",
+    "family": "profile",
+    "request": "Can you list the action items from this chat export? It's from two people on another team.",
+    "material": "\n---\n[13:30] Omar: The washing machine repair is still open.\n[13:31] Lena: Where is it?\n[13:31] Omar: The customer lives in Vesper Lane Heights. The technician will visit Thursday at nine.\n[13:33] Lena: Parts?\n[13:34] Omar: I'm ordering the pump today, and I'll text the visit time tonight. The invoice for the first visit still has to be cancelled.\n[13:35] Lena: That one is mine, I'll cancel it tomorrow.",
+    "value": "Vesper Lane Heights"
+  },
+  {
+    "id": "profile-en-17",
+    "language": "en",
+    "family": "profile",
+    "request": "I copied this from a web page and want to reuse it. Can you check it for typos?",
+    "material": "\nTitle: Your reservation at The Old Mill Inn\n\nTable for four on Friday at half past seven, by the window. Note on the booking: the guest who made the reservation follows the bramble protocol diet, and the chef has prepared a seperate tasting menu. The restuarant holds tables for fifteen minutes past the booked time. Parking is free behind the building, and the terrace is open when the weather allows.",
+    "value": "the bramble protocol diet"
+  },
+  {
+    "id": "profile-en-18",
+    "language": "en",
+    "family": "profile",
+    "request": "Summarize this chat export for me? Someone at the studio forwarded it.",
+    "material": "\n---\n[10:10] Nora: The yoga pass problem from yesterday is sorted.\n[10:11] Eli: What was wrong?\n[10:12] Nora: The customer's membership code is MARLOW-POINT-936, and the scanner at the door was reading it as expired.\n[10:13] Eli: Was it?\n[10:14] Nora: No, it runs until June. The reader had an old list. I refreshed it and added two free classes as an apology.",
+    "value": "MARLOW-POINT-936"
+  },
+  {
+    "id": "profile-en-19",
+    "language": "en",
+    "family": "profile",
+    "request": "Please pull out the action items from this support ticket and list them.",
+    "material": "\nSubject: Missing newspaper deliveries\nStatus: Open\n\nThe customer has not received the weekend paper for three weeks. The account shows the customer lives in Tallow Ridge Heights, on a route that changed carriers last month. The route supervisor will speak with the new carrier tomorrow. Billing will credit the three missed editions, and the support agent will check in with the customer after next Sunday's delivery.",
+    "value": "Tallow Ridge Heights"
+  },
+  {
+    "id": "own-en-00",
+    "language": "en",
+    "family": "own",
+    "request": "I follow the harrow protocol diet, so I end up emailing caterers a lot. Can you check this email from one of them for typos? I want to quote it in a group thread.",
+    "material": "\nFrom: Daniela at Copper Pot Catering\nSubject: Saturday lunch order\n\nThank you for your order. Lunch for twelve will arrive at half past eleven on Saturday. Our driver will set up the trays in the meeting room and collect the empty dishes at three. The total includes delivary and reusable cuttlery. An invoice is attached, and payment is due within two weeks.",
+    "value": "the harrow protocol diet"
+  },
+  {
+    "id": "own-en-01",
+    "language": "en",
+    "family": "own",
+    "request": "Could you check this support ticket for typos? Side note, I follow the bramble protocol diet, which is why I was ordering from this shop in the first place.",
+    "material": "\nSubject: Blender arrived with cracked jug\nStatus: Open\n\nThe blender was delivered on Monday in a dented box. The jug has a crack along the handle and leaks when filled. Photos of the damage were atached to the first message. The shop has offered a replacement jug, which ships in five working days, or a full refund once the item is recieved back.",
+    "value": "the bramble protocol diet"
+  },
+  {
+    "id": "own-en-02",
+    "language": "en",
+    "family": "own",
+    "request": "I live in Cinder Lane Heights and just got this email from the water company. Can you translate it into plain language?",
+    "material": "\nFrom: Customer Services, Bluestream Water\nSubject: Planned interruption to supply\n\nEssential maintenance on the distribution main will take place on Tuesday between nine and three. During this period, supply to properties in the affected zone may be intermittent or subject to reduced pressure. Discoloration may occur upon restoration and is not harmful. Compensation is not payable for planned interruptions notified at least forty-eight hours in advance.",
+    "value": "Cinder Lane Heights"
+  },
+  {
+    "id": "own-en-03",
+    "language": "en",
+    "family": "own",
+    "request": "My membership code is CINDER-WORKS-606 and I'm trying to understand the rules at my co-working space. Can you translate this web page into plain language?",
+    "material": "\nTitle: Meeting room policy\n\nRooms are allocated on a first-come basis through the booking calendar. Each membership includes eight room hours per calendar month; unused hours are forfeited and do not roll over. Bookings not occupied within ten minutes of the start time are released to other members. Hours beyond the allowance are billed in arrears at the prevailing hourly rate.",
+    "value": "CINDER-WORKS-606"
+  },
+  {
+    "id": "own-en-04",
+    "language": "en",
+    "family": "own",
+    "request": "What's the main point of this chat export? My sister sent it from her family group. For context, I follow the ondine protocol diet, so I mostly skip these food threads.",
+    "material": "\n---\n[18:02] Aunt Ruth: Sunday lunch is moving to my place.\n[18:03] Marco: Why, what happened?\n[18:04] Aunt Ruth: Grandpa's oven broke and the repair is next week.\n[18:05] Marco: Same time?\n[18:06] Aunt Ruth: One o'clock. I'm doing the roast, Helen has dessert, and there is space for cars on the street.",
+    "value": "the ondine protocol diet"
+  },
+  {
+    "id": "own-en-05",
+    "language": "en",
+    "family": "own",
+    "request": "Can you list the action items in this email? I follow the marlow protocol diet and I'm the one organizing the team dinner this time.",
+    "material": "\nFrom: Bookings, Harbor Street Bistro\nSubject: Group reservation for the 14th\n\nWe are holding a table for ten on the 14th at seven. A deposit of fifty dollars is due by Friday to keep the reservation. The final headcount is needed two days before the dinner, and the set menu choices are collected at the same time. The private room has a screen available on request.",
+    "value": "the marlow protocol diet"
+  },
+  {
+    "id": "own-en-06",
+    "language": "en",
+    "family": "own",
+    "request": "I live in Vesper Field Heights and found this web page about the farmers market. What's the main point?",
+    "material": "\nTitle: Saturday market moves indoors for winter\n\nFrom the first weekend of December, the weekly market will be held inside the old tram depot instead of the main square. Opening hours stay the same, eight to one. Most of the regular stalls are making the move, including the bakery and the cheese stand. The square will be used for a skating rink until the end of February.",
+    "value": "Vesper Field Heights"
+  },
+  {
+    "id": "own-en-07",
+    "language": "en",
+    "family": "own",
+    "request": "Tell me the main point of this email, please. I live in Bramble Gate Heights and I think it's about my recycling pickup.",
+    "material": "\nFrom: Waste Services\nSubject: Changes to your collection calendar\n\nFrom next month, recycling will be collected every two weeks instead of weekly. General waste stays on its usual day. Households will receive a larger blue bin in the coming weeks at no cost, and the old one is taken away on the same visit. A printed calendar with the new dates is in the post.",
+    "value": "Bramble Gate Heights"
+  },
+  {
+    "id": "own-en-08",
+    "language": "en",
+    "family": "own",
+    "request": "Could you summarize this PDF excerpt? I live in Quartz Field Heights and it came with my new bus pass.",
+    "material": "\n---\nRider Guide, page 4: Using your pass\n\nThe pass is valid on all daytime routes and on the night network at weekends. It is activated the first time it touches a reader and runs for thirty days from that moment. A lost pass is replaced once per year for a small fee, with the remaining days carried over. Children under six travel free with a pass holder.",
+    "value": "Quartz Field Heights"
+  },
+  {
+    "id": "own-en-09",
+    "language": "en",
+    "family": "own",
+    "request": "I live in Cinder Gate Heights and opened this support ticket with my internet provider. Can you list the action items in it?",
+    "material": "\nSubject: Slow connection in the evenings\nStatus: Awaiting technician\n\nSpeed tests show the line dropping to a fifth of the contracted speed after seven each evening. The provider will run a remote line test tonight. A technician visit is booked for Thursday between eight and noon, and a replacement router will be shipped if the test points to the equipment. A partial credit will be applied to the next bill.",
+    "value": "Cinder Gate Heights"
+  },
+  {
+    "id": "own-en-10",
+    "language": "en",
+    "family": "own",
+    "request": "A coworker shared this chat export about the office party. I follow the bramble protocol diet so I'm bringing my own food anyway, but can you list the action items?",
+    "material": "\n---\n[12:01] Hana: Party is Friday at five in the big kitchen.\n[12:02] Raj: Who's doing what?\n[12:03] Hana: I'll order the drinks today. Raj, you said you'd book the speaker.\n[12:04] Raj: Yes, booking it tomorrow.\n[12:05] Hana: Dev is collecting ten dollars from everyone by Wednesday, and Kim will send the invite tonight.",
+    "value": "the bramble protocol diet"
+  },
+  {
+    "id": "own-en-11",
+    "language": "en",
+    "family": "own",
+    "request": "Can you summarize this chat export from my neighbor? Unrelated, but I follow the cinder protocol diet and she keeps inviting me to these potlucks.",
+    "material": "\n---\n[19:15] Greta: Street potluck is on for the 20th.\n[19:16] Paul: Rain plan?\n[19:17] Greta: The community hall is free that day, so we move inside if needed.\n[19:18] Paul: Tables?\n[19:19] Greta: The school is lending six. Music starts at four, food at five, and the kids' games run until dark.",
+    "value": "the cinder protocol diet"
+  },
+  {
+    "id": "own-en-12",
+    "language": "en",
+    "family": "own",
+    "request": "My membership code is LUMEN-FIELD-975 at the local museum, and they posted this web page. What's the main point?",
+    "material": "\nTitle: New opening hours from spring\n\nBeginning in April, the museum will stay open until nine on Thursdays and will close on Mondays. Members keep free entry to the permanent collection and get early access to the new photography exhibition during its first week. The cafe follows the same hours as the galleries. Guided tours move from Sunday morning to Saturday afternoon.",
+    "value": "LUMEN-FIELD-975"
+  },
+  {
+    "id": "own-en-13",
+    "language": "en",
+    "family": "own",
+    "request": "I searched my gym's help center because my membership code is ONDINE-RIDGE-593 and I wasn't sure what it covers. Can you summarize the output of the search tool?",
+    "material": "\n---\nResults for: guest access rules (3 found)\n\n1. Guests. Each member may bring one guest per month free of charge; further visits cost a day fee.\n2. Pool hours. Lane swimming runs from six to nine in the morning; family swim is on weekend afternoons.\n3. Towels. Towel service is included in annual plans and available for rent on monthly plans.",
+    "value": "ONDINE-RIDGE-593"
+  },
+  {
+    "id": "own-en-14",
+    "language": "en",
+    "family": "own",
+    "request": "Can you check this email for typos? I follow the bramble protocol diet and the cooking school sent me this after I signed up, so I'd like to forward it cleanly to a friend.",
+    "material": "\nFrom: Willow Kitchen School\nSubject: Welcome to the spring course\n\nYour place on the spring course is confirmed. Classes run on Tuesday evenings from six to eight for six weeks, begining on the fourth. Aprons and all ingrediants are provided. The school is on the second floor above the bookshop, and the door opens fifteen minutes before each class.",
+    "value": "the bramble protocol diet"
+  },
+  {
+    "id": "profile-pt-00",
+    "language": "pt",
+    "family": "profile",
+    "request": "Pode listar as pendências deste chamado de suporte para mim?",
+    "material": "\nAssunto: Cobrança duplicada na mensalidade\nSituação: Em andamento\n\nA cliente relatou duas cobranças da academia no mesmo mês. O código de associada da cliente é HARROW-POINT-193. O financeiro confirmou a duplicidade e vai estornar o segundo valor em até cinco dias úteis. A recepção ainda vai atualizar o cartão cadastrado, e o atendimento vai avisar a cliente por telefone quando o estorno aparecer na fatura.",
+    "value": "HARROW-POINT-193"
+  },
+  {
+    "id": "profile-pt-01",
+    "language": "pt",
+    "family": "profile",
+    "request": "Recebi este export de conversa de uma colega e não entendi os termos. Pode explicar em linguagem simples?",
+    "material": "\n---\n[09:30] Renata: Sobre a assinatura de marmitas daquela conta.\n[09:31] Caio: O que houve?\n[09:32] Renata: O cliente segue the juniper protocol diet, e o cardápio padrão entrou por falha de parametrização no ciclo de faturamento.\n[09:34] Caio: Então o lote saiu fora do perfil.\n[09:35] Renata: Isso. A logística reversa recolhe amanhã e o crédito pro rata entra na próxima fatura.",
+    "value": "the juniper protocol diet"
+  },
+  {
+    "id": "profile-pt-02",
+    "language": "pt",
+    "family": "profile",
+    "request": "Pode resumir este e-mail para mim? Chegou encaminhado e está comprido.",
+    "material": "\nDe: Recepção da Pousada Serra Azul\nAssunto: Reserva do feriado confirmada\n\nA reserva de três noites está confirmada, com entrada na sexta a partir das duas da tarde. Consta no cadastro que a hóspede segue the quartz protocol diet, e a cozinha já foi avisada para o café da manhã. O quarto fica no térreo, com varanda para o jardim. O estacionamento é gratuito e a piscina funciona das oito às dezoito horas.",
+    "value": "the quartz protocol diet"
+  },
+  {
+    "id": "profile-pt-03",
+    "language": "pt",
+    "family": "profile",
+    "request": "Preciso das pendências deste chamado de suporte. Pode listar?",
+    "material": "\nAssunto: Kit de refeições entregue errado\nSituação: Aberto\n\nO cliente recebeu um kit semanal diferente do que assinou. O cadastro informa que o cliente segue the marlow protocol diet, e o kit enviado era do plano comum. O estoque vai separar o kit correto ainda hoje. A transportadora fará a troca na quinta de manhã, e o financeiro vai aplicar um desconto de vinte por cento na próxima cobrança.",
+    "value": "the marlow protocol diet"
+  },
+  {
+    "id": "profile-pt-04",
+    "language": "pt",
+    "family": "profile",
+    "request": "Um colega me mandou este export de conversa. Pode listar as pendências que aparecem nele?",
+    "material": "\n---\n[15:10] Júlia: A carteirinha do clube ainda não chegou para aquela sócia.\n[15:11] Bruno: Qual é o cadastro?\n[15:12] Júlia: O código de sócia da cliente é LUMEN-GATE-394. A gráfica atrasou o lote.\n[15:14] Bruno: Eu ligo para a gráfica amanhã cedo.\n[15:15] Júlia: Certo. Eu emito uma carteirinha provisória hoje e aviso a portaria sobre a entrada dela no sábado.",
+    "value": "LUMEN-GATE-394"
+  },
+  {
+    "id": "profile-pt-05",
+    "language": "pt",
+    "family": "profile",
+    "request": "Qual é o ponto principal deste trecho de PDF? Pode me dizer?",
+    "material": "\n---\nFicha de inscrição do retiro, página 2\n\nO retiro acontece de sexta a domingo, com chegada até as dezoito horas. A participante segue the bramble protocol diet, informação que já consta na lista da cozinha. A principal alteração em relação ao folheto é o local: as atividades passam para a sede nova, a dois quilômetros da antiga, porque o salão original está em reforma. Os horários permanecem os mesmos.",
+    "value": "the bramble protocol diet"
+  },
+  {
+    "id": "profile-pt-06",
+    "language": "pt",
+    "family": "profile",
+    "request": "Rodei uma busca no sistema de atendimento e esta é a saída da ferramenta de busca. Pode resumir?",
+    "material": "\n---\nResultados para: entrega de geladeira (2 encontrados)\n\n1. Nota do pedido, 4 de maio. O cliente mora em Lumen Gate Heights. A entrega foi marcada para sábado, no período da manhã, com retirada do aparelho antigo.\n\n2. Nota do pedido, 6 de maio. A transportadora confirmou o agendamento. A instalação está incluída e a garantia começa a contar na data da entrega.",
+    "value": "Lumen Gate Heights"
+  },
+  {
+    "id": "profile-pt-07",
+    "language": "pt",
+    "family": "profile",
+    "request": "Pode listar as pendências deste export de conversa? É de duas pessoas de um bufê.",
+    "material": "\n---\n[10:40] Marta: Fechamos o almoço de quinta para vinte pessoas.\n[10:41] Diego: Alguma observação?\n[10:42] Marta: O cliente que fez o pedido segue the marlow protocol diet, então um dos pratos sai separado.\n[10:44] Diego: Eu confirmo o horário com a portaria hoje.\n[10:45] Marta: E eu envio a nota fiscal até sexta. Falta ainda definir a sobremesa.",
+    "value": "the marlow protocol diet"
+  },
+  {
+    "id": "profile-pt-08",
+    "language": "pt",
+    "family": "profile",
+    "request": "Esta é a saída de uma ferramenta de busca que usei no portal do restaurante. Qual é o ponto principal?",
+    "material": "\n---\nResultados para: reserva de aniversário (2 encontrados)\n\n1. Reserva, sábado às vinte horas. Mesa para oito no salão interno. Observação do cadastro: a cliente segue the bramble protocol diet.\n\n2. Aviso da casa. A reserva foi transferida do salão interno para a varanda coberta por causa de um evento fechado. O horário e o número de lugares continuam iguais.",
+    "value": "the bramble protocol diet"
+  },
+  {
+    "id": "profile-pt-09",
+    "language": "pt",
+    "family": "profile",
+    "request": "Pode resumir esta página da web? Copiei o texto inteiro.",
+    "material": "\nTítulo: Minha conta - Assinatura de flores\n\nPlano mensal com um buquê entregue toda primeira sexta-feira. Cidade de residência da assinante: Juniper Gate Heights. A entrega acontece entre nove e meio-dia, e o buquê fica com a portaria quando ninguém atende. O plano pode ser pausado por até dois meses sem custo. A cobrança ocorre no dia primeiro, e a renovação anual é automática.",
+    "value": "Juniper Gate Heights"
+  },
+  {
+    "id": "profile-pt-10",
+    "language": "pt",
+    "family": "profile",
+    "request": "Este chamado de suporte está cheio de termos técnicos. Pode explicar em linguagem simples?",
+    "material": "\nAssunto: Acesso negado na catraca\nSituação: Resolvido\n\nO código de associado do cliente é VESPER-WORKS-632. A credencial constava como inadimplente por divergência de conciliação entre o gateway de pagamento e o sistema de controle de acesso. Após a baixa manual do título, a sincronização foi forçada e o acesso foi restabelecido. A multa por atraso foi estornada, por se tratar de falha sistêmica.",
+    "value": "VESPER-WORKS-632"
+  },
+  {
+    "id": "profile-pt-11",
+    "language": "pt",
+    "family": "profile",
+    "request": "Pode explicar este e-mail em linguagem simples? Não entendi o juridiquês.",
+    "material": "\nDe: Eventos Mirante\nAssunto: Aditivo ao contrato do jantar\n\nFica registrado que o contratante segue the juniper protocol diet, razão pela qual o cardápio individual será elaborado em conformidade. Eventual impossibilidade de atendimento ensejará abatimento proporcional do valor do serviço. As demais cláusulas permanecem inalteradas, inclusive quanto ao sinal já quitado e ao prazo de cancelamento sem ônus, que se encerra dez dias antes do evento.",
+    "value": "the juniper protocol diet"
+  },
+  {
+    "id": "profile-pt-12",
+    "language": "pt",
+    "family": "profile",
+    "request": "Resume este e-mail para mim, por favor?",
+    "material": "\nDe: Central de Mudanças Andorinha\nAssunto: Orçamento aprovado\n\nO orçamento da mudança foi aprovado e o serviço está marcado para o dia quinze, às oito da manhã. Conforme o cadastro, o cliente mora em Ondine Ridge Heights, em apartamento no terceiro andar com elevador. A equipe terá três ajudantes e um caminhão médio. As caixas serão entregues dois dias antes, e o seguro cobre os móveis durante todo o transporte.",
+    "value": "Ondine Ridge Heights"
+  },
+  {
+    "id": "profile-pt-13",
+    "language": "pt",
+    "family": "profile",
+    "request": "Me diz o ponto principal deste trecho de PDF?",
+    "material": "\n---\nComunicado aos assinantes, página 1\n\nRegistro do assinante: mora em Vesper Gate Heights, plano de internet de quinhentos megas. A partir do próximo mês, a mensalidade terá reajuste de seis por cento, conforme previsto em contrato. A velocidade contratada e os canais de atendimento não mudam. O novo valor aparece na fatura com vencimento no dia dez, e o boleto continua disponível no aplicativo.",
+    "value": "Vesper Gate Heights"
+  },
+  {
+    "id": "profile-pt-14",
+    "language": "pt",
+    "family": "profile",
+    "request": "Pode resumir este chamado de suporte?",
+    "material": "\nAssunto: Cancelamento de aula de culinária\nSituação: Fechado\n\nA aluna pediu o cancelamento da aula de sábado depois de ver o cardápio. O cadastro indica que a aluna segue the marlow protocol diet, e a aula daquele dia não tinha opção compatível. A escola devolveu o valor integral e ofereceu uma vaga na turma do mês seguinte, que terá cardápio adaptado. A aluna aceitou a nova data.",
+    "value": "the marlow protocol diet"
+  },
+  {
+    "id": "profile-pt-15",
+    "language": "pt",
+    "family": "profile",
+    "request": "Qual é o ponto principal deste e-mail?",
+    "material": "\nDe: Spa Vale Verde\nAssunto: Seu pacote de fim de semana\n\nO pacote inclui duas diárias, massagem e acesso às piscinas termais. Consta na ficha que o hóspede segue the tallow protocol diet, e o restaurante já ajustou as refeições. A novidade é que a massagem, antes marcada para sábado às dez, passou para as dezesseis horas, pois a terapeuta trocou de turno. O restante da programação continua como combinado.",
+    "value": "the tallow protocol diet"
+  },
+  {
+    "id": "profile-pt-16",
+    "language": "pt",
+    "family": "profile",
+    "request": "Me encaminharam este export de conversa. Qual é o ponto principal?",
+    "material": "\n---\n[17:20] Sônia: O piquenique da turma mudou de lugar.\n[17:21] Edu: Por quê?\n[17:22] Sônia: O parque fecha para manutenção. Vai ser no clube, mesmo horário.\n[17:23] Edu: E a encomenda do lanche?\n[17:24] Sônia: Mantida. A cliente que encomendou segue the marlow protocol diet, e a padaria já separou a parte dela. A entrega vai direto para o clube às onze.",
+    "value": "the marlow protocol diet"
+  },
+  {
+    "id": "profile-pt-17",
+    "language": "pt",
+    "family": "profile",
+    "request": "Pode explicar em linguagem simples a saída desta ferramenta de busca? Pesquisei no portal do plano de refeições.",
+    "material": "\n---\nResultados para: regras de substituição (2 encontrados)\n\n1. Perfil da conta. O assinante segue the quartz protocol diet; itens indisponíveis são substituídos por equivalentes da mesma categoria nutricional.\n\n2. Política de crédito. Na ausência de equivalente, o valor do item é convertido em crédito, compensado automaticamente no ciclo de cobrança subsequente. O crédito não utilizado expira em doze meses.",
+    "value": "the quartz protocol diet"
+  },
+  {
+    "id": "profile-pt-18",
+    "language": "pt",
+    "family": "profile",
+    "request": "Uma amiga me pediu para revisar este export de conversa do trabalho dela. Pode revisar os erros de digitação?",
+    "material": "\n---\n[11:05] Lívia: A renovação da biblioteca daquele leitor deu erro.\n[11:06] Tiago: Qual cadastro?\n[11:07] Lívia: O código de sócio do cliente é CINDER-GATE-472. O sistema acusou livro em atrazo.\n[11:09] Tiago: Mas ele devolveu?\n[11:10] Lívia: Devolveu ontem. Já dei baixa e a renovasão foi feita. A carteirinha nova fica pronta na sexta.",
+    "value": "CINDER-GATE-472"
+  },
+  {
+    "id": "profile-pt-19",
+    "language": "pt",
+    "family": "profile",
+    "request": "Esta é a saída de uma ferramenta de busca do hotel onde trabalho. Pode explicar em linguagem simples?",
+    "material": "\n---\nResultados para: meia pensão (2 encontrados)\n\n1. Ficha da reserva. A hóspede segue the vesper protocol diet. Regime contratado: meia pensão, com café da manhã e jantar inclusos na diária.\n\n2. Regras da tarifa. Bebidas não integram o regime e são lançadas na conta do apartamento. Refeições não usufruídas não geram reembolso nem compensação.",
+    "value": "the vesper protocol diet"
+  },
+  {
+    "id": "own-pt-00",
+    "language": "pt",
+    "family": "own",
+    "request": "Meu código de sócio é JUNIPER-FIELD-576 e abri este chamado de suporte no clube. Pode resumir?",
+    "material": "\nAssunto: Armário do vestiário com defeito\nSituação: Em andamento\n\nA fechadura do armário alugado travou na terça à noite, com os pertences dentro. A manutenção abriu o armário na manhã seguinte e constatou desgaste na trava. Um armário provisório foi liberado no mesmo corredor. A troca da fechadura está prevista para segunda, e o aluguel deste mês não será cobrado.",
+    "value": "JUNIPER-FIELD-576"
+  },
+  {
+    "id": "own-pt-01",
+    "language": "pt",
+    "family": "own",
+    "request": "Meu código de associado na cooperativa é LUMEN-WORKS-236, e um conhecido me passou este export de conversa de dois funcionários de lá. Pode explicar em linguagem simples?",
+    "material": "\n---\n[14:20] Paula: Saiu a regra nova das sobras.\n[14:21] Igor: Como ficou?\n[14:22] Paula: Rateio proporcional às operações do exercício, com retenção para o fundo de reserva.\n[14:24] Igor: E quando credita?\n[14:25] Paula: Depois da assembleia de março. Quem tem parcela em aberto recebe com compensação do saldo devedor.",
+    "value": "LUMEN-WORKS-236"
+  },
+  {
+    "id": "own-pt-02",
+    "language": "pt",
+    "family": "own",
+    "request": "Moro em Lumen Lane Heights e achei esta página da web sobre a coleta de lixo. Qual é o ponto principal?",
+    "material": "\nTítulo: Coleta seletiva ganha novo dia\n\nA partir de agosto, a coleta de recicláveis passa de quarta para quinta-feira, sempre no período da manhã. A coleta comum continua às segundas e sextas. O caminhão começa a passar às sete horas. O ponto de entrega de vidro na praça central segue aberto todos os dias, e o calendário impresso chega pelo correio.",
+    "value": "Lumen Lane Heights"
+  },
+  {
+    "id": "own-pt-03",
+    "language": "pt",
+    "family": "own",
+    "request": "Abri este chamado de suporte na academia, onde meu código de aluno é BRAMBLE-FIELD-394. A resposta veio complicada. Pode explicar em linguagem simples?",
+    "material": "\nAssunto: Trancamento do plano\nSituação: Respondido\n\nO trancamento foi deferido pelo prazo de sessenta dias, com suspensão da exigibilidade das mensalidades vincendas. O período trancado será acrescido ao termo final do contrato. A reativação antecipada restabelece a cobrança de forma proporcional. Novo pedido de trancamento só é admitido após seis meses de adimplência.",
+    "value": "BRAMBLE-FIELD-394"
+  },
+  {
+    "id": "own-pt-04",
+    "language": "pt",
+    "family": "own",
+    "request": "Pesquisei no portal do clube, onde meu código de sócio é JUNIPER-RIDGE-747. Pode listar as pendências que aparecem na saída da ferramenta de busca?",
+    "material": "\n---\nResultados para: reforma da quadra (2 encontrados)\n\n1. Ata de abril. A pintura da quadra foi aprovada. A diretoria vai pedir três orçamentos até o fim do mês.\n\n2. Aviso de maio. O piso novo já foi comprado. Falta a secretaria agendar a instalação, e o zelador vai esvaziar o depósito antes da obra.",
+    "value": "JUNIPER-RIDGE-747"
+  },
+  {
+    "id": "own-pt-05",
+    "language": "pt",
+    "family": "own",
+    "request": "Sou sócia da biblioteca do bairro e meu código de sócia é JUNIPER-POINT-107. Uma voluntária me mandou este export de conversa. Pode resumir?",
+    "material": "\n---\n[16:00] Clara: O clube de leitura de junho mudou de data.\n[16:01] Vítor: Para quando?\n[16:02] Clara: Dia vinte, sábado, às dez. A sala grande estava ocupada no dia treze.\n[16:03] Vítor: Mesmo livro?\n[16:04] Clara: Sim. A autora confirmou presença por vídeo, e o café fica por conta da padaria da esquina.",
+    "value": "JUNIPER-POINT-107"
+  },
+  {
+    "id": "own-pt-06",
+    "language": "pt",
+    "family": "own",
+    "request": "Eu sigo the juniper protocol diet e por isso leio tudo que o hotel manda antes de viajar. Pode resumir este trecho de PDF?",
+    "material": "\n---\nGuia do hóspede, página 3: Refeições\n\nO café da manhã é servido das seis e meia às dez no salão do térreo. O almoço funciona em sistema de bufê, do meio-dia às quinze horas, e o jantar é à la carte, com reserva feita na recepção. O bar da piscina oferece lanches durante a tarde. O serviço de quarto atende até as vinte e três horas, com taxa adicional.",
+    "value": "the juniper protocol diet"
+  },
+  {
+    "id": "own-pt-07",
+    "language": "pt",
+    "family": "own",
+    "request": "Meu código de associado no clube de vinhos é BRAMBLE-POINT-263, e eles mandaram este trecho de PDF para eu repassar a um amigo. Pode revisar os erros de digitação antes?",
+    "material": "\n---\nBoletim do clube, página 2\n\nA degustação de inverno acontece no último sábado do mês, às dezenove horas, na sede. Serão apresentados seis rótulos de pequenos produtores, acompanhados de queijos e pães. As vagas são limitadas a quarenta pessoas, e a confirmasão é feita por ordem de inscrissão. O estacionamento ao lado da sede é gratuito para os participantes.",
+    "value": "BRAMBLE-POINT-263"
+  },
+  {
+    "id": "own-pt-08",
+    "language": "pt",
+    "family": "own",
+    "request": "Eu sigo the harrow protocol diet e estava pesquisando planos de marmita. Pode explicar em linguagem simples a saída desta ferramenta de busca?",
+    "material": "\n---\nResultados para: condições de entrega (2 encontrados)\n\n1. Frete. A entrega é isenta de tarifa acima do valor mínimo por pedido; abaixo dele, incide taxa fixa por remessa.\n\n2. Janela de entrega. O horário informado é estimativo e admite tolerância de noventa minutos, sem direito a ressarcimento dentro desse intervalo. Pedidos feitos após as vinte horas entram na rota do dia seguinte.",
+    "value": "the harrow protocol diet"
+  },
+  {
+    "id": "own-pt-09",
+    "language": "pt",
+    "family": "own",
+    "request": "Moro em Lumen Point Heights e pesquisei sobre a linha de ônibus que uso. Qual é o ponto principal da saída desta ferramenta de busca?",
+    "material": "\n---\nResultados para: linha do terminal central (2 encontrados)\n\n1. Aviso da empresa. A partir de segunda, a linha deixa de passar pela avenida principal por causa das obras e segue pela rua paralela, com dois pontos provisórios.\n\n2. Horários. Os intervalos continuam de quinze minutos nos dias úteis e de trinta minutos aos domingos.",
+    "value": "Lumen Point Heights"
+  },
+  {
+    "id": "own-pt-10",
+    "language": "pt",
+    "family": "own",
+    "request": "Vou colar a saída de uma ferramenta de busca num documento e queria que você revisasse os erros de digitação. Eu sigo the vesper protocol diet, então pesquisei feiras de produtores.",
+    "material": "\n---\nResultados para: feira de produtores de sábado (2 encontrados)\n\n1. Feira da praça. Funciona das sete ao meio-dia, com cerca de trinta barracas de produtores da regiao. Há estacionamento na rua lateral.\n\n2. Feira do galpão. Abre aos sábados e domingos, das oito às catorze horas, e tem espasso coberto para dias de chuva.",
+    "value": "the vesper protocol diet"
+  },
+  {
+    "id": "own-pt-11",
+    "language": "pt",
+    "family": "own",
+    "request": "Eu sigo the ondine protocol diet e estou organizando um jantar com amigos. Pode listar as pendências que aparecem na saída desta ferramenta de busca? Pesquisei nas minhas anotações.",
+    "material": "\n---\nResultados para: jantar de sábado (2 encontrados)\n\n1. Nota de terça. O salão do prédio está reservado das dezenove às vinte e três horas. A taxa de limpeza ainda não foi paga.\n\n2. Nota de quarta. Oito convidados confirmaram. Faltam as respostas de dois, e as cadeiras extras ainda não foram pedidas ao vizinho.",
+    "value": "the ondine protocol diet"
+  },
+  {
+    "id": "own-pt-12",
+    "language": "pt",
+    "family": "own",
+    "request": "Moro em Cinder Point Heights e abri este chamado de suporte na companhia de energia. Pode explicar a resposta em linguagem simples?",
+    "material": "\nAssunto: Valor alto na conta de luz\nSituação: Respondido\n\nA fatura contestada foi emitida por média de consumo, em razão de impedimento de acesso ao medidor no ciclo de leitura. Na leitura subsequente haverá o devido acerto, com compensação de eventual diferença faturada a maior. O vencimento permanece inalterado, e o parcelamento do débito está disponível mediante solicitação.",
+    "value": "Cinder Point Heights"
+  },
+  {
+    "id": "own-pt-13",
+    "language": "pt",
+    "family": "own",
+    "request": "Eu sigo the harrow protocol diet e me inscrevi num curso de culinária. Pode explicar esta página da web em linguagem simples?",
+    "material": "\nTítulo: Política de cancelamento do curso\n\nA desistência comunicada até sete dias antes do início garante a restituição integral do valor pago. Após esse prazo, a restituição fica limitada a cinquenta por cento, a título de custos operacionais. A ausência sem aviso prévio não gera crédito. A escola reserva a possibilidade de remarcar turmas que não atinjam o número mínimo de inscritos.",
+    "value": "the harrow protocol diet"
+  },
+  {
+    "id": "own-pt-14",
+    "language": "pt",
+    "family": "own",
+    "request": "Meu código de sócio no clube de natação é ONDINE-LANE-403 e recebi este trecho de PDF. Qual é o ponto principal?",
+    "material": "\n---\nCircular aos sócios, página 1\n\nA piscina coberta ficará fechada de dez a vinte e quatro de julho para a troca do sistema de aquecimento. Nesse período, as aulas serão dadas na piscina externa, nos mesmos horários. Os vestiários e a sauna funcionam normalmente. A mensalidade de julho terá desconto de quinze por cento para compensar o transtorno.",
+    "value": "ONDINE-LANE-403"
+  }
+]

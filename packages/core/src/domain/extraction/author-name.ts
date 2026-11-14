@@ -24,7 +24,9 @@ function plain(text: string): string {
 export function showAuthorNames(messages: readonly Message[]): readonly Message[] {
   return messages.map((message) => {
     const name = authorName(message);
-    return name === undefined ? message : { role: message.role, content: `${name}: ${message.content}`, name };
+    // Applied at both entries of the pipeline, so a line that already shows its name is left alone.
+    if (name === undefined || message.content.startsWith(`${name}: `)) return message;
+    return { ...message, content: `${name}: ${message.content}` };
   });
 }
 
