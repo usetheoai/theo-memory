@@ -8,7 +8,8 @@
  * shown to the extractor; nothing here measures retrieval.
  *
  * Environment: OPENAI_API_KEY, OPENAI_BASE_URL (optional), OPENAI_CHAT_MODEL,
- * UPDATE_DECISION_OUTPUT (report path), UPDATE_DECISION_REPETITIONS (default 3),
+ * UPDATE_DECISION_OUTPUT (report path), UPDATE_DECISION_PAIRS (file beside this one, default
+ * pairs.json), UPDATE_DECISION_REPETITIONS (default 3),
  * UPDATE_DECISION_CONCURRENCY (default 4).
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -54,7 +55,7 @@ const model = requiredEnv('OPENAI_CHAT_MODEL');
 const repetitions = positiveInteger('UPDATE_DECISION_REPETITIONS', 3);
 const concurrency = positiveInteger('UPDATE_DECISION_CONCURRENCY', 4);
 const here = dirname(fileURLToPath(import.meta.url));
-const pairs = JSON.parse(readFileSync(resolve(here, 'pairs.json'), 'utf8')) as UpdatePair[];
+const pairs = JSON.parse(readFileSync(resolve(here, process.env['UPDATE_DECISION_PAIRS'] ?? 'pairs.json'), 'utf8')) as UpdatePair[];
 
 async function runOne(pair: UpdatePair, repetition: number): Promise<Row> {
   const memory = await createLocalMemory({
