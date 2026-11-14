@@ -76,3 +76,22 @@ describe.each(['pairs-attributes.json', 'pairs-attributes-held-out.json'])('the 
     expect(pairs.filter((p) => p.dateB <= p.dateA || !p.textA.includes(p.valueA) || !p.textB.includes(p.valueB))).toEqual([]);
   });
 });
+
+describe('the committed pair set pairs-owner-confirmation.json', () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const pairs = JSON.parse(readFileSync(resolve(here, 'pairs-owner-confirmation.json'), 'utf8')) as UpdatePair[];
+
+  it('has 32 pairs of each of its labels, in English and Portuguese', () => {
+    const labels = new Set(pairs.map((p) => p.label));
+    expect([...labels].sort()).toEqual(['correction', 'other-person', 'switch', 'two-relatives', 'update', 'update-of-relative']);
+    for (const label of labels) {
+      const ofLabel = pairs.filter((p) => p.label === label);
+      expect(ofLabel.length, label).toBe(32);
+      expect(new Set(ofLabel.map((p) => p.language))).toEqual(new Set(['en', 'pt']));
+    }
+  });
+
+  it('writes the second note after the first and names each value in its note', () => {
+    expect(pairs.filter((p) => p.dateB <= p.dateA || !p.textA.includes(p.valueA) || !p.textB.includes(p.valueB))).toEqual([]);
+  });
+});
