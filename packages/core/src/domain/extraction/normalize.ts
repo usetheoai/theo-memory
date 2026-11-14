@@ -10,9 +10,19 @@
  * Extracted from `pipeline.ts` (single responsibility + keeps that over-budget file from
  * growing further).
  */
+import { ExtractedEvidenceSchema } from './prompt.js';
+
 const MISPLACED_DURABILITY_VALUES = new Set(['durable', 'temporary', 'tentative']);
 
-export function coerceExtractionResponse(raw: unknown): unknown {
+/** Why the evidence of one fact was repaired or dropped. */
+export type InvalidEvidenceReason = 'time_in_durability' | 'unreadable';
+
+/**
+ * `onInvalidEvidence` is called once for each fact whose evidence was repaired or dropped, so the
+ * caller can record it. One malformed evidence used to fail the parse of the whole response, and
+ * with it every other fact of the write (#277).
+ */
+export function coerceExtractionResponse(raw: unknown, onInvalidEvidence?: (reason: InvalidEvidenceReason) => void): unknown {
   const obj: unknown = typeof raw === 'string' ? JSON.parse(raw) : raw;
   if (
     obj !== null &&
@@ -46,6 +56,20 @@ export function coerceExtractionResponse(raw: unknown): unknown {
         ) {
           evidence.durability = evidence.kind;
           evidence.kind = 'inferred';
+        }
+        // The tense written where the durability goes: a plan or a past event. It is kept as
+        // what was said, with its tense; neither gets an expiry (ADR-0035).
+        const record = rec.evidence as Record<string, unknown>;
+        if ((record['durability'] === 'future' || record['durability'] === 'past') && record['time'] === undefined) {
+          record['time'] = record['durability'];
+          record['durability'] = 'temporary';
+          onInvalidEvidence?.('time_in_durability');
+        }
+        // Anything else that the schema would refuse is dropped from this fact alone. The fact
+        // stays, with unknown provenance, as a fact from an extractor that sends no evidence.
+        if (!ExtractedEvidenceSchema.safeParse(record).success) {
+          delete rec.evidence;
+          onInvalidEvidence?.('unreadable');
         }
       }
     });
