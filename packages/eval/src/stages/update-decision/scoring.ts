@@ -5,7 +5,8 @@
  * Two numbers matter and they pull against each other. `found` is how many real updates a
  * decision ends. `wronglyEnded` is how many notes that stay true it ends anyway: a count for
  * another year, another occasion of an event, a different attribute (also one at odds with the
- * first, `tension`), the same attribute of another person, one more value of something that
+ * first, `tension`), the same attribute of another person (the user and a relative, or two
+ * relatives), one more value of something that
  * admits several, or the same value said again. `switch` is one of several values given up for
  * another, which does end the first. A decision that ends everything finds every
  * update; the second number is what keeps it honest.
@@ -13,9 +14,9 @@
 import { wilsonInterval, type Interval } from '../../metrics/paired-comparison.js';
 
 export const PAIR_LABELS = [
-  'update', 'correction', 'switch',
+  'update', 'correction', 'switch', 'update-of-relative',
   'restated', 'different-attribute', 'different-period', 'another-occurrence', 'additional-value',
-  'tension', 'other-person', 'near-attribute',
+  'tension', 'other-person', 'two-relatives', 'near-attribute',
 ] as const;
 export type PairLabel = (typeof PAIR_LABELS)[number];
 
@@ -36,7 +37,7 @@ export interface UpdatePair {
 
 /** Whether the second note of a pair with this label makes the first one no longer true. */
 export function endsTheFirst(label: PairLabel): boolean {
-  return label === 'update' || label === 'correction' || label === 'switch';
+  return label === 'update' || label === 'correction' || label === 'switch' || label === 'update-of-relative';
 }
 
 export interface DecisionRate {
