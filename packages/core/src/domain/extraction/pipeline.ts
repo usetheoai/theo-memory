@@ -46,6 +46,7 @@ import { applyOntologyToEntities, boundedAutoCategory, buildPayload, embedBatchW
 import type { ExtractionDeps, Payload } from './pipeline-helpers.js';
 import { AdditiveExtractionSchema, generateAdditiveExtractionPrompt, type AdditiveExtractionResponse } from './prompt.js';
 import { splitReference } from './reference-material.js';
+import { recoverStatedFacts } from './stated-check.js';
 import { restoreNamedSubject } from './subject-restore.js';
 import { judgeSupersessions } from './supersession.js';
 import { DEFAULT_CATEGORY_TAXONOMY, classifyCategorySource } from './taxonomy.js';
@@ -280,6 +281,9 @@ async function extractAndPersist(
     extracted = parsed.memory;
     relations = parsed.relations;
     llmEntities = parsed.entities;
+    // An empty extraction gets one narrow second look: a question or a request can state a fact
+    // about its author, and the extractor returns nothing for most of them (#282).
+    if (extracted.length === 0) extracted = [...(await recoverStatedFacts(deps.llm, messages, tracer))];
     emitEvent(tracer, 'extraction_completed', { facts: extracted.length });
 
     // EG-4 fixes-cycle-1 (D3): fail-soft post-extraction language guard + correction.

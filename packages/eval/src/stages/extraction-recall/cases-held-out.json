@@ -1,0 +1,1562 @@
+[
+  {
+    "id": "plain-en-00",
+    "language": "en",
+    "shape": "plain",
+    "text": "I support Racing Velmora.",
+    "values": [
+      "Racing Velmora"
+    ]
+  },
+  {
+    "id": "plain-en-01",
+    "language": "en",
+    "shape": "plain",
+    "text": "I'm married to Edurne.",
+    "values": [
+      "Edurne"
+    ]
+  },
+  {
+    "id": "plain-en-02",
+    "language": "en",
+    "shape": "plain",
+    "text": "Atlético Tamoio is the football club I support.",
+    "values": [
+      "Atlético Tamoio"
+    ]
+  },
+  {
+    "id": "plain-en-03",
+    "language": "en",
+    "shape": "plain",
+    "text": "I live in Gormora.",
+    "values": [
+      "Gormora"
+    ]
+  },
+  {
+    "id": "plain-en-04",
+    "language": "en",
+    "shape": "plain",
+    "text": "I work at Ordina Textiles.",
+    "values": [
+      "Ordina Textiles"
+    ]
+  },
+  {
+    "id": "plain-en-05",
+    "language": "en",
+    "shape": "plain",
+    "text": "Falstead is where I live.",
+    "values": [
+      "Falstead"
+    ]
+  },
+  {
+    "id": "plain-en-06",
+    "language": "en",
+    "shape": "plain",
+    "text": "I'm a Racing Tamoio supporter.",
+    "values": [
+      "Racing Tamoio"
+    ]
+  },
+  {
+    "id": "plain-en-07",
+    "language": "en",
+    "shape": "plain",
+    "text": "My job is at Kestrel Foods.",
+    "values": [
+      "Kestrel Foods"
+    ]
+  },
+  {
+    "id": "plain-en-08",
+    "language": "en",
+    "shape": "plain",
+    "text": "I studied at Colégio Alvorada.",
+    "values": [
+      "Colégio Alvorada"
+    ]
+  },
+  {
+    "id": "plain-en-09",
+    "language": "en",
+    "shape": "plain",
+    "text": "I went to school at Colégio Tamoio.",
+    "values": [
+      "Colégio Tamoio"
+    ]
+  },
+  {
+    "id": "plain-en-10",
+    "language": "en",
+    "shape": "plain",
+    "text": "I have a dog named Juniper.",
+    "values": [
+      "Juniper"
+    ]
+  },
+  {
+    "id": "plain-en-11",
+    "language": "en",
+    "shape": "plain",
+    "text": "The football club I support is União Tamoio.",
+    "values": [
+      "União Tamoio"
+    ]
+  },
+  {
+    "id": "inside-request-en-00",
+    "language": "en",
+    "shape": "inside-request",
+    "text": "Could you help me draft a short bio for a conference badge? I studied at Colégio Halden and I'd like that mentioned in a single line.",
+    "values": [
+      "Colégio Halden"
+    ]
+  },
+  {
+    "id": "inside-request-en-01",
+    "language": "en",
+    "shape": "inside-request",
+    "text": "Can you help me plan a watch party for next Saturday? I support Racing Velmora, so the snacks and decorations should work around the match.",
+    "values": [
+      "Racing Velmora"
+    ]
+  },
+  {
+    "id": "inside-request-en-02",
+    "language": "en",
+    "shape": "inside-request",
+    "text": "Please help me write a cover letter for a junior analyst role; I studied at Instituto Bandeirantes, in case that's worth mentioning near the top.",
+    "values": [
+      "Instituto Bandeirantes"
+    ]
+  },
+  {
+    "id": "inside-request-en-03",
+    "language": "en",
+    "shape": "inside-request",
+    "text": "I need a few ideas for a birthday banner, and as a União Brenwick supporter I'd like it to have a football feel to it.",
+    "values": [
+      "União Brenwick"
+    ]
+  },
+  {
+    "id": "inside-request-en-04",
+    "language": "en",
+    "shape": "inside-request",
+    "text": "Could you compare monthly train passes with pay-as-you-go fares for me? I live in Falbrook and travel into the office three days a week.",
+    "values": [
+      "Falbrook"
+    ]
+  },
+  {
+    "id": "inside-request-en-05",
+    "language": "en",
+    "shape": "inside-request",
+    "text": "Help me prepare a two-minute introduction for an alumni dinner; I studied at Colégio Bandeirantes and haven't been back in fifteen years.",
+    "values": [
+      "Colégio Bandeirantes"
+    ]
+  },
+  {
+    "id": "inside-request-en-06",
+    "language": "en",
+    "shape": "inside-request",
+    "text": "Can you explain how stock options vest in plain terms? I work at Brillo Systems and just received my first grant letter.",
+    "values": [
+      "Brillo Systems"
+    ]
+  },
+  {
+    "id": "inside-request-en-07",
+    "language": "en",
+    "shape": "inside-request",
+    "text": "I'd like help drafting a polite email asking for a week of unpaid leave; I work at Novak Foods and have never asked for time off like this before.",
+    "values": [
+      "Novak Foods"
+    ]
+  },
+  {
+    "id": "inside-request-en-08",
+    "language": "en",
+    "shape": "inside-request",
+    "text": "Could you suggest a menu for an anniversary dinner at home? I'm married to Cosmin, who doesn't eat seafood, so please leave that out.",
+    "values": [
+      "Cosmin"
+    ]
+  },
+  {
+    "id": "inside-request-en-09",
+    "language": "en",
+    "shape": "inside-request",
+    "text": "Please help me plan a surprise weekend away. I'm married to Marek and want something quiet with good walking and no long drive.",
+    "values": [
+      "Marek"
+    ]
+  },
+  {
+    "id": "inside-request-en-10",
+    "language": "en",
+    "shape": "inside-request",
+    "text": "Can you put together a checklist for moving flats with a pet? I have a dog named Zarolha and I'm worried about how she'll handle the day.",
+    "values": [
+      "Zarolha"
+    ]
+  },
+  {
+    "id": "inside-request-en-11",
+    "language": "en",
+    "shape": "inside-request",
+    "text": "Could you explain the difference between a pension match and a bonus? I work at Halden Systems and the benefits booklet is confusing me.",
+    "values": [
+      "Halden Systems"
+    ]
+  },
+  {
+    "id": "aside-in-long-message-en-00",
+    "language": "en",
+    "shape": "aside-in-long-message",
+    "text": "I'm trying to plan a long weekend at the coast next month and I keep going back and forth on the details. The drive is about four hours, and the rental I found has a small fenced yard, which matters because my dog Wasabi is coming along and he hates being cooped up. I'd like to leave Friday after lunch and be back Monday evening. Could you sketch a rough schedule with a couple of stops on the way, plus a short packing list so I don't forget anything obvious?",
+    "values": [
+      "Wasabi"
+    ]
+  },
+  {
+    "id": "aside-in-long-message-en-01",
+    "language": "en",
+    "shape": "aside-in-long-message",
+    "text": "My washing machine started making a grinding noise during the spin cycle last week, and now it leaves the clothes soaking wet. I noticed it on Sunday when I was trying to get a load done before kickoff, since I support Sporting Tamoio and never miss a match. The machine is about seven years old, and the drum still turns by hand, though it feels a bit stiff. Is this likely a worn belt or a failing pump, and is it something I could reasonably fix myself with basic tools?",
+    "values": [
+      "Sporting Tamoio"
+    ]
+  },
+  {
+    "id": "aside-in-long-message-en-02",
+    "language": "en",
+    "shape": "aside-in-long-message",
+    "text": "I've been asked to give a ten-minute talk at a team offsite next Thursday, and I'm more nervous than I expected. The topic is how we cut our report turnaround time in half this year. I did some public speaking back when I studied at Academia Tamoio, but that was a long time ago and I'm rusty. I have the numbers and a few charts, but no real structure yet. Can you help me outline an opening, three main points and a closing that doesn't sound stiff or rehearsed?",
+    "values": [
+      "Academia Tamoio"
+    ]
+  },
+  {
+    "id": "aside-in-long-message-en-03",
+    "language": "en",
+    "shape": "aside-in-long-message",
+    "text": "I'm trying to get better at cooking on weeknights, because lately I end up ordering takeout four times a week. My days run late, since I work at Novak Labs and rarely get home before seven, so anything that needs more than thirty minutes is out. I have a decent oven, a big skillet and a rice cooker, and I don't mind eating the same thing twice. Could you suggest five dinners I can rotate, with a shopping list that keeps waste low and doesn't require unusual ingredients?",
+    "values": [
+      "Novak Labs"
+    ]
+  },
+  {
+    "id": "aside-in-long-message-en-04",
+    "language": "en",
+    "shape": "aside-in-long-message",
+    "text": "We're finally repainting the living room this month, and I'm stuck on colours. The room faces north, so it gets cool, flat light most of the day, and the floor is a dark walnut laminate. I lean toward a warm off-white, but my husband Oriol wants something bolder, maybe a deep green on one wall. The sofa is grey and the curtains are plain linen. Can you suggest two or three palettes that would satisfy both of us, and tell me which finish holds up best in a busy room?",
+    "values": [
+      "Oriol"
+    ]
+  },
+  {
+    "id": "aside-in-long-message-en-05",
+    "language": "en",
+    "shape": "aside-in-long-message",
+    "text": "My commute has become ridiculous since the roadworks began in the spring. The bus that used to take twenty-five minutes now crawls for nearly an hour each way, and it is packed by the second stop. I live in Marford, so cycling the whole distance is possible but hilly, and I'd arrive drenched in sweat. My office has a shower but no secure bike parking. Could you help me weigh an electric bike against a folding one, including rough costs, upkeep and what I'd need to carry every day?",
+    "values": [
+      "Marford"
+    ]
+  },
+  {
+    "id": "aside-in-long-message-en-06",
+    "language": "en",
+    "shape": "aside-in-long-message",
+    "text": "I'm hosting my parents for a week in early spring and want to plan it properly this time. Last visit we mostly sat around the flat, and everyone got restless by the third day. They're in their seventies, reasonably fit, and like gardens, markets and long lunches more than museums. Since I live in Aldmora, they'll arrive by train and we won't have a car. Can you help me draft a loose day-by-day plan with one main outing per day and plenty of time to rest in between?",
+    "values": [
+      "Aldmora"
+    ]
+  },
+  {
+    "id": "aside-in-long-message-en-07",
+    "language": "en",
+    "shape": "aside-in-long-message",
+    "text": "The tap in my kitchen has been dripping for two weeks and it's starting to drive me mad at night. It's a single-lever mixer, maybe ten years old, and the drip comes from the spout rather than the base. Plumbers are booked solid where I live, in Eskford, so I'd rather try fixing it myself this weekend. I have an adjustable wrench, a set of hex keys and some patience. Can you walk me through replacing the cartridge and warn me about the mistakes beginners usually make?",
+    "values": [
+      "Eskford"
+    ]
+  },
+  {
+    "id": "aside-in-long-message-en-08",
+    "language": "en",
+    "shape": "aside-in-long-message",
+    "text": "I've started running again after almost two years off, and my knees are complaining already. I do three short runs a week on pavement, about four kilometres each, in shoes that are probably worn out. Most mornings my dog Pumpernickel trots along beside me, so I can't go much faster than a gentle jog anyway. I'd like to build up to ten kilometres by the summer without hurting myself. Could you put together a gradual twelve-week plan and tell me what to look for when buying new shoes?",
+    "values": [
+      "Pumpernickel"
+    ]
+  },
+  {
+    "id": "aside-in-long-message-en-09",
+    "language": "en",
+    "shape": "aside-in-long-message",
+    "text": "I'm drafting a note to my landlord about the back fence, and I want it to sound firm but friendly. Two panels blew down in the storm last month and the gap has been covered with a sheet of plywood ever since. It matters to me because I have a dog named Maguila who spends most afternoons in the yard, and the plywood won't hold forever. The lease says exterior repairs are the owner's responsibility. Could you write a short message asking for a repair date and offering to let workers in?",
+    "values": [
+      "Maguila"
+    ]
+  },
+  {
+    "id": "aside-in-long-message-en-10",
+    "language": "en",
+    "shape": "aside-in-long-message",
+    "text": "I'm putting together a reading list for the winter and could use some guidance. I mostly read crime novels, but I'd like to try some history and popular science, nothing too academic. I studied at Instituto Alvorada, where we were made to read a lot of dense theory, and it put me off non-fiction for years. I read about thirty pages a night before bed. Can you suggest how to pick six approachable books, mixing topics, and how to order them so I don't lose momentum halfway through?",
+    "values": [
+      "Instituto Alvorada"
+    ]
+  },
+  {
+    "id": "aside-in-long-message-en-11",
+    "language": "en",
+    "shape": "aside-in-long-message",
+    "text": "My laptop has slowed to a crawl and I'm trying to decide whether to repair or replace it. It's five years old, takes three minutes to boot, and the fan roars whenever I open more than a few browser tabs. It's my personal machine, since I work at Ordina Labs and they give me a separate computer for the job, so I mainly use it for photos, banking and streaming. The battery lasts about an hour. Would adding memory and a new drive be worth it, or is it time to buy new?",
+    "values": [
+      "Ordina Labs"
+    ]
+  },
+  {
+    "id": "as-a-reason-en-00",
+    "language": "en",
+    "shape": "as-a-reason",
+    "text": "I can't travel for more than a couple of days at a time, since I have a dog named Farofa and nobody else to look after her.",
+    "values": [
+      "Farofa"
+    ]
+  },
+  {
+    "id": "as-a-reason-en-01",
+    "language": "en",
+    "shape": "as-a-reason",
+    "text": "Because I have a dog called Zarolha, I only look at flats that allow pets.",
+    "values": [
+      "Zarolha"
+    ]
+  },
+  {
+    "id": "as-a-reason-en-02",
+    "language": "en",
+    "shape": "as-a-reason",
+    "text": "I already know a fair amount of Latin because I studied at Academia Tamoio, where it was compulsory.",
+    "values": [
+      "Academia Tamoio"
+    ]
+  },
+  {
+    "id": "as-a-reason-en-03",
+    "language": "en",
+    "shape": "as-a-reason",
+    "text": "I've been taking evening cooking classes, since I'm married to Nilufar and want to make the dishes she grew up with.",
+    "values": [
+      "Nilufar"
+    ]
+  },
+  {
+    "id": "as-a-reason-en-04",
+    "language": "en",
+    "shape": "as-a-reason",
+    "text": "I get up at six every day because I have a dog named Pipoca who needs a walk before I leave.",
+    "values": [
+      "Pipoca"
+    ]
+  },
+  {
+    "id": "as-a-reason-en-05",
+    "language": "en",
+    "shape": "as-a-reason",
+    "text": "Saturday afternoons are off limits for me, since I support Atlético Halden and go to every home game.",
+    "values": [
+      "Atlético Halden"
+    ]
+  },
+  {
+    "id": "as-a-reason-en-06",
+    "language": "en",
+    "shape": "as-a-reason",
+    "text": "As I'm married to Nilufar, I'll need two tickets rather than one.",
+    "values": [
+      "Nilufar"
+    ]
+  },
+  {
+    "id": "as-a-reason-en-07",
+    "language": "en",
+    "shape": "as-a-reason",
+    "text": "I need a vacuum that copes with a lot of hair, because my dog Tofu sheds constantly.",
+    "values": [
+      "Tofu"
+    ]
+  },
+  {
+    "id": "as-a-reason-en-08",
+    "language": "en",
+    "shape": "as-a-reason",
+    "text": "Since I have a dog named Pumpernickel, I always book ground-floor rooms when I travel.",
+    "values": [
+      "Pumpernickel"
+    ]
+  },
+  {
+    "id": "as-a-reason-en-09",
+    "language": "en",
+    "shape": "as-a-reason",
+    "text": "I walk about eight kilometres a day because Tofu, my dog, refuses to settle without two long outings.",
+    "values": [
+      "Tofu"
+    ]
+  },
+  {
+    "id": "as-a-reason-en-10",
+    "language": "en",
+    "shape": "as-a-reason",
+    "text": "I get the alumni newsletter every month because I studied at Instituto Halden.",
+    "values": [
+      "Instituto Halden"
+    ]
+  },
+  {
+    "id": "as-a-reason-en-11",
+    "language": "en",
+    "shape": "as-a-reason",
+    "text": "I own far too many yellow scarves, since I support União Tamoio and buy a new one each season.",
+    "values": [
+      "União Tamoio"
+    ]
+  },
+  {
+    "id": "inside-a-question-en-00",
+    "language": "en",
+    "shape": "inside-a-question",
+    "text": "As someone who lives in Eskford, what should I consider before buying a car instead of relying on buses?",
+    "values": [
+      "Eskford"
+    ]
+  },
+  {
+    "id": "inside-a-question-en-01",
+    "language": "en",
+    "shape": "inside-a-question",
+    "text": "What's a sensible way for a União Brenwick supporter like me to budget for away games across a season?",
+    "values": [
+      "União Brenwick"
+    ]
+  },
+  {
+    "id": "inside-a-question-en-02",
+    "language": "en",
+    "shape": "inside-a-question",
+    "text": "Having studied at Colégio Alvorada, how should I list my schooling on an international job application?",
+    "values": [
+      "Colégio Alvorada"
+    ]
+  },
+  {
+    "id": "inside-a-question-en-03",
+    "language": "en",
+    "shape": "inside-a-question",
+    "text": "Given that I work at Brillo Labs, what questions should I ask HR before accepting an internal transfer?",
+    "values": [
+      "Brillo Labs"
+    ]
+  },
+  {
+    "id": "inside-a-question-en-04",
+    "language": "en",
+    "shape": "inside-a-question",
+    "text": "Since I live in Aldwick, how early should I start looking for a new rental before my lease ends?",
+    "values": [
+      "Aldwick"
+    ]
+  },
+  {
+    "id": "inside-a-question-en-05",
+    "language": "en",
+    "shape": "inside-a-question",
+    "text": "As an employee of Vantor Energy, how do I bring up a raise with my manager without sounding ungrateful?",
+    "values": [
+      "Vantor Energy"
+    ]
+  },
+  {
+    "id": "inside-a-question-en-06",
+    "language": "en",
+    "shape": "inside-a-question",
+    "text": "For someone who lives in Velbrook like I do, which is better value for home internet, fibre or a mobile router?",
+    "values": [
+      "Velbrook"
+    ]
+  },
+  {
+    "id": "inside-a-question-en-07",
+    "language": "en",
+    "shape": "inside-a-question",
+    "text": "How much exercise does my dog Maguila need each day now that he's turned ten?",
+    "values": [
+      "Maguila"
+    ]
+  },
+  {
+    "id": "inside-a-question-en-08",
+    "language": "en",
+    "shape": "inside-a-question",
+    "text": "As a lifelong União Velmora fan, how can I get my kids interested in football without pushing too hard?",
+    "values": [
+      "União Velmora"
+    ]
+  },
+  {
+    "id": "inside-a-question-en-09",
+    "language": "en",
+    "shape": "inside-a-question",
+    "text": "I've supported União Tamoio since childhood, so what would be a thoughtful way to mark my fortieth season as a fan?",
+    "values": [
+      "União Tamoio"
+    ]
+  },
+  {
+    "id": "inside-a-question-en-10",
+    "language": "en",
+    "shape": "inside-a-question",
+    "text": "What would be a good tenth-anniversary gift for my husband Marek, who already has every gadget imaginable?",
+    "values": [
+      "Marek"
+    ]
+  },
+  {
+    "id": "inside-a-question-en-11",
+    "language": "en",
+    "shape": "inside-a-question",
+    "text": "As a former student of Colégio Halden, how do I go about requesting an official copy of my transcripts?",
+    "values": [
+      "Colégio Halden"
+    ]
+  },
+  {
+    "id": "three-facts-en-00",
+    "language": "en",
+    "shape": "three-facts",
+    "text": "I work at Halden Systems, in the finance team. I've supported Racing Velmora for as long as I can remember, and I studied at Instituto Bandeirantes.",
+    "values": [
+      "Halden Systems",
+      "Racing Velmora",
+      "Instituto Bandeirantes"
+    ]
+  },
+  {
+    "id": "three-facts-en-01",
+    "language": "en",
+    "shape": "three-facts",
+    "text": "My job is at Vantor Labs and I live in Aldstead. On weekends you'll find me cheering for União Halden, the club I've always supported.",
+    "values": [
+      "Vantor Labs",
+      "Aldstead",
+      "União Halden"
+    ]
+  },
+  {
+    "id": "three-facts-en-02",
+    "language": "en",
+    "shape": "three-facts",
+    "text": "I live in Marmora and work at Novak Labs. I'm married to Teodora.",
+    "values": [
+      "Marmora",
+      "Novak Labs",
+      "Teodora"
+    ]
+  },
+  {
+    "id": "three-facts-en-03",
+    "language": "en",
+    "shape": "three-facts",
+    "text": "I have a dog named Biscoito. I support União Castead, and I studied at Academia Bandeirantes.",
+    "values": [
+      "Biscoito",
+      "União Castead",
+      "Academia Bandeirantes"
+    ]
+  },
+  {
+    "id": "three-facts-en-04",
+    "language": "en",
+    "shape": "three-facts",
+    "text": "I'm married to Bettina and I live in Velbrook. I work at Sorrel Logistics.",
+    "values": [
+      "Bettina",
+      "Sorrel Logistics",
+      "Velbrook"
+    ]
+  },
+  {
+    "id": "three-facts-en-05",
+    "language": "en",
+    "shape": "three-facts",
+    "text": "I studied at Instituto Kestrel. I'm married to Edurne, and I have a dog named Pumpernickel.",
+    "values": [
+      "Instituto Kestrel",
+      "Edurne",
+      "Pumpernickel"
+    ]
+  },
+  {
+    "id": "three-facts-en-06",
+    "language": "en",
+    "shape": "three-facts",
+    "text": "A few things about me: I support Sporting Castead and my dog is called Juniper. I'm also married, and my wife's name is Nilufar.",
+    "values": [
+      "Sporting Castead",
+      "Juniper",
+      "Nilufar"
+    ]
+  },
+  {
+    "id": "three-facts-en-07",
+    "language": "en",
+    "shape": "three-facts",
+    "text": "I'm married to Edurne and I live in Casford. My dog's name is Zarolha.",
+    "values": [
+      "Edurne",
+      "Zarolha",
+      "Casford"
+    ]
+  },
+  {
+    "id": "three-facts-en-08",
+    "language": "en",
+    "shape": "three-facts",
+    "text": "I work at Kestrel Textiles and live in Casford. My football club is Sporting Castead.",
+    "values": [
+      "Kestrel Textiles",
+      "Casford",
+      "Sporting Castead"
+    ]
+  },
+  {
+    "id": "three-facts-en-09",
+    "language": "en",
+    "shape": "three-facts",
+    "text": "I live in Tormora. My husband is Lucjan, and I have a dog named Farofa.",
+    "values": [
+      "Tormora",
+      "Lucjan",
+      "Farofa"
+    ]
+  },
+  {
+    "id": "three-facts-en-10",
+    "language": "en",
+    "shape": "three-facts",
+    "text": "Edurne and I have been married for six years. I live in Dunholm, and I'm a União Tamoio supporter.",
+    "values": [
+      "Edurne",
+      "Dunholm",
+      "União Tamoio"
+    ]
+  },
+  {
+    "id": "three-facts-en-11",
+    "language": "en",
+    "shape": "three-facts",
+    "text": "I studied at Colégio Bandeirantes and now work at Halden Labs. I've been a União Tamoio supporter all my life.",
+    "values": [
+      "Colégio Bandeirantes",
+      "Halden Labs",
+      "União Tamoio"
+    ]
+  },
+  {
+    "id": "question-without-fact-en-00",
+    "language": "en",
+    "shape": "question-without-fact",
+    "text": "Is Dunhaven considered a good place to live?",
+    "values": [
+      "Dunhaven"
+    ]
+  },
+  {
+    "id": "question-without-fact-en-01",
+    "language": "en",
+    "shape": "question-without-fact",
+    "text": "Does Academia Bandeirantes have a good reputation?",
+    "values": [
+      "Academia Bandeirantes"
+    ]
+  },
+  {
+    "id": "question-without-fact-en-02",
+    "language": "en",
+    "shape": "question-without-fact",
+    "text": "Is Colégio Bandeirantes known for strong academics?",
+    "values": [
+      "Colégio Bandeirantes"
+    ]
+  },
+  {
+    "id": "question-without-fact-en-03",
+    "language": "en",
+    "shape": "question-without-fact",
+    "text": "Is Pumpernickel a good name for a dog?",
+    "values": [
+      "Pumpernickel"
+    ]
+  },
+  {
+    "id": "question-without-fact-en-04",
+    "language": "en",
+    "shape": "question-without-fact",
+    "text": "What is the cost of living like in Gorby?",
+    "values": [
+      "Gorby"
+    ]
+  },
+  {
+    "id": "question-without-fact-en-05",
+    "language": "en",
+    "shape": "question-without-fact",
+    "text": "How did Sporting Castead do last season?",
+    "values": [
+      "Sporting Castead"
+    ]
+  },
+  {
+    "id": "question-without-fact-en-06",
+    "language": "en",
+    "shape": "question-without-fact",
+    "text": "Is Brillo Logistics a good company to work for?",
+    "values": [
+      "Brillo Logistics"
+    ]
+  },
+  {
+    "id": "question-without-fact-en-07",
+    "language": "en",
+    "shape": "question-without-fact",
+    "text": "Would Juniper be a suitable name for a puppy?",
+    "values": [
+      "Juniper"
+    ]
+  },
+  {
+    "id": "question-without-fact-en-08",
+    "language": "en",
+    "shape": "question-without-fact",
+    "text": "Where does the name Marek come from?",
+    "values": [
+      "Marek"
+    ]
+  },
+  {
+    "id": "question-without-fact-en-09",
+    "language": "en",
+    "shape": "question-without-fact",
+    "text": "What does the name Ilse mean?",
+    "values": [
+      "Ilse"
+    ]
+  },
+  {
+    "id": "question-without-fact-en-10",
+    "language": "en",
+    "shape": "question-without-fact",
+    "text": "Is Teodora a common name, and what is its origin?",
+    "values": [
+      "Teodora"
+    ]
+  },
+  {
+    "id": "question-without-fact-en-11",
+    "language": "en",
+    "shape": "question-without-fact",
+    "text": "Which country is the name Cosmin most associated with?",
+    "values": [
+      "Cosmin"
+    ]
+  },
+  {
+    "id": "plain-pt-00",
+    "language": "pt",
+    "shape": "plain",
+    "text": "Trabalho na Sorrel Energy.",
+    "values": [
+      "Sorrel Energy"
+    ]
+  },
+  {
+    "id": "plain-pt-01",
+    "language": "pt",
+    "shape": "plain",
+    "text": "Estudei na Academia Tamoio.",
+    "values": [
+      "Academia Tamoio"
+    ]
+  },
+  {
+    "id": "plain-pt-02",
+    "language": "pt",
+    "shape": "plain",
+    "text": "Sou casada com Marek.",
+    "values": [
+      "Marek"
+    ]
+  },
+  {
+    "id": "plain-pt-03",
+    "language": "pt",
+    "shape": "plain",
+    "text": "Sou casado com Nilufar.",
+    "values": [
+      "Nilufar"
+    ]
+  },
+  {
+    "id": "plain-pt-04",
+    "language": "pt",
+    "shape": "plain",
+    "text": "Torço para o União Brenwick.",
+    "values": [
+      "União Brenwick"
+    ]
+  },
+  {
+    "id": "plain-pt-05",
+    "language": "pt",
+    "shape": "plain",
+    "text": "Edurne é a minha esposa.",
+    "values": [
+      "Edurne"
+    ]
+  },
+  {
+    "id": "plain-pt-06",
+    "language": "pt",
+    "shape": "plain",
+    "text": "Fiz meus estudos no Instituto Alvorada.",
+    "values": [
+      "Instituto Alvorada"
+    ]
+  },
+  {
+    "id": "plain-pt-07",
+    "language": "pt",
+    "shape": "plain",
+    "text": "Moro em Torstead.",
+    "values": [
+      "Torstead"
+    ]
+  },
+  {
+    "id": "plain-pt-08",
+    "language": "pt",
+    "shape": "plain",
+    "text": "Tenho um cachorro chamado Zarolha.",
+    "values": [
+      "Zarolha"
+    ]
+  },
+  {
+    "id": "plain-pt-09",
+    "language": "pt",
+    "shape": "plain",
+    "text": "Aroha e eu somos casados.",
+    "values": [
+      "Aroha"
+    ]
+  },
+  {
+    "id": "plain-pt-10",
+    "language": "pt",
+    "shape": "plain",
+    "text": "Estudei no Instituto Tamoio.",
+    "values": [
+      "Instituto Tamoio"
+    ]
+  },
+  {
+    "id": "plain-pt-11",
+    "language": "pt",
+    "shape": "plain",
+    "text": "Sou casado com a Teodora.",
+    "values": [
+      "Teodora"
+    ]
+  },
+  {
+    "id": "inside-request-pt-00",
+    "language": "pt",
+    "shape": "inside-request",
+    "text": "Você pode me ajudar a escrever um cartão de aniversário de casamento? Sou casado com Nilufar e queria algo simples, sem frases prontas.",
+    "values": [
+      "Nilufar"
+    ]
+  },
+  {
+    "id": "inside-request-pt-01",
+    "language": "pt",
+    "shape": "inside-request",
+    "text": "Preciso comparar planos de internet residencial; moro em Velmora e faço home office três dias por semana, então a estabilidade pesa mais que a velocidade.",
+    "values": [
+      "Velmora"
+    ]
+  },
+  {
+    "id": "inside-request-pt-02",
+    "language": "pt",
+    "shape": "inside-request",
+    "text": "Me ajuda a planejar uma mudança para o mês que vem? Moro em Dunmora, num apartamento de dois quartos, e nunca contratei transportadora.",
+    "values": [
+      "Dunmora"
+    ]
+  },
+  {
+    "id": "inside-request-pt-03",
+    "language": "pt",
+    "shape": "inside-request",
+    "text": "Pode me explicar como funciona o banco de horas? Trabalho na Halden Logistics e meu contracheque veio com um desconto que não entendi.",
+    "values": [
+      "Halden Logistics"
+    ]
+  },
+  {
+    "id": "inside-request-pt-04",
+    "language": "pt",
+    "shape": "inside-request",
+    "text": "Queria ideias para um jantar de sexta em casa: sou casada com Aroha, que não come carne, e quero um cardápio que agrade aos dois.",
+    "values": [
+      "Aroha"
+    ]
+  },
+  {
+    "id": "inside-request-pt-05",
+    "language": "pt",
+    "shape": "inside-request",
+    "text": "Monte para mim uma lista de petiscos para assistir ao jogo de domingo; torço para o Racing Castead e vou receber seis amigos em casa.",
+    "values": [
+      "Racing Castead"
+    ]
+  },
+  {
+    "id": "inside-request-pt-06",
+    "language": "pt",
+    "shape": "inside-request",
+    "text": "Você consegue redigir um e-mail pedindo férias para janeiro? Trabalho na Ordina Systems e preciso avisar meu gestor com dois meses de antecedência.",
+    "values": [
+      "Ordina Systems"
+    ]
+  },
+  {
+    "id": "inside-request-pt-07",
+    "language": "pt",
+    "shape": "inside-request",
+    "text": "Preciso de um roteiro de passeio de um dia em que animais sejam bem-vindos; tenho um cachorro chamado Pumpernickel e ele vai junto.",
+    "values": [
+      "Pumpernickel"
+    ]
+  },
+  {
+    "id": "inside-request-pt-08",
+    "language": "pt",
+    "shape": "inside-request",
+    "text": "Me explica como escolher uma ração de boa qualidade? Tenho um cachorro chamado Farofa, já idoso, e o veterinário pediu para trocar a marca.",
+    "values": [
+      "Farofa"
+    ]
+  },
+  {
+    "id": "inside-request-pt-09",
+    "language": "pt",
+    "shape": "inside-request",
+    "text": "Pode me ajudar a escrever uma mensagem para o grupo da família combinando o churrasco do dia da final? Torço para o Sporting Tamoio e quero todo mundo aqui em casa.",
+    "values": [
+      "Sporting Tamoio"
+    ]
+  },
+  {
+    "id": "inside-request-pt-10",
+    "language": "pt",
+    "shape": "inside-request",
+    "text": "Compare para mim o custo de ir de carro e de ônibus para o trabalho; moro em Casbrook e o trajeto tem uns vinte quilômetros.",
+    "values": [
+      "Casbrook"
+    ]
+  },
+  {
+    "id": "inside-request-pt-11",
+    "language": "pt",
+    "shape": "inside-request",
+    "text": "Quero montar uma rotina leve de exercícios para as manhãs; tenho um cachorro chamado Pipoca e já caminho com ele meia hora por dia.",
+    "values": [
+      "Pipoca"
+    ]
+  },
+  {
+    "id": "aside-in-long-message-pt-00",
+    "language": "pt",
+    "shape": "aside-in-long-message",
+    "text": "Estou organizando o aniversário de sessenta anos da minha mãe e quero fazer uma surpresa sem exagero. A ideia é um almoço no domingo, para umas vinte pessoas, com comida simples e uma mesa de doces. Como moro em Dunhaven e a maior parte da família vem de longe, preciso avisar todo mundo com pelo menos um mês de antecedência. O salão do prédio comporta esse número, mas não tem cozinha equipada. Você me ajuda a montar um cronograma de preparativos e uma lista do que contratar e do que fazer em casa?",
+    "values": [
+      "Dunhaven"
+    ]
+  },
+  {
+    "id": "aside-in-long-message-pt-01",
+    "language": "pt",
+    "shape": "aside-in-long-message",
+    "text": "Minha geladeira começou a fazer um barulho estranho, um estalo seguido de um zumbido que dura alguns minutos. Ela tem uns oito anos e continua gelando bem, mas o congelador anda acumulando gelo nas paredes mais rápido do que antes. Sou casada com Oriol, e ele acha que é só descongelar e pronto, mas eu desconfio da borracha da porta. Já limpei a grade de trás e nivelei os pés. O que mais posso verificar antes de chamar um técnico, e quanto costuma custar esse tipo de conserto?",
+    "values": [
+      "Oriol"
+    ]
+  },
+  {
+    "id": "aside-in-long-message-pt-02",
+    "language": "pt",
+    "shape": "aside-in-long-message",
+    "text": "Quero começar uma horta pequena na varanda e não sei por onde ir. O espaço tem uns dois metros de comprimento, pega sol direto de manhã e sombra à tarde. Moro em Falstead, num apartamento do quarto andar, então venta bastante e os vasos leves costumam tombar. Pensei em temperos, tomate-cereja e talvez alface. Tenho pouco tempo durante a semana, só consigo regar cedo. Pode me indicar quais plantas combinam com essas condições, que tamanho de vaso usar e com que frequência adubar?",
+    "values": [
+      "Falstead"
+    ]
+  },
+  {
+    "id": "aside-in-long-message-pt-03",
+    "language": "pt",
+    "shape": "aside-in-long-message",
+    "text": "Vou receber quatro amigos para jantar no sábado e queria fazer um risoto, mas nunca acertei o ponto. Ou fica empapado, ou o arroz fica duro no meio. Costumo me distrair na cozinha, porque tenho um cachorro chamado Tofu que fica pedindo comida no meu pé o tempo todo. Pensei em um risoto de cogumelos com um pouco de vinho branco e queijo no final. Você pode me passar as proporções para cinco pessoas, o tempo de cada etapa e algum truque para não perder o ponto?",
+    "values": [
+      "Tofu"
+    ]
+  },
+  {
+    "id": "aside-in-long-message-pt-04",
+    "language": "pt",
+    "shape": "aside-in-long-message",
+    "text": "Estou reescrevendo meu currículo porque quero mudar de área, saindo de vendas para análise de dados. Tenho oito anos de experiência comercial e fiz dois cursos livres de estatística no último ano. Estudei no Instituto Bandeirantes, mas a minha formação é em administração, então não sei quanto destaque dar a ela. O documento atual tem três páginas, o que me parece demais. Você consegue sugerir uma estrutura mais enxuta, dizer o que cortar e como apresentar a experiência antiga de um jeito que faça sentido para a nova área?",
+    "values": [
+      "Instituto Bandeirantes"
+    ]
+  },
+  {
+    "id": "aside-in-long-message-pt-05",
+    "language": "pt",
+    "shape": "aside-in-long-message",
+    "text": "Estamos planejando uma viagem de carro de dez dias nas férias de julho e eu fiquei com a parte do roteiro. A ideia é passar por serra e litoral, sem dirigir mais de quatro horas por dia. Sou casado com Hakon, que enjoa fácil em estrada sinuosa, então preciso evitar os trechos com muita curva ou ao menos encaixar paradas frequentes. Vamos levar barraca, mas queremos alternar com pousadas. Como eu deveria distribuir os dias entre deslocamento e descanso, e o que não pode faltar no carro?",
+    "values": [
+      "Hakon"
+    ]
+  },
+  {
+    "id": "aside-in-long-message-pt-06",
+    "language": "pt",
+    "shape": "aside-in-long-message",
+    "text": "Meu chuveiro elétrico parou de esquentar ontem à noite, bem no meio do banho. A água sai normalmente, o disjuntor não caiu, e a chave de temperatura parece girar sem resistência. Aqui onde eu moro, em Marbrook, o inverno é pesado, então não dá para ficar muitos dias assim. O aparelho tem uns três anos e nunca troquei a resistência. Tenho chave de fenda, fita isolante e um multímetro emprestado. Dá para eu mesmo fazer a troca com segurança? Quais cuidados preciso tomar antes de abrir o chuveiro?",
+    "values": [
+      "Marbrook"
+    ]
+  },
+  {
+    "id": "aside-in-long-message-pt-07",
+    "language": "pt",
+    "shape": "aside-in-long-message",
+    "text": "Preciso de ajuda para organizar as finanças de casa, que viraram uma bagunça depois da reforma. Temos três cartões, um financiamento e várias assinaturas que ninguém lembra de cancelar. Eu cuido das contas fixas e meu marido, o Oriol, fica com mercado e combustível, mas no fim do mês nunca sabemos quanto sobrou. Já tentei planilha e desisti na segunda semana. Existe algum método simples, que tome no máximo meia hora por semana, para acompanhar os gastos e separar uma reserva sem depender de muita disciplina?",
+    "values": [
+      "Oriol"
+    ]
+  },
+  {
+    "id": "aside-in-long-message-pt-08",
+    "language": "pt",
+    "shape": "aside-in-long-message",
+    "text": "Fui convidada para falar sobre a minha profissão numa feira de carreiras para adolescentes, e não faço ideia de como prender a atenção deles. Sou engenheira civil e lido com obras de saneamento, um assunto que não parece empolgante à primeira vista. Estudei no Colégio Kestrel e lembro que as palestras desse tipo me davam sono, então quero fugir do formato tradicional. Terei quinze minutos e um projetor. Que tipo de história ou demonstração funcionaria com esse público, e como encerrar deixando espaço para perguntas?",
+    "values": [
+      "Colégio Kestrel"
+    ]
+  },
+  {
+    "id": "aside-in-long-message-pt-09",
+    "language": "pt",
+    "shape": "aside-in-long-message",
+    "text": "Quero aprender a fazer pão de fermentação natural e já matei dois fermentos nas últimas semanas. O primeiro ficou com cheiro de acetona e o segundo simplesmente parou de crescer. Minha cozinha é fria e uso farinha branca comum. Sou casada com Marek, que adora pão de casca grossa, e prometi um para o aniversário dele, daqui a um mês. Tenho balança, uma panela de ferro e forno a gás. Você me explica como alimentar o fermento corretamente e monta um calendário realista até lá?",
+    "values": [
+      "Marek"
+    ]
+  },
+  {
+    "id": "aside-in-long-message-pt-10",
+    "language": "pt",
+    "shape": "aside-in-long-message",
+    "text": "Ando dormindo mal e queria rever a minha rotina da noite. Deito por volta da meia-noite, mas fico rolando na cama até quase duas, com a cabeça nas pendências do dia seguinte. Trabalho na Novak Labs, em um horário que começa cedo, então acordo às seis de qualquer jeito e passo o dia cansado. Tomo café até o fim da tarde e costumo ver séries no celular antes de deitar. Que mudanças pequenas você sugere para eu pegar no sono mais rápido, começando pelas mais fáceis de manter?",
+    "values": [
+      "Novak Labs"
+    ]
+  },
+  {
+    "id": "aside-in-long-message-pt-11",
+    "language": "pt",
+    "shape": "aside-in-long-message",
+    "text": "Estou pensando em voltar a estudar inglês depois de muitos anos parado. Consigo ler textos técnicos sem grande esforço, mas travo completamente quando preciso falar em reunião. Estudei na Academia Tamoio, onde o ensino de idiomas era quase todo voltado para gramática, e acho que vem daí a minha dificuldade com conversação. Tenho uns quarenta minutos livres por dia, geralmente no transporte. Vale mais a pena pagar aulas particulares ou montar uma rotina sozinho? Como eu mediria o progresso ao longo de três meses?",
+    "values": [
+      "Academia Tamoio"
+    ]
+  },
+  {
+    "id": "as-a-reason-pt-00",
+    "language": "pt",
+    "shape": "as-a-reason",
+    "text": "Como estudei no Instituto Kestrel, já tenho uma boa base de desenho técnico.",
+    "values": [
+      "Instituto Kestrel"
+    ]
+  },
+  {
+    "id": "as-a-reason-pt-01",
+    "language": "pt",
+    "shape": "as-a-reason",
+    "text": "Não marco nada para as noites de quarta, já que torço para o Sporting Halden e não perco um jogo.",
+    "values": [
+      "Sporting Halden"
+    ]
+  },
+  {
+    "id": "as-a-reason-pt-02",
+    "language": "pt",
+    "shape": "as-a-reason",
+    "text": "Preciso de um sofá com capa lavável porque tenho um cachorro chamado Wasabi que solta muito pelo.",
+    "values": [
+      "Wasabi"
+    ]
+  },
+  {
+    "id": "as-a-reason-pt-03",
+    "language": "pt",
+    "shape": "as-a-reason",
+    "text": "Como moro em Gorby, levo mais de uma hora para chegar ao aeroporto.",
+    "values": [
+      "Gorby"
+    ]
+  },
+  {
+    "id": "as-a-reason-pt-04",
+    "language": "pt",
+    "shape": "as-a-reason",
+    "text": "Já que eu moro em Dunstead, prefiro reuniões online a ter de atravessar a região toda.",
+    "values": [
+      "Dunstead"
+    ]
+  },
+  {
+    "id": "as-a-reason-pt-05",
+    "language": "pt",
+    "shape": "as-a-reason",
+    "text": "Recebo convites para os encontros de ex-alunos porque estudei na Academia Kestrel.",
+    "values": [
+      "Academia Kestrel"
+    ]
+  },
+  {
+    "id": "as-a-reason-pt-06",
+    "language": "pt",
+    "shape": "as-a-reason",
+    "text": "Como eu trabalho na Sorrel Logistics, entendo bem de prazos de entrega.",
+    "values": [
+      "Sorrel Logistics"
+    ]
+  },
+  {
+    "id": "as-a-reason-pt-07",
+    "language": "pt",
+    "shape": "as-a-reason",
+    "text": "Só viajo para lugares que aceitam animais, pois tenho um cachorro chamado Maguila.",
+    "values": [
+      "Maguila"
+    ]
+  },
+  {
+    "id": "as-a-reason-pt-08",
+    "language": "pt",
+    "shape": "as-a-reason",
+    "text": "Acordo cedo todos os dias, já que o Wasabi, meu cachorro, precisa passear antes das sete.",
+    "values": [
+      "Wasabi"
+    ]
+  },
+  {
+    "id": "as-a-reason-pt-09",
+    "language": "pt",
+    "shape": "as-a-reason",
+    "text": "Tenho desconto na biblioteca do bairro porque estudei no Colégio Alvorada.",
+    "values": [
+      "Colégio Alvorada"
+    ]
+  },
+  {
+    "id": "as-a-reason-pt-10",
+    "language": "pt",
+    "shape": "as-a-reason",
+    "text": "Como trabalho na Sorrel Labs, passo boa parte do dia em pé na bancada.",
+    "values": [
+      "Sorrel Labs"
+    ]
+  },
+  {
+    "id": "as-a-reason-pt-11",
+    "language": "pt",
+    "shape": "as-a-reason",
+    "text": "Visto azul em dia de clássico, já que eu torço para o Racing Halden.",
+    "values": [
+      "Racing Halden"
+    ]
+  },
+  {
+    "id": "inside-a-question-pt-00",
+    "language": "pt",
+    "shape": "inside-a-question",
+    "text": "Que presente você sugere para eu dar ao Lucjan, meu marido, nos dez anos de casamento?",
+    "values": [
+      "Lucjan"
+    ]
+  },
+  {
+    "id": "inside-a-question-pt-01",
+    "language": "pt",
+    "shape": "inside-a-question",
+    "text": "Para quem mora em Velford, como eu, compensa mais ter carro ou usar aplicativo de transporte?",
+    "values": [
+      "Velford"
+    ]
+  },
+  {
+    "id": "inside-a-question-pt-02",
+    "language": "pt",
+    "shape": "inside-a-question",
+    "text": "Quantas vezes por dia devo alimentar o Pipoca, meu cachorro de dois anos?",
+    "values": [
+      "Pipoca"
+    ]
+  },
+  {
+    "id": "inside-a-question-pt-03",
+    "language": "pt",
+    "shape": "inside-a-question",
+    "text": "Como eu faço para acostumar a Zarolha, minha cachorra, a ficar sozinha em casa?",
+    "values": [
+      "Zarolha"
+    ]
+  },
+  {
+    "id": "inside-a-question-pt-04",
+    "language": "pt",
+    "shape": "inside-a-question",
+    "text": "Tendo estudado na Academia Montserrat, como devo descrever minha formação em um currículo em inglês?",
+    "values": [
+      "Academia Montserrat"
+    ]
+  },
+  {
+    "id": "inside-a-question-pt-05",
+    "language": "pt",
+    "shape": "inside-a-question",
+    "text": "Qual é a melhor forma de levar o meu cachorro Pumpernickel em uma viagem longa de carro?",
+    "values": [
+      "Pumpernickel"
+    ]
+  },
+  {
+    "id": "inside-a-question-pt-06",
+    "language": "pt",
+    "shape": "inside-a-question",
+    "text": "Como torcedor do Sporting Tamoio, onde consigo acompanhar os jogos fora de casa sem pagar caro?",
+    "values": [
+      "Sporting Tamoio"
+    ]
+  },
+  {
+    "id": "inside-a-question-pt-07",
+    "language": "pt",
+    "shape": "inside-a-question",
+    "text": "O que você recomenda para eu surpreender a Teodora, minha esposa, no aniversário dela?",
+    "values": [
+      "Teodora"
+    ]
+  },
+  {
+    "id": "inside-a-question-pt-08",
+    "language": "pt",
+    "shape": "inside-a-question",
+    "text": "Para alguém que estudou no Instituto Bandeirantes, como eu, vale a pena fazer uma segunda graduação ou partir direto para uma pós?",
+    "values": [
+      "Instituto Bandeirantes"
+    ]
+  },
+  {
+    "id": "inside-a-question-pt-09",
+    "language": "pt",
+    "shape": "inside-a-question",
+    "text": "Sendo funcionário da Kestrel Textiles, como devo me preparar para uma avaliação de desempenho?",
+    "values": [
+      "Kestrel Textiles"
+    ]
+  },
+  {
+    "id": "inside-a-question-pt-10",
+    "language": "pt",
+    "shape": "inside-a-question",
+    "text": "Eu, que estudei na Academia Bandeirantes, preciso validar meu diploma para conseguir emprego no exterior?",
+    "values": [
+      "Academia Bandeirantes"
+    ]
+  },
+  {
+    "id": "inside-a-question-pt-11",
+    "language": "pt",
+    "shape": "inside-a-question",
+    "text": "Como posso organizar uma festa surpresa para a Edurne, com quem sou casado há cinco anos?",
+    "values": [
+      "Edurne"
+    ]
+  },
+  {
+    "id": "three-facts-pt-00",
+    "language": "pt",
+    "shape": "three-facts",
+    "text": "Estudei no Colégio Tamoio e hoje trabalho na Novak Systems. Moro em Casby.",
+    "values": [
+      "Colégio Tamoio",
+      "Novak Systems",
+      "Casby"
+    ]
+  },
+  {
+    "id": "three-facts-pt-01",
+    "language": "pt",
+    "shape": "three-facts",
+    "text": "Moro em Aldholm e trabalho na Tamsin Foods. Fiz o ensino médio no Colégio Tamoio.",
+    "values": [
+      "Colégio Tamoio",
+      "Aldholm",
+      "Tamsin Foods"
+    ]
+  },
+  {
+    "id": "three-facts-pt-02",
+    "language": "pt",
+    "shape": "three-facts",
+    "text": "Moro em Brenholm com o meu cachorro, o Wasabi. Torço para o União Velmora desde pequeno.",
+    "values": [
+      "Brenholm",
+      "Wasabi",
+      "União Velmora"
+    ]
+  },
+  {
+    "id": "three-facts-pt-03",
+    "language": "pt",
+    "shape": "three-facts",
+    "text": "Tenho um cachorro chamado Tofu e moro em Aldby. Meu time é o Atlético Halden.",
+    "values": [
+      "Tofu",
+      "Aldby",
+      "Atlético Halden"
+    ]
+  },
+  {
+    "id": "three-facts-pt-04",
+    "language": "pt",
+    "shape": "three-facts",
+    "text": "Torço para o Racing Velmora. Trabalho na Tamsin Logistics e moro em Falwick.",
+    "values": [
+      "Racing Velmora",
+      "Tamsin Logistics",
+      "Falwick"
+    ]
+  },
+  {
+    "id": "three-facts-pt-05",
+    "language": "pt",
+    "shape": "three-facts",
+    "text": "Sou casada com Oriol. Trabalho na Tamsin Foods e moro em Aldford.",
+    "values": [
+      "Oriol",
+      "Tamsin Foods",
+      "Aldford"
+    ]
+  },
+  {
+    "id": "three-facts-pt-06",
+    "language": "pt",
+    "shape": "three-facts",
+    "text": "Moro em Dunby e sou casada com Lucjan. Tenho um cachorro chamado Zarolha.",
+    "values": [
+      "Dunby",
+      "Zarolha",
+      "Lucjan"
+    ]
+  },
+  {
+    "id": "three-facts-pt-07",
+    "language": "pt",
+    "shape": "three-facts",
+    "text": "Sou torcedor do Sporting Brenwick e casado com Cosmin. Trabalho na Sorrel Labs há três anos.",
+    "values": [
+      "Sporting Brenwick",
+      "Cosmin",
+      "Sorrel Labs"
+    ]
+  },
+  {
+    "id": "three-facts-pt-08",
+    "language": "pt",
+    "shape": "three-facts",
+    "text": "Trabalho na Halden Energy. Meu time do coração é o Racing Velmora, e sou casada com Marek.",
+    "values": [
+      "Halden Energy",
+      "Racing Velmora",
+      "Marek"
+    ]
+  },
+  {
+    "id": "three-facts-pt-09",
+    "language": "pt",
+    "shape": "three-facts",
+    "text": "Torço para o União Brenwick e moro em Marby. Meu cachorro se chama Wasabi.",
+    "values": [
+      "União Brenwick",
+      "Marby",
+      "Wasabi"
+    ]
+  },
+  {
+    "id": "three-facts-pt-10",
+    "language": "pt",
+    "shape": "three-facts",
+    "text": "Moro em Marmora e tenho um cachorro chamado Kibe. Estudei no Instituto Montserrat.",
+    "values": [
+      "Marmora",
+      "Kibe",
+      "Instituto Montserrat"
+    ]
+  },
+  {
+    "id": "three-facts-pt-11",
+    "language": "pt",
+    "shape": "three-facts",
+    "text": "Meu cachorro se chama Biscoito e eu moro em Torstead. Sou casado com Ilse.",
+    "values": [
+      "Biscoito",
+      "Torstead",
+      "Ilse"
+    ]
+  },
+  {
+    "id": "question-without-fact-pt-00",
+    "language": "pt",
+    "shape": "question-without-fact",
+    "text": "Qual é a origem do nome Vasco?",
+    "values": [
+      "Vasco"
+    ]
+  },
+  {
+    "id": "question-without-fact-pt-01",
+    "language": "pt",
+    "shape": "question-without-fact",
+    "text": "Brenwick é uma boa cidade para se morar?",
+    "values": [
+      "Brenwick"
+    ]
+  },
+  {
+    "id": "question-without-fact-pt-02",
+    "language": "pt",
+    "shape": "question-without-fact",
+    "text": "Biscoito é um bom nome para um cachorro?",
+    "values": [
+      "Biscoito"
+    ]
+  },
+  {
+    "id": "question-without-fact-pt-03",
+    "language": "pt",
+    "shape": "question-without-fact",
+    "text": "Como foi a última temporada do Sporting Tamoio?",
+    "values": [
+      "Sporting Tamoio"
+    ]
+  },
+  {
+    "id": "question-without-fact-pt-04",
+    "language": "pt",
+    "shape": "question-without-fact",
+    "text": "A Halden Labs é uma boa empresa para se trabalhar?",
+    "values": [
+      "Halden Labs"
+    ]
+  },
+  {
+    "id": "question-without-fact-pt-05",
+    "language": "pt",
+    "shape": "question-without-fact",
+    "text": "Tofu seria um nome adequado para um filhote?",
+    "values": [
+      "Tofu"
+    ]
+  },
+  {
+    "id": "question-without-fact-pt-06",
+    "language": "pt",
+    "shape": "question-without-fact",
+    "text": "O que significa o nome Aroha?",
+    "values": [
+      "Aroha"
+    ]
+  },
+  {
+    "id": "question-without-fact-pt-07",
+    "language": "pt",
+    "shape": "question-without-fact",
+    "text": "O Colégio Kestrel tem boa reputação?",
+    "values": [
+      "Colégio Kestrel"
+    ]
+  },
+  {
+    "id": "question-without-fact-pt-08",
+    "language": "pt",
+    "shape": "question-without-fact",
+    "text": "De onde vem o nome Teodora?",
+    "values": [
+      "Teodora"
+    ]
+  },
+  {
+    "id": "question-without-fact-pt-09",
+    "language": "pt",
+    "shape": "question-without-fact",
+    "text": "Zarolha é um nome aceitável para um cachorro?",
+    "values": [
+      "Zarolha"
+    ]
+  },
+  {
+    "id": "question-without-fact-pt-10",
+    "language": "pt",
+    "shape": "question-without-fact",
+    "text": "Em que posição o Racing Brenwick terminou o último campeonato?",
+    "values": [
+      "Racing Brenwick"
+    ]
+  },
+  {
+    "id": "question-without-fact-pt-11",
+    "language": "pt",
+    "shape": "question-without-fact",
+    "text": "Lucjan é um nome típico de qual país?",
+    "values": [
+      "Lucjan"
+    ]
+  }
+]
