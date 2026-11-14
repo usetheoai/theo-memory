@@ -1,0 +1,962 @@
+[
+  {
+    "id": "state-with-day-marker-en-00",
+    "language": "en",
+    "family": "state-with-day-marker",
+    "text": "My phone battery is almost dead right now."
+  },
+  {
+    "id": "state-with-day-marker-en-01",
+    "language": "en",
+    "family": "state-with-day-marker",
+    "text": "I cannot focus on my studying at all this afternoon."
+  },
+  {
+    "id": "state-with-day-marker-en-02",
+    "language": "en",
+    "family": "state-with-day-marker",
+    "text": "I am worried about my cat this evening because she is hiding."
+  },
+  {
+    "id": "state-with-day-marker-en-03",
+    "language": "en",
+    "family": "state-with-day-marker",
+    "text": "My throat feels sore and scratchy this morning."
+  },
+  {
+    "id": "state-with-day-marker-en-04",
+    "language": "en",
+    "family": "state-with-day-marker",
+    "text": "I feel like staying home on the couch tonight."
+  },
+  {
+    "id": "state-with-day-marker-en-05",
+    "language": "en",
+    "family": "state-with-day-marker",
+    "text": "I am so sleepy today that my eyes keep closing."
+  },
+  {
+    "id": "state-with-day-marker-en-06",
+    "language": "en",
+    "family": "state-with-day-marker",
+    "text": "I am in the mood to paint something this afternoon."
+  },
+  {
+    "id": "state-with-day-marker-en-07",
+    "language": "en",
+    "family": "state-with-day-marker",
+    "text": "I want to curl up with a mystery novel tonight."
+  },
+  {
+    "id": "state-with-day-marker-en-08",
+    "language": "en",
+    "family": "state-with-day-marker",
+    "text": "I feel uncomfortable in these tight shoes today."
+  },
+  {
+    "id": "state-with-day-marker-en-09",
+    "language": "en",
+    "family": "state-with-day-marker",
+    "text": "I am freezing in this cold wind right now."
+  },
+  {
+    "id": "state-with-day-marker-en-10",
+    "language": "en",
+    "family": "state-with-day-marker",
+    "text": "I am craving a big bowl of ramen this evening."
+  },
+  {
+    "id": "state-with-day-marker-en-11",
+    "language": "en",
+    "family": "state-with-day-marker",
+    "text": "I miss my parents a lot today."
+  },
+  {
+    "id": "state-with-day-marker-en-12",
+    "language": "en",
+    "family": "state-with-day-marker",
+    "text": "I am nervous about being on this flight right now."
+  },
+  {
+    "id": "state-with-day-marker-en-13",
+    "language": "en",
+    "family": "state-with-day-marker",
+    "text": "My legs feel too heavy for a run this morning."
+  },
+  {
+    "id": "state-with-day-marker-en-14",
+    "language": "en",
+    "family": "state-with-day-marker",
+    "text": "I am stressed about my bank balance today."
+  },
+  {
+    "id": "state-with-day-marker-en-15",
+    "language": "en",
+    "family": "state-with-day-marker",
+    "text": "I am stuck in traffic and losing my patience right now."
+  },
+  {
+    "id": "state-with-day-marker-en-16",
+    "language": "en",
+    "family": "state-with-day-marker",
+    "text": "I only want to listen to quiet jazz tonight."
+  },
+  {
+    "id": "state-with-day-marker-en-17",
+    "language": "en",
+    "family": "state-with-day-marker",
+    "text": "I feel like spending this afternoon out in the garden."
+  },
+  {
+    "id": "state-with-day-marker-en-18",
+    "language": "en",
+    "family": "state-with-day-marker",
+    "text": "I have no energy to cook anything this evening."
+  },
+  {
+    "id": "state-with-day-marker-en-19",
+    "language": "en",
+    "family": "state-with-day-marker",
+    "text": "I am overwhelmed by my workload this morning."
+  },
+  {
+    "id": "state-without-marker-en-00",
+    "language": "en",
+    "family": "state-without-marker",
+    "text": "I am out of breath and my calves are burning."
+  },
+  {
+    "id": "state-without-marker-en-01",
+    "language": "en",
+    "family": "state-without-marker",
+    "text": "I am itching to pick up my knitting needles."
+  },
+  {
+    "id": "state-without-marker-en-02",
+    "language": "en",
+    "family": "state-without-marker",
+    "text": "I feel anxious about how little cash is in my wallet."
+  },
+  {
+    "id": "state-without-marker-en-03",
+    "language": "en",
+    "family": "state-without-marker",
+    "text": "I am restless and longing to be near the sea."
+  },
+  {
+    "id": "state-without-marker-en-04",
+    "language": "en",
+    "family": "state-without-marker",
+    "text": "I am sweating in this thick wool sweater."
+  },
+  {
+    "id": "state-without-marker-en-05",
+    "language": "en",
+    "family": "state-without-marker",
+    "text": "I am in the mood for something loud with heavy drums."
+  },
+  {
+    "id": "state-without-marker-en-06",
+    "language": "en",
+    "family": "state-without-marker",
+    "text": "I am starving and craving something salty."
+  },
+  {
+    "id": "state-without-marker-en-07",
+    "language": "en",
+    "family": "state-without-marker",
+    "text": "I feel homesick and want to hug my sister."
+  },
+  {
+    "id": "state-without-marker-en-08",
+    "language": "en",
+    "family": "state-without-marker",
+    "text": "I feel dizzy and a little nauseous."
+  },
+  {
+    "id": "state-without-marker-en-09",
+    "language": "en",
+    "family": "state-without-marker",
+    "text": "I am cramped and irritated on this packed train."
+  },
+  {
+    "id": "state-without-marker-en-10",
+    "language": "en",
+    "family": "state-without-marker",
+    "text": "I am too tired to stand at the stove."
+  },
+  {
+    "id": "state-without-marker-en-11",
+    "language": "en",
+    "family": "state-without-marker",
+    "text": "I feel cozy and content on my sofa under a blanket."
+  },
+  {
+    "id": "state-without-marker-en-12",
+    "language": "en",
+    "family": "state-without-marker",
+    "text": "I am shivering in this damp, drizzly weather."
+  },
+  {
+    "id": "state-without-marker-en-13",
+    "language": "en",
+    "family": "state-without-marker",
+    "text": "I am bored out of my mind in this meeting."
+  },
+  {
+    "id": "state-without-marker-en-14",
+    "language": "en",
+    "family": "state-without-marker",
+    "text": "I am frustrated with this chemistry problem set."
+  },
+  {
+    "id": "state-without-marker-en-15",
+    "language": "en",
+    "family": "state-without-marker",
+    "text": "I feel peaceful sitting among my tomato plants."
+  },
+  {
+    "id": "state-without-marker-en-16",
+    "language": "en",
+    "family": "state-without-marker",
+    "text": "I am annoyed that my phone keeps freezing."
+  },
+  {
+    "id": "state-without-marker-en-17",
+    "language": "en",
+    "family": "state-without-marker",
+    "text": "I am completely absorbed in this chapter and want no interruptions."
+  },
+  {
+    "id": "state-without-marker-en-18",
+    "language": "en",
+    "family": "state-without-marker",
+    "text": "I feel calm with my dog asleep on my lap."
+  },
+  {
+    "id": "state-without-marker-en-19",
+    "language": "en",
+    "family": "state-without-marker",
+    "text": "I am wide awake and cannot get comfortable in bed."
+  },
+  {
+    "id": "habit-en-00",
+    "language": "en",
+    "family": "habit",
+    "text": "I usually take my vitamins with breakfast."
+  },
+  {
+    "id": "habit-en-01",
+    "language": "en",
+    "family": "habit",
+    "text": "I vacuum the whole apartment every Saturday."
+  },
+  {
+    "id": "habit-en-02",
+    "language": "en",
+    "family": "habit",
+    "text": "I check my messages first thing most mornings."
+  },
+  {
+    "id": "habit-en-03",
+    "language": "en",
+    "family": "habit",
+    "text": "I water my herbs every other day."
+  },
+  {
+    "id": "habit-en-04",
+    "language": "en",
+    "family": "habit",
+    "text": "I usually go to bed quite late on weeknights."
+  },
+  {
+    "id": "habit-en-05",
+    "language": "en",
+    "family": "habit",
+    "text": "I always carry an umbrella whenever the sky looks grey."
+  },
+  {
+    "id": "habit-en-06",
+    "language": "en",
+    "family": "habit",
+    "text": "I ride my bike to the office most days."
+  },
+  {
+    "id": "habit-en-07",
+    "language": "en",
+    "family": "habit",
+    "text": "I visit the coast every summer for a couple of weeks."
+  },
+  {
+    "id": "habit-en-08",
+    "language": "en",
+    "family": "habit",
+    "text": "I bake bread from scratch on Sundays."
+  },
+  {
+    "id": "habit-en-09",
+    "language": "en",
+    "family": "habit",
+    "text": "I review my flashcards every evening after dinner."
+  },
+  {
+    "id": "habit-en-10",
+    "language": "en",
+    "family": "habit",
+    "text": "I call my grandmother every week to catch up."
+  },
+  {
+    "id": "habit-en-11",
+    "language": "en",
+    "family": "habit",
+    "text": "I practice the piano for half an hour most evenings."
+  },
+  {
+    "id": "habit-en-12",
+    "language": "en",
+    "family": "habit",
+    "text": "I normally eat oatmeal with fruit for breakfast."
+  },
+  {
+    "id": "habit-en-13",
+    "language": "en",
+    "family": "habit",
+    "text": "I typically answer my emails before my first meeting each day."
+  },
+  {
+    "id": "habit-en-14",
+    "language": "en",
+    "family": "habit",
+    "text": "I read a few pages in bed every night."
+  },
+  {
+    "id": "habit-en-15",
+    "language": "en",
+    "family": "habit",
+    "text": "I put part of my paycheck into savings every month."
+  },
+  {
+    "id": "habit-en-16",
+    "language": "en",
+    "family": "habit",
+    "text": "I walk my dog around the park twice a day."
+  },
+  {
+    "id": "habit-en-17",
+    "language": "en",
+    "family": "habit",
+    "text": "I play five-a-side football with coworkers on Thursdays."
+  },
+  {
+    "id": "habit-en-18",
+    "language": "en",
+    "family": "habit",
+    "text": "I go birdwatching by the lake most weekends."
+  },
+  {
+    "id": "habit-en-19",
+    "language": "en",
+    "family": "habit",
+    "text": "I usually iron my shirts on Sunday evenings."
+  },
+  {
+    "id": "ongoing-for-weeks-en-00",
+    "language": "en",
+    "family": "ongoing-for-weeks",
+    "text": "I am following a low-sugar meal plan with a nutritionist."
+  },
+  {
+    "id": "ongoing-for-weeks-en-01",
+    "language": "en",
+    "family": "ongoing-for-weeks",
+    "text": "I am paying off my credit card debt bit by bit."
+  },
+  {
+    "id": "ongoing-for-weeks-en-02",
+    "language": "en",
+    "family": "ongoing-for-weeks",
+    "text": "I am sewing my own winter coat in a tailoring class."
+  },
+  {
+    "id": "ongoing-for-weeks-en-03",
+    "language": "en",
+    "family": "ongoing-for-weeks",
+    "text": "I am preparing for the bar exam with a study group."
+  },
+  {
+    "id": "ongoing-for-weeks-en-04",
+    "language": "en",
+    "family": "ongoing-for-weeks",
+    "text": "I am training for my first half marathon."
+  },
+  {
+    "id": "ongoing-for-weeks-en-05",
+    "language": "en",
+    "family": "ongoing-for-weeks",
+    "text": "I am building raised beds for a vegetable garden."
+  },
+  {
+    "id": "ongoing-for-weeks-en-06",
+    "language": "en",
+    "family": "ongoing-for-weeks",
+    "text": "I am renovating my kitchen and living with dust everywhere."
+  },
+  {
+    "id": "ongoing-for-weeks-en-07",
+    "language": "en",
+    "family": "ongoing-for-weeks",
+    "text": "I am house-training a very stubborn new puppy."
+  },
+  {
+    "id": "ongoing-for-weeks-en-08",
+    "language": "en",
+    "family": "ongoing-for-weeks",
+    "text": "I am saving up and planning for a long trip across Asia."
+  },
+  {
+    "id": "ongoing-for-weeks-en-09",
+    "language": "en",
+    "family": "ongoing-for-weeks",
+    "text": "I am going through physical therapy for my knee."
+  },
+  {
+    "id": "ongoing-for-weeks-en-10",
+    "language": "en",
+    "family": "ongoing-for-weeks",
+    "text": "I am taking a course on Italian cooking."
+  },
+  {
+    "id": "ongoing-for-weeks-en-11",
+    "language": "en",
+    "family": "ongoing-for-weeks",
+    "text": "I am working with a specialist to treat my insomnia."
+  },
+  {
+    "id": "ongoing-for-weeks-en-12",
+    "language": "en",
+    "family": "ongoing-for-weeks",
+    "text": "I am cutting down my screen time with a digital detox program."
+  },
+  {
+    "id": "ongoing-for-weeks-en-13",
+    "language": "en",
+    "family": "ongoing-for-weeks",
+    "text": "I am reading my way through a long fantasy series."
+  },
+  {
+    "id": "ongoing-for-weeks-en-14",
+    "language": "en",
+    "family": "ongoing-for-weeks",
+    "text": "I am studying meteorology in an online course."
+  },
+  {
+    "id": "ongoing-for-weeks-en-15",
+    "language": "en",
+    "family": "ongoing-for-weeks",
+    "text": "I am learning to play the cello."
+  },
+  {
+    "id": "ongoing-for-weeks-en-16",
+    "language": "en",
+    "family": "ongoing-for-weeks",
+    "text": "I am taking driving lessons so I can stop relying on buses."
+  },
+  {
+    "id": "ongoing-for-weeks-en-17",
+    "language": "en",
+    "family": "ongoing-for-weeks",
+    "text": "I am helping my parents move into a smaller house."
+  },
+  {
+    "id": "ongoing-for-weeks-en-18",
+    "language": "en",
+    "family": "ongoing-for-weeks",
+    "text": "I am restoring an old wooden sailboat in my garage."
+  },
+  {
+    "id": "ongoing-for-weeks-en-19",
+    "language": "en",
+    "family": "ongoing-for-weeks",
+    "text": "I am looking for a new job in product design."
+  },
+  {
+    "id": "state-with-day-marker-pt-00",
+    "language": "pt",
+    "family": "state-with-day-marker",
+    "text": "Estou sem paciência com o meu celular travando agora mesmo."
+  },
+  {
+    "id": "state-with-day-marker-pt-01",
+    "language": "pt",
+    "family": "state-with-day-marker",
+    "text": "Estou com uma dor de cabeça terrível hoje."
+  },
+  {
+    "id": "state-with-day-marker-pt-02",
+    "language": "pt",
+    "family": "state-with-day-marker",
+    "text": "Estou com vontade de mexer na terra do jardim esta tarde."
+  },
+  {
+    "id": "state-with-day-marker-pt-03",
+    "language": "pt",
+    "family": "state-with-day-marker",
+    "text": "Hoje estou muito inspirado para desenhar no meu caderno."
+  },
+  {
+    "id": "state-with-day-marker-pt-04",
+    "language": "pt",
+    "family": "state-with-day-marker",
+    "text": "Estou morrendo de vontade de comer pizza esta noite."
+  },
+  {
+    "id": "state-with-day-marker-pt-05",
+    "language": "pt",
+    "family": "state-with-day-marker",
+    "text": "Estou preocupada com o meu cachorro hoje, ele não quer comer."
+  },
+  {
+    "id": "state-with-day-marker-pt-06",
+    "language": "pt",
+    "family": "state-with-day-marker",
+    "text": "Estou sobrecarregado de tarefas no trabalho esta manhã."
+  },
+  {
+    "id": "state-with-day-marker-pt-07",
+    "language": "pt",
+    "family": "state-with-day-marker",
+    "text": "Quero ficar em casa debaixo das cobertas esta noite."
+  },
+  {
+    "id": "state-with-day-marker-pt-08",
+    "language": "pt",
+    "family": "state-with-day-marker",
+    "text": "Só quero ouvir samba bem alto neste momento."
+  },
+  {
+    "id": "state-with-day-marker-pt-09",
+    "language": "pt",
+    "family": "state-with-day-marker",
+    "text": "Não consigo me concentrar nos estudos esta tarde."
+  },
+  {
+    "id": "state-with-day-marker-pt-10",
+    "language": "pt",
+    "family": "state-with-day-marker",
+    "text": "Hoje estou aflito com o saldo da minha conta."
+  },
+  {
+    "id": "state-with-day-marker-pt-11",
+    "language": "pt",
+    "family": "state-with-day-marker",
+    "text": "Estou com muita saudade da minha mãe esta noite."
+  },
+  {
+    "id": "state-with-day-marker-pt-12",
+    "language": "pt",
+    "family": "state-with-day-marker",
+    "text": "Estou sem disposição nenhuma para treinar esta manhã."
+  },
+  {
+    "id": "state-with-day-marker-pt-13",
+    "language": "pt",
+    "family": "state-with-day-marker",
+    "text": "Estou com vontade de ler poesia agora mesmo."
+  },
+  {
+    "id": "state-with-day-marker-pt-14",
+    "language": "pt",
+    "family": "state-with-day-marker",
+    "text": "Estou derretendo com este calor hoje."
+  },
+  {
+    "id": "state-with-day-marker-pt-15",
+    "language": "pt",
+    "family": "state-with-day-marker",
+    "text": "Estou ansiosa aqui no aeroporto neste momento."
+  },
+  {
+    "id": "state-with-day-marker-pt-16",
+    "language": "pt",
+    "family": "state-with-day-marker",
+    "text": "Não estou com ânimo para cozinhar nada esta noite."
+  },
+  {
+    "id": "state-with-day-marker-pt-17",
+    "language": "pt",
+    "family": "state-with-day-marker",
+    "text": "Estou me sentindo ótima com este vestido hoje."
+  },
+  {
+    "id": "state-with-day-marker-pt-18",
+    "language": "pt",
+    "family": "state-with-day-marker",
+    "text": "Estou preso no engarrafamento e irritado agora mesmo."
+  },
+  {
+    "id": "state-with-day-marker-pt-19",
+    "language": "pt",
+    "family": "state-with-day-marker",
+    "text": "Estou caindo de sono esta tarde."
+  },
+  {
+    "id": "state-without-marker-pt-00",
+    "language": "pt",
+    "family": "state-without-marker",
+    "text": "Estou vidrada neste livro e não quero largar."
+  },
+  {
+    "id": "state-without-marker-pt-01",
+    "language": "pt",
+    "family": "state-without-marker",
+    "text": "Estou desconfortável com esta calça apertada."
+  },
+  {
+    "id": "state-without-marker-pt-02",
+    "language": "pt",
+    "family": "state-without-marker",
+    "text": "Estou com saudade dos meus irmãos."
+  },
+  {
+    "id": "state-without-marker-pt-03",
+    "language": "pt",
+    "family": "state-without-marker",
+    "text": "Estou enjoado e com o estômago embrulhado."
+  },
+  {
+    "id": "state-without-marker-pt-04",
+    "language": "pt",
+    "family": "state-without-marker",
+    "text": "Estou espremido neste ônibus lotado e de mau humor."
+  },
+  {
+    "id": "state-without-marker-pt-05",
+    "language": "pt",
+    "family": "state-without-marker",
+    "text": "Estou feliz com a minha gata ronronando no meu colo."
+  },
+  {
+    "id": "state-without-marker-pt-06",
+    "language": "pt",
+    "family": "state-without-marker",
+    "text": "Estou em paz sentado no meio das minhas plantas."
+  },
+  {
+    "id": "state-without-marker-pt-07",
+    "language": "pt",
+    "family": "state-without-marker",
+    "text": "Estou travado nesta lista de exercícios de cálculo."
+  },
+  {
+    "id": "state-without-marker-pt-08",
+    "language": "pt",
+    "family": "state-without-marker",
+    "text": "Estou apreensivo com o pouco dinheiro na carteira."
+  },
+  {
+    "id": "state-without-marker-pt-09",
+    "language": "pt",
+    "family": "state-without-marker",
+    "text": "Estou irritada porque meu celular não para de vibrar."
+  },
+  {
+    "id": "state-without-marker-pt-10",
+    "language": "pt",
+    "family": "state-without-marker",
+    "text": "Estou faminto e doido por um prato de feijão."
+  },
+  {
+    "id": "state-without-marker-pt-11",
+    "language": "pt",
+    "family": "state-without-marker",
+    "text": "Estou incomodado com o barulho que vem do apartamento vizinho."
+  },
+  {
+    "id": "state-without-marker-pt-12",
+    "language": "pt",
+    "family": "state-without-marker",
+    "text": "Estou com os olhos pesados e bocejando sem parar."
+  },
+  {
+    "id": "state-without-marker-pt-13",
+    "language": "pt",
+    "family": "state-without-marker",
+    "text": "Estou tremendo de frio com esse vento gelado."
+  },
+  {
+    "id": "state-without-marker-pt-14",
+    "language": "pt",
+    "family": "state-without-marker",
+    "text": "Estou entediado nesta reunião que não acaba."
+  },
+  {
+    "id": "state-without-marker-pt-15",
+    "language": "pt",
+    "family": "state-without-marker",
+    "text": "Estou com uma vontade enorme de montar um quebra-cabeça."
+  },
+  {
+    "id": "state-without-marker-pt-16",
+    "language": "pt",
+    "family": "state-without-marker",
+    "text": "Estou ofegante e com as pernas bambas."
+  },
+  {
+    "id": "state-without-marker-pt-17",
+    "language": "pt",
+    "family": "state-without-marker",
+    "text": "Estou com vontade de dançar ao som de um forró."
+  },
+  {
+    "id": "state-without-marker-pt-18",
+    "language": "pt",
+    "family": "state-without-marker",
+    "text": "Estou sem a menor vontade de chegar perto do fogão."
+  },
+  {
+    "id": "state-without-marker-pt-19",
+    "language": "pt",
+    "family": "state-without-marker",
+    "text": "Estou inquieto, querendo muito ver o mar."
+  },
+  {
+    "id": "habit-pt-00",
+    "language": "pt",
+    "family": "habit",
+    "text": "Eu jogo vôlei na praia aos sábados."
+  },
+  {
+    "id": "habit-pt-01",
+    "language": "pt",
+    "family": "habit",
+    "text": "Costumo visitar o interior de Minas todo ano."
+  },
+  {
+    "id": "habit-pt-02",
+    "language": "pt",
+    "family": "habit",
+    "text": "Faço faxina na casa toda semana."
+  },
+  {
+    "id": "habit-pt-03",
+    "language": "pt",
+    "family": "habit",
+    "text": "Geralmente vou para o trabalho de metrô."
+  },
+  {
+    "id": "habit-pt-04",
+    "language": "pt",
+    "family": "habit",
+    "text": "Estudo inglês por meia hora quase toda noite."
+  },
+  {
+    "id": "habit-pt-05",
+    "language": "pt",
+    "family": "habit",
+    "text": "Sempre leio um pouco antes de dormir."
+  },
+  {
+    "id": "habit-pt-06",
+    "language": "pt",
+    "family": "habit",
+    "text": "Aos domingos eu preparo o almoço para a semana inteira."
+  },
+  {
+    "id": "habit-pt-07",
+    "language": "pt",
+    "family": "habit",
+    "text": "Geralmente como tapioca com queijo no café da manhã."
+  },
+  {
+    "id": "habit-pt-08",
+    "language": "pt",
+    "family": "habit",
+    "text": "Faço exames de rotina a cada seis meses."
+  },
+  {
+    "id": "habit-pt-09",
+    "language": "pt",
+    "family": "habit",
+    "text": "Costumo deixar o celular no silencioso durante o expediente."
+  },
+  {
+    "id": "habit-pt-10",
+    "language": "pt",
+    "family": "habit",
+    "text": "Levo meu cachorro para passear quase toda manhã."
+  },
+  {
+    "id": "habit-pt-11",
+    "language": "pt",
+    "family": "habit",
+    "text": "Faço aula de cerâmica todas as quartas-feiras."
+  },
+  {
+    "id": "habit-pt-12",
+    "language": "pt",
+    "family": "habit",
+    "text": "Ouço podcasts e MPB sempre que lavo a louça."
+  },
+  {
+    "id": "habit-pt-13",
+    "language": "pt",
+    "family": "habit",
+    "text": "Costumo sair de casaco sempre que o tempo fecha."
+  },
+  {
+    "id": "habit-pt-14",
+    "language": "pt",
+    "family": "habit",
+    "text": "Normalmente trabalho de casa dois dias por semana."
+  },
+  {
+    "id": "habit-pt-15",
+    "language": "pt",
+    "family": "habit",
+    "text": "Anoto todos os meus gastos em uma planilha todo mês."
+  },
+  {
+    "id": "habit-pt-16",
+    "language": "pt",
+    "family": "habit",
+    "text": "Almoço com meus pais aos domingos."
+  },
+  {
+    "id": "habit-pt-17",
+    "language": "pt",
+    "family": "habit",
+    "text": "Geralmente separo a roupa do trabalho na noite anterior."
+  },
+  {
+    "id": "habit-pt-18",
+    "language": "pt",
+    "family": "habit",
+    "text": "Rego as plantas da varanda dia sim, dia não."
+  },
+  {
+    "id": "habit-pt-19",
+    "language": "pt",
+    "family": "habit",
+    "text": "Costumo dormir cedo durante a semana."
+  },
+  {
+    "id": "ongoing-for-weeks-pt-00",
+    "language": "pt",
+    "family": "ongoing-for-weeks",
+    "text": "Estou tirando a carteira de motorista para parar de depender de ônibus."
+  },
+  {
+    "id": "ongoing-for-weeks-pt-01",
+    "language": "pt",
+    "family": "ongoing-for-weeks",
+    "text": "Estou juntando dinheiro e organizando um mochilão pela América do Sul."
+  },
+  {
+    "id": "ongoing-for-weeks-pt-02",
+    "language": "pt",
+    "family": "ongoing-for-weeks",
+    "text": "Estou fazendo fisioterapia para recuperar o ombro."
+  },
+  {
+    "id": "ongoing-for-weeks-pt-03",
+    "language": "pt",
+    "family": "ongoing-for-weeks",
+    "text": "Estou quitando aos poucos o financiamento do carro."
+  },
+  {
+    "id": "ongoing-for-weeks-pt-04",
+    "language": "pt",
+    "family": "ongoing-for-weeks",
+    "text": "Estou aprendendo a fazer crochê com vídeos na internet."
+  },
+  {
+    "id": "ongoing-for-weeks-pt-05",
+    "language": "pt",
+    "family": "ongoing-for-weeks",
+    "text": "Estou desenvolvendo um aplicativo de celular em um curso noturno."
+  },
+  {
+    "id": "ongoing-for-weeks-pt-06",
+    "language": "pt",
+    "family": "ongoing-for-weeks",
+    "text": "Estou reformando o banheiro do meu apartamento."
+  },
+  {
+    "id": "ongoing-for-weeks-pt-07",
+    "language": "pt",
+    "family": "ongoing-for-weeks",
+    "text": "Estou aprendendo a tocar cavaquinho em uma escola de música."
+  },
+  {
+    "id": "ongoing-for-weeks-pt-08",
+    "language": "pt",
+    "family": "ongoing-for-weeks",
+    "text": "Estou fazendo um tratamento para apneia do sono."
+  },
+  {
+    "id": "ongoing-for-weeks-pt-09",
+    "language": "pt",
+    "family": "ongoing-for-weeks",
+    "text": "Estou lendo aos poucos a obra completa de um romancista russo."
+  },
+  {
+    "id": "ongoing-for-weeks-pt-10",
+    "language": "pt",
+    "family": "ongoing-for-weeks",
+    "text": "Estou enfrentando a temporada de chuvas com a casa cheia de goteiras."
+  },
+  {
+    "id": "ongoing-for-weeks-pt-11",
+    "language": "pt",
+    "family": "ongoing-for-weeks",
+    "text": "Estou treinando para a minha primeira maratona."
+  },
+  {
+    "id": "ongoing-for-weeks-pt-12",
+    "language": "pt",
+    "family": "ongoing-for-weeks",
+    "text": "Estou montando uma horta orgânica no quintal."
+  },
+  {
+    "id": "ongoing-for-weeks-pt-13",
+    "language": "pt",
+    "family": "ongoing-for-weeks",
+    "text": "Estou adestrando meu filhote com a ajuda de uma treinadora."
+  },
+  {
+    "id": "ongoing-for-weeks-pt-14",
+    "language": "pt",
+    "family": "ongoing-for-weeks",
+    "text": "Estou cursando uma pós-graduação em ciência de dados."
+  },
+  {
+    "id": "ongoing-for-weeks-pt-15",
+    "language": "pt",
+    "family": "ongoing-for-weeks",
+    "text": "Estou fazendo um curso de corte e costura."
+  },
+  {
+    "id": "ongoing-for-weeks-pt-16",
+    "language": "pt",
+    "family": "ongoing-for-weeks",
+    "text": "Estou seguindo uma reeducação alimentar com uma nutricionista."
+  },
+  {
+    "id": "ongoing-for-weeks-pt-17",
+    "language": "pt",
+    "family": "ongoing-for-weeks",
+    "text": "Estou procurando um emprego novo na área de marketing."
+  },
+  {
+    "id": "ongoing-for-weeks-pt-18",
+    "language": "pt",
+    "family": "ongoing-for-weeks",
+    "text": "Estou aprendendo a cozinhar comida japonesa em um curso."
+  },
+  {
+    "id": "ongoing-for-weeks-pt-19",
+    "language": "pt",
+    "family": "ongoing-for-weeks",
+    "text": "Estou ajudando minha avó a se mudar para perto de nós."
+  }
+]
