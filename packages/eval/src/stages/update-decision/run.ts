@@ -47,6 +47,9 @@ interface Row {
   readonly expiringA: number;
   readonly storedB: number;
   readonly ended: boolean;
+  /** What the write path stored for each note, to tell an extraction error from a decision error. */
+  readonly textsA: readonly string[];
+  readonly textsB: readonly string[];
 }
 
 const outputPath = requiredEnv('UPDATE_DECISION_OUTPUT');
@@ -80,6 +83,7 @@ async function runOne(pair: UpdatePair, repetition: number): Promise<Row> {
     return {
       id: pair.id, label: pair.label, language: pair.language, repetition,
       storedA: first.length, endedA, expiringA, storedB: second.length, ended: endedA > 0,
+      textsA: first.map((item) => item.text), textsB: second.map((item) => item.text),
     };
   } finally {
     await memory.dispose();
