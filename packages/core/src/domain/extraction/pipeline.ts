@@ -41,7 +41,7 @@ import { scoreNewFacts } from './importance-scoring.js';
 import { correctEntityRelationLanguage } from './label-language.js';
 import { identifyInputLanguage } from './language-identification.js';
 import { detectInputLanguage, type DetectedLanguage } from './language.js';
-import { coerceExtractionResponse } from './normalize.js';
+import { coerceExtractionResponse, type InvalidEvidenceReason } from './normalize.js';
 import { applyOntologyToEntities, boundedAutoCategory, buildPayload, embedBatchWithFallback, extractResponseText, patchItemsWithOutcomes, persistWithFallback, runInferFalsePath, scopeFromFilters, toMemoryItem } from './pipeline-helpers.js';
 import type { ExtractionDeps, Payload } from './pipeline-helpers.js';
 import { AdditiveExtractionSchema, generateAdditiveExtractionPrompt, type AdditiveExtractionResponse } from './prompt.js';
@@ -258,11 +258,12 @@ async function extractAndPersist(
       { role: 'user' as const, content: messages.map((m) => `${m.role}: ${m.content}`).join('\n') },
     ];
     let parsed: AdditiveExtractionResponse;
+    const reportInvalidEvidence = (reason: InvalidEvidenceReason): void => emitEvent(tracer, 'extraction_evidence_invalid', { reason });
     const raw = await deps.llm.generateResponse(extractionMessages, { type: 'json' });
     try {
       // Normalize the raw response (numeric ids, fact-under-`fact`, missing id) before the
       // strict parse — see `extraction/normalize.ts` (extracted for single responsibility).
-      parsed = AdditiveExtractionSchema.parse(coerceExtractionResponse(raw));
+      parsed = AdditiveExtractionSchema.parse(coerceExtractionResponse(raw, reportInvalidEvidence));
     } catch (error) {
       if (!isExtractionParseError(error)) throw error;
       // Provider JSON mode can still return malformed content. Make one bounded repair
@@ -276,7 +277,7 @@ async function extractAndPersist(
         extractionMessages[1] as { role: 'user'; content: string },
       ];
       const retriedRaw = await deps.llm.generateResponse(retryMessages, { type: 'json' });
-      parsed = AdditiveExtractionSchema.parse(coerceExtractionResponse(retriedRaw));
+      parsed = AdditiveExtractionSchema.parse(coerceExtractionResponse(retriedRaw, reportInvalidEvidence));
     }
     extracted = parsed.memory;
     relations = parsed.relations;

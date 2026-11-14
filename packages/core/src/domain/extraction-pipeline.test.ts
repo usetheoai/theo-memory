@@ -717,6 +717,24 @@ describe('runExtractionPipeline message log', () => {
     expect((await messageLog.recent(SCOPE, 10)).map((m) => m.content)).toEqual(['Maeve: I play the banjo on the porch.', 'Bram: I live in Graz.']);
   });
 
+  test('stores every fact of a response in which one fact has a malformed evidence (#277)', async () => {
+    const llm = makeLlm({
+      memory: [
+        { id: '0', text: 'user lives in Graz', evidence: { kind: 'stated', durability: 'durable', sourceQuote: 'I live in Graz' } },
+        { id: '1', text: 'user flies to Lisbon', evidence: { kind: 'stated', durability: 'future', sourceQuote: 'I fly to Lisbon' } },
+        { id: '2', text: 'user has a cat', evidence: { kind: 'stated', durability: 'forever' } },
+      ],
+    });
+    const items = await runExtractionPipeline(
+      [{ role: 'user', content: 'I live in Graz. I fly to Lisbon on Friday. I have a cat.' }],
+      SCOPE,
+      { vectorStore: new StubVectorStore(), embedder: makeEmbedder(), llm },
+      { strictExtraction: true },
+    );
+    expect(items.map((item) => item.text)).toEqual(['user lives in Graz', 'user flies to Lisbon', 'user has a cat']);
+    expect(extractionCalls(llm)).toHaveLength(1);
+  });
+
   test('leaves reference material out of extraction and out of the message log', async () => {
     const messageLog = new InMemoryMessageLog();
     const llm = makeLlm({ memory: [{ id: '0', text: 'user lives in Graz', evidence: { kind: 'stated', durability: 'durable', sourceQuote: 'I live in Graz' } }] });

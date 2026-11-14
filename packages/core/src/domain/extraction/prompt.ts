@@ -332,6 +332,17 @@ export function generateAdditiveExtractionPrompt(
   return { prompt, uuidByInt };
 }
 
+/** The evidence the extractor attaches to one fact. One schema for the response and for the repair before it. */
+export const ExtractedEvidenceSchema = z
+  .object({
+    kind: z.enum(['stated', 'inferred']),
+    durability: z.enum(['durable', 'temporary', 'tentative']),
+    sourceQuote: z.string().trim().min(1).max(4000).optional(),
+    confidence: z.number().finite().min(0).max(1).optional(),
+    time: z.enum(['future', 'past', 'present']).optional(),
+  })
+  .strict();
+
 /** Zod schema for the LLM's additive-extraction JSON response. `relations` is
  *  OPTIONAL (slice2 T2.2) — LLMs that omit it still parse (back-compat). Endpoint
  *  fields are surface strings (resolved to entity ids by name downstream). */
@@ -343,13 +354,7 @@ export const AdditiveExtractionSchema = z.object({
       attributed_to: z.string().optional(),
       category: z.string().optional(),
       linked_memory_ids: z.array(z.string()).optional(),
-      evidence: z.object({
-        kind: z.enum(['stated', 'inferred']),
-        durability: z.enum(['durable', 'temporary', 'tentative']),
-        sourceQuote: z.string().trim().min(1).max(4000).optional(),
-        confidence: z.number().finite().min(0).max(1).optional(),
-        time: z.enum(['future', 'past', 'present']).optional(),
-      }).strict().optional(),
+      evidence: ExtractedEvidenceSchema.optional(),
     }),
   ),
   entities: z
