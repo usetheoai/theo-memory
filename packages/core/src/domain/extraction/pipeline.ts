@@ -45,6 +45,7 @@ import { coerceExtractionResponse } from './normalize.js';
 import { applyOntologyToEntities, boundedAutoCategory, buildPayload, embedBatchWithFallback, extractResponseText, patchItemsWithOutcomes, persistWithFallback, runInferFalsePath, scopeFromFilters, toMemoryItem } from './pipeline-helpers.js';
 import type { ExtractionDeps, Payload } from './pipeline-helpers.js';
 import { AdditiveExtractionSchema, generateAdditiveExtractionPrompt, type AdditiveExtractionResponse } from './prompt.js';
+import { splitReference } from './reference-material.js';
 import { restoreNamedSubject } from './subject-restore.js';
 import { judgeSupersessions } from './supersession.js';
 import { DEFAULT_CATEGORY_TAXONOMY, classifyCategorySource } from './taxonomy.js';
@@ -86,6 +87,8 @@ export async function runExtractionPipeline(
   // A named author is written into the text once, here: the extractor, the evidence check and the
   // message log all see the same `Name: text` line.
   messages = showAuthorNames(messages);
+  // Reference material is not something said: it is neither logged nor embedded.
+  const { said } = splitReference(messages);
   const log = deps.messageLog;
   if (log === undefined) return extractAndPersist(messages, filters, deps, options, []);
   let previous: readonly Message[] = [];
@@ -101,12 +104,12 @@ export async function runExtractionPipeline(
   // still logged and found by its words, so an embedding failure is reported, never fatal.
   let embeddings: readonly (readonly number[])[] | undefined;
   try {
-    embeddings = await deps.embedder.embedBatch(messages.map((m) => m.content));
+    embeddings = await deps.embedder.embedBatch(said.map((m) => m.content));
   } catch (err) {
     emitEvent(deps.tracer, 'message_log_failed', { operation: 'embed', error: err instanceof Error ? err.name : 'UnknownError' });
   }
   try {
-    const messageIds = await log.append(filters, messages, options?.observedAt, embeddings);
+    const messageIds = await log.append(filters, said, options?.observedAt, embeddings);
     await log.linkSources(filters, items.map((item) => item.id), messageIds);
   } catch (err) {
     emitEvent(deps.tracer, 'message_log_failed', { operation: 'append', error: err instanceof Error ? err.name : 'UnknownError' });
@@ -138,7 +141,13 @@ async function extractAndPersist(
   const sourceEvidence = options?.evidence === undefined ? undefined : validateMemoryEvidence(options.evidence);
   if (sourceEvidence !== undefined) options = { ...options, evidence: sourceEvidence };
   validateWriteContext(options, true);
-  messages=messages.map(message=>({...message}));
+  // Only what the author said is extracted. Material passed along with it stops here (ADR-0039).
+  const { said, reference } = splitReference(showAuthorNames(messages));
+  if (said.length === 0) {
+    if (reference.length > 0) emitEvent(deps.tracer, 'extraction_reference_only', { messages: reference.length });
+    return [];
+  }
+  messages = said.map((message) => ({ ...message }));
   if(options!==undefined)options={...options,
     ...(options.expiresAt!==undefined?{expiresAt:new Date(options.expiresAt)}:{}),
     ...(options.observedAt instanceof Date?{observedAt:new Date(options.observedAt)}:{}),

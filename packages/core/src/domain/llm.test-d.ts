@@ -6,11 +6,12 @@ test('Role is exactly the three locked tiers (no function/tool at v0.0)', () => 
   expectTypeOf<Role>().toEqualTypeOf<'system' | 'user' | 'assistant'>();
 });
 
-test('Message has role and content, and an optional author name', () => {
+test('Message has role and content, an optional author name and a reference mark', () => {
   expectTypeOf<Message>().toEqualTypeOf<{
     readonly role: Role;
     readonly content: string;
     readonly name?: string;
+    readonly reference?: boolean;
   }>();
 });
 

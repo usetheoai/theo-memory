@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- `Message.reference`: marks a message as material its author passed along (a pasted document, an email, a tool result) and not something they said. A marked message is not extracted, not written to the message log and not embedded; a write made only of marked messages calls no model and emits `extraction_reference_only`. With request and material in one message, a value found only in the material was stored in 65 of 120 writes and each pasted piece left about four memories; with the material marked, none. Material pasted inside the same message, with no mark, is handled as before. (ADR-0039)
 - `Message.name`: the person who wrote a message, for group chats and transcripts. Facts the author states about themself are stored with that name: a fact the extractor writes about `user` takes the name of the author of the message its source quote comes from, and the event `extraction_author_named` counts the rewrites. The name is also written into the text shown to the extractor and kept in the message log as `Name: text`. With the name only written into the text by the caller, 9 to 17 of 264 extractions used the wrong subject; with the field, none did. A message with no `name` is handled as before. In a scope with named authors a first-person question no longer reaches those facts through `user`. (#244)
 
 ### Changed
