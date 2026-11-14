@@ -8,7 +8,8 @@
  * shown to the extractor; nothing here measures retrieval.
  *
  * Environment: OPENAI_API_KEY, OPENAI_BASE_URL (optional), OPENAI_CHAT_MODEL,
- * UPDATE_DECISION_OUTPUT (report path), UPDATE_DECISION_REPETITIONS (default 3),
+ * UPDATE_DECISION_OUTPUT (report path), UPDATE_DECISION_PAIRS (file beside this one, default
+ * pairs.json), UPDATE_DECISION_REPETITIONS (default 3),
  * UPDATE_DECISION_CONCURRENCY (default 4).
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -46,6 +47,9 @@ interface Row {
   readonly expiringA: number;
   readonly storedB: number;
   readonly ended: boolean;
+  /** What the write path stored for each note, to tell an extraction error from a decision error. */
+  readonly textsA: readonly string[];
+  readonly textsB: readonly string[];
 }
 
 const outputPath = requiredEnv('UPDATE_DECISION_OUTPUT');
@@ -54,7 +58,7 @@ const model = requiredEnv('OPENAI_CHAT_MODEL');
 const repetitions = positiveInteger('UPDATE_DECISION_REPETITIONS', 3);
 const concurrency = positiveInteger('UPDATE_DECISION_CONCURRENCY', 4);
 const here = dirname(fileURLToPath(import.meta.url));
-const pairs = JSON.parse(readFileSync(resolve(here, 'pairs.json'), 'utf8')) as UpdatePair[];
+const pairs = JSON.parse(readFileSync(resolve(here, process.env['UPDATE_DECISION_PAIRS'] ?? 'pairs.json'), 'utf8')) as UpdatePair[];
 
 async function runOne(pair: UpdatePair, repetition: number): Promise<Row> {
   const memory = await createLocalMemory({
@@ -79,6 +83,7 @@ async function runOne(pair: UpdatePair, repetition: number): Promise<Row> {
     return {
       id: pair.id, label: pair.label, language: pair.language, repetition,
       storedA: first.length, endedA, expiringA, storedB: second.length, ended: endedA > 0,
+      textsA: first.map((item) => item.text), textsB: second.map((item) => item.text),
     };
   } finally {
     await memory.dispose();

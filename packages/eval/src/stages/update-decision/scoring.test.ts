@@ -42,10 +42,32 @@ describe('the committed pair set', () => {
   const here = dirname(fileURLToPath(import.meta.url));
   const pairs = JSON.parse(readFileSync(resolve(here, 'pairs.json'), 'utf8')) as UpdatePair[];
 
-  it('has at least 30 pairs of each label, in English and Portuguese', () => {
-    for (const label of PAIR_LABELS) {
+  it('has at least 30 pairs of each of its labels, in English and Portuguese', () => {
+    const labels = new Set(pairs.map((p) => p.label));
+    expect(labels.size).toBe(7);
+    for (const label of labels) {
+      expect(PAIR_LABELS).toContain(label);
       const ofLabel = pairs.filter((p) => p.label === label);
       expect(ofLabel.length, label).toBeGreaterThanOrEqual(30);
+      expect(new Set(ofLabel.map((p) => p.language))).toEqual(new Set(['en', 'pt']));
+    }
+  });
+
+  it('writes the second note after the first and names each value in its note', () => {
+    expect(pairs.filter((p) => p.dateB <= p.dateA || !p.textA.includes(p.valueA) || !p.textB.includes(p.valueB))).toEqual([]);
+  });
+});
+
+describe.each(['pairs-attributes.json', 'pairs-attributes-held-out.json'])('the committed pair set %s', (file) => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const pairs = JSON.parse(readFileSync(resolve(here, file), 'utf8')) as UpdatePair[];
+
+  it('has at least 24 pairs of each of its labels, in English and Portuguese', () => {
+    const labels = new Set(pairs.map((p) => p.label));
+    expect([...labels].sort()).toEqual(['additional-value', 'correction', 'near-attribute', 'other-person', 'switch', 'tension', 'update']);
+    for (const label of labels) {
+      const ofLabel = pairs.filter((p) => p.label === label);
+      expect(ofLabel.length, label).toBeGreaterThanOrEqual(24);
       expect(new Set(ofLabel.map((p) => p.language))).toEqual(new Set(['en', 'pt']));
     }
   });
