@@ -1,0 +1,3202 @@
+[
+  {
+    "id": "c000",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Marby, in a house with a red roof.",
+      "value": "Marby",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am having my house renovated by Tamoio Reformas.",
+      "value": "Tamoio Reformas",
+      "question": "Which firm is renovating my house?"
+    },
+    "state": {
+      "text": "I am in the mood for slow jazz.",
+      "value": "slow jazz",
+      "question": "Right now, is it true that I am in the mood for slow jazz?",
+      "pastQuestion": "What music was I in the mood for a month ago?"
+    }
+  },
+  {
+    "id": "c001",
+    "language": "en",
+    "lasting": {
+      "text": "I work at Novak Press as a book designer.",
+      "value": "Novak Press",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "I am having my house renovated by Halden Studio.",
+      "value": "Halden Studio",
+      "question": "Which firm is renovating my house?"
+    },
+    "state": {
+      "text": "I am in the mood for dramatic film scores.",
+      "value": "film scores",
+      "question": "Right now, is it true that I am in the mood for film scores?",
+      "pastQuestion": "What music was I in the mood for a month ago?"
+    }
+  },
+  {
+    "id": "c002",
+    "language": "en",
+    "lasting": {
+      "text": "I work at Ordina Logistics as a fleet coordinator.",
+      "value": "Ordina Logistics",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "I am having my house renovated by Merrow & Filhos.",
+      "value": "Merrow & Filhos",
+      "question": "Which firm is renovating my house?"
+    },
+    "state": {
+      "text": "I am dying for a plate of fish tacos.",
+      "value": "fish tacos",
+      "question": "Right now, is it true that I am craving fish tacos?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c003",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Brenstead, in a flat with a balcony.",
+      "value": "Brenstead",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am taking a law course at Instituto Quillon.",
+      "value": "Instituto Quillon",
+      "question": "At which school am I taking a course?"
+    },
+    "state": {
+      "text": "I am in the mood for slow jazz and dim lights.",
+      "value": "slow jazz",
+      "question": "Right now, is it true that I am in the mood for slow jazz?",
+      "pastQuestion": "What music was I in the mood for a month ago?"
+    }
+  },
+  {
+    "id": "c004",
+    "language": "en",
+    "lasting": {
+      "text": "I work at Kestrel Textiles as a dye technician.",
+      "value": "Kestrel Textiles",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "I am taking a sewing course at Ateliê Alvorada.",
+      "value": "Ateliê Alvorada",
+      "question": "At which school am I taking a course?"
+    },
+    "state": {
+      "text": "I want a bowl of ramen so badly.",
+      "value": "ramen",
+      "question": "Right now, is it true that I am craving ramen?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c005",
+    "language": "en",
+    "lasting": {
+      "text": "I am a driver at Halden Logistics.",
+      "value": "Halden Logistics",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "I am having the roof and the rest of my house renovated by Merrow Obras.",
+      "value": "Merrow Obras",
+      "question": "Which firm is renovating my house?"
+    },
+    "state": {
+      "text": "I am craving warm apple crumble.",
+      "value": "apple crumble",
+      "question": "Right now, is it true that I am craving apple crumble?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c006",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Brenbrook, beside a little stream.",
+      "value": "Brenbrook",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am having the house renovated by Sorrel Obras.",
+      "value": "Sorrel Obras",
+      "question": "Which firm is renovating my house?"
+    },
+    "state": {
+      "text": "I am in the mood for old country songs on the radio.",
+      "value": "old country songs",
+      "question": "Right now, is it true that I am in the mood for old country songs?",
+      "pastQuestion": "What music was I in the mood for a month ago?"
+    }
+  },
+  {
+    "id": "c007",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Dunbrook with three housemates.",
+      "value": "Dunbrook",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am taking a history course at Colégio Bandeirantes.",
+      "value": "Colégio Bandeirantes",
+      "question": "At which school am I taking a course?"
+    },
+    "state": {
+      "text": "I am craving a hearty lamb stew.",
+      "value": "lamb stew",
+      "question": "Right now, is it true that I am craving lamb stew?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c008",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Torholm with my brother.",
+      "value": "Torholm",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am having my house renovated by Tamoio Obras.",
+      "value": "Tamoio Obras",
+      "question": "Which firm is renovating my house?"
+    },
+    "state": {
+      "text": "I am in the mood for soft bossa nova.",
+      "value": "bossa nova",
+      "question": "Right now, is it true that I am in the mood for bossa nova?",
+      "pastQuestion": "What music was I in the mood for a month ago?"
+    }
+  },
+  {
+    "id": "c009",
+    "language": "en",
+    "lasting": {
+      "text": "I work at Brillo Energy as an analyst.",
+      "value": "Brillo Energy",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "I am taking a drumming course at Academia Bandeirantes.",
+      "value": "Academia Bandeirantes",
+      "question": "At which school am I taking a course?"
+    },
+    "state": {
+      "text": "I am craving apple crumble with a crunchy top.",
+      "value": "apple crumble",
+      "question": "Right now, is it true that I am craving apple crumble?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c010",
+    "language": "en",
+    "lasting": {
+      "text": "I work at Vantor Textiles as a loom operator.",
+      "value": "Vantor Textiles",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "I am training for the Brenwick Night Run with a headlamp on.",
+      "value": "Brenwick Night Run",
+      "question": "Which race am I training for?"
+    },
+    "state": {
+      "text": "I am in the mood for bossa nova and a quiet room.",
+      "value": "bossa nova",
+      "question": "Right now, is it true that I am in the mood for bossa nova?",
+      "pastQuestion": "What music was I in the mood for a month ago?"
+    }
+  },
+  {
+    "id": "c011",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Hartby, in a small house with a garden.",
+      "value": "Hartby",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am taking a printmaking course at Ateliê Bandeirantes.",
+      "value": "Ateliê Bandeirantes",
+      "question": "At which school am I taking a course?"
+    },
+    "state": {
+      "text": "I am in the mood for bossa nova.",
+      "value": "bossa nova",
+      "question": "Right now, is it true that I am in the mood for bossa nova?",
+      "pastQuestion": "What music was I in the mood for a month ago?"
+    }
+  },
+  {
+    "id": "c012",
+    "language": "en",
+    "lasting": {
+      "text": "I work at Brillo Systems as a network engineer.",
+      "value": "Brillo Systems",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "I am taking a ceramics course at Ateliê Bandeirantes.",
+      "value": "Ateliê Bandeirantes",
+      "question": "At which school am I taking a course?"
+    },
+    "state": {
+      "text": "I am craving pumpkin soup with a swirl of cream.",
+      "value": "pumpkin soup",
+      "question": "Right now, is it true that I am craving pumpkin soup?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c013",
+    "language": "en",
+    "lasting": {
+      "text": "I work at Quill Energy as a field technician.",
+      "value": "Quill Energy",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "I am training for the Velmora Marathon with a coach.",
+      "value": "Velmora Marathon",
+      "question": "Which race am I training for?"
+    },
+    "state": {
+      "text": "I am craving mushroom risotto, rich and earthy.",
+      "value": "mushroom risotto",
+      "question": "Right now, is it true that I am craving mushroom risotto?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c014",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Brenstead with my husband.",
+      "value": "Brenstead",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am having my house renovated by Tamoio & Filhos.",
+      "value": "Tamoio & Filhos",
+      "question": "Which firm is renovating my house?"
+    },
+    "state": {
+      "text": "I am longing to hear some sweeping film scores.",
+      "value": "film scores",
+      "question": "Right now, is it true that I am in the mood for film scores?",
+      "pastQuestion": "What music was I in the mood for a month ago?"
+    }
+  },
+  {
+    "id": "c015",
+    "language": "en",
+    "lasting": {
+      "text": "My workplace is Tamsin Foods, where I manage the warehouse.",
+      "value": "Tamsin Foods",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "I am training for the Marhaven Ultra with very long trail runs.",
+      "value": "Marhaven Ultra",
+      "question": "Which race am I training for?"
+    },
+    "state": {
+      "text": "I am longing for a little bossa nova.",
+      "value": "bossa nova",
+      "question": "Right now, is it true that I am in the mood for bossa nova?",
+      "pastQuestion": "What music was I in the mood for a month ago?"
+    }
+  },
+  {
+    "id": "c016",
+    "language": "en",
+    "lasting": {
+      "text": "I work at Sorrel Labs as a research assistant.",
+      "value": "Sorrel Labs",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "I am training for the Velmora Trail Run on rocky ground.",
+      "value": "Velmora Trail Run",
+      "question": "Which race am I training for?"
+    },
+    "state": {
+      "text": "I am in the mood for old country songs.",
+      "value": "old country songs",
+      "question": "Right now, is it true that I am in the mood for old country songs?",
+      "pastQuestion": "What music was I in the mood for a month ago?"
+    }
+  },
+  {
+    "id": "c017",
+    "language": "en",
+    "lasting": {
+      "text": "I work at Merrow Logistics as a dispatcher.",
+      "value": "Merrow Logistics",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "Sorrel Obras is renovating my house, and I am sleeping in the living room.",
+      "value": "Sorrel Obras",
+      "question": "Which firm is renovating my house?"
+    },
+    "state": {
+      "text": "I have a serious craving for ramen.",
+      "value": "ramen",
+      "question": "Right now, is it true that I am craving ramen?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c018",
+    "language": "en",
+    "lasting": {
+      "text": "My job is at Kestrel Press, where I design covers.",
+      "value": "Kestrel Press",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "I am taking a design course at Instituto Bandeirantes.",
+      "value": "Instituto Bandeirantes",
+      "question": "At which school am I taking a course?"
+    },
+    "state": {
+      "text": "I am longing for slow jazz on the stereo.",
+      "value": "slow jazz",
+      "question": "Right now, is it true that I am in the mood for slow jazz?",
+      "pastQuestion": "What music was I in the mood for a month ago?"
+    }
+  },
+  {
+    "id": "c019",
+    "language": "en",
+    "lasting": {
+      "text": "I work at Ordina Textiles as a fabric buyer.",
+      "value": "Ordina Textiles",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "I am training for the Torford Night Run with my running club.",
+      "value": "Torford Night Run",
+      "question": "Which race am I training for?"
+    },
+    "state": {
+      "text": "I am craving falafel with extra sauce.",
+      "value": "falafel",
+      "question": "Right now, is it true that I am craving falafel?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c020",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Torby, right by the harbour.",
+      "value": "Torby",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am training for the Brenwick Ultra, mile after mile.",
+      "value": "Brenwick Ultra",
+      "question": "Which race am I training for?"
+    },
+    "state": {
+      "text": "I am craving a slice of lemon tart.",
+      "value": "lemon tart",
+      "question": "Right now, is it true that I am craving lemon tart?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c021",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Brenstead, close to the river.",
+      "value": "Brenstead",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "My house is being renovated by Vantor Reformas, and I am living amid the dust.",
+      "value": "Vantor Reformas",
+      "question": "Which firm is renovating my house?"
+    },
+    "state": {
+      "text": "I have a craving for slow-cooked lamb stew.",
+      "value": "lamb stew",
+      "question": "Right now, is it true that I am craving lamb stew?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c022",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Falmora, close to my office.",
+      "value": "Falmora",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am training for the Dunholm Marathon and building up my distance.",
+      "value": "Dunholm Marathon",
+      "question": "Which race am I training for?"
+    },
+    "state": {
+      "text": "I am in the mood for loud punk.",
+      "value": "loud punk",
+      "question": "Right now, is it true that I am in the mood for loud punk?",
+      "pastQuestion": "What music was I in the mood for a month ago?"
+    }
+  },
+  {
+    "id": "c023",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Marmora with my best friend.",
+      "value": "Marmora",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am getting my whole house renovated by Vantor Reformas.",
+      "value": "Vantor Reformas",
+      "question": "Which firm is renovating my house?"
+    },
+    "state": {
+      "text": "I really want a bowl of mushroom risotto.",
+      "value": "mushroom risotto",
+      "question": "Right now, is it true that I am craving mushroom risotto?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c024",
+    "language": "en",
+    "lasting": {
+      "text": "I work at Sorrel Textiles as a pattern maker.",
+      "value": "Sorrel Textiles",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "I am taking a fencing course at Academia Halden.",
+      "value": "Academia Halden",
+      "question": "At which school am I taking a course?"
+    },
+    "state": {
+      "text": "I feel like listening to choral music with my eyes closed.",
+      "value": "choral music",
+      "question": "Right now, is it true that I am in the mood for choral music?",
+      "pastQuestion": "What music was I in the mood for a month ago?"
+    }
+  },
+  {
+    "id": "c025",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Istermora, in a house by the lake.",
+      "value": "Istermora",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am training for the Torford Ultra on steep hills.",
+      "value": "Torford Ultra",
+      "question": "Which race am I training for?"
+    },
+    "state": {
+      "text": "I am craving spicy ramen with extra noodles.",
+      "value": "ramen",
+      "question": "Right now, is it true that I am craving ramen?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c026",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Eskholm, near the ferry dock.",
+      "value": "Eskholm",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am getting my house renovated by the firm Tamoio Reformas.",
+      "value": "Tamoio Reformas",
+      "question": "Which firm is renovating my house?"
+    },
+    "state": {
+      "text": "I am craving lamb stew with potatoes.",
+      "value": "lamb stew",
+      "question": "Right now, is it true that I am craving lamb stew?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c027",
+    "language": "en",
+    "lasting": {
+      "text": "I work at Halden Logistics, handling the paperwork.",
+      "value": "Halden Logistics",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "I am taking a geography course at Colégio Montserrat.",
+      "value": "Colégio Montserrat",
+      "question": "At which school am I taking a course?"
+    },
+    "state": {
+      "text": "I have a strong craving for cheese bread.",
+      "value": "cheese bread",
+      "question": "Right now, is it true that I am craving cheese bread?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c028",
+    "language": "en",
+    "lasting": {
+      "text": "I work at Tamsin Logistics in the shipping office.",
+      "value": "Tamsin Logistics",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "I am training for the Torford Trail Run in the hills.",
+      "value": "Torford Trail Run",
+      "question": "Which race am I training for?"
+    },
+    "state": {
+      "text": "I am craving cold noodles with crunchy vegetables.",
+      "value": "cold noodles",
+      "question": "Right now, is it true that I am craving cold noodles?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c029",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Eskmora, in a narrow terraced house.",
+      "value": "Eskmora",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am taking a philosophy course at Colégio Quillon.",
+      "value": "Colégio Quillon",
+      "question": "At which school am I taking a course?"
+    },
+    "state": {
+      "text": "I am craving cold noodles with a spicy sauce.",
+      "value": "cold noodles",
+      "question": "Right now, is it true that I am craving cold noodles?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c030",
+    "language": "en",
+    "lasting": {
+      "text": "I am a developer at Brillo Systems.",
+      "value": "Brillo Systems",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "I am training for the Velmora Ultra and running a lot of trails.",
+      "value": "Velmora Ultra",
+      "question": "Which race am I training for?"
+    },
+    "state": {
+      "text": "I am craving fish tacos with plenty of lime.",
+      "value": "fish tacos",
+      "question": "Right now, is it true that I am craving fish tacos?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c031",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Marmora, in a studio flat.",
+      "value": "Marmora",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am having my house renovated by Vantor Obras.",
+      "value": "Vantor Obras",
+      "question": "Which firm is renovating my house?"
+    },
+    "state": {
+      "text": "I am craving a steaming bowl of ramen.",
+      "value": "ramen",
+      "question": "Right now, is it true that I am craving ramen?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c032",
+    "language": "en",
+    "lasting": {
+      "text": "I work at Vantor Foods as a production supervisor.",
+      "value": "Vantor Foods",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "Sorrel Studio is renovating my house, and I am choosing tiles.",
+      "value": "Sorrel Studio",
+      "question": "Which firm is renovating my house?"
+    },
+    "state": {
+      "text": "I am craving a plate of mushroom risotto.",
+      "value": "mushroom risotto",
+      "question": "Right now, is it true that I am craving mushroom risotto?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c033",
+    "language": "en",
+    "lasting": {
+      "text": "My employer is Merrow Foods, where I handle logistics.",
+      "value": "Merrow Foods",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "I am taking a statistics course at Instituto Halden.",
+      "value": "Instituto Halden",
+      "question": "At which school am I taking a course?"
+    },
+    "state": {
+      "text": "I am craving cheese bread with a cup of coffee.",
+      "value": "cheese bread",
+      "question": "Right now, is it true that I am craving cheese bread?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c034",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Marford, on a quiet street.",
+      "value": "Marford",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am deep into training for the Torford Ultra.",
+      "value": "Torford Ultra",
+      "question": "Which race am I training for?"
+    },
+    "state": {
+      "text": "I am in the mood for film scores with big orchestras.",
+      "value": "film scores",
+      "question": "Right now, is it true that I am in the mood for film scores?",
+      "pastQuestion": "What music was I in the mood for a month ago?"
+    }
+  },
+  {
+    "id": "c035",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Velwick, a few steps from the beach.",
+      "value": "Velwick",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am taking a geometry course at Colégio Halden.",
+      "value": "Colégio Halden",
+      "question": "At which school am I taking a course?"
+    },
+    "state": {
+      "text": "I am craving a generous serving of apple crumble.",
+      "value": "apple crumble",
+      "question": "Right now, is it true that I am craving apple crumble?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c036",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Hartbrook, above a bookshop.",
+      "value": "Hartbrook",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am training for the Brenwick Ultra with very long runs.",
+      "value": "Brenwick Ultra",
+      "question": "Which race am I training for?"
+    },
+    "state": {
+      "text": "I feel like listening to film scores with my headphones on.",
+      "value": "film scores",
+      "question": "Right now, is it true that I am in the mood for film scores?",
+      "pastQuestion": "What music was I in the mood for a month ago?"
+    }
+  },
+  {
+    "id": "c037",
+    "language": "en",
+    "lasting": {
+      "text": "I work at Kestrel Labs as a data scientist.",
+      "value": "Kestrel Labs",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "I am training for the Brenwick Night Run with my sister.",
+      "value": "Brenwick Night Run",
+      "question": "Which race am I training for?"
+    },
+    "state": {
+      "text": "I am in the mood for loud punk and nothing else.",
+      "value": "loud punk",
+      "question": "Right now, is it true that I am in the mood for loud punk?",
+      "pastQuestion": "What music was I in the mood for a month ago?"
+    }
+  },
+  {
+    "id": "c038",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Eskhaven with my grandmother.",
+      "value": "Eskhaven",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am having every room of my house renovated by Sorrel Studio.",
+      "value": "Sorrel Studio",
+      "question": "Which firm is renovating my house?"
+    },
+    "state": {
+      "text": "I am craving a basket of cheese bread.",
+      "value": "cheese bread",
+      "question": "Right now, is it true that I am craving cheese bread?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c039",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Torstead, in a cottage with a blue door.",
+      "value": "Torstead",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am training for the Castead Marathon along the riverbank.",
+      "value": "Castead Marathon",
+      "question": "Which race am I training for?"
+    },
+    "state": {
+      "text": "I am in the mood for bossa nova with a glass of wine.",
+      "value": "bossa nova",
+      "question": "Right now, is it true that I am in the mood for bossa nova?",
+      "pastQuestion": "What music was I in the mood for a month ago?"
+    }
+  },
+  {
+    "id": "c040",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Hartholm, in a house at the end of the lane.",
+      "value": "Hartholm",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "Vantor Reformas is renovating my house from top to bottom.",
+      "value": "Vantor Reformas",
+      "question": "Which firm is renovating my house?"
+    },
+    "state": {
+      "text": "I am craving mushroom risotto with lots of black pepper.",
+      "value": "mushroom risotto",
+      "question": "Right now, is it true that I am craving mushroom risotto?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c041",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Gorby, next to the train line.",
+      "value": "Gorby",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am having my house renovated by Vantor & Filhos.",
+      "value": "Vantor & Filhos",
+      "question": "Which firm is renovating my house?"
+    },
+    "state": {
+      "text": "I am craving lemon tart with a crisp crust.",
+      "value": "lemon tart",
+      "question": "Right now, is it true that I am craving lemon tart?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c042",
+    "language": "en",
+    "lasting": {
+      "text": "I work at Halden Labs as a chemist.",
+      "value": "Halden Labs",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "I am taking a public speaking course at Academia Halden.",
+      "value": "Academia Halden",
+      "question": "At which school am I taking a course?"
+    },
+    "state": {
+      "text": "I am craving lemon tart and a strong coffee.",
+      "value": "lemon tart",
+      "question": "Right now, is it true that I am craving lemon tart?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c043",
+    "language": "en",
+    "lasting": {
+      "text": "I work at Halden Logistics as a warehouse lead.",
+      "value": "Halden Logistics",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "Vantor & Filhos is renovating my house, starting with the roof.",
+      "value": "Vantor & Filhos",
+      "question": "Which firm is renovating my house?"
+    },
+    "state": {
+      "text": "I am craving the sound of choral music.",
+      "value": "choral music",
+      "question": "Right now, is it true that I am in the mood for choral music?",
+      "pastQuestion": "What music was I in the mood for a month ago?"
+    }
+  },
+  {
+    "id": "c044",
+    "language": "en",
+    "lasting": {
+      "text": "I work at Tamsin Energy as a project manager.",
+      "value": "Tamsin Energy",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "I am having my house renovated by Sorrel Studio.",
+      "value": "Sorrel Studio",
+      "question": "Which firm is renovating my house?"
+    },
+    "state": {
+      "text": "I am in the mood for choral music, sung softly.",
+      "value": "choral music",
+      "question": "Right now, is it true that I am in the mood for choral music?",
+      "pastQuestion": "What music was I in the mood for a month ago?"
+    }
+  },
+  {
+    "id": "c045",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Falbrook with my parents.",
+      "value": "Falbrook",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am training for the Velmora Night Run with reflective gear.",
+      "value": "Velmora Night Run",
+      "question": "Which race am I training for?"
+    },
+    "state": {
+      "text": "I feel like putting on some slow jazz.",
+      "value": "slow jazz",
+      "question": "Right now, is it true that I am in the mood for slow jazz?",
+      "pastQuestion": "What music was I in the mood for a month ago?"
+    }
+  },
+  {
+    "id": "c046",
+    "language": "en",
+    "lasting": {
+      "text": "My home is in Marford, near the old bridge.",
+      "value": "Marford",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am taking a chemistry course at Colégio Alvorada.",
+      "value": "Colégio Alvorada",
+      "question": "At which school am I taking a course?"
+    },
+    "state": {
+      "text": "I really want some crispy fish tacos.",
+      "value": "fish tacos",
+      "question": "Right now, is it true that I am craving fish tacos?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c047",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Torford with my partner and our dog.",
+      "value": "Torford",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am taking a guitar course at Academia Bandeirantes.",
+      "value": "Academia Bandeirantes",
+      "question": "At which school am I taking a course?"
+    },
+    "state": {
+      "text": "I am craving a creamy mushroom risotto.",
+      "value": "mushroom risotto",
+      "question": "Right now, is it true that I am craving mushroom risotto?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c048",
+    "language": "en",
+    "lasting": {
+      "text": "I work at Tamsin Foods in product development.",
+      "value": "Tamsin Foods",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "I am taking a drawing course at Colégio Montserrat.",
+      "value": "Colégio Montserrat",
+      "question": "At which school am I taking a course?"
+    },
+    "state": {
+      "text": "I am in the mood for slow jazz on vinyl.",
+      "value": "slow jazz",
+      "question": "Right now, is it true that I am in the mood for slow jazz?",
+      "pastQuestion": "What music was I in the mood for a month ago?"
+    }
+  },
+  {
+    "id": "c049",
+    "language": "en",
+    "lasting": {
+      "text": "I work at Kestrel Press as an editor.",
+      "value": "Kestrel Press",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "I am taking a coding course at Instituto Montserrat.",
+      "value": "Instituto Montserrat",
+      "question": "At which school am I taking a course?"
+    },
+    "state": {
+      "text": "I am craving apple crumble with custard.",
+      "value": "apple crumble",
+      "question": "Right now, is it true that I am craving apple crumble?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c050",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Torholm, across from the park.",
+      "value": "Torholm",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "Tamoio Reformas is renovating my house, and I am living among boxes.",
+      "value": "Tamoio Reformas",
+      "question": "Which firm is renovating my house?"
+    },
+    "state": {
+      "text": "I am in the mood for some slow jazz.",
+      "value": "slow jazz",
+      "question": "Right now, is it true that I am in the mood for slow jazz?",
+      "pastQuestion": "What music was I in the mood for a month ago?"
+    }
+  },
+  {
+    "id": "c051",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Cashaven, a short walk from the market.",
+      "value": "Cashaven",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am having the house renovated by Merrow Obras.",
+      "value": "Merrow Obras",
+      "question": "Which firm is renovating my house?"
+    },
+    "state": {
+      "text": "I am craving cold noodles with sesame.",
+      "value": "cold noodles",
+      "question": "Right now, is it true that I am craving cold noodles?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c052",
+    "language": "en",
+    "lasting": {
+      "text": "I work at Tamsin Press as a production editor.",
+      "value": "Tamsin Press",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "I am training for the Marhaven Night Run with my neighbour.",
+      "value": "Marhaven Night Run",
+      "question": "Which race am I training for?"
+    },
+    "state": {
+      "text": "I want to hear choral music echoing through the room.",
+      "value": "choral music",
+      "question": "Right now, is it true that I am in the mood for choral music?",
+      "pastQuestion": "What music was I in the mood for a month ago?"
+    }
+  },
+  {
+    "id": "c053",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Hartwick, near the football ground.",
+      "value": "Hartwick",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am having my house renovated by the firm Sorrel & Filhos.",
+      "value": "Sorrel & Filhos",
+      "question": "Which firm is renovating my house?"
+    },
+    "state": {
+      "text": "I am craving fish tacos with a squeeze of lime.",
+      "value": "fish tacos",
+      "question": "Right now, is it true that I am craving fish tacos?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c054",
+    "language": "en",
+    "lasting": {
+      "text": "My job is at Novak Textiles, in the design team.",
+      "value": "Novak Textiles",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "Vantor Studio is renovating my house, floor by floor.",
+      "value": "Vantor Studio",
+      "question": "Which firm is renovating my house?"
+    },
+    "state": {
+      "text": "I feel like hearing old country songs on the porch.",
+      "value": "old country songs",
+      "question": "Right now, is it true that I am in the mood for old country songs?",
+      "pastQuestion": "What music was I in the mood for a month ago?"
+    }
+  },
+  {
+    "id": "c055",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Velstead on the top floor of an old building.",
+      "value": "Velstead",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "Sorrel & Filhos is renovating my house, and I am staying in the back room.",
+      "value": "Sorrel & Filhos",
+      "question": "Which firm is renovating my house?"
+    },
+    "state": {
+      "text": "I am hungry for mushroom risotto with fresh herbs.",
+      "value": "mushroom risotto",
+      "question": "Right now, is it true that I am craving mushroom risotto?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c056",
+    "language": "en",
+    "lasting": {
+      "text": "I work at Quill Systems as a software tester.",
+      "value": "Quill Systems",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "I am training for the Marhaven Marathon and logging long runs.",
+      "value": "Marhaven Marathon",
+      "question": "Which race am I training for?"
+    },
+    "state": {
+      "text": "I am in the mood for soaring choral music.",
+      "value": "choral music",
+      "question": "Right now, is it true that I am in the mood for choral music?",
+      "pastQuestion": "What music was I in the mood for a month ago?"
+    }
+  },
+  {
+    "id": "c057",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Dunbrook, beside the canal.",
+      "value": "Dunbrook",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am having my house renovated by Merrow Reformas.",
+      "value": "Merrow Reformas",
+      "question": "Which firm is renovating my house?"
+    },
+    "state": {
+      "text": "I am really craving a big bowl of ramen.",
+      "value": "ramen",
+      "question": "Right now, is it true that I am craving ramen?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c058",
+    "language": "en",
+    "lasting": {
+      "text": "I work at Sorrel Systems as a support engineer.",
+      "value": "Sorrel Systems",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "I am having the whole house renovated by Tamoio Reformas.",
+      "value": "Tamoio Reformas",
+      "question": "Which firm is renovating my house?"
+    },
+    "state": {
+      "text": "I want to listen to film scores at full volume.",
+      "value": "film scores",
+      "question": "Right now, is it true that I am in the mood for film scores?",
+      "pastQuestion": "What music was I in the mood for a month ago?"
+    }
+  },
+  {
+    "id": "c059",
+    "language": "en",
+    "lasting": {
+      "text": "I work at Merrow Press in the marketing team.",
+      "value": "Merrow Press",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "I am having my house renovated by Merrow Studio.",
+      "value": "Merrow Studio",
+      "question": "Which firm is renovating my house?"
+    },
+    "state": {
+      "text": "I am in the mood for bossa nova played quietly.",
+      "value": "bossa nova",
+      "question": "Right now, is it true that I am in the mood for bossa nova?",
+      "pastQuestion": "What music was I in the mood for a month ago?"
+    }
+  },
+  {
+    "id": "c060",
+    "language": "en",
+    "lasting": {
+      "text": "I work at Sorrel Foods, on the packaging line.",
+      "value": "Sorrel Foods",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "I am training for the Torford Trail Run with a weighted pack.",
+      "value": "Torford Trail Run",
+      "question": "Which race am I training for?"
+    },
+    "state": {
+      "text": "I am craving a sharp, buttery lemon tart.",
+      "value": "lemon tart",
+      "question": "Right now, is it true that I am craving lemon tart?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c061",
+    "language": "en",
+    "lasting": {
+      "text": "I am an editor at Merrow Press.",
+      "value": "Merrow Press",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "I am taking a yoga course at Academia Bandeirantes.",
+      "value": "Academia Bandeirantes",
+      "question": "At which school am I taking a course?"
+    },
+    "state": {
+      "text": "I am craving lemon tart, cold and tangy.",
+      "value": "lemon tart",
+      "question": "Right now, is it true that I am craving lemon tart?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c062",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Casbrook, opposite a small chapel.",
+      "value": "Casbrook",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am having my house renovated by Vantor Studio.",
+      "value": "Vantor Studio",
+      "question": "Which firm is renovating my house?"
+    },
+    "state": {
+      "text": "I am craving ramen with a soft egg on top.",
+      "value": "ramen",
+      "question": "Right now, is it true that I am craving ramen?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c063",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Hartford, in a flat above a bakery.",
+      "value": "Hartford",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am having my house renovated by Merrow Obras.",
+      "value": "Merrow Obras",
+      "question": "Which firm is renovating my house?"
+    },
+    "state": {
+      "text": "I am craving a couple of fish tacos.",
+      "value": "fish tacos",
+      "question": "Right now, is it true that I am craving fish tacos?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c064",
+    "language": "en",
+    "lasting": {
+      "text": "I work at Novak Logistics in the customs team.",
+      "value": "Novak Logistics",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "I am taking an accounting course at Colégio Alvorada.",
+      "value": "Colégio Alvorada",
+      "question": "At which school am I taking a course?"
+    },
+    "state": {
+      "text": "I am craving thick, velvety pumpkin soup.",
+      "value": "pumpkin soup",
+      "question": "Right now, is it true that I am craving pumpkin soup?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c065",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Marbrook, near the public library.",
+      "value": "Marbrook",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am training for the Dunholm Trail Run on muddy paths.",
+      "value": "Dunholm Trail Run",
+      "question": "Which race am I training for?"
+    },
+    "state": {
+      "text": "I am in the mood for choral music with rich harmonies.",
+      "value": "choral music",
+      "question": "Right now, is it true that I am in the mood for choral music?",
+      "pastQuestion": "What music was I in the mood for a month ago?"
+    }
+  },
+  {
+    "id": "c066",
+    "language": "en",
+    "lasting": {
+      "text": "I work at Kestrel Logistics as a route planner.",
+      "value": "Kestrel Logistics",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "I am training hard for the Dunholm Trail Run.",
+      "value": "Dunholm Trail Run",
+      "question": "Which race am I training for?"
+    },
+    "state": {
+      "text": "I want to blast some loud punk through my speakers.",
+      "value": "loud punk",
+      "question": "Right now, is it true that I am in the mood for loud punk?",
+      "pastQuestion": "What music was I in the mood for a month ago?"
+    }
+  },
+  {
+    "id": "c067",
+    "language": "en",
+    "lasting": {
+      "text": "I work at Halden Textiles as a sales representative.",
+      "value": "Halden Textiles",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "Merrow Obras is renovating my house, room by room.",
+      "value": "Merrow Obras",
+      "question": "Which firm is renovating my house?"
+    },
+    "state": {
+      "text": "I am craving falafel wrapped in warm flatbread.",
+      "value": "falafel",
+      "question": "Right now, is it true that I am craving falafel?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c068",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Velmora, close to the mountains.",
+      "value": "Velmora",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am taking a marketing course at Instituto Alvorada.",
+      "value": "Instituto Alvorada",
+      "question": "At which school am I taking a course?"
+    },
+    "state": {
+      "text": "I am craving pumpkin soup with crusty bread.",
+      "value": "pumpkin soup",
+      "question": "Right now, is it true that I am craving pumpkin soup?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c069",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Marhaven with my wife and kids.",
+      "value": "Marhaven",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am taking a swimming course at Academia Quillon.",
+      "value": "Academia Quillon",
+      "question": "At which school am I taking a course?"
+    },
+    "state": {
+      "text": "I am craving a plate of cold noodles.",
+      "value": "cold noodles",
+      "question": "Right now, is it true that I am craving cold noodles?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c070",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Gorstead, at the edge of the woods.",
+      "value": "Gorstead",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am in the middle of training for the Dunholm Marathon.",
+      "value": "Dunholm Marathon",
+      "question": "Which race am I training for?"
+    },
+    "state": {
+      "text": "I am in the mood for film scores, the quieter kind.",
+      "value": "film scores",
+      "question": "Right now, is it true that I am in the mood for film scores?",
+      "pastQuestion": "What music was I in the mood for a month ago?"
+    }
+  },
+  {
+    "id": "c071",
+    "language": "en",
+    "lasting": {
+      "text": "My home is in Marhaven, up on the hill.",
+      "value": "Marhaven",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am taking a writing course at Instituto Montserrat.",
+      "value": "Instituto Montserrat",
+      "question": "At which school am I taking a course?"
+    },
+    "state": {
+      "text": "I am craving a hot bowl of pumpkin soup.",
+      "value": "pumpkin soup",
+      "question": "Right now, is it true that I am craving pumpkin soup?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c072",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Hartford, near the university.",
+      "value": "Hartford",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am training for the Brenwick Trail Run with a friend.",
+      "value": "Brenwick Trail Run",
+      "question": "Which race am I training for?"
+    },
+    "state": {
+      "text": "I am in the mood for film scores.",
+      "value": "film scores",
+      "question": "Right now, is it true that I am in the mood for film scores?",
+      "pastQuestion": "What music was I in the mood for a month ago?"
+    }
+  },
+  {
+    "id": "c073",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Dunhaven with my two cats.",
+      "value": "Dunhaven",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am taking a chess course at Academia Halden.",
+      "value": "Academia Halden",
+      "question": "At which school am I taking a course?"
+    },
+    "state": {
+      "text": "I am craving warm cheese bread straight from the oven.",
+      "value": "cheese bread",
+      "question": "Right now, is it true that I am craving cheese bread?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c074",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Isterbrook, near the old mill.",
+      "value": "Isterbrook",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am training for the Dunholm Marathon with a running group.",
+      "value": "Dunholm Marathon",
+      "question": "Which race am I training for?"
+    },
+    "state": {
+      "text": "I am craving fish tacos with a cold drink.",
+      "value": "fish tacos",
+      "question": "Right now, is it true that I am craving fish tacos?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c075",
+    "language": "en",
+    "lasting": {
+      "text": "I work at Ordina Labs as a lab technician.",
+      "value": "Ordina Labs",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "I am taking a photography course at Instituto Montserrat.",
+      "value": "Instituto Montserrat",
+      "question": "At which school am I taking a course?"
+    },
+    "state": {
+      "text": "I am craving lamb stew with thick gravy.",
+      "value": "lamb stew",
+      "question": "Right now, is it true that I am craving lamb stew?",
+      "pastQuestion": "What was I craving a month ago?"
+    }
+  },
+  {
+    "id": "c076",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Brenstead, a short ride from the station.",
+      "value": "Brenstead",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am training for the Torford Ultra with back-to-back long runs.",
+      "value": "Torford Ultra",
+      "question": "Which race am I training for?"
+    },
+    "state": {
+      "text": "I feel like hearing some gentle bossa nova.",
+      "value": "bossa nova",
+      "question": "Right now, is it true that I am in the mood for bossa nova?",
+      "pastQuestion": "What music was I in the mood for a month ago?"
+    }
+  },
+  {
+    "id": "c077",
+    "language": "en",
+    "lasting": {
+      "text": "I work at Merrow Foods in the quality department.",
+      "value": "Merrow Foods",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "Tamoio Obras is renovating my house, and the kitchen is in pieces.",
+      "value": "Tamoio Obras",
+      "question": "Which firm is renovating my house?"
+    },
+    "state": {
+      "text": "I am itching to hear some loud punk.",
+      "value": "loud punk",
+      "question": "Right now, is it true that I am in the mood for loud punk?",
+      "pastQuestion": "What music was I in the mood for a month ago?"
+    }
+  },
+  {
+    "id": "c078",
+    "language": "en",
+    "lasting": {
+      "text": "I live in Marhaven, near the lighthouse.",
+      "value": "Marhaven",
+      "question": "Where do I live?"
+    },
+    "ongoing": {
+      "text": "I am taking a watercolor course at Ateliê Halden.",
+      "value": "Ateliê Halden",
+      "question": "At which school am I taking a course?"
+    },
+    "state": {
+      "text": "I am in the mood for old country songs with a slow twang.",
+      "value": "old country songs",
+      "question": "Right now, is it true that I am in the mood for old country songs?",
+      "pastQuestion": "What music was I in the mood for a month ago?"
+    }
+  },
+  {
+    "id": "c079",
+    "language": "en",
+    "lasting": {
+      "text": "I am a proofreader at Halden Press.",
+      "value": "Halden Press",
+      "question": "Which company do I work at?"
+    },
+    "ongoing": {
+      "text": "I am getting the house renovated by Halden Studio.",
+      "value": "Halden Studio",
+      "question": "Which firm is renovating my house?"
+    },
+    "state": {
+      "text": "I am in the mood for choral music.",
+      "value": "choral music",
+      "question": "Right now, is it true that I am in the mood for choral music?",
+      "pastQuestion": "What music was I in the mood for a month ago?"
+    }
+  },
+  {
+    "id": "c080",
+    "language": "pt",
+    "lasting": {
+      "text": "Moro em Tormora, numa casa de esquina.",
+      "value": "Tormora",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou tocando a reforma da minha casa com a Tamoio & Filhos.",
+      "value": "Tamoio & Filhos",
+      "question": "Que empresa está reformando a minha casa?"
+    },
+    "state": {
+      "text": "Estou a fim de ouvir jazz lento e nada mais.",
+      "value": "jazz lento",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir jazz lento?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c081",
+    "language": "pt",
+    "lasting": {
+      "text": "Eu trabalho na Brillo Foods como nutricionista.",
+      "value": "Brillo Foods",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "Estou reformando a casa com a empresa Tamoio Reformas.",
+      "value": "Tamoio Reformas",
+      "question": "Que empresa está reformando a minha casa?"
+    },
+    "state": {
+      "text": "Estou a fim de ouvir bossa nova com um café na mão.",
+      "value": "bossa nova",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir bossa nova?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c082",
+    "language": "pt",
+    "lasting": {
+      "text": "Eu moro em Eskbrook, num prédio de três andares.",
+      "value": "Eskbrook",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou cursando espanhol no Colégio Quillon e gostando bastante.",
+      "value": "Colégio Quillon",
+      "question": "Em que escola estou fazendo um curso?"
+    },
+    "state": {
+      "text": "Estou com desejo de comer sopa de abóbora com torradas.",
+      "value": "sopa de abóbora",
+      "question": "Neste momento, é verdade que eu estou com vontade de comer sopa de abóbora?",
+      "pastQuestion": "O que eu estava com vontade de comer um mês atrás?"
+    }
+  },
+  {
+    "id": "c083",
+    "language": "pt",
+    "lasting": {
+      "text": "Eu moro em Falmora, numa casa térrea.",
+      "value": "Falmora",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou reformando os quartos e a sala com a Sorrel & Filhos.",
+      "value": "Sorrel & Filhos",
+      "question": "Que empresa está reformando a minha casa?"
+    },
+    "state": {
+      "text": "Estou a fim de ouvir jazz lento com as luzes apagadas.",
+      "value": "jazz lento",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir jazz lento?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c084",
+    "language": "pt",
+    "lasting": {
+      "text": "Sou funcionária da Ordina Foods, no departamento financeiro.",
+      "value": "Ordina Foods",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "Estou fazendo um curso de fotografia na Academia Tamoio.",
+      "value": "Academia Tamoio",
+      "question": "Em que escola estou fazendo um curso?"
+    },
+    "state": {
+      "text": "Estou com vontade de ouvir jazz lento e relaxar.",
+      "value": "jazz lento",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir jazz lento?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c085",
+    "language": "pt",
+    "lasting": {
+      "text": "Moro em Harthaven, numa rua arborizada.",
+      "value": "Harthaven",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou reformando a casa com a Tamoio & Filhos, começando pelo banheiro.",
+      "value": "Tamoio & Filhos",
+      "question": "Que empresa está reformando a minha casa?"
+    },
+    "state": {
+      "text": "Estou a fim de ouvir trilhas de filme enquanto cozinho.",
+      "value": "trilhas de filme",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir trilhas de filme?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c086",
+    "language": "pt",
+    "lasting": {
+      "text": "Eu trabalho na Quill Systems, na equipe de infraestrutura.",
+      "value": "Quill Systems",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "Estou fazendo um curso de esgrima na Academia Halden.",
+      "value": "Academia Halden",
+      "question": "Em que escola estou fazendo um curso?"
+    },
+    "state": {
+      "text": "Estou a fim de ouvir jazz lento debaixo das cobertas.",
+      "value": "jazz lento",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir jazz lento?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c087",
+    "language": "pt",
+    "lasting": {
+      "text": "Moro em Brenholm, numa casa de dois andares.",
+      "value": "Brenholm",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou fazendo um curso de costura no Ateliê Kestrel.",
+      "value": "Ateliê Kestrel",
+      "question": "Em que escola estou fazendo um curso?"
+    },
+    "state": {
+      "text": "Estou a fim de ouvir punk barulhento com as caixas no talo.",
+      "value": "punk barulhento",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir punk barulhento?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c088",
+    "language": "pt",
+    "lasting": {
+      "text": "Eu moro em Aldstead, perto da feira.",
+      "value": "Aldstead",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou me preparando para a prova Marhaven Marathon correndo na orla.",
+      "value": "Marhaven Marathon",
+      "question": "Para qual prova estou treinando?"
+    },
+    "state": {
+      "text": "Estou morrendo de vontade de tomar uma sopa de abóbora.",
+      "value": "sopa de abóbora",
+      "question": "Neste momento, é verdade que eu estou com vontade de comer sopa de abóbora?",
+      "pastQuestion": "O que eu estava com vontade de comer um mês atrás?"
+    }
+  },
+  {
+    "id": "c089",
+    "language": "pt",
+    "lasting": {
+      "text": "Eu trabalho na Tamsin Systems como programadora.",
+      "value": "Tamsin Systems",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "Estou tocando a reforma da casa com a empresa Halden Reformas.",
+      "value": "Halden Reformas",
+      "question": "Que empresa está reformando a minha casa?"
+    },
+    "state": {
+      "text": "Estou a fim de ouvir música coral e ficar quietinha.",
+      "value": "música coral",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir música coral?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c090",
+    "language": "pt",
+    "lasting": {
+      "text": "Moro em Dunmora, perto de um parque enorme.",
+      "value": "Dunmora",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou treinando para a prova Castead Night Run com os colegas.",
+      "value": "Castead Night Run",
+      "question": "Para qual prova estou treinando?"
+    },
+    "state": {
+      "text": "Estou a fim de ouvir música coral em silêncio.",
+      "value": "música coral",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir música coral?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c091",
+    "language": "pt",
+    "lasting": {
+      "text": "Trabalho na Tamsin Labs como pesquisadora.",
+      "value": "Tamsin Labs",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "Estou treinando para a prova Dunholm Trail Run subindo muitas ladeiras.",
+      "value": "Dunholm Trail Run",
+      "question": "Para qual prova estou treinando?"
+    },
+    "state": {
+      "text": "Estou a fim de ouvir punk barulhento no volume máximo.",
+      "value": "punk barulhento",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir punk barulhento?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c092",
+    "language": "pt",
+    "lasting": {
+      "text": "Moro em Dunhaven, numa casa com quintal.",
+      "value": "Dunhaven",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou reformando a casa com a empresa Vantor Studio, e a poeira está por toda parte.",
+      "value": "Vantor Studio",
+      "question": "Que empresa está reformando a minha casa?"
+    },
+    "state": {
+      "text": "Estou com vontade de comer sopa de abóbora com queijo derretido.",
+      "value": "sopa de abóbora",
+      "question": "Neste momento, é verdade que eu estou com vontade de comer sopa de abóbora?",
+      "pastQuestion": "O que eu estava com vontade de comer um mês atrás?"
+    }
+  },
+  {
+    "id": "c093",
+    "language": "pt",
+    "lasting": {
+      "text": "Eu moro em Aldholm, numa vila tranquila.",
+      "value": "Aldholm",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou reformando a cozinha e o resto da casa com a Sorrel & Filhos.",
+      "value": "Sorrel & Filhos",
+      "question": "Que empresa está reformando a minha casa?"
+    },
+    "state": {
+      "text": "Estou a fim de ouvir jazz lento no sofá.",
+      "value": "jazz lento",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir jazz lento?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c094",
+    "language": "pt",
+    "lasting": {
+      "text": "Eu moro em Isterby, numa casa de madeira.",
+      "value": "Isterby",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou treinando para a prova Brenwick Marathon e correndo cada vez mais.",
+      "value": "Brenwick Marathon",
+      "question": "Para qual prova estou treinando?"
+    },
+    "state": {
+      "text": "Estou com vontade de comer sopa de abóbora bem quentinha.",
+      "value": "sopa de abóbora",
+      "question": "Neste momento, é verdade que eu estou com vontade de comer sopa de abóbora?",
+      "pastQuestion": "O que eu estava com vontade de comer um mês atrás?"
+    }
+  },
+  {
+    "id": "c095",
+    "language": "pt",
+    "lasting": {
+      "text": "Trabalho na Halden Energy como eletricista.",
+      "value": "Halden Energy",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "Estou fazendo um curso de filosofia no Colégio Halden.",
+      "value": "Colégio Halden",
+      "question": "Em que escola estou fazendo um curso?"
+    },
+    "state": {
+      "text": "Estou a fim de ouvir trilhas de filme de arrepiar.",
+      "value": "trilhas de filme",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir trilhas de filme?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c096",
+    "language": "pt",
+    "lasting": {
+      "text": "Moro em Eskford, numa rua bem tranquila.",
+      "value": "Eskford",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou reformando a casa com a empresa Sorrel & Filhos.",
+      "value": "Sorrel & Filhos",
+      "question": "Que empresa está reformando a minha casa?"
+    },
+    "state": {
+      "text": "Estou com vontade de comer torta de limão azedinha.",
+      "value": "torta de limão",
+      "question": "Neste momento, é verdade que eu estou com vontade de comer torta de limão?",
+      "pastQuestion": "O que eu estava com vontade de comer um mês atrás?"
+    }
+  },
+  {
+    "id": "c097",
+    "language": "pt",
+    "lasting": {
+      "text": "Eu moro em Gorford, perto da estação de trem.",
+      "value": "Gorford",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou fazendo um curso de dança na Academia Montserrat.",
+      "value": "Academia Montserrat",
+      "question": "Em que escola estou fazendo um curso?"
+    },
+    "state": {
+      "text": "Estou a fim de ouvir trilhas de filme bem emocionantes.",
+      "value": "trilhas de filme",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir trilhas de filme?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c098",
+    "language": "pt",
+    "lasting": {
+      "text": "Moro em Dunwick, numa ladeira cheia de casas coloridas.",
+      "value": "Dunwick",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou fazendo um curso de cerâmica no Ateliê Tamoio.",
+      "value": "Ateliê Tamoio",
+      "question": "Em que escola estou fazendo um curso?"
+    },
+    "state": {
+      "text": "Estou com vontade de comer acarajé bem recheado.",
+      "value": "acarajé",
+      "question": "Neste momento, é verdade que eu estou com vontade de comer acarajé?",
+      "pastQuestion": "O que eu estava com vontade de comer um mês atrás?"
+    }
+  },
+  {
+    "id": "c099",
+    "language": "pt",
+    "lasting": {
+      "text": "Trabalho na Novak Logistics como planejador de rotas.",
+      "value": "Novak Logistics",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "A Sorrel & Filhos está reformando a minha casa de ponta a ponta.",
+      "value": "Sorrel & Filhos",
+      "question": "Que empresa está reformando a minha casa?"
+    },
+    "state": {
+      "text": "Estou com muita vontade de comer moqueca.",
+      "value": "moqueca",
+      "question": "Neste momento, é verdade que eu estou com vontade de comer moqueca?",
+      "pastQuestion": "O que eu estava com vontade de comer um mês atrás?"
+    }
+  },
+  {
+    "id": "c100",
+    "language": "pt",
+    "lasting": {
+      "text": "Eu moro em Aldhaven, perto da praça central.",
+      "value": "Aldhaven",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou reformando a casa com a empresa Merrow Obras.",
+      "value": "Merrow Obras",
+      "question": "Que empresa está reformando a minha casa?"
+    },
+    "state": {
+      "text": "Estou louco para comer acarajé bem quentinho.",
+      "value": "acarajé",
+      "question": "Neste momento, é verdade que eu estou com vontade de comer acarajé?",
+      "pastQuestion": "O que eu estava com vontade de comer um mês atrás?"
+    }
+  },
+  {
+    "id": "c101",
+    "language": "pt",
+    "lasting": {
+      "text": "Eu trabalho na Novak Logistics como conferente de cargas.",
+      "value": "Novak Logistics",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "Estou treinando para a prova Brenwick Night Run com uma lanterna de cabeça.",
+      "value": "Brenwick Night Run",
+      "question": "Para qual prova estou treinando?"
+    },
+    "state": {
+      "text": "Estou doida para comer pão de queijo com café.",
+      "value": "pão de queijo",
+      "question": "Neste momento, é verdade que eu estou com vontade de comer pão de queijo?",
+      "pastQuestion": "O que eu estava com vontade de comer um mês atrás?"
+    }
+  },
+  {
+    "id": "c102",
+    "language": "pt",
+    "lasting": {
+      "text": "Trabalho na Sorrel Foods, na área de vendas.",
+      "value": "Sorrel Foods",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "Estou fazendo um curso de desenho na Academia Alvorada.",
+      "value": "Academia Alvorada",
+      "question": "Em que escola estou fazendo um curso?"
+    },
+    "state": {
+      "text": "Estou a fim de ouvir jazz lento tomando um vinho.",
+      "value": "jazz lento",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir jazz lento?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c103",
+    "language": "pt",
+    "lasting": {
+      "text": "Moro em Gorhaven, num apartamento pequeno e ensolarado.",
+      "value": "Gorhaven",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou reformando a casa com a empresa Sorrel Studio.",
+      "value": "Sorrel Studio",
+      "question": "Que empresa está reformando a minha casa?"
+    },
+    "state": {
+      "text": "Estou com desejo de comer risoto de cogumelos.",
+      "value": "risoto de cogumelos",
+      "question": "Neste momento, é verdade que eu estou com vontade de comer risoto de cogumelos?",
+      "pastQuestion": "O que eu estava com vontade de comer um mês atrás?"
+    }
+  },
+  {
+    "id": "c104",
+    "language": "pt",
+    "lasting": {
+      "text": "Trabalho na Brillo Energy, no setor de engenharia.",
+      "value": "Brillo Energy",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "Estou fazendo um curso de inglês no Colégio Bandeirantes.",
+      "value": "Colégio Bandeirantes",
+      "question": "Em que escola estou fazendo um curso?"
+    },
+    "state": {
+      "text": "Estou morrendo de vontade de comer bolo de fubá.",
+      "value": "bolo de fubá",
+      "question": "Neste momento, é verdade que eu estou com vontade de comer bolo de fubá?",
+      "pastQuestion": "O que eu estava com vontade de comer um mês atrás?"
+    }
+  },
+  {
+    "id": "c105",
+    "language": "pt",
+    "lasting": {
+      "text": "Trabalho na Merrow Foods como compradora.",
+      "value": "Merrow Foods",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "Estou fazendo uma reforma em casa com a Tamoio Studio.",
+      "value": "Tamoio Studio",
+      "question": "Que empresa está reformando a minha casa?"
+    },
+    "state": {
+      "text": "Estou com vontade de comer pão de queijo saindo do forno.",
+      "value": "pão de queijo",
+      "question": "Neste momento, é verdade que eu estou com vontade de comer pão de queijo?",
+      "pastQuestion": "O que eu estava com vontade de comer um mês atrás?"
+    }
+  },
+  {
+    "id": "c106",
+    "language": "pt",
+    "lasting": {
+      "text": "Eu trabalho na Merrow Systems como desenvolvedor.",
+      "value": "Merrow Systems",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "Estou treinando para a prova Marhaven Ultra com muita resistência.",
+      "value": "Marhaven Ultra",
+      "question": "Para qual prova estou treinando?"
+    },
+    "state": {
+      "text": "Estou a fim de ouvir moda de viola tomando um café.",
+      "value": "moda de viola",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir moda de viola?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c107",
+    "language": "pt",
+    "lasting": {
+      "text": "Eu trabalho na Halden Textiles, no setor de compras.",
+      "value": "Halden Textiles",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "Estou treinando para a prova Castead Night Run com colete refletivo.",
+      "value": "Castead Night Run",
+      "question": "Para qual prova estou treinando?"
+    },
+    "state": {
+      "text": "Estou a fim de ouvir bossa nova de olhos fechados.",
+      "value": "bossa nova",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir bossa nova?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c108",
+    "language": "pt",
+    "lasting": {
+      "text": "Moro em Marwick, numa rua sem saída.",
+      "value": "Marwick",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou fazendo um curso de matemática no Colégio Tamoio.",
+      "value": "Colégio Tamoio",
+      "question": "Em que escola estou fazendo um curso?"
+    },
+    "state": {
+      "text": "Estou com vontade de ouvir música coral bem tranquila.",
+      "value": "música coral",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir música coral?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c109",
+    "language": "pt",
+    "lasting": {
+      "text": "Moro em Isterholm com o meu companheiro.",
+      "value": "Isterholm",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou reformando a casa com a empresa Vantor Obras.",
+      "value": "Vantor Obras",
+      "question": "Que empresa está reformando a minha casa?"
+    },
+    "state": {
+      "text": "Estou a fim de ouvir bossa nova bem baixinho.",
+      "value": "bossa nova",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir bossa nova?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c110",
+    "language": "pt",
+    "lasting": {
+      "text": "Moro em Falholm, numa casa antiga e aconchegante.",
+      "value": "Falholm",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou cursando biologia no Colégio Bandeirantes com muito interesse.",
+      "value": "Colégio Bandeirantes",
+      "question": "Em que escola estou fazendo um curso?"
+    },
+    "state": {
+      "text": "Estou com vontade de ouvir música coral bem alto.",
+      "value": "música coral",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir música coral?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c111",
+    "language": "pt",
+    "lasting": {
+      "text": "Eu trabalho na Ordina Energy, na área comercial.",
+      "value": "Ordina Energy",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "Estou fazendo um curso de canto na Academia Alvorada.",
+      "value": "Academia Alvorada",
+      "question": "Em que escola estou fazendo um curso?"
+    },
+    "state": {
+      "text": "Estou com vontade de comer lámen com bastante caldo.",
+      "value": "lámen",
+      "question": "Neste momento, é verdade que eu estou com vontade de comer lámen?",
+      "pastQuestion": "O que eu estava com vontade de comer um mês atrás?"
+    }
+  },
+  {
+    "id": "c112",
+    "language": "pt",
+    "lasting": {
+      "text": "Eu trabalho na Brillo Labs como química.",
+      "value": "Brillo Labs",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "Estou treinando para a prova Marhaven Trail Run com tênis de trilha.",
+      "value": "Marhaven Trail Run",
+      "question": "Para qual prova estou treinando?"
+    },
+    "state": {
+      "text": "Estou a fim de ouvir punk barulhento e pular pela sala.",
+      "value": "punk barulhento",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir punk barulhento?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c113",
+    "language": "pt",
+    "lasting": {
+      "text": "Moro em Marmora, num apartamento de dois quartos.",
+      "value": "Marmora",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou treinando para a prova Brenwick Ultra com treinos bem longos.",
+      "value": "Brenwick Ultra",
+      "question": "Para qual prova estou treinando?"
+    },
+    "state": {
+      "text": "Estou com vontade de ouvir bossa nova na varanda.",
+      "value": "bossa nova",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir bossa nova?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c114",
+    "language": "pt",
+    "lasting": {
+      "text": "Eu trabalho na Ordina Labs como biólogo.",
+      "value": "Ordina Labs",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "Estou cursando violão na Academia Bandeirantes e praticando bastante.",
+      "value": "Academia Bandeirantes",
+      "question": "Em que escola estou fazendo um curso?"
+    },
+    "state": {
+      "text": "Estou a fim de ouvir moda de viola no rádio.",
+      "value": "moda de viola",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir moda de viola?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c115",
+    "language": "pt",
+    "lasting": {
+      "text": "Eu trabalho na Novak Press como editora.",
+      "value": "Novak Press",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "Estou treinando para a prova Dunholm Ultra em terreno montanhoso.",
+      "value": "Dunholm Ultra",
+      "question": "Para qual prova estou treinando?"
+    },
+    "state": {
+      "text": "Estou com vontade de comer risoto de cogumelos bem cremoso.",
+      "value": "risoto de cogumelos",
+      "question": "Neste momento, é verdade que eu estou com vontade de comer risoto de cogumelos?",
+      "pastQuestion": "O que eu estava com vontade de comer um mês atrás?"
+    }
+  },
+  {
+    "id": "c116",
+    "language": "pt",
+    "lasting": {
+      "text": "Moro em Isterholm, numa casa de pedra.",
+      "value": "Isterholm",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou fazendo um curso de física no Colégio Bandeirantes.",
+      "value": "Colégio Bandeirantes",
+      "question": "Em que escola estou fazendo um curso?"
+    },
+    "state": {
+      "text": "Estou a fim de ouvir música coral com as janelas abertas.",
+      "value": "música coral",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir música coral?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c117",
+    "language": "pt",
+    "lasting": {
+      "text": "Trabalho na Ordina Foods, na linha de produção.",
+      "value": "Ordina Foods",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "Estou fazendo um curso de contabilidade no Instituto Alvorada.",
+      "value": "Instituto Alvorada",
+      "question": "Em que escola estou fazendo um curso?"
+    },
+    "state": {
+      "text": "Estou a fim de ouvir jazz lento deitado na rede.",
+      "value": "jazz lento",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir jazz lento?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c118",
+    "language": "pt",
+    "lasting": {
+      "text": "Moro em Dunstead com a minha irmã.",
+      "value": "Dunstead",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou treinando para a prova Castead Trail Run em estradas de terra.",
+      "value": "Castead Trail Run",
+      "question": "Para qual prova estou treinando?"
+    },
+    "state": {
+      "text": "Estou a fim de ouvir moda de viola bem sossegado.",
+      "value": "moda de viola",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir moda de viola?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c119",
+    "language": "pt",
+    "lasting": {
+      "text": "Moro em Falmora, perto do meu trabalho.",
+      "value": "Falmora",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou reformando a casa com a empresa Halden Reformas.",
+      "value": "Halden Reformas",
+      "question": "Que empresa está reformando a minha casa?"
+    },
+    "state": {
+      "text": "Estou com vontade de comer bolo de fubá bem fofinho.",
+      "value": "bolo de fubá",
+      "question": "Neste momento, é verdade que eu estou com vontade de comer bolo de fubá?",
+      "pastQuestion": "O que eu estava com vontade de comer um mês atrás?"
+    }
+  },
+  {
+    "id": "c120",
+    "language": "pt",
+    "lasting": {
+      "text": "Eu moro em Marholm, bem no centro.",
+      "value": "Marholm",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou treinando para a prova Velmora Ultra com mochila de hidratação.",
+      "value": "Velmora Ultra",
+      "question": "Para qual prova estou treinando?"
+    },
+    "state": {
+      "text": "Estou querendo muito ouvir música coral.",
+      "value": "música coral",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir música coral?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c121",
+    "language": "pt",
+    "lasting": {
+      "text": "Moro em Dunholm, num bairro cheio de árvores.",
+      "value": "Dunholm",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou treinando para a prova Marhaven Trail Run com muita dedicação.",
+      "value": "Marhaven Trail Run",
+      "question": "Para qual prova estou treinando?"
+    },
+    "state": {
+      "text": "Estou com vontade de comer pastel de feira bem crocante.",
+      "value": "pastel de feira",
+      "question": "Neste momento, é verdade que eu estou com vontade de comer pastel de feira?",
+      "pastQuestion": "O que eu estava com vontade de comer um mês atrás?"
+    }
+  },
+  {
+    "id": "c122",
+    "language": "pt",
+    "lasting": {
+      "text": "Trabalho na Vantor Labs como técnica de laboratório.",
+      "value": "Vantor Labs",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "Estou fazendo um curso de pintura no Ateliê Bandeirantes.",
+      "value": "Ateliê Bandeirantes",
+      "question": "Em que escola estou fazendo um curso?"
+    },
+    "state": {
+      "text": "Estou com vontade de comer bolo de fubá com manteiga.",
+      "value": "bolo de fubá",
+      "question": "Neste momento, é verdade que eu estou com vontade de comer bolo de fubá?",
+      "pastQuestion": "O que eu estava com vontade de comer um mês atrás?"
+    }
+  },
+  {
+    "id": "c123",
+    "language": "pt",
+    "lasting": {
+      "text": "Eu trabalho na Ordina Systems, na equipe de suporte.",
+      "value": "Ordina Systems",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "Estou reformando a casa com a empresa Merrow Studio.",
+      "value": "Merrow Studio",
+      "question": "Que empresa está reformando a minha casa?"
+    },
+    "state": {
+      "text": "Estou a fim de ouvir jazz lento num canto sossegado.",
+      "value": "jazz lento",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir jazz lento?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c124",
+    "language": "pt",
+    "lasting": {
+      "text": "Eu trabalho na Tamsin Foods, no setor de logística.",
+      "value": "Tamsin Foods",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "Estou fazendo um curso de redação no Colégio Quillon.",
+      "value": "Colégio Quillon",
+      "question": "Em que escola estou fazendo um curso?"
+    },
+    "state": {
+      "text": "Estou com vontade de comer moqueca com arroz branco.",
+      "value": "moqueca",
+      "question": "Neste momento, é verdade que eu estou com vontade de comer moqueca?",
+      "pastQuestion": "O que eu estava com vontade de comer um mês atrás?"
+    }
+  },
+  {
+    "id": "c125",
+    "language": "pt",
+    "lasting": {
+      "text": "Moro em Aldmora com meu marido e nossa filha.",
+      "value": "Aldmora",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou treinando para a prova Dunholm Ultra com treinos de subida.",
+      "value": "Dunholm Ultra",
+      "question": "Para qual prova estou treinando?"
+    },
+    "state": {
+      "text": "Estou com vontade de ouvir trilhas de filme no fone.",
+      "value": "trilhas de filme",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir trilhas de filme?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c126",
+    "language": "pt",
+    "lasting": {
+      "text": "Eu moro em Falwick, perto do porto.",
+      "value": "Falwick",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou fazendo um curso de francês no Colégio Montserrat.",
+      "value": "Colégio Montserrat",
+      "question": "Em que escola estou fazendo um curso?"
+    },
+    "state": {
+      "text": "Estou com vontade de comer bolo de fubá com café.",
+      "value": "bolo de fubá",
+      "question": "Neste momento, é verdade que eu estou com vontade de comer bolo de fubá?",
+      "pastQuestion": "O que eu estava com vontade de comer um mês atrás?"
+    }
+  },
+  {
+    "id": "c127",
+    "language": "pt",
+    "lasting": {
+      "text": "Eu trabalho na Kestrel Press como revisora de textos.",
+      "value": "Kestrel Press",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "Estou treinando para a prova Dunholm Marathon, acumulando muitos quilômetros.",
+      "value": "Dunholm Marathon",
+      "question": "Para qual prova estou treinando?"
+    },
+    "state": {
+      "text": "Estou a fim de ouvir trilhas de filme no último volume.",
+      "value": "trilhas de filme",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir trilhas de filme?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c128",
+    "language": "pt",
+    "lasting": {
+      "text": "Moro em Gormora, numa casa amarela.",
+      "value": "Gormora",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou treinando pesado para a prova Velmora Ultra.",
+      "value": "Velmora Ultra",
+      "question": "Para qual prova estou treinando?"
+    },
+    "state": {
+      "text": "Estou com vontade de comer pastel de feira bem sequinho.",
+      "value": "pastel de feira",
+      "question": "Neste momento, é verdade que eu estou com vontade de comer pastel de feira?",
+      "pastQuestion": "O que eu estava com vontade de comer um mês atrás?"
+    }
+  },
+  {
+    "id": "c129",
+    "language": "pt",
+    "lasting": {
+      "text": "Trabalho na Sorrel Energy como engenheira de projetos.",
+      "value": "Sorrel Energy",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "Estou reformando a minha casa com a Sorrel Studio.",
+      "value": "Sorrel Studio",
+      "question": "Que empresa está reformando a minha casa?"
+    },
+    "state": {
+      "text": "Estou louca para comer bolo de fubá fresquinho.",
+      "value": "bolo de fubá",
+      "question": "Neste momento, é verdade que eu estou com vontade de comer bolo de fubá?",
+      "pastQuestion": "O que eu estava com vontade de comer um mês atrás?"
+    }
+  },
+  {
+    "id": "c130",
+    "language": "pt",
+    "lasting": {
+      "text": "Trabalho na Halden Textiles como estilista.",
+      "value": "Halden Textiles",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "Estou fazendo um curso de química no Colégio Kestrel.",
+      "value": "Colégio Kestrel",
+      "question": "Em que escola estou fazendo um curso?"
+    },
+    "state": {
+      "text": "Estou a fim de ouvir bossa nova tomando um chá.",
+      "value": "bossa nova",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir bossa nova?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c131",
+    "language": "pt",
+    "lasting": {
+      "text": "Trabalho na Novak Foods como assistente administrativa.",
+      "value": "Novak Foods",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "Estou reformando a casa com a empresa Tamoio & Filhos.",
+      "value": "Tamoio & Filhos",
+      "question": "Que empresa está reformando a minha casa?"
+    },
+    "state": {
+      "text": "Estou com vontade de comer moqueca bem temperada.",
+      "value": "moqueca",
+      "question": "Neste momento, é verdade que eu estou com vontade de comer moqueca?",
+      "pastQuestion": "O que eu estava com vontade de comer um mês atrás?"
+    }
+  },
+  {
+    "id": "c132",
+    "language": "pt",
+    "lasting": {
+      "text": "Moro em Hartstead com a minha família.",
+      "value": "Hartstead",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou treinando para a prova Torford Trail Run com bastante disciplina.",
+      "value": "Torford Trail Run",
+      "question": "Para qual prova estou treinando?"
+    },
+    "state": {
+      "text": "Estou a fim de ouvir jazz lento bem baixinho.",
+      "value": "jazz lento",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir jazz lento?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c133",
+    "language": "pt",
+    "lasting": {
+      "text": "Trabalho na Halden Foods como supervisora de produção.",
+      "value": "Halden Foods",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "Estou treinando para a prova Brenwick Ultra subindo morros.",
+      "value": "Brenwick Ultra",
+      "question": "Para qual prova estou treinando?"
+    },
+    "state": {
+      "text": "Estou com vontade de comer torta de limão bem gelada.",
+      "value": "torta de limão",
+      "question": "Neste momento, é verdade que eu estou com vontade de comer torta de limão?",
+      "pastQuestion": "O que eu estava com vontade de comer um mês atrás?"
+    }
+  },
+  {
+    "id": "c134",
+    "language": "pt",
+    "lasting": {
+      "text": "Trabalho na Kestrel Foods como gerente de loja.",
+      "value": "Kestrel Foods",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "Estou treinando para a prova Dunholm Night Run com um grupo animado.",
+      "value": "Dunholm Night Run",
+      "question": "Para qual prova estou treinando?"
+    },
+    "state": {
+      "text": "Estou morrendo de vontade de comer lámen.",
+      "value": "lámen",
+      "question": "Neste momento, é verdade que eu estou com vontade de comer lámen?",
+      "pastQuestion": "O que eu estava com vontade de comer um mês atrás?"
+    }
+  },
+  {
+    "id": "c135",
+    "language": "pt",
+    "lasting": {
+      "text": "Trabalho na Quill Systems como analista de sistemas.",
+      "value": "Quill Systems",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "Estou fazendo um curso de programação no Instituto Halden.",
+      "value": "Instituto Halden",
+      "question": "Em que escola estou fazendo um curso?"
+    },
+    "state": {
+      "text": "Estou com vontade de ouvir trilhas de filme tocadas ao piano.",
+      "value": "trilhas de filme",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir trilhas de filme?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c136",
+    "language": "pt",
+    "lasting": {
+      "text": "Moro em Casbrook, ao lado de uma padaria.",
+      "value": "Casbrook",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou treinando firme para a prova Brenwick Marathon.",
+      "value": "Brenwick Marathon",
+      "question": "Para qual prova estou treinando?"
+    },
+    "state": {
+      "text": "Estou com vontade de comer acarajé com pimenta.",
+      "value": "acarajé",
+      "question": "Neste momento, é verdade que eu estou com vontade de comer acarajé?",
+      "pastQuestion": "O que eu estava com vontade de comer um mês atrás?"
+    }
+  },
+  {
+    "id": "c137",
+    "language": "pt",
+    "lasting": {
+      "text": "Eu moro em Brenhaven, perto da lagoa.",
+      "value": "Brenhaven",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou treinando para a prova Torford Marathon com um treinador.",
+      "value": "Torford Marathon",
+      "question": "Para qual prova estou treinando?"
+    },
+    "state": {
+      "text": "Estou a fim de ouvir bossa nova para relaxar.",
+      "value": "bossa nova",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir bossa nova?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c138",
+    "language": "pt",
+    "lasting": {
+      "text": "Trabalho na Merrow Systems, na área de segurança da informação.",
+      "value": "Merrow Systems",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "Estou me preparando para a prova Marhaven Trail Run correndo em terreno acidentado.",
+      "value": "Marhaven Trail Run",
+      "question": "Para qual prova estou treinando?"
+    },
+    "state": {
+      "text": "Estou a fim de ouvir música coral com fones de ouvido.",
+      "value": "música coral",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir música coral?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c139",
+    "language": "pt",
+    "lasting": {
+      "text": "Meu emprego é na Ordina Logistics, onde coordeno as entregas.",
+      "value": "Ordina Logistics",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "Estou fazendo um curso de teatro na Academia Kestrel.",
+      "value": "Academia Kestrel",
+      "question": "Em que escola estou fazendo um curso?"
+    },
+    "state": {
+      "text": "Estou com vontade de ouvir jazz lento à luz de velas.",
+      "value": "jazz lento",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir jazz lento?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c140",
+    "language": "pt",
+    "lasting": {
+      "text": "Moro em Gorstead, na beira da mata.",
+      "value": "Gorstead",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou fazendo um curso de informática no Colégio Alvorada.",
+      "value": "Colégio Alvorada",
+      "question": "Em que escola estou fazendo um curso?"
+    },
+    "state": {
+      "text": "Estou com vontade de comer pão de queijo quentinho.",
+      "value": "pão de queijo",
+      "question": "Neste momento, é verdade que eu estou com vontade de comer pão de queijo?",
+      "pastQuestion": "O que eu estava com vontade de comer um mês atrás?"
+    }
+  },
+  {
+    "id": "c141",
+    "language": "pt",
+    "lasting": {
+      "text": "Moro em Marhaven, perto do farol.",
+      "value": "Marhaven",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou fazendo um curso de bordado no Ateliê Montserrat.",
+      "value": "Ateliê Montserrat",
+      "question": "Em que escola estou fazendo um curso?"
+    },
+    "state": {
+      "text": "Estou com vontade de comer risoto de cogumelos com queijo ralado.",
+      "value": "risoto de cogumelos",
+      "question": "Neste momento, é verdade que eu estou com vontade de comer risoto de cogumelos?",
+      "pastQuestion": "O que eu estava com vontade de comer um mês atrás?"
+    }
+  },
+  {
+    "id": "c142",
+    "language": "pt",
+    "lasting": {
+      "text": "Trabalho na Halden Logistics como motorista de caminhão.",
+      "value": "Halden Logistics",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "Estou fazendo um curso de eletrônica no Instituto Kestrel.",
+      "value": "Instituto Kestrel",
+      "question": "Em que escola estou fazendo um curso?"
+    },
+    "state": {
+      "text": "Estou a fim de ouvir jazz lento com um bom fone.",
+      "value": "jazz lento",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir jazz lento?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c143",
+    "language": "pt",
+    "lasting": {
+      "text": "Moro em Marford, perto da ponte.",
+      "value": "Marford",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "A Halden & Filhos está reformando a minha casa, cômodo por cômodo.",
+      "value": "Halden & Filhos",
+      "question": "Que empresa está reformando a minha casa?"
+    },
+    "state": {
+      "text": "Estou com vontade de comer lámen bem apimentado.",
+      "value": "lámen",
+      "question": "Neste momento, é verdade que eu estou com vontade de comer lámen?",
+      "pastQuestion": "O que eu estava com vontade de comer um mês atrás?"
+    }
+  },
+  {
+    "id": "c144",
+    "language": "pt",
+    "lasting": {
+      "text": "Trabalho na Tamsin Press como diagramadora.",
+      "value": "Tamsin Press",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "Estou reformando a casa com a empresa Halden Studio.",
+      "value": "Halden Studio",
+      "question": "Que empresa está reformando a minha casa?"
+    },
+    "state": {
+      "text": "Estou com vontade de ouvir moda de viola sem pressa.",
+      "value": "moda de viola",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir moda de viola?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c145",
+    "language": "pt",
+    "lasting": {
+      "text": "Trabalho na Tamsin Systems, no time de produto.",
+      "value": "Tamsin Systems",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "Estou fazendo um curso de geografia no Colégio Alvorada.",
+      "value": "Colégio Alvorada",
+      "question": "Em que escola estou fazendo um curso?"
+    },
+    "state": {
+      "text": "Estou com vontade de comer ensopado de cordeiro bem encorpado.",
+      "value": "ensopado de cordeiro",
+      "question": "Neste momento, é verdade que eu estou com vontade de comer ensopado de cordeiro?",
+      "pastQuestion": "O que eu estava com vontade de comer um mês atrás?"
+    }
+  },
+  {
+    "id": "c146",
+    "language": "pt",
+    "lasting": {
+      "text": "Moro em Gorford, num sobrado antigo.",
+      "value": "Gorford",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou treinando para a prova Brenwick Trail Run em trilhas íngremes.",
+      "value": "Brenwick Trail Run",
+      "question": "Para qual prova estou treinando?"
+    },
+    "state": {
+      "text": "Estou com vontade de comer moqueca numa panela de barro.",
+      "value": "moqueca",
+      "question": "Neste momento, é verdade que eu estou com vontade de comer moqueca?",
+      "pastQuestion": "O que eu estava com vontade de comer um mês atrás?"
+    }
+  },
+  {
+    "id": "c147",
+    "language": "pt",
+    "lasting": {
+      "text": "Eu moro em Hartholm, no alto do morro.",
+      "value": "Hartholm",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou reformando a casa com a empresa Merrow Reformas.",
+      "value": "Merrow Reformas",
+      "question": "Que empresa está reformando a minha casa?"
+    },
+    "state": {
+      "text": "Estou a fim de ouvir música coral cantada a muitas vozes.",
+      "value": "música coral",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir música coral?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c148",
+    "language": "pt",
+    "lasting": {
+      "text": "Eu moro em Harthaven com os meus pais.",
+      "value": "Harthaven",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou fazendo um curso de oratória na Academia Halden.",
+      "value": "Academia Halden",
+      "question": "Em que escola estou fazendo um curso?"
+    },
+    "state": {
+      "text": "Estou a fim de ouvir moda de viola sentado na varanda.",
+      "value": "moda de viola",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir moda de viola?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c149",
+    "language": "pt",
+    "lasting": {
+      "text": "Moro em Brenmora, num bairro residencial.",
+      "value": "Brenmora",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou treinando para a prova Marhaven Marathon com um grupo de corrida.",
+      "value": "Marhaven Marathon",
+      "question": "Para qual prova estou treinando?"
+    },
+    "state": {
+      "text": "Estou a fim de ouvir trilhas de filme orquestradas.",
+      "value": "trilhas de filme",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir trilhas de filme?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c150",
+    "language": "pt",
+    "lasting": {
+      "text": "Trabalho na Brillo Textiles cuidando do controle de qualidade.",
+      "value": "Brillo Textiles",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "Estou reformando a casa toda com a empresa Vantor Studio.",
+      "value": "Vantor Studio",
+      "question": "Que empresa está reformando a minha casa?"
+    },
+    "state": {
+      "text": "Estou a fim de ouvir música coral bem solene.",
+      "value": "música coral",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir música coral?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c151",
+    "language": "pt",
+    "lasting": {
+      "text": "Eu moro em Velwick, pertinho da praia.",
+      "value": "Velwick",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou fazendo um curso de gravura no Ateliê Quillon.",
+      "value": "Ateliê Quillon",
+      "question": "Em que escola estou fazendo um curso?"
+    },
+    "state": {
+      "text": "Estou a fim de ouvir moda de viola das boas.",
+      "value": "moda de viola",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir moda de viola?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c152",
+    "language": "pt",
+    "lasting": {
+      "text": "Trabalho na Sorrel Logistics, no atendimento ao cliente.",
+      "value": "Sorrel Logistics",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "Estou estudando análise de dados num curso do Instituto Kestrel.",
+      "value": "Instituto Kestrel",
+      "question": "Em que escola estou fazendo um curso?"
+    },
+    "state": {
+      "text": "Estou com muita vontade de ouvir punk barulhento.",
+      "value": "punk barulhento",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir punk barulhento?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c153",
+    "language": "pt",
+    "lasting": {
+      "text": "Eu moro em Isterholm, bem perto do mar.",
+      "value": "Isterholm",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou fazendo um curso de gestão no Instituto Kestrel.",
+      "value": "Instituto Kestrel",
+      "question": "Em que escola estou fazendo um curso?"
+    },
+    "state": {
+      "text": "Estou com vontade de comer torta de limão com bastante merengue.",
+      "value": "torta de limão",
+      "question": "Neste momento, é verdade que eu estou com vontade de comer torta de limão?",
+      "pastQuestion": "O que eu estava com vontade de comer um mês atrás?"
+    }
+  },
+  {
+    "id": "c154",
+    "language": "pt",
+    "lasting": {
+      "text": "Moro em Brenwick, perto da rodoviária.",
+      "value": "Brenwick",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou reformando a casa com a empresa Halden & Filhos.",
+      "value": "Halden & Filhos",
+      "question": "Que empresa está reformando a minha casa?"
+    },
+    "state": {
+      "text": "Estou querendo ouvir jazz lento para desacelerar.",
+      "value": "jazz lento",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir jazz lento?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c155",
+    "language": "pt",
+    "lasting": {
+      "text": "Moro em Falby, num sítio pequeno.",
+      "value": "Falby",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou treinando para a prova Marhaven Marathon com muito foco.",
+      "value": "Marhaven Marathon",
+      "question": "Para qual prova estou treinando?"
+    },
+    "state": {
+      "text": "Estou a fim de ouvir música coral sem interrupções.",
+      "value": "música coral",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir música coral?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c156",
+    "language": "pt",
+    "lasting": {
+      "text": "Trabalho na Ordina Energy como técnico de manutenção.",
+      "value": "Ordina Energy",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "A Sorrel Obras está reformando a minha casa inteira.",
+      "value": "Sorrel Obras",
+      "question": "Que empresa está reformando a minha casa?"
+    },
+    "state": {
+      "text": "Estou com vontade de ouvir moda de viola na rede.",
+      "value": "moda de viola",
+      "question": "Neste momento, é verdade que eu estou a fim de ouvir moda de viola?",
+      "pastQuestion": "O que eu estava a fim de ouvir um mês atrás?"
+    }
+  },
+  {
+    "id": "c157",
+    "language": "pt",
+    "lasting": {
+      "text": "Trabalho na Vantor Energy, na equipe de segurança.",
+      "value": "Vantor Energy",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "Estou treinando nas trilhas para a prova Marhaven Trail Run.",
+      "value": "Marhaven Trail Run",
+      "question": "Para qual prova estou treinando?"
+    },
+    "state": {
+      "text": "Estou doido para comer pastel de feira.",
+      "value": "pastel de feira",
+      "question": "Neste momento, é verdade que eu estou com vontade de comer pastel de feira?",
+      "pastQuestion": "O que eu estava com vontade de comer um mês atrás?"
+    }
+  },
+  {
+    "id": "c158",
+    "language": "pt",
+    "lasting": {
+      "text": "Trabalho na Kestrel Systems como arquiteto de software.",
+      "value": "Kestrel Systems",
+      "question": "Em que empresa eu trabalho?"
+    },
+    "ongoing": {
+      "text": "Estou me preparando para a prova Dunholm Marathon com treinos longos.",
+      "value": "Dunholm Marathon",
+      "question": "Para qual prova estou treinando?"
+    },
+    "state": {
+      "text": "Estou com vontade de comer sopa de abóbora com gengibre.",
+      "value": "sopa de abóbora",
+      "question": "Neste momento, é verdade que eu estou com vontade de comer sopa de abóbora?",
+      "pastQuestion": "O que eu estava com vontade de comer um mês atrás?"
+    }
+  },
+  {
+    "id": "c159",
+    "language": "pt",
+    "lasting": {
+      "text": "Moro em Brenstead, perto do rio.",
+      "value": "Brenstead",
+      "question": "Onde eu moro?"
+    },
+    "ongoing": {
+      "text": "Estou fazendo um curso de história da arte no Colégio Tamoio.",
+      "value": "Colégio Tamoio",
+      "question": "Em que escola estou fazendo um curso?"
+    },
+    "state": {
+      "text": "Estou com desejo de comer uma fatia de torta de limão.",
+      "value": "torta de limão",
+      "question": "Neste momento, é verdade que eu estou com vontade de comer torta de limão?",
+      "pastQuestion": "O que eu estava com vontade de comer um mês atrás?"
+    }
+  }
+]
