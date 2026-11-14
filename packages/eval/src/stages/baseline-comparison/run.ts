@@ -6,10 +6,13 @@
  *   full context  every message of the history, with its date, is put in the prompt;
  *   retrieval     the five messages most similar to the question, with their dates.
  *
- * A history is the notes of one person from the update case set (values that change, some logged
- * out of order, controls that are not updates) interleaved by date with unrelated first-person
- * messages from the recalled-value case set. Questions come from both sets. The three arms share
- * the reader, its instruction and the scoring; input tokens of each reader call are reported.
+ * A history is the notes about four people from the update case set (values that change, some
+ * logged out of order, controls that are not updates) interleaved by date with the first-person
+ * messages of one person from the recalled-value case set. No two messages of a history are
+ * about the same person and the same thing unless the case set says one updates the other.
+ * Questions come from both sets. The three arms share the reader and the scoring, and each
+ * question is asked under two instructions: one that tells the reader a later statement is the
+ * current one, and one that does not. Answers and input tokens of each reader call are reported.
  *
  * Environment: OPENAI_API_KEY, OPENAI_BASE_URL (chat calls, e.g. a cost proxy),
  * OPENAI_CHAT_MODEL (default gpt-4o-mini), THEOMEM_PG_URI, BASELINE_COMPARISON_OUTPUT (path),
@@ -33,12 +36,20 @@ import { carries, RecalledValueCaseSchema } from '../recalled-value/scoring.js';
 const TOP_K = 5;
 const EMBEDDING_MODEL = 'text-embedding-3-small';
 const EMBEDDING_DIM = 1536;
-const READER_INSTRUCTION =
+const PEOPLE_PER_HISTORY = 4;
+const INSTRUCTION_START =
   'You answer a question using only the notes given. Each note may carry the date it was said. ' +
-  'Reply with the shortest exact answer, as it is written in the notes. ' +
-  'When notes give different values for the same thing, the one said later is the current one, ' +
-  'unless the question asks about a date: then answer what held on that date. ' +
-  'If the notes do not say, reply exactly: unknown.';
+  'Reply with the shortest exact answer, as it is written in the notes. ';
+const INSTRUCTION_END = 'If the notes do not say, reply exactly: unknown.';
+const INSTRUCTIONS = {
+  laterWins:
+    INSTRUCTION_START +
+    'When notes give different values for the same thing, the one said later is the current one, ' +
+    'unless the question asks about a date: then answer what held on that date. ' +
+    INSTRUCTION_END,
+  plain: INSTRUCTION_START + INSTRUCTION_END,
+} as const;
+type Instruction = keyof typeof INSTRUCTIONS;
 
 function requiredEnv(name: string): string {
   const value = process.env[name];
@@ -84,44 +95,55 @@ function addDays(date: string, days: number): string {
   return at.toISOString().slice(0, 10);
 }
 
-/** One history per person of the update set: their notes and every filler message of their language. */
+/** One history for each group of four people of the update set, with one person's first-person messages. */
 function histories(): readonly History[] {
-  const byLanguage = new Map<string, typeof fillers>();
-  for (const filler of fillers) byLanguage.set(filler.language, [...(byLanguage.get(filler.language) ?? []), filler]);
-  const seen = new Map<string, number>();
-  return updates.users.map((user) => {
-    const language = user.id.includes('-pt-') ? 'pt' : 'en';
-    const pool = byLanguage.get(language) ?? [];
-    const index = seen.get(language) ?? 0;
-    seen.set(language, index + 1);
-    const dates = user.facts.map((fact) => fact.observedAt).sort();
-    const first = dates[0] as string;
-    const span = Math.max(1, Math.round((Date.parse(dates[dates.length - 1] as string) - Date.parse(first)) / 86_400_000));
-    const notes: Entry[] = user.facts.map((fact) => ({ date: fact.observedAt, content: fact.text }));
-    const fillerEntries: Entry[] = pool.flatMap((filler, i) =>
-      filler.messages.map((content, j) => ({ date: addDays(first, (i * 37 + j * 11) % (span + 1)), content })),
-    );
-    // Notes keep their logging order (an update logged out of order lists its newer note first);
-    // each filler goes before the first note logged at or after its date.
-    const entries: Entry[] = [];
-    const pending = [...fillerEntries].sort((a, b) => a.date.localeCompare(b.date));
-    for (const note of notes) {
-      while (pending.length > 0 && (pending[0] as Entry).date <= note.date) entries.push(pending.shift() as Entry);
-      entries.push(note);
+  const byLanguage = new Map<string, { users: (typeof updates.users)[number][]; fillers: typeof fillers }>();
+  const group = (language: string) => {
+    const existing = byLanguage.get(language);
+    if (existing !== undefined) return existing;
+    const created = { users: [] as (typeof updates.users)[number][], fillers: fillers.filter((filler) => filler.language === language) };
+    byLanguage.set(language, created);
+    return created;
+  };
+  for (const user of updates.users) group(user.id.includes('-pt-') ? 'pt' : 'en').users.push(user);
+  const result: History[] = [];
+  for (const [language, { users, fillers: pool }] of byLanguage) {
+    for (let start = 0; start < users.length; start += PEOPLE_PER_HISTORY) {
+      const people = users.slice(start, start + PEOPLE_PER_HISTORY);
+      const own = pool[(start / PEOPLE_PER_HISTORY) % Math.max(1, pool.length)];
+      // Notes keep the logging order of their case (an update logged out of order lists its newer
+      // note first); the people take turns, so the notes of one person are spread over the history.
+      const notes: Entry[] = [];
+      for (let i = 0; people.some((person) => i < person.facts.length); i += 1) {
+        for (const person of people) {
+          const fact = person.facts[i];
+          if (fact !== undefined) notes.push({ date: fact.observedAt, content: fact.text });
+        }
+      }
+      const dates = notes.map((note) => note.date).sort();
+      const first = dates[0] as string;
+      const span = Math.max(1, Math.round((Date.parse(dates[dates.length - 1] as string) - Date.parse(first)) / 86_400_000));
+      const ownMessages = own?.messages ?? [];
+      const step = Math.max(1, Math.floor(notes.length / (ownMessages.length + 1)));
+      const entries: Entry[] = [...notes];
+      ownMessages.forEach((content, j) => {
+        entries.splice(Math.min(entries.length, (j + 1) * step + j), 0, { date: addDays(first, Math.round(((j + 1) * span) / (ownMessages.length + 1))), content });
+      });
+      const questions: Question[] = [
+        ...people.flatMap((person) =>
+          person.questions.map((q) => ({
+            family: questionKind(person, q),
+            query: q.query,
+            asOf: q.asOf,
+            correct: (answer: string) => matches(q.pattern, answer) && !(q.stalePattern !== undefined && matches(q.stalePattern, answer)),
+          })),
+        ),
+        ...(own?.questions ?? []).map((q) => ({ family: `first-person-${q.kind}`, query: q.question, asOf: undefined, correct: (answer: string) => carries(answer, q.value) })),
+      ];
+      result.push({ id: `${language}-${String(start / PEOPLE_PER_HISTORY)}`, language, entries, questions });
     }
-    entries.push(...pending);
-    const own = pool[index % Math.max(1, pool.length)];
-    const questions: Question[] = [
-      ...user.questions.map((q) => ({
-        family: questionKind(user, q),
-        query: q.query,
-        asOf: q.asOf,
-        correct: (answer: string) => matches(q.pattern, answer) && !(q.stalePattern !== undefined && matches(q.stalePattern, answer)),
-      })),
-      ...(own?.questions ?? []).map((q) => ({ family: `filler-${q.kind}`, query: q.question, asOf: undefined, correct: (answer: string) => carries(answer, q.value) })),
-    ];
-    return { id: user.id, language, entries, questions };
-  });
+  }
+  return result;
 }
 
 const ChatSchema = z.object({
@@ -129,7 +151,7 @@ const ChatSchema = z.object({
   usage: z.object({ prompt_tokens: z.number() }),
 });
 
-async function read(question: Question, lines: readonly string[]): Promise<{ answer: string; promptTokens: number }> {
+async function read(question: Question, lines: readonly string[], instruction: Instruction): Promise<{ answer: string; promptTokens: number }> {
   const asked = question.asOf === undefined ? question.query : `${question.query} (answer what held on ${question.asOf})`;
   for (let attempt = 0; ; attempt += 1) {
     const response = await fetch(`${chatBase}/chat/completions`, {
@@ -140,7 +162,7 @@ async function read(question: Question, lines: readonly string[]): Promise<{ ans
         temperature: 0,
         max_tokens: 40,
         messages: [
-          { role: 'system', content: READER_INSTRUCTION },
+          { role: 'system', content: INSTRUCTIONS[instruction] },
           { role: 'user', content: `Notes:\n${lines.join('\n')}\n\nQuestion: ${asked}` },
         ],
       }),
@@ -170,9 +192,15 @@ interface Row {
   readonly language: string;
   readonly family: string;
   readonly query: string;
+  readonly instruction: Instruction;
   readonly memory: boolean;
   readonly fullContext: boolean;
   readonly retrieval: boolean;
+  readonly memoryAnswer: string;
+  readonly fullContextAnswer: string;
+  readonly retrievalAnswer: string;
+  /** What the memory arm showed the reader. */
+  readonly memoryLines: readonly string[];
   readonly memoryTokens: number;
   readonly fullContextTokens: number;
   readonly retrievalTokens: number;
@@ -217,19 +245,26 @@ try {
             .sort((a, b) => b.score - a.score)
             .slice(0, TOP_K)
             .map(({ i }) => dated[i] as string);
-          const [m, f, r] = await Promise.all([read(question, fromMemory), read(question, dated), read(question, nearest)]);
-          rows.push({
-            user: history.id,
-            language: history.language,
-            family: question.family,
-            query: question.query,
-            memory: question.correct(m.answer),
-            fullContext: question.correct(f.answer),
-            retrieval: question.correct(r.answer),
-            memoryTokens: m.promptTokens,
-            fullContextTokens: f.promptTokens,
-            retrievalTokens: r.promptTokens,
-          });
+          for (const instruction of Object.keys(INSTRUCTIONS) as Instruction[]) {
+            const [m, f, r] = await Promise.all([read(question, fromMemory, instruction), read(question, dated, instruction), read(question, nearest, instruction)]);
+            rows.push({
+              user: history.id,
+              language: history.language,
+              family: question.family,
+              query: question.query,
+              instruction,
+              memory: question.correct(m.answer),
+              fullContext: question.correct(f.answer),
+              retrieval: question.correct(r.answer),
+              memoryAnswer: m.answer,
+              fullContextAnswer: f.answer,
+              retrievalAnswer: r.answer,
+              memoryLines: fromMemory,
+              memoryTokens: m.promptTokens,
+              fullContextTokens: f.promptTokens,
+              retrievalTokens: r.promptTokens,
+            });
+          }
         }
         console.log(`[baseline-comparison] ${history.id} done (${String(history.entries.length)} messages, ${String(history.questions.length)} questions)`);
       }),
@@ -243,7 +278,7 @@ try {
 
 const summary: Record<string, { questions: number; memory: number; fullContext: number; retrieval: number; memoryTokens: number; fullContextTokens: number; retrievalTokens: number }> = {};
 for (const row of rows) {
-  const s = (summary[row.family] ??= { questions: 0, memory: 0, fullContext: 0, retrieval: 0, memoryTokens: 0, fullContextTokens: 0, retrievalTokens: 0 });
+  const s = (summary[`${row.instruction}/${row.family}`] ??= { questions: 0, memory: 0, fullContext: 0, retrieval: 0, memoryTokens: 0, fullContextTokens: 0, retrievalTokens: 0 });
   s.questions += 1;
   s.memory += row.memory ? 1 : 0;
   s.fullContext += row.fullContext ? 1 : 0;
