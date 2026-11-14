@@ -4,7 +4,10 @@
  *   memory        the history is written through the real write pipeline; each question is
  *                 answered from what recall returns (top five facts with their source messages);
  *   full context  every message of the history, with its date, is put in the prompt;
- *   retrieval     the five messages most similar to the question, with their dates.
+ *   retrieval     the five messages most similar to the question, with their dates;
+ *   memory+log    what recall returns, plus the five logged messages the store's own message
+ *                 search finds for the question, leaving out a message when every fact taken
+ *                 from it has been replaced. A candidate for recall, measured here first.
  *
  * A history is the notes about four people from the update case set (values that change, some
  * logged out of order, controls that are not updates) interleaved by date with the first-person
@@ -196,14 +199,17 @@ interface Row {
   readonly memory: boolean;
   readonly fullContext: boolean;
   readonly retrieval: boolean;
+  readonly memoryPlusLog: boolean;
   readonly memoryAnswer: string;
   readonly fullContextAnswer: string;
   readonly retrievalAnswer: string;
+  readonly memoryPlusLogAnswer: string;
   /** What the memory arm showed the reader. */
   readonly memoryLines: readonly string[];
   readonly memoryTokens: number;
   readonly fullContextTokens: number;
   readonly retrievalTokens: number;
+  readonly memoryPlusLogTokens: number;
 }
 
 const all = histories();
@@ -239,6 +245,19 @@ try {
           });
           const sources = [...new Set(hits.flatMap((hit) => (hit.sources ?? []).map((s) => `- [${s.observedAt?.toISOString().slice(0, 10) ?? 'no date'}] ${s.content}`)))];
           const fromMemory = [...hits.map((hit) => `- ${hit.text}`), '', 'What was said, from which the notes above were taken:', ...sources];
+          // Messages whose every extracted fact was ended by the question's clock carry a value
+          // that no longer holds; showing them would put the old value beside the current one.
+          const clock = question.asOf === undefined ? new Date() : new Date(`${question.asOf}T12:00:00Z`);
+          const { rows: replaced } = await pool.query<{ message_id: string }>(
+            `SELECT s.message_id FROM memory_message_sources s JOIN memories m ON m.id = s.memory_id
+              WHERE m.user_id = $1 GROUP BY s.message_id
+             HAVING bool_and(m.t_invalid IS NOT NULL AND m.t_invalid <= $2)`,
+            [history.id, clock],
+          );
+          const gone = new Set(replaced.map((row) => row.message_id));
+          const found = await scope.searchMessages(question.query, { limit: TOP_K, ...(question.asOf === undefined ? {} : { asOf: clock }) });
+          const fromLog = found.filter((message) => !gone.has(message.id)).map((message) => `- [${message.observedAt?.toISOString().slice(0, 10) ?? 'no date'}] ${message.content}`);
+          const memoryPlusLog = [...fromMemory, ...fromLog.filter((line) => !sources.includes(line))];
           const queryVector = await embedder.embed(question.query);
           const nearest = vectors
             .map((vector, i) => ({ i, score: cosine(queryVector, vector) }))
@@ -246,7 +265,12 @@ try {
             .slice(0, TOP_K)
             .map(({ i }) => dated[i] as string);
           for (const instruction of Object.keys(INSTRUCTIONS) as Instruction[]) {
-            const [m, f, r] = await Promise.all([read(question, fromMemory, instruction), read(question, dated, instruction), read(question, nearest, instruction)]);
+            const [m, f, r, ml] = await Promise.all([
+              read(question, fromMemory, instruction),
+              read(question, dated, instruction),
+              read(question, nearest, instruction),
+              read(question, memoryPlusLog, instruction),
+            ]);
             rows.push({
               user: history.id,
               language: history.language,
@@ -256,13 +280,16 @@ try {
               memory: question.correct(m.answer),
               fullContext: question.correct(f.answer),
               retrieval: question.correct(r.answer),
+              memoryPlusLog: question.correct(ml.answer),
               memoryAnswer: m.answer,
               fullContextAnswer: f.answer,
               retrievalAnswer: r.answer,
+              memoryPlusLogAnswer: ml.answer,
               memoryLines: fromMemory,
               memoryTokens: m.promptTokens,
               fullContextTokens: f.promptTokens,
               retrievalTokens: r.promptTokens,
+              memoryPlusLogTokens: ml.promptTokens,
             });
           }
         }
@@ -276,16 +303,18 @@ try {
   await pool.end();
 }
 
-const summary: Record<string, { questions: number; memory: number; fullContext: number; retrieval: number; memoryTokens: number; fullContextTokens: number; retrievalTokens: number }> = {};
+const summary: Record<string, { questions: number; memory: number; fullContext: number; retrieval: number; memoryPlusLog: number; memoryTokens: number; fullContextTokens: number; retrievalTokens: number; memoryPlusLogTokens: number }> = {};
 for (const row of rows) {
-  const s = (summary[`${row.instruction}/${row.family}`] ??= { questions: 0, memory: 0, fullContext: 0, retrieval: 0, memoryTokens: 0, fullContextTokens: 0, retrievalTokens: 0 });
+  const s = (summary[`${row.instruction}/${row.family}`] ??= { questions: 0, memory: 0, fullContext: 0, retrieval: 0, memoryPlusLog: 0, memoryTokens: 0, fullContextTokens: 0, retrievalTokens: 0, memoryPlusLogTokens: 0 });
   s.questions += 1;
   s.memory += row.memory ? 1 : 0;
   s.fullContext += row.fullContext ? 1 : 0;
   s.retrieval += row.retrieval ? 1 : 0;
+  s.memoryPlusLog += row.memoryPlusLog ? 1 : 0;
   s.memoryTokens += row.memoryTokens;
   s.fullContextTokens += row.fullContextTokens;
   s.retrievalTokens += row.retrievalTokens;
+  s.memoryPlusLogTokens += row.memoryPlusLogTokens;
 }
 mkdirSync(dirname(output), { recursive: true });
 writeFileSync(output, `${JSON.stringify({ model: chatModel, topK: TOP_K, histories: selected.length, messagesPerHistory: selected[0]?.entries.length ?? 0, summary, rows }, null, 2)}\n`);
