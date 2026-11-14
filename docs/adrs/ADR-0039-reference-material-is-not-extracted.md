@@ -62,7 +62,10 @@ own statement was stored in 53 of 90 writes against 73 without the change.
 - A statement that needs the material to be understood ("that date works for me"). The extractor
   no longer sees the material, so such a statement is extracted from its own words alone. This was
   not measured.
-- The author's own statement was missing in about three writes of ten on both sides. That is an
-  omission of the extractor and is not addressed here.
+- The author's own statement was not found in 26 to 27 of 90 writes on both sides. That count is
+  inflated by the case set: the Portuguese cases carry one kind of value in English, the extractor
+  rewrites it, and the score looks for the value word for word. In at least 12 of the 26 arm
+  writes a stored fact does mention it. In 14 writes nothing was stored at all; that omission is
+  real, is the same on both sides, and is not addressed here.
 - The mark is available on the SDK (`rememberMessages`). The REST and MCP surfaces take text, not
   message lists.
