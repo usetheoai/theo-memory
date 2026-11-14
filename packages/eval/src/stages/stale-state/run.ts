@@ -10,7 +10,9 @@
  *
  * Environment: OPENAI_API_KEY, OPENAI_BASE_URL (chat calls, e.g. a cost proxy),
  * OPENAI_CHAT_MODEL (default gpt-4o-mini), THEOMEM_PG_URI, STALE_STATE_OUTPUT (path),
- * STALE_STATE_DB (default themem_stale_state; dropped and recreated).
+ * STALE_STATE_DB (default themem_stale_state; dropped and recreated), STALE_STATE_CROWDED (`1`
+ * adds ten lasting statements about food, music and daily life to each person, said on the same
+ * day, so the top five is contested, and asks one more question about one of them).
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -60,6 +62,57 @@ const dbName = process.env['STALE_STATE_DB'] ?? 'themem_stale_state';
 if (!/^[a-z_][a-z0-9_]*$/u.test(dbName)) throw new Error(`STALE_STATE_DB must be a plain identifier, got '${dbName}'`);
 const cases = z.array(CaseSchema).parse(JSON.parse(readFileSync(resolve(here, 'cases.json'), 'utf8')));
 
+const crowded = process.env['STALE_STATE_CROWDED'] === '1';
+
+/** Lasting statements that compete for the top five. `{dish}` and `{music}` never repeat the person's wish. */
+const CROWD = {
+  en: {
+    dishes: ['spinach lasagne', 'grilled sardines', 'black bean stew', 'potato gratin', 'chicken curry'],
+    music: ['baroque concertos', 'reggae', 'folk ballads', 'electronic ambient'],
+    lines: [
+      'My favourite dish is {dish}.',
+      'I am allergic to peanuts.',
+      'I cook for my family every Sunday.',
+      'I never drink coffee after lunch.',
+      'I have been a vegetarian for ten years.',
+      'My favourite kind of music is {music}.',
+      'I play the clarinet in a community band.',
+      'I walk to work every day.',
+      'I have two cats.',
+      'I keep a small herb garden on the balcony.',
+    ],
+    question: 'What is my favourite dish?',
+  },
+  pt: {
+    dishes: ['lasanha de espinafre', 'sardinha grelhada', 'feijão tropeiro', 'batata gratinada', 'frango ao curry'],
+    music: ['concertos barrocos', 'reggae', 'modinhas', 'música ambiente eletrônica'],
+    lines: [
+      'Meu prato preferido é {dish}.',
+      'Tenho alergia a amendoim.',
+      'Cozinho para a família todo domingo.',
+      'Nunca tomo café depois do almoço.',
+      'Sou vegetariano há dez anos.',
+      'Meu tipo de música preferido é {music}.',
+      'Toco clarinete numa banda comunitária.',
+      'Vou a pé para o trabalho todos os dias.',
+      'Tenho dois gatos.',
+      'Mantenho uma hortinha de temperos na varanda.',
+    ],
+    question: 'Qual é o meu prato preferido?',
+  },
+} as const;
+
+function crowdOf(fixture: Case, index: number): { readonly lines: readonly string[]; readonly dish: string; readonly question: string } {
+  const set = CROWD[fixture.language];
+  const free = (options: readonly string[]): string => {
+    const usable = options.filter((option) => !carries(fixture.state.text, option));
+    return usable[index % usable.length] as string;
+  };
+  const dish = free(set.dishes);
+  const music = free(set.music);
+  return { lines: set.lines.map((line) => line.replace('{dish}', dish).replace('{music}', music)), dish, question: set.question };
+}
+
 const today = new Date();
 const said = new Date(today.getTime() - DAYS_BEFORE * 86_400_000);
 const day = (instant: Date): string => instant.toISOString().slice(0, 10);
@@ -108,6 +161,8 @@ interface Row {
   /** A recalled line carried the wish when the reader was asked whether it holds today. */
   readonly stateShownNow: boolean;
   readonly statePastCorrect: boolean;
+  /** Crowded runs only: the question about a lasting statement of the crowd was answered. */
+  readonly crowdCorrect?: boolean;
   readonly answers: { readonly lasting: string; readonly ongoing: string; readonly now: string; readonly past: string };
 }
 
@@ -132,7 +187,12 @@ try {
   const one = async (fixture: Case, repetition: number): Promise<void> => {
     const scope = memory.user(`${fixture.id}-r${String(repetition)}`);
     const items: MemoryItem[] = [];
-    for (const content of [fixture.lasting.text, fixture.ongoing.text, fixture.state.text]) {
+    const crowd = crowded ? crowdOf(fixture, Number(fixture.id.replace(/\D/gu, ''))) : undefined;
+    // The three statements of the case are spread among the crowd, in a fixed order.
+    const contents = crowd === undefined
+      ? [fixture.lasting.text, fixture.ongoing.text, fixture.state.text]
+      : [...crowd.lines.slice(0, 3), fixture.lasting.text, ...crowd.lines.slice(3, 6), fixture.ongoing.text, ...crowd.lines.slice(6, 8), fixture.state.text, ...crowd.lines.slice(8)];
+    for (const content of contents) {
       items.push(...(await scope.rememberMessages([{ role: 'user', content }], { observedAt: said })));
     }
     const having = (value: string) => items.filter((item) => carries(item.text, value));
@@ -150,6 +210,7 @@ try {
       read(NOW_INSTRUCTION, fixture.state.question, nowLines),
       read(ANSWER_INSTRUCTION, fixture.state.pastQuestion, await lines(fixture.state.pastQuestion)),
     ]);
+    const crowdAnswer = crowd === undefined ? undefined : await read(ANSWER_INSTRUCTION, crowd.question, await lines(crowd.question));
     rows.push({
       id: fixture.id,
       language: fixture.language,
@@ -161,6 +222,7 @@ try {
       stateAffirmedNow: /^\s*A\b/iu.test(now),
       stateShownNow: nowLines.some((line) => carries(line, fixture.state.value)),
       statePastCorrect: carries(past, fixture.state.value),
+      ...(crowd === undefined || crowdAnswer === undefined ? {} : { crowdCorrect: carries(crowdAnswer, crowd.dish) }),
       answers: { lasting, ongoing, now, past },
     });
   };
@@ -191,7 +253,8 @@ const summary = {
   lastingExpiring: count((row) => row.expiring.lasting > 0),
   ongoingExpiring: count((row) => row.expiring.ongoing > 0),
   stateExpiring: count((row) => row.expiring.state > 0),
+  crowdCorrect: count((row) => row.crowdCorrect === true),
 };
 mkdirSync(dirname(output), { recursive: true });
-writeFileSync(output, `${JSON.stringify({ model: chatModel, repetitions: REPETITIONS, daysBefore: DAYS_BEFORE, summary, rows }, null, 2)}\n`);
+writeFileSync(output, `${JSON.stringify({ model: chatModel, repetitions: REPETITIONS, daysBefore: DAYS_BEFORE, crowded, summary, rows }, null, 2)}\n`);
 console.log(JSON.stringify(summary));

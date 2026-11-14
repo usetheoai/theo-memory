@@ -81,8 +81,8 @@ export function timeOfFact(draft: TimedDraft, observedAt: Date, language: string
   // A plan or a past event stays true as a statement. Only a state of the moment stops holding.
   // An undecided statement (`tentative`) ends with the day. A `temporary` one ends with the day
   // only when its source says it is about the day: the label alone is also given to things that
-  // last, and ending those loses them. Without the day word it is kept, and recall shows it after
-  // the facts that are not passing states (`demoteStaleStates`).
+  // last, and ending those loses them. Without the day word it is kept, and recall returns it with the
+  // date it was said and its durability (ADR-0041).
   const ofTheMoment = evidence.durability === 'tentative' || (evidence.durability === 'temporary' && saysThisMoment(source));
   const passes = ofTheMoment && evidence.time !== 'future' && evidence.time !== 'past' && eventTime === null;
   if (!passes && evidence.durability === 'temporary' && evidence.time !== 'future' && evidence.time !== 'past' && eventTime === null) {
