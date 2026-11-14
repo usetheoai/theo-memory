@@ -31,6 +31,10 @@ export interface UpdatePair {
   readonly textB: string;
   readonly valueA: string;
   readonly valueB: string;
+  /** A question about the pair, the value its answer has to carry and the value it must not. */
+  readonly question?: string;
+  readonly expected?: string;
+  readonly notExpected?: string;
   /** A blind reader agreed with the label and said the pair could be read the other way. */
   readonly readerUnsure?: boolean;
 }
