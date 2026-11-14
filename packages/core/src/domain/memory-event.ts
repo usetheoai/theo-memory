@@ -281,6 +281,10 @@ export const MEMORY_EVENTS = [
   'extraction_subject_restored',
   // A write carried only reference material, so nothing was extracted (ADR-0039).
   'extraction_reference_only',
+  // A fact labeled temporary whose source names no day or moment was stored with no expiry.
+  'short_lived_kept_without_expiry',
+  // Recall moved passing states of an earlier day after the other results.
+  'recall_stale_state_demoted',
   // The evidence of one fact was malformed and was repaired or dropped; the fact was kept (#277).
   'extraction_evidence_invalid',
   // The second look at an empty extraction found facts the author states about themself (#282).

@@ -23,7 +23,6 @@
 import type { VectorStoreResult } from '../dip/vector-store.js';
 import { InvalidScope, RerankerConflict } from '../errors.js';
 import { lemmatizeForBm25 } from '../lemmatization.js';
-import { withSpeakerAlias } from './speaker-alias.js';
 import { emitEvent } from '../memory-event.js';
 import type { MemoryItemWithScore } from '../memory-item.js';
 import type { RecallOptions } from '../options.js';
@@ -35,6 +34,7 @@ import { mmrRerank } from './mmr.js';
 import { applyRecencyCollapseStage } from './recency-collapse.js';
 import type { RetrievalDeps } from './retrieval-deps.js';
 import { scopeAwareReweight } from './scope-reweight.js';
+import { withSpeakerAlias } from './speaker-alias.js';
 import { applyAdaptiveAssessStage } from './stages/adaptive-relax.js';
 import { assembleCandidates } from './stages/candidate-assembly.js';
 import { applyGraphExpansionStage } from './stages/graph-expansion.js';
@@ -47,6 +47,7 @@ import {
   type Payload,
   type ScoredRow,
 } from './stages/threshold-filter.js';
+import { demoteStaleStates } from './stale-state.js';
 
 export type { RetrievalDeps } from './retrieval-deps.js';
 /**
@@ -175,6 +176,10 @@ export async function runRetrievalPipeline(
       )),
     ];
   }
+
+  // A passing state of an earlier day goes after everything else (ADR-0035): it is kept in the
+  // store, and it does not take a place above a fact that is not a passing state.
+  scored = demoteStaleStates(scored, options?.asOf ?? now, tracer);
 
   // cross-encoder-reranker T2.2 / ADR D3 + M10 T3.1 — diversify, rerank, and the M10
   // scope-aware reweight are mutually exclusive post-threshold reranks of the same pool.
