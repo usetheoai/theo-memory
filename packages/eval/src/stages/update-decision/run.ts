@@ -50,6 +50,8 @@ interface Row {
   /** What the write path stored for each note, to tell an extraction error from a decision error. */
   readonly textsA: readonly string[];
   readonly textsB: readonly string[];
+  /** For a pair with a question: what recall returns for it after both notes, each with the day it was said. */
+  readonly recalled?: readonly string[];
 }
 
 const outputPath = requiredEnv('UPDATE_DECISION_OUTPUT');
@@ -80,10 +82,14 @@ async function runOne(pair: UpdatePair, repetition: number): Promise<Row> {
     const replaced = new Set(second.flatMap((item) => item.supersedes ?? []).filter((id) => firstIds.has(id)));
     const endedA = replaced.size;
     const expiringA = first.filter((item) => item.expiresAt !== undefined && item.expiresAt !== null).length;
+    const recalled = pair.question === undefined
+      ? undefined
+      : (await scope.recall(pair.question, { topK: 5 })).map((hit) => `- ${hit.text} (said on ${(hit.tValid ?? new Date(`${pair.dateB}T12:00:00Z`)).toISOString().slice(0, 10)})`);
     return {
       id: pair.id, label: pair.label, language: pair.language, repetition,
       storedA: first.length, endedA, expiringA, storedB: second.length, ended: endedA > 0,
       textsA: first.map((item) => item.text), textsB: second.map((item) => item.text),
+      ...(recalled === undefined ? {} : { recalled }),
     };
   } finally {
     await memory.dispose();

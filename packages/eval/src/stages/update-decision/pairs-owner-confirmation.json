@@ -8,7 +8,10 @@
   "textA": "My phone plan is with Vivaz Telecom.",
   "textB": "Scratch what I said about my mobile carrier, I had it wrong; it's Onda Móvel.",
   "valueA": "Vivaz Telecom",
-  "valueB": "Onda Móvel"
+  "valueB": "Onda Móvel",
+  "question": "What is my mobile carrier? Give the name.",
+  "expected": "Onda Móvel",
+  "notExpected": "Vivaz Telecom"
  },
  {
   "id": "correction-en-02",
@@ -19,7 +22,10 @@
   "textA": "My health insurer, for reference, is Saúde Íntegra.",
   "textB": "Please fix my health insurer: what I gave you was wrong, it's Marlowe Mutual.",
   "valueA": "Saúde Íntegra",
-  "valueB": "Marlowe Mutual"
+  "valueB": "Marlowe Mutual",
+  "question": "What is my health insurer? Give the name.",
+  "expected": "Marlowe Mutual",
+  "notExpected": "Saúde Íntegra"
  },
  {
   "id": "correction-en-03",
@@ -30,7 +36,10 @@
   "textA": "My vet is Dr. Pennington, just so you have it on file.",
   "textB": "I gave you the wrong name for my vet earlier; it's actually Dra. Filomena.",
   "valueA": "Dr. Pennington",
-  "valueB": "Dra. Filomena"
+  "valueB": "Dra. Filomena",
+  "question": "What is my veterinarian? Give the name.",
+  "expected": "Dra. Filomena",
+  "notExpected": "Dr. Pennington"
  },
  {
   "id": "correction-en-04",
@@ -41,7 +50,10 @@
   "textA": "Seu Lindolfo is the guy who fixes my car.",
   "textB": "Correction on my car mechanic: I told you the wrong person, it's Seu Nicanor.",
   "valueA": "Seu Lindolfo",
-  "valueB": "Seu Nicanor"
+  "valueB": "Seu Nicanor",
+  "question": "What is my car mechanic? Give the name.",
+  "expected": "Seu Nicanor",
+  "notExpected": "Seu Lindolfo"
  },
  {
   "id": "correction-en-05",
@@ -52,7 +64,10 @@
   "textA": "The landlord of my place is Mr. Fairweather.",
   "textB": "Sorry, I named the wrong person as my landlord earlier; it's Mrs. Castellan.",
   "valueA": "Mr. Fairweather",
-  "valueB": "Mrs. Castellan"
+  "valueB": "Mrs. Castellan",
+  "question": "What is my landlord? Give the name.",
+  "expected": "Mrs. Castellan",
+  "notExpected": "Mr. Fairweather"
  },
  {
   "id": "correction-en-06",
@@ -63,7 +78,10 @@
   "textA": "My taxes and books go through Dra. Anacleta, my accountant.",
   "textB": "I was mistaken in my note about my accountant; she is Ms. Verhoeven.",
   "valueA": "Dra. Anacleta",
-  "valueB": "Ms. Verhoeven"
+  "valueB": "Ms. Verhoeven",
+  "question": "What is my accountant? Give the name.",
+  "expected": "Ms. Verhoeven",
+  "notExpected": "Dra. Anacleta"
  },
  {
   "id": "correction-en-07",
@@ -74,7 +92,10 @@
   "textA": "I'm on Claro Sul for my mobile service.",
   "textB": "Oops, I mistyped my mobile carrier before: it's Pinecall, that was my error.",
   "valueA": "Claro Sul",
-  "valueB": "Pinecall"
+  "valueB": "Pinecall",
+  "question": "What is my mobile carrier? Give the name.",
+  "expected": "Pinecall",
+  "notExpected": "Claro Sul"
  },
  {
   "id": "correction-en-08",
@@ -85,7 +106,10 @@
   "textA": "Health insurance for me is through Saúde Íntegra.",
   "textB": "I made a mistake about my health insurer before; the right one is Castlegate Care.",
   "valueA": "Saúde Íntegra",
-  "valueB": "Castlegate Care"
+  "valueB": "Castlegate Care",
+  "question": "What is my health insurer? Give the name.",
+  "expected": "Castlegate Care",
+  "notExpected": "Saúde Íntegra"
  },
  {
   "id": "correction-en-09",
@@ -96,7 +120,10 @@
   "textA": "For my animals, the vet is Dr. Lindgren.",
   "textB": "I had my vet down wrong in my last note; the correct name is Dra. Filomena.",
   "valueA": "Dr. Lindgren",
-  "valueB": "Dra. Filomena"
+  "valueB": "Dra. Filomena",
+  "question": "What is my veterinarian? Give the name.",
+  "expected": "Dra. Filomena",
+  "notExpected": "Dr. Lindgren"
  },
  {
   "id": "correction-en-10",
@@ -107,7 +134,10 @@
   "textA": "Raj at Kerbside Autos is my car mechanic.",
   "textB": "I wrote down the wrong car mechanic for myself; it's Seu Deoclécio.",
   "valueA": "Raj at Kerbside Autos",
-  "valueB": "Seu Deoclécio"
+  "valueB": "Seu Deoclécio",
+  "question": "What is my car mechanic? Give the name.",
+  "expected": "Seu Deoclécio",
+  "notExpected": "Raj at Kerbside Autos"
  },
  {
   "id": "correction-en-11",
@@ -118,7 +148,10 @@
   "textA": "I rent from Mrs. Castellan, my landlord.",
   "textB": "My earlier note on my landlord was incorrect; the landlord is Mr. Fairweather.",
   "valueA": "Mrs. Castellan",
-  "valueB": "Mr. Fairweather"
+  "valueB": "Mr. Fairweather",
+  "question": "What is my landlord? Give the name.",
+  "expected": "Mr. Fairweather",
+  "notExpected": "Mrs. Castellan"
  },
  {
   "id": "correction-en-12",
@@ -129,7 +162,10 @@
   "textA": "Mr. Dunmore handles my accounts as my accountant.",
   "textB": "I misstated who my accountant is; it should have said Sr. Belmiro.",
   "valueA": "Mr. Dunmore",
-  "valueB": "Sr. Belmiro"
+  "valueB": "Sr. Belmiro",
+  "question": "What is my accountant? Give the name.",
+  "expected": "Sr. Belmiro",
+  "notExpected": "Mr. Dunmore"
  },
  {
   "id": "correction-en-13",
@@ -140,7 +176,10 @@
   "textA": "My mobile number is with Tellura.",
   "textB": "I got my mobile carrier wrong when I wrote it down; it's Onda Móvel.",
   "valueA": "Tellura",
-  "valueB": "Onda Móvel"
+  "valueB": "Onda Móvel",
+  "question": "What is my mobile carrier? Give the name.",
+  "expected": "Onda Móvel",
+  "notExpected": "Tellura"
  },
  {
   "id": "correction-en-14",
@@ -151,7 +190,10 @@
   "textA": "Marlowe Mutual provides my health insurance.",
   "textB": "What I wrote about my health insurer was a slip on my part; it's Vida Plena.",
   "valueA": "Marlowe Mutual",
-  "valueB": "Vida Plena"
+  "valueB": "Vida Plena",
+  "question": "What is my health insurer? Give the name.",
+  "expected": "Vida Plena",
+  "notExpected": "Marlowe Mutual"
  },
  {
   "id": "correction-en-15",
@@ -162,7 +204,10 @@
   "textA": "Dra. Calista is the veterinarian I go to.",
   "textB": "The vet name I gave you for my pets was an error; it's Dr. Pennington.",
   "valueA": "Dra. Calista",
-  "valueB": "Dr. Pennington"
+  "valueB": "Dr. Pennington",
+  "question": "What is my veterinarian? Give the name.",
+  "expected": "Dr. Pennington",
+  "notExpected": "Dra. Calista"
  },
  {
   "id": "correction-en-16",
@@ -173,7 +218,10 @@
   "textA": "My car gets serviced by Ines at Apex Motors.",
   "textB": "My mistake: the mechanic for my car is Gus at Redline Garage, not who I wrote.",
   "valueA": "Ines at Apex Motors",
-  "valueB": "Gus at Redline Garage"
+  "valueB": "Gus at Redline Garage",
+  "question": "What is my car mechanic? Give the name.",
+  "expected": "Gus at Redline Garage",
+  "notExpected": "Ines at Apex Motors"
  },
  {
   "id": "correction-pt-01",
@@ -184,7 +232,10 @@
   "textA": "A Tellura é minha operadora de celular.",
   "textB": "Errei ao dizer qual é minha operadora de celular: é a Northbeam.",
   "valueA": "Tellura",
-  "valueB": "Northbeam"
+  "valueB": "Northbeam",
+  "question": "Qual é a minha operadora de celular? Dê o nome.",
+  "expected": "Northbeam",
+  "notExpected": "Tellura"
  },
  {
   "id": "correction-pt-02",
@@ -195,7 +246,10 @@
   "textA": "Tenho plano de saúde da Alderney Health.",
   "textB": "O que escrevi sobre meu plano de saúde estava errado; ele é o Vida Plena.",
   "valueA": "Alderney Health",
-  "valueB": "Vida Plena"
+  "valueB": "Vida Plena",
+  "question": "Qual é o meu plano de saúde? Dê o nome.",
+  "expected": "Vida Plena",
+  "notExpected": "Alderney Health"
  },
  {
   "id": "correction-pt-03",
@@ -206,7 +260,10 @@
   "textA": "O Dr. Pennington é o veterinário que atende meus animais.",
   "textB": "Errei o nome da minha veterinária antes; o correto é Dra. Filomena.",
   "valueA": "Dr. Pennington",
-  "valueB": "Dra. Filomena"
+  "valueB": "Dra. Filomena",
+  "question": "Qual é o meu veterinário? Dê o nome.",
+  "expected": "Dra. Filomena",
+  "notExpected": "Dr. Pennington"
  },
  {
   "id": "correction-pt-04",
@@ -217,7 +274,10 @@
   "textA": "O mecânico do meu carro é Ines at Apex Motors.",
   "textB": "Me enganei sobre o mecânico do meu carro; na verdade é o Seu Lindolfo.",
   "valueA": "Ines at Apex Motors",
-  "valueB": "Seu Lindolfo"
+  "valueB": "Seu Lindolfo",
+  "question": "Qual é o meu mecânico do carro? Dê o nome.",
+  "expected": "Seu Lindolfo",
+  "notExpected": "Ines at Apex Motors"
  },
  {
   "id": "correction-pt-05",
@@ -228,7 +288,10 @@
   "textA": "A proprietária do imóvel onde moro é a Mrs. Castellan.",
   "textB": "Corrigindo: escrevi errado quem é o dono do imóvel onde moro, é o Mr. Okonjo.",
   "valueA": "Mrs. Castellan",
-  "valueB": "Mr. Okonjo"
+  "valueB": "Mr. Okonjo",
+  "question": "Qual é o meu proprietário do imóvel onde moro? Dê o nome.",
+  "expected": "Mr. Okonjo",
+  "notExpected": "Mrs. Castellan"
  },
  {
   "id": "correction-pt-06",
@@ -239,7 +302,10 @@
   "textA": "A Dra. Anacleta cuida da minha contabilidade.",
   "textB": "Corrigindo um erro meu: meu contador é o Mr. Dunmore, eu tinha escrito outro nome por engano.",
   "valueA": "Dra. Anacleta",
-  "valueB": "Mr. Dunmore"
+  "valueB": "Mr. Dunmore",
+  "question": "Qual é o meu contador? Dê o nome.",
+  "expected": "Mr. Dunmore",
+  "notExpected": "Dra. Anacleta"
  },
  {
   "id": "correction-pt-07",
@@ -250,7 +316,10 @@
   "textA": "Meu número é da Tellura, minha operadora de celular.",
   "textB": "Informação errada minha: minha operadora de celular é a Vivaz Telecom, anotei errado antes.",
   "valueA": "Tellura",
-  "valueB": "Vivaz Telecom"
+  "valueB": "Vivaz Telecom",
+  "question": "Qual é a minha operadora de celular? Dê o nome.",
+  "expected": "Vivaz Telecom",
+  "notExpected": "Tellura"
  },
  {
   "id": "correction-pt-08",
@@ -261,7 +330,10 @@
   "textA": "Tenho o plano de saúde Unimais.",
   "textB": "Meu plano de saúde não é o que eu tinha informado, foi engano meu: é o Castlegate Care.",
   "valueA": "Unimais",
-  "valueB": "Castlegate Care"
+  "valueB": "Castlegate Care",
+  "question": "Qual é o meu plano de saúde? Dê o nome.",
+  "expected": "Castlegate Care",
+  "notExpected": "Unimais"
  },
  {
   "id": "correction-pt-09",
@@ -272,7 +344,10 @@
   "textA": "Meu veterinário, para constar, é o Dr. Pennington.",
   "textB": "Retificando o que eu disse do meu veterinário, que estava errado: é o Dr. Lindgren.",
   "valueA": "Dr. Pennington",
-  "valueB": "Dr. Lindgren"
+  "valueB": "Dr. Lindgren",
+  "question": "Qual é o meu veterinário? Dê o nome.",
+  "expected": "Dr. Lindgren",
+  "notExpected": "Dr. Pennington"
  },
  {
   "id": "correction-pt-10",
@@ -283,7 +358,10 @@
   "textA": "Quem arruma meu carro é o Seu Lindolfo.",
   "textB": "Anotei errado o mecânico do meu carro; o nome certo é Seu Deoclécio.",
   "valueA": "Seu Lindolfo",
-  "valueB": "Seu Deoclécio"
+  "valueB": "Seu Deoclécio",
+  "question": "Qual é o meu mecânico do carro? Dê o nome.",
+  "expected": "Seu Deoclécio",
+  "notExpected": "Seu Lindolfo"
  },
  {
   "id": "correction-pt-11",
@@ -294,7 +372,10 @@
   "textA": "Pago o aluguel ao Mr. Okonjo, dono do imóvel onde moro.",
   "textB": "Falei errado antes: o proprietário do imóvel onde moro é o Mr. Fairweather.",
   "valueA": "Mr. Okonjo",
-  "valueB": "Mr. Fairweather"
+  "valueB": "Mr. Fairweather",
+  "question": "Qual é o meu proprietário do imóvel onde moro? Dê o nome.",
+  "expected": "Mr. Fairweather",
+  "notExpected": "Mr. Okonjo"
  },
  {
   "id": "correction-pt-12",
@@ -305,7 +386,10 @@
   "textA": "Quem cuida das minhas contas é a contadora Ms. Verhoeven.",
   "textB": "Escrevi o nome errado da minha contadora; ela é a Ms. Ferreira-Lang.",
   "valueA": "Ms. Verhoeven",
-  "valueB": "Ms. Ferreira-Lang"
+  "valueB": "Ms. Ferreira-Lang",
+  "question": "Qual é o meu contador? Dê o nome.",
+  "expected": "Ms. Ferreira-Lang",
+  "notExpected": "Ms. Verhoeven"
  },
  {
   "id": "correction-pt-13",
@@ -316,7 +400,10 @@
   "textA": "Tenho linha de celular na Vivaz Telecom.",
   "textB": "Informei errado minha operadora de celular; a correta é a Pinecall.",
   "valueA": "Vivaz Telecom",
-  "valueB": "Pinecall"
+  "valueB": "Pinecall",
+  "question": "Qual é a minha operadora de celular? Dê o nome.",
+  "expected": "Pinecall",
+  "notExpected": "Vivaz Telecom"
  },
  {
   "id": "correction-pt-14",
@@ -327,7 +414,10 @@
   "textA": "Meu plano de saúde é da Unimais.",
   "textB": "Me confundi ao informar meu plano de saúde; o certo é Marlowe Mutual.",
   "valueA": "Unimais",
-  "valueB": "Marlowe Mutual"
+  "valueB": "Marlowe Mutual",
+  "question": "Qual é o meu plano de saúde? Dê o nome.",
+  "expected": "Marlowe Mutual",
+  "notExpected": "Unimais"
  },
  {
   "id": "correction-pt-15",
@@ -338,7 +428,10 @@
   "textA": "Minha veterinária se chama Dra. Filomena.",
   "textB": "Eu tinha anotado errado o nome do meu veterinário: é o Dr. Evaristo.",
   "valueA": "Dra. Filomena",
-  "valueB": "Dr. Evaristo"
+  "valueB": "Dr. Evaristo",
+  "question": "Qual é o meu veterinário? Dê o nome.",
+  "expected": "Dr. Evaristo",
+  "notExpected": "Dra. Filomena"
  },
  {
   "id": "correction-pt-16",
@@ -349,7 +442,10 @@
   "textA": "Meu carro eu levo no Seu Deoclécio, que é meu mecânico.",
   "textB": "Errei quando falei do meu mecânico: o certo é Raj at Kerbside Autos.",
   "valueA": "Seu Deoclécio",
-  "valueB": "Raj at Kerbside Autos"
+  "valueB": "Raj at Kerbside Autos",
+  "question": "Qual é o meu mecânico do carro? Dê o nome.",
+  "expected": "Raj at Kerbside Autos",
+  "notExpected": "Seu Deoclécio"
  },
  {
   "id": "other-person-en-01",
@@ -360,7 +456,10 @@
   "textA": "Castlegate Care insures my niece Ciro for health.",
   "textB": "My health plan is with Saúde Íntegra.",
   "valueA": "Castlegate Care",
-  "valueB": "Saúde Íntegra"
+  "valueB": "Saúde Íntegra",
+  "question": "What is the health insurer of my niece Ciro? Give the name.",
+  "expected": "Castlegate Care",
+  "notExpected": "Saúde Íntegra"
  },
  {
   "id": "other-person-en-02",
@@ -371,7 +470,10 @@
   "textA": "Dr. Evaristo is the vet I use for my pets.",
   "textB": "My grandmother Wilhelmina's vet is Dra. Calista.",
   "valueA": "Dr. Evaristo",
-  "valueB": "Dra. Calista"
+  "valueB": "Dra. Calista",
+  "question": "What is my veterinarian? Give the name.",
+  "expected": "Dr. Evaristo",
+  "notExpected": "Dra. Calista"
  },
  {
   "id": "other-person-en-03",
@@ -382,7 +484,10 @@
   "textA": "Raj at Kerbside Autos is the mechanic for my godfather Baltazar's car.",
   "textB": "Ines at Apex Motors is my car mechanic.",
   "valueA": "Raj at Kerbside Autos",
-  "valueB": "Ines at Apex Motors"
+  "valueB": "Ines at Apex Motors",
+  "question": "What is the car mechanic of my godfather Baltazar? Give the name.",
+  "expected": "Raj at Kerbside Autos",
+  "notExpected": "Ines at Apex Motors"
  },
  {
   "id": "other-person-en-04",
@@ -393,7 +498,10 @@
   "textA": "The person I rent from is Dona Perpétua.",
   "textB": "Mr. Okonjo is my stepbrother Anneliese's landlord.",
   "valueA": "Dona Perpétua",
-  "valueB": "Mr. Okonjo"
+  "valueB": "Mr. Okonjo",
+  "question": "What is my landlord? Give the name.",
+  "expected": "Dona Perpétua",
+  "notExpected": "Mr. Okonjo"
  },
  {
   "id": "other-person-en-05",
@@ -404,7 +512,10 @@
   "textA": "My mother-in-law Gervásio's accountant is Dra. Anacleta.",
   "textB": "Sr. Belmiro takes care of my accounting; he's my accountant.",
   "valueA": "Dra. Anacleta",
-  "valueB": "Sr. Belmiro"
+  "valueB": "Sr. Belmiro",
+  "question": "What is the accountant of my mother-in-law Gervásio? Give the name.",
+  "expected": "Dra. Anacleta",
+  "notExpected": "Sr. Belmiro"
  },
  {
   "id": "other-person-en-06",
@@ -415,7 +526,10 @@
   "textA": "My own mobile carrier is Tellura.",
   "textB": "My uncle Thora's mobile carrier is Onda Móvel.",
   "valueA": "Tellura",
-  "valueB": "Onda Móvel"
+  "valueB": "Onda Móvel",
+  "question": "What is my mobile carrier? Give the name.",
+  "expected": "Tellura",
+  "notExpected": "Onda Móvel"
  },
  {
   "id": "other-person-en-07",
@@ -426,7 +540,10 @@
   "textA": "My niece Olímpio has her health insurance with Saúde Íntegra.",
   "textB": "Marlowe Mutual is my own health insurer.",
   "valueA": "Saúde Íntegra",
-  "valueB": "Marlowe Mutual"
+  "valueB": "Marlowe Mutual",
+  "question": "What is the health insurer of my niece Olímpio? Give the name.",
+  "expected": "Saúde Íntegra",
+  "notExpected": "Marlowe Mutual"
  },
  {
   "id": "other-person-en-08",
@@ -437,7 +554,10 @@
   "textA": "I take my animals to Dr. Lindgren, my vet.",
   "textB": "Dra. Calista is the vet my grandmother Marguerite relies on.",
   "valueA": "Dr. Lindgren",
-  "valueB": "Dra. Calista"
+  "valueB": "Dra. Calista",
+  "question": "What is my veterinarian? Give the name.",
+  "expected": "Dr. Lindgren",
+  "notExpected": "Dra. Calista"
  },
  {
   "id": "other-person-en-09",
@@ -448,7 +568,10 @@
   "textA": "My godfather Januário's car mechanic is Ines at Apex Motors.",
   "textB": "I take my car to Gus at Redline Garage.",
   "valueA": "Ines at Apex Motors",
-  "valueB": "Gus at Redline Garage"
+  "valueB": "Gus at Redline Garage",
+  "question": "What is the car mechanic of my godfather Januário? Give the name.",
+  "expected": "Ines at Apex Motors",
+  "notExpected": "Gus at Redline Garage"
  },
  {
   "id": "other-person-en-10",
@@ -459,7 +582,10 @@
   "textA": "Sr. Honório is the landlord of my place.",
   "textB": "My stepbrother Halvard rents from Mr. Okonjo, his landlord.",
   "valueA": "Sr. Honório",
-  "valueB": "Mr. Okonjo"
+  "valueB": "Mr. Okonjo",
+  "question": "What is my landlord? Give the name.",
+  "expected": "Sr. Honório",
+  "notExpected": "Mr. Okonjo"
  },
  {
   "id": "other-person-en-11",
@@ -470,7 +596,10 @@
   "textA": "Ms. Verhoeven is the accountant of my mother-in-law Jurema.",
   "textB": "I have Dra. Anacleta as my accountant.",
   "valueA": "Ms. Verhoeven",
-  "valueB": "Dra. Anacleta"
+  "valueB": "Dra. Anacleta",
+  "question": "What is the accountant of my mother-in-law Jurema? Give the name.",
+  "expected": "Ms. Verhoeven",
+  "notExpected": "Dra. Anacleta"
  },
  {
   "id": "other-person-en-12",
@@ -481,7 +610,10 @@
   "textA": "Northbeam is the mobile carrier I use.",
   "textB": "My uncle Petronela has his mobile plan with Vivaz Telecom.",
   "valueA": "Northbeam",
-  "valueB": "Vivaz Telecom"
+  "valueB": "Vivaz Telecom",
+  "question": "What is my mobile carrier? Give the name.",
+  "expected": "Northbeam",
+  "notExpected": "Vivaz Telecom"
  },
  {
   "id": "other-person-en-13",
@@ -492,7 +624,10 @@
   "textA": "Alderney Health is the health insurer of my niece Ciro.",
   "textB": "I get my health coverage from Unimais.",
   "valueA": "Alderney Health",
-  "valueB": "Unimais"
+  "valueB": "Unimais",
+  "question": "What is the health insurer of my niece Ciro? Give the name.",
+  "expected": "Alderney Health",
+  "notExpected": "Unimais"
  },
  {
   "id": "other-person-en-14",
@@ -503,7 +638,10 @@
   "textA": "My animals are treated by Dr. Abernathy, my vet.",
   "textB": "My grandmother Wilhelmina takes her pets to Dr. Lindgren, her vet.",
   "valueA": "Dr. Abernathy",
-  "valueB": "Dr. Lindgren"
+  "valueB": "Dr. Lindgren",
+  "question": "What is my veterinarian? Give the name.",
+  "expected": "Dr. Abernathy",
+  "notExpected": "Dr. Lindgren"
  },
  {
   "id": "other-person-en-15",
@@ -514,7 +652,10 @@
   "textA": "My godfather Baltazar uses Raj at Kerbside Autos for his car.",
   "textB": "My own car goes to Ines at Apex Motors for repairs.",
   "valueA": "Raj at Kerbside Autos",
-  "valueB": "Ines at Apex Motors"
+  "valueB": "Ines at Apex Motors",
+  "question": "What is the car mechanic of my godfather Baltazar? Give the name.",
+  "expected": "Raj at Kerbside Autos",
+  "notExpected": "Ines at Apex Motors"
  },
  {
   "id": "other-person-en-16",
@@ -525,7 +666,10 @@
   "textA": "Dona Perpétua is my landlord, for the record.",
   "textB": "My stepbrother Anneliese rents his place from Sr. Honório.",
   "valueA": "Dona Perpétua",
-  "valueB": "Sr. Honório"
+  "valueB": "Sr. Honório",
+  "question": "What is my landlord? Give the name.",
+  "expected": "Dona Perpétua",
+  "notExpected": "Sr. Honório"
  },
  {
   "id": "other-person-pt-01",
@@ -536,7 +680,10 @@
   "textA": "A Saúde Íntegra é o plano de saúde da minha sobrinha Ciro.",
   "textB": "Eu uso o plano de saúde Alderney Health.",
   "valueA": "Saúde Íntegra",
-  "valueB": "Alderney Health"
+  "valueB": "Alderney Health",
+  "question": "Qual é o plano de saúde da minha sobrinha Ciro? Dê o nome.",
+  "expected": "Saúde Íntegra",
+  "notExpected": "Alderney Health"
  },
  {
   "id": "other-person-pt-02",
@@ -547,7 +694,10 @@
   "textA": "Meu veterinário é o Dr. Pennington, fica o registro.",
   "textB": "A veterinária da minha avó Wilhelmina se chama Dra. Filomena.",
   "valueA": "Dr. Pennington",
-  "valueB": "Dra. Filomena"
+  "valueB": "Dra. Filomena",
+  "question": "Qual é o meu veterinário? Dê o nome.",
+  "expected": "Dr. Pennington",
+  "notExpected": "Dra. Filomena"
  },
  {
   "id": "other-person-pt-03",
@@ -558,7 +708,10 @@
   "textA": "O Seu Deoclécio é o mecânico do carro do meu padrinho Baltazar.",
   "textB": "Eu conserto meu carro com Ines at Apex Motors.",
   "valueA": "Seu Deoclécio",
-  "valueB": "Ines at Apex Motors"
+  "valueB": "Ines at Apex Motors",
+  "question": "Qual é o mecânico do carro do meu padrinho Baltazar? Dê o nome.",
+  "expected": "Seu Deoclécio",
+  "notExpected": "Ines at Apex Motors"
  },
  {
   "id": "other-person-pt-04",
@@ -569,7 +722,10 @@
   "textA": "O Mr. Fairweather é o dono do imóvel onde moro.",
   "textB": "A Dona Perpétua é a proprietária do imóvel onde mora meu meio-irmão Anneliese.",
   "valueA": "Mr. Fairweather",
-  "valueB": "Dona Perpétua"
+  "valueB": "Dona Perpétua",
+  "question": "Qual é o meu proprietário do imóvel onde moro? Dê o nome.",
+  "expected": "Mr. Fairweather",
+  "notExpected": "Dona Perpétua"
  },
  {
   "id": "other-person-pt-05",
@@ -580,7 +736,10 @@
   "textA": "Minha sogra Gervásio faz a contabilidade com a Dra. Anacleta.",
   "textB": "Eu tenho a Ms. Verhoeven como contadora.",
   "valueA": "Dra. Anacleta",
-  "valueB": "Ms. Verhoeven"
+  "valueB": "Ms. Verhoeven",
+  "question": "Qual é o contador da minha sogra Gervásio? Dê o nome.",
+  "expected": "Dra. Anacleta",
+  "notExpected": "Ms. Verhoeven"
  },
  {
   "id": "other-person-pt-06",
@@ -591,7 +750,10 @@
   "textA": "A Northbeam é a operadora do meu celular.",
   "textB": "O celular do meu tio Thora é da operadora Claro Sul.",
   "valueA": "Northbeam",
-  "valueB": "Claro Sul"
+  "valueB": "Claro Sul",
+  "question": "Qual é a minha operadora de celular? Dê o nome.",
+  "expected": "Northbeam",
+  "notExpected": "Claro Sul"
  },
  {
   "id": "other-person-pt-07",
@@ -602,7 +764,10 @@
   "textA": "Minha sobrinha Olímpio tem plano de saúde da Vida Plena.",
   "textB": "Eu sou segurado da Marlowe Mutual, meu plano de saúde.",
   "valueA": "Vida Plena",
-  "valueB": "Marlowe Mutual"
+  "valueB": "Marlowe Mutual",
+  "question": "Qual é o plano de saúde da minha sobrinha Olímpio? Dê o nome.",
+  "expected": "Vida Plena",
+  "notExpected": "Marlowe Mutual"
  },
  {
   "id": "other-person-pt-08",
@@ -613,7 +778,10 @@
   "textA": "Meu veterinário é o Dr. Evaristo.",
   "textB": "A Dra. Filomena é a veterinária da minha avó Marguerite.",
   "valueA": "Dr. Evaristo",
-  "valueB": "Dra. Filomena"
+  "valueB": "Dra. Filomena",
+  "question": "Qual é o meu veterinário? Dê o nome.",
+  "expected": "Dr. Evaristo",
+  "notExpected": "Dra. Filomena"
  },
  {
   "id": "other-person-pt-09",
@@ -624,7 +792,10 @@
   "textA": "Meu padrinho Januário leva o carro dele para Ines at Apex Motors.",
   "textB": "Quem mexe no meu carro é Raj at Kerbside Autos, meu mecânico.",
   "valueA": "Ines at Apex Motors",
-  "valueB": "Raj at Kerbside Autos"
+  "valueB": "Raj at Kerbside Autos",
+  "question": "Qual é o mecânico do carro do meu padrinho Januário? Dê o nome.",
+  "expected": "Ines at Apex Motors",
+  "notExpected": "Raj at Kerbside Autos"
  },
  {
   "id": "other-person-pt-10",
@@ -635,7 +806,10 @@
   "textA": "A Dona Zuleica é a proprietária do imóvel onde moro.",
   "textB": "Meu meio-irmão Halvard aluga o imóvel onde mora do Mr. Okonjo.",
   "valueA": "Dona Zuleica",
-  "valueB": "Mr. Okonjo"
+  "valueB": "Mr. Okonjo",
+  "question": "Qual é o meu proprietário do imóvel onde moro? Dê o nome.",
+  "expected": "Dona Zuleica",
+  "notExpected": "Mr. Okonjo"
  },
  {
   "id": "other-person-pt-11",
@@ -646,7 +820,10 @@
   "textA": "O Sr. Belmiro é o contador da minha sogra Jurema.",
   "textB": "Minha contadora é a Ms. Verhoeven, é ela que cuida das minhas contas.",
   "valueA": "Sr. Belmiro",
-  "valueB": "Ms. Verhoeven"
+  "valueB": "Ms. Verhoeven",
+  "question": "Qual é o contador da minha sogra Jurema? Dê o nome.",
+  "expected": "Sr. Belmiro",
+  "notExpected": "Ms. Verhoeven"
  },
  {
   "id": "other-person-pt-12",
@@ -657,7 +834,10 @@
   "textA": "Meu plano de celular é da Tellura.",
   "textB": "Meu tio Petronela usa a Vivaz Telecom como operadora de celular.",
   "valueA": "Tellura",
-  "valueB": "Vivaz Telecom"
+  "valueB": "Vivaz Telecom",
+  "question": "Qual é a minha operadora de celular? Dê o nome.",
+  "expected": "Tellura",
+  "notExpected": "Vivaz Telecom"
  },
  {
   "id": "other-person-pt-13",
@@ -668,7 +848,10 @@
   "textA": "Minha sobrinha Ciro tem o plano de saúde Alderney Health.",
   "textB": "Meu plano de saúde, o meu mesmo, é o Saúde Íntegra.",
   "valueA": "Alderney Health",
-  "valueB": "Saúde Íntegra"
+  "valueB": "Saúde Íntegra",
+  "question": "Qual é o plano de saúde da minha sobrinha Ciro? Dê o nome.",
+  "expected": "Alderney Health",
+  "notExpected": "Saúde Íntegra"
  },
  {
   "id": "other-person-pt-14",
@@ -679,7 +862,10 @@
   "textA": "Sou cliente do Dr. Pennington, ele é meu veterinário.",
   "textB": "Minha avó Wilhelmina leva os animais dela na Dra. Filomena, a veterinária dela.",
   "valueA": "Dr. Pennington",
-  "valueB": "Dra. Filomena"
+  "valueB": "Dra. Filomena",
+  "question": "Qual é o meu veterinário? Dê o nome.",
+  "expected": "Dr. Pennington",
+  "notExpected": "Dra. Filomena"
  },
  {
   "id": "other-person-pt-15",
@@ -690,7 +876,10 @@
   "textA": "O carro do meu padrinho Baltazar é consertado pelo Seu Lindolfo.",
   "textB": "Meu mecânico é Ines at Apex Motors, é lá que levo meu carro.",
   "valueA": "Seu Lindolfo",
-  "valueB": "Ines at Apex Motors"
+  "valueB": "Ines at Apex Motors",
+  "question": "Qual é o mecânico do carro do meu padrinho Baltazar? Dê o nome.",
+  "expected": "Seu Lindolfo",
+  "notExpected": "Ines at Apex Motors"
  },
  {
   "id": "other-person-pt-16",
@@ -701,7 +890,10 @@
   "textA": "Alugo o imóvel onde moro do Mr. Okonjo.",
   "textB": "Meu meio-irmão Anneliese mora num imóvel da Mrs. Castellan, a proprietária.",
   "valueA": "Mr. Okonjo",
-  "valueB": "Mrs. Castellan"
+  "valueB": "Mrs. Castellan",
+  "question": "Qual é o meu proprietário do imóvel onde moro? Dê o nome.",
+  "expected": "Mr. Okonjo",
+  "notExpected": "Mrs. Castellan"
  },
  {
   "id": "switch-en-01",
@@ -1064,7 +1256,10 @@
   "textA": "My grandmother Marguerite's animals are seen by Dra. Calista, her vet.",
   "textB": "Dr. Abernathy is my uncle Thora's veterinarian.",
   "valueA": "Dra. Calista",
-  "valueB": "Dr. Abernathy"
+  "valueB": "Dr. Abernathy",
+  "question": "What is the veterinarian of my grandmother Marguerite? Give the name.",
+  "expected": "Dra. Calista",
+  "notExpected": "Dr. Abernathy"
  },
  {
   "id": "two-relatives-en-02",
@@ -1075,7 +1270,10 @@
   "textA": "My mother-in-law Marguerite gets her car fixed by Raj at Kerbside Autos.",
   "textB": "Seu Nicanor is the mechanic who looks after my niece Jurema's car.",
   "valueA": "Raj at Kerbside Autos",
-  "valueB": "Seu Nicanor"
+  "valueB": "Seu Nicanor",
+  "question": "What is the car mechanic of my mother-in-law Marguerite? Give the name.",
+  "expected": "Raj at Kerbside Autos",
+  "notExpected": "Seu Nicanor"
  },
  {
   "id": "two-relatives-en-03",
@@ -1086,7 +1284,10 @@
   "textA": "Mr. Okonjo is the landlord of my godfather Halvard.",
   "textB": "My mother-in-law Baltazar rents her home from Mrs. Castellan.",
   "valueA": "Mr. Okonjo",
-  "valueB": "Mrs. Castellan"
+  "valueB": "Mrs. Castellan",
+  "question": "What is the landlord of my godfather Halvard? Give the name.",
+  "expected": "Mr. Okonjo",
+  "notExpected": "Mrs. Castellan"
  },
  {
   "id": "two-relatives-en-04",
@@ -1097,7 +1298,10 @@
   "textA": "Sr. Tibúrcio does my uncle Marguerite's accounting.",
   "textB": "My mother-in-law Anneliese's accountant is Dra. Anacleta.",
   "valueA": "Sr. Tibúrcio",
-  "valueB": "Dra. Anacleta"
+  "valueB": "Dra. Anacleta",
+  "question": "What is the accountant of my uncle Marguerite? Give the name.",
+  "expected": "Sr. Tibúrcio",
+  "notExpected": "Dra. Anacleta"
  },
  {
   "id": "two-relatives-en-05",
@@ -1108,7 +1312,10 @@
   "textA": "Northbeam is the mobile carrier my niece Januário is on.",
   "textB": "My grandmother Jurema has her mobile with Claro Sul.",
   "valueA": "Northbeam",
-  "valueB": "Claro Sul"
+  "valueB": "Claro Sul",
+  "question": "What is the mobile carrier of my niece Januário? Give the name.",
+  "expected": "Northbeam",
+  "notExpected": "Claro Sul"
  },
  {
   "id": "two-relatives-en-06",
@@ -1119,7 +1326,10 @@
   "textA": "My uncle Jurema gets his health insurance from Unimais.",
   "textB": "My mother-in-law Petronela's health insurer is Saúde Íntegra.",
   "valueA": "Unimais",
-  "valueB": "Saúde Íntegra"
+  "valueB": "Saúde Íntegra",
+  "question": "What is the health insurer of my uncle Jurema? Give the name.",
+  "expected": "Unimais",
+  "notExpected": "Saúde Íntegra"
  },
  {
   "id": "two-relatives-en-07",
@@ -1130,7 +1340,10 @@
   "textA": "Dr. Pennington is the vet my godfather Ciro goes to.",
   "textB": "My niece Wilhelmina's veterinarian is Dra. Filomena.",
   "valueA": "Dr. Pennington",
-  "valueB": "Dra. Filomena"
+  "valueB": "Dra. Filomena",
+  "question": "What is the veterinarian of my godfather Ciro? Give the name.",
+  "expected": "Dr. Pennington",
+  "notExpected": "Dra. Filomena"
  },
  {
   "id": "two-relatives-en-08",
@@ -1141,7 +1354,10 @@
   "textA": "Gus at Redline Garage is where my stepbrother Wilhelmina takes his car.",
   "textB": "My uncle Petronela's car mechanic is Seu Lindolfo.",
   "valueA": "Gus at Redline Garage",
-  "valueB": "Seu Lindolfo"
+  "valueB": "Seu Lindolfo",
+  "question": "What is the car mechanic of my stepbrother Wilhelmina? Give the name.",
+  "expected": "Gus at Redline Garage",
+  "notExpected": "Seu Lindolfo"
  },
  {
   "id": "two-relatives-en-09",
@@ -1152,7 +1368,10 @@
   "textA": "My mother-in-law Wilhelmina rents from Sr. Honório.",
   "textB": "Mr. Fairweather is the landlord of my niece Thora.",
   "valueA": "Sr. Honório",
-  "valueB": "Mr. Fairweather"
+  "valueB": "Mr. Fairweather",
+  "question": "What is the landlord of my mother-in-law Wilhelmina? Give the name.",
+  "expected": "Sr. Honório",
+  "notExpected": "Mr. Fairweather"
  },
  {
   "id": "two-relatives-en-10",
@@ -1163,7 +1382,10 @@
   "textA": "Dra. Anacleta is my grandmother Baltazar's accountant.",
   "textB": "My uncle Marguerite uses Sr. Belmiro as his accountant.",
   "valueA": "Dra. Anacleta",
-  "valueB": "Sr. Belmiro"
+  "valueB": "Sr. Belmiro",
+  "question": "What is the accountant of my grandmother Baltazar? Give the name.",
+  "expected": "Dra. Anacleta",
+  "notExpected": "Sr. Belmiro"
  },
  {
   "id": "two-relatives-en-11",
@@ -1174,7 +1396,10 @@
   "textA": "My grandmother Wilhelmina's phone is on Claro Sul.",
   "textB": "Northbeam is the mobile carrier of my mother-in-law Baltazar.",
   "valueA": "Claro Sul",
-  "valueB": "Northbeam"
+  "valueB": "Northbeam",
+  "question": "What is the mobile carrier of my grandmother Wilhelmina? Give the name.",
+  "expected": "Claro Sul",
+  "notExpected": "Northbeam"
  },
  {
   "id": "two-relatives-en-12",
@@ -1185,7 +1410,10 @@
   "textA": "My uncle Anneliese is insured with Alderney Health for health.",
   "textB": "Marlowe Mutual covers my grandmother Petronela's health insurance.",
   "valueA": "Alderney Health",
-  "valueB": "Marlowe Mutual"
+  "valueB": "Marlowe Mutual",
+  "question": "What is the health insurer of my uncle Anneliese? Give the name.",
+  "expected": "Alderney Health",
+  "notExpected": "Marlowe Mutual"
  },
  {
   "id": "two-relatives-en-13",
@@ -1196,7 +1424,10 @@
   "textA": "My godfather Ciro's vet is Dr. Lindgren.",
   "textB": "Dr. Evaristo is the veterinarian for my niece Olímpio's animals.",
   "valueA": "Dr. Lindgren",
-  "valueB": "Dr. Evaristo"
+  "valueB": "Dr. Evaristo",
+  "question": "What is the veterinarian of my godfather Ciro? Give the name.",
+  "expected": "Dr. Lindgren",
+  "notExpected": "Dr. Evaristo"
  },
  {
   "id": "two-relatives-en-14",
@@ -1207,7 +1438,10 @@
   "textA": "Seu Deoclécio is the mechanic for my grandmother Jurema's car.",
   "textB": "My niece Wilhelmina takes her car to Raj at Kerbside Autos.",
   "valueA": "Seu Deoclécio",
-  "valueB": "Raj at Kerbside Autos"
+  "valueB": "Raj at Kerbside Autos",
+  "question": "What is the car mechanic of my grandmother Jurema? Give the name.",
+  "expected": "Seu Deoclécio",
+  "notExpected": "Raj at Kerbside Autos"
  },
  {
   "id": "two-relatives-en-15",
@@ -1218,7 +1452,10 @@
   "textA": "My uncle Gervásio's landlord is Dona Perpétua.",
   "textB": "Noting that my godfather Petronela pays rent to Sr. Honório, his landlord.",
   "valueA": "Dona Perpétua",
-  "valueB": "Sr. Honório"
+  "valueB": "Sr. Honório",
+  "question": "What is the landlord of my uncle Gervásio? Give the name.",
+  "expected": "Dona Perpétua",
+  "notExpected": "Sr. Honório"
  },
  {
   "id": "two-relatives-en-16",
@@ -1229,7 +1466,10 @@
   "textA": "Mr. Dunmore keeps the books for my stepbrother Baltazar as his accountant.",
   "textB": "My godfather Halvard's accountant is Ms. Ferreira-Lang.",
   "valueA": "Mr. Dunmore",
-  "valueB": "Ms. Ferreira-Lang"
+  "valueB": "Ms. Ferreira-Lang",
+  "question": "What is the accountant of my stepbrother Baltazar? Give the name.",
+  "expected": "Mr. Dunmore",
+  "notExpected": "Ms. Ferreira-Lang"
  },
  {
   "id": "two-relatives-pt-01",
@@ -1240,7 +1480,10 @@
   "textA": "Anota aí: o veterinário da minha sogra Thora é o Dr. Evaristo.",
   "textB": "Minha avó Anneliese tem como veterinário o Dr. Pennington.",
   "valueA": "Dr. Evaristo",
-  "valueB": "Dr. Pennington"
+  "valueB": "Dr. Pennington",
+  "question": "Qual é o veterinário da minha sogra Thora? Dê o nome.",
+  "expected": "Dr. Evaristo",
+  "notExpected": "Dr. Pennington"
  },
  {
   "id": "two-relatives-pt-02",
@@ -1251,7 +1494,10 @@
   "textA": "Quem cuida do carro da minha sogra Anneliese é o Seu Lindolfo.",
   "textB": "O mecânico do carro da minha avó Thora se chama Seu Nicanor.",
   "valueA": "Seu Lindolfo",
-  "valueB": "Seu Nicanor"
+  "valueB": "Seu Nicanor",
+  "question": "Qual é o mecânico do carro da minha sogra Anneliese? Dê o nome.",
+  "expected": "Seu Lindolfo",
+  "notExpected": "Seu Nicanor"
  },
  {
   "id": "two-relatives-pt-03",
@@ -1262,7 +1508,10 @@
   "textA": "A Dona Perpétua é a proprietária do imóvel onde mora minha sogra Marguerite.",
   "textB": "Minha sobrinha Halvard mora num imóvel que pertence à Dona Zuleica.",
   "valueA": "Dona Perpétua",
-  "valueB": "Dona Zuleica"
+  "valueB": "Dona Zuleica",
+  "question": "Qual é o proprietário do imóvel onde mora da minha sogra Marguerite? Dê o nome.",
+  "expected": "Dona Perpétua",
+  "notExpected": "Dona Zuleica"
  },
  {
   "id": "two-relatives-pt-04",
@@ -1273,7 +1522,10 @@
   "textA": "A Ms. Verhoeven é a contadora do meu meio-irmão Jurema.",
   "textB": "Minha sogra Marguerite entrega as contas dela ao Mr. Dunmore, o contador dela.",
   "valueA": "Ms. Verhoeven",
-  "valueB": "Mr. Dunmore"
+  "valueB": "Mr. Dunmore",
+  "question": "Qual é o contador do meu meio-irmão Jurema? Dê o nome.",
+  "expected": "Ms. Verhoeven",
+  "notExpected": "Mr. Dunmore"
  },
  {
   "id": "two-relatives-pt-05",
@@ -1284,7 +1536,10 @@
   "textA": "Meu meio-irmão Januário tem celular da Vivaz Telecom.",
   "textB": "A operadora de celular do meu padrinho Gervásio é a Tellura.",
   "valueA": "Vivaz Telecom",
-  "valueB": "Tellura"
+  "valueB": "Tellura",
+  "question": "Qual é a operadora de celular do meu meio-irmão Januário? Dê o nome.",
+  "expected": "Vivaz Telecom",
+  "notExpected": "Tellura"
  },
  {
   "id": "two-relatives-pt-06",
@@ -1295,7 +1550,10 @@
   "textA": "Meu meio-irmão Wilhelmina tem plano de saúde da Marlowe Mutual.",
   "textB": "O plano de saúde do meu tio Ciro é a Unimais.",
   "valueA": "Marlowe Mutual",
-  "valueB": "Unimais"
+  "valueB": "Unimais",
+  "question": "Qual é o plano de saúde do meu meio-irmão Wilhelmina? Dê o nome.",
+  "expected": "Marlowe Mutual",
+  "notExpected": "Unimais"
  },
  {
   "id": "two-relatives-pt-07",
@@ -1306,7 +1564,10 @@
   "textA": "O Dr. Evaristo atende os animais da minha avó Wilhelmina como veterinário.",
   "textB": "O veterinário do meu meio-irmão Januário é o Dr. Pennington.",
   "valueA": "Dr. Evaristo",
-  "valueB": "Dr. Pennington"
+  "valueB": "Dr. Pennington",
+  "question": "Qual é o veterinário da minha avó Wilhelmina? Dê o nome.",
+  "expected": "Dr. Evaristo",
+  "notExpected": "Dr. Pennington"
  },
  {
   "id": "two-relatives-pt-08",
@@ -1317,7 +1578,10 @@
   "textA": "O mecânico do carro do meu padrinho Jurema é Raj at Kerbside Autos.",
   "textB": "Minha avó Marguerite conserta o carro dela com o Seu Nicanor.",
   "valueA": "Raj at Kerbside Autos",
-  "valueB": "Seu Nicanor"
+  "valueB": "Seu Nicanor",
+  "question": "Qual é o mecânico do carro do meu padrinho Jurema? Dê o nome.",
+  "expected": "Raj at Kerbside Autos",
+  "notExpected": "Seu Nicanor"
  },
  {
   "id": "two-relatives-pt-09",
@@ -1328,7 +1592,10 @@
   "textA": "A Mrs. Castellan é dona do imóvel onde meu tio Jurema mora.",
   "textB": "Minha sobrinha Marguerite paga aluguel ao Mr. Okonjo, proprietário de onde ela mora.",
   "valueA": "Mrs. Castellan",
-  "valueB": "Mr. Okonjo"
+  "valueB": "Mr. Okonjo",
+  "question": "Qual é o proprietário do imóvel onde mora do meu tio Jurema? Dê o nome.",
+  "expected": "Mrs. Castellan",
+  "notExpected": "Mr. Okonjo"
  },
  {
   "id": "two-relatives-pt-10",
@@ -1339,7 +1606,10 @@
   "textA": "Quem faz a contabilidade da minha avó Anneliese é a Dra. Anacleta.",
   "textB": "Minha sogra Gervásio tem o Sr. Belmiro como contador.",
   "valueA": "Dra. Anacleta",
-  "valueB": "Sr. Belmiro"
+  "valueB": "Sr. Belmiro",
+  "question": "Qual é o contador da minha avó Anneliese? Dê o nome.",
+  "expected": "Dra. Anacleta",
+  "notExpected": "Sr. Belmiro"
  },
  {
   "id": "two-relatives-pt-11",
@@ -1350,7 +1620,10 @@
   "textA": "Minha sobrinha Ciro tem celular da Pinecall.",
   "textB": "O chip da minha avó Baltazar é da operadora Vivaz Telecom.",
   "valueA": "Pinecall",
-  "valueB": "Vivaz Telecom"
+  "valueB": "Vivaz Telecom",
+  "question": "Qual é a operadora de celular da minha sobrinha Ciro? Dê o nome.",
+  "expected": "Pinecall",
+  "notExpected": "Vivaz Telecom"
  },
  {
   "id": "two-relatives-pt-12",
@@ -1361,7 +1634,10 @@
   "textA": "Minha sobrinha Marguerite é atendida pelo plano de saúde Alderney Health.",
   "textB": "O plano de saúde do meu meio-irmão Baltazar é o Marlowe Mutual.",
   "valueA": "Alderney Health",
-  "valueB": "Marlowe Mutual"
+  "valueB": "Marlowe Mutual",
+  "question": "Qual é o plano de saúde da minha sobrinha Marguerite? Dê o nome.",
+  "expected": "Alderney Health",
+  "notExpected": "Marlowe Mutual"
  },
  {
   "id": "two-relatives-pt-13",
@@ -1372,7 +1648,10 @@
   "textA": "A veterinária da minha avó Jurema é a Dra. Filomena.",
   "textB": "Meu padrinho Olímpio leva os bichos dele no Dr. Abernathy, o veterinário dele.",
   "valueA": "Dra. Filomena",
-  "valueB": "Dr. Abernathy"
+  "valueB": "Dr. Abernathy",
+  "question": "Qual é o veterinário da minha avó Jurema? Dê o nome.",
+  "expected": "Dra. Filomena",
+  "notExpected": "Dr. Abernathy"
  },
  {
   "id": "two-relatives-pt-14",
@@ -1383,7 +1662,10 @@
   "textA": "Minha avó Ciro leva o carro dela no Seu Nicanor.",
   "textB": "O mecânico do carro da minha sogra Gervásio é o Seu Lindolfo.",
   "valueA": "Seu Nicanor",
-  "valueB": "Seu Lindolfo"
+  "valueB": "Seu Lindolfo",
+  "question": "Qual é o mecânico do carro da minha avó Ciro? Dê o nome.",
+  "expected": "Seu Nicanor",
+  "notExpected": "Seu Lindolfo"
  },
  {
   "id": "two-relatives-pt-15",
@@ -1394,7 +1676,10 @@
   "textA": "Meu padrinho Olímpio aluga o imóvel onde mora do Mr. Fairweather.",
   "textB": "A proprietária do imóvel onde mora minha avó Ciro é a Dona Zuleica.",
   "valueA": "Mr. Fairweather",
-  "valueB": "Dona Zuleica"
+  "valueB": "Dona Zuleica",
+  "question": "Qual é o proprietário do imóvel onde mora do meu padrinho Olímpio? Dê o nome.",
+  "expected": "Mr. Fairweather",
+  "notExpected": "Dona Zuleica"
  },
  {
   "id": "two-relatives-pt-16",
@@ -1405,7 +1690,10 @@
   "textA": "Meu padrinho Petronela usa o Sr. Belmiro como contador.",
   "textB": "Quem cuida das contas da minha avó Ciro é o contador Sr. Tibúrcio.",
   "valueA": "Sr. Belmiro",
-  "valueB": "Sr. Tibúrcio"
+  "valueB": "Sr. Tibúrcio",
+  "question": "Qual é o contador do meu padrinho Petronela? Dê o nome.",
+  "expected": "Sr. Belmiro",
+  "notExpected": "Sr. Tibúrcio"
  },
  {
   "id": "update-en-01",
@@ -1416,7 +1704,10 @@
   "textA": "I rent my home from Dona Zuleica.",
   "textB": "Sr. Honório is the landlord I rent from.",
   "valueA": "Dona Zuleica",
-  "valueB": "Sr. Honório"
+  "valueB": "Sr. Honório",
+  "question": "What is my landlord? Give the name.",
+  "expected": "Sr. Honório",
+  "notExpected": "Dona Zuleica"
  },
  {
   "id": "update-en-02",
@@ -1427,7 +1718,10 @@
   "textA": "I work with Sr. Tibúrcio, my accountant.",
   "textB": "My accountant is Ms. Ferreira-Lang, for your records.",
   "valueA": "Sr. Tibúrcio",
-  "valueB": "Ms. Ferreira-Lang"
+  "valueB": "Ms. Ferreira-Lang",
+  "question": "What is my accountant? Give the name.",
+  "expected": "Ms. Ferreira-Lang",
+  "notExpected": "Sr. Tibúrcio"
  },
  {
   "id": "update-en-03",
@@ -1438,7 +1732,10 @@
   "textA": "I use Vivaz Telecom as my mobile carrier.",
   "textB": "Northbeam is the carrier for my mobile phone.",
   "valueA": "Vivaz Telecom",
-  "valueB": "Northbeam"
+  "valueB": "Northbeam",
+  "question": "What is my mobile carrier? Give the name.",
+  "expected": "Northbeam",
+  "notExpected": "Vivaz Telecom"
  },
  {
   "id": "update-en-04",
@@ -1449,7 +1746,10 @@
   "textA": "Vida Plena is my health insurer.",
   "textB": "I have my health insurance with Castlegate Care.",
   "valueA": "Vida Plena",
-  "valueB": "Castlegate Care"
+  "valueB": "Castlegate Care",
+  "question": "What is my health insurer? Give the name.",
+  "expected": "Castlegate Care",
+  "notExpected": "Vida Plena"
  },
  {
   "id": "update-en-05",
@@ -1460,7 +1760,10 @@
   "textA": "Dr. Abernathy is the vet for my pets.",
   "textB": "I take my pets to Dr. Evaristo, my veterinarian.",
   "valueA": "Dr. Abernathy",
-  "valueB": "Dr. Evaristo"
+  "valueB": "Dr. Evaristo",
+  "question": "What is my veterinarian? Give the name.",
+  "expected": "Dr. Evaristo",
+  "notExpected": "Dr. Abernathy"
  },
  {
   "id": "update-en-06",
@@ -1471,7 +1774,10 @@
   "textA": "Ines at Apex Motors looks after my car.",
   "textB": "Seu Nicanor is the mechanic who works on my car.",
   "valueA": "Ines at Apex Motors",
-  "valueB": "Seu Nicanor"
+  "valueB": "Seu Nicanor",
+  "question": "What is my car mechanic? Give the name.",
+  "expected": "Seu Nicanor",
+  "notExpected": "Ines at Apex Motors"
  },
  {
   "id": "update-en-07",
@@ -1482,7 +1788,10 @@
   "textA": "I pay rent to Sr. Honório, my landlord.",
   "textB": "Mrs. Castellan is the landlord of my home.",
   "valueA": "Sr. Honório",
-  "valueB": "Mrs. Castellan"
+  "valueB": "Mrs. Castellan",
+  "question": "What is my landlord? Give the name.",
+  "expected": "Mrs. Castellan",
+  "notExpected": "Sr. Honório"
  },
  {
   "id": "update-en-08",
@@ -1493,7 +1802,10 @@
   "textA": "Sr. Belmiro is my accountant, by the way.",
   "textB": "I use Ms. Ferreira-Lang as my accountant.",
   "valueA": "Sr. Belmiro",
-  "valueB": "Ms. Ferreira-Lang"
+  "valueB": "Ms. Ferreira-Lang",
+  "question": "What is my accountant? Give the name.",
+  "expected": "Ms. Ferreira-Lang",
+  "notExpected": "Sr. Belmiro"
  },
  {
   "id": "update-en-09",
@@ -1504,7 +1816,10 @@
   "textA": "Pinecall is who I have my mobile service with.",
   "textB": "Just noting my mobile carrier: it's Northbeam.",
   "valueA": "Pinecall",
-  "valueB": "Northbeam"
+  "valueB": "Northbeam",
+  "question": "What is my mobile carrier? Give the name.",
+  "expected": "Northbeam",
+  "notExpected": "Pinecall"
  },
  {
   "id": "update-en-10",
@@ -1515,7 +1830,10 @@
   "textA": "Unimais is the company I have health insurance with.",
   "textB": "My health insurer is Alderney Health.",
   "valueA": "Unimais",
-  "valueB": "Alderney Health"
+  "valueB": "Alderney Health",
+  "question": "What is my health insurer? Give the name.",
+  "expected": "Alderney Health",
+  "notExpected": "Unimais"
  },
  {
   "id": "update-en-11",
@@ -1526,7 +1844,10 @@
   "textA": "The veterinarian I use is Dr. Lindgren.",
   "textB": "My pets see Dra. Calista; she's my veterinarian.",
   "valueA": "Dr. Lindgren",
-  "valueB": "Dra. Calista"
+  "valueB": "Dra. Calista",
+  "question": "What is my veterinarian? Give the name.",
+  "expected": "Dra. Calista",
+  "notExpected": "Dr. Lindgren"
  },
  {
   "id": "update-en-12",
@@ -1537,7 +1858,10 @@
   "textA": "For car repairs I go to Ines at Apex Motors.",
   "textB": "My car mechanic is Raj at Kerbside Autos.",
   "valueA": "Ines at Apex Motors",
-  "valueB": "Raj at Kerbside Autos"
+  "valueB": "Raj at Kerbside Autos",
+  "question": "What is my car mechanic? Give the name.",
+  "expected": "Raj at Kerbside Autos",
+  "notExpected": "Ines at Apex Motors"
  },
  {
   "id": "update-en-13",
@@ -1548,7 +1872,10 @@
   "textA": "Mrs. Castellan owns the place I rent; she's my landlord.",
   "textB": "My landlord is Mr. Okonjo; I pay my rent to him.",
   "valueA": "Mrs. Castellan",
-  "valueB": "Mr. Okonjo"
+  "valueB": "Mr. Okonjo",
+  "question": "What is my landlord? Give the name.",
+  "expected": "Mr. Okonjo",
+  "notExpected": "Mrs. Castellan"
  },
  {
   "id": "update-en-14",
@@ -1559,7 +1886,10 @@
   "textA": "My accountant's name is Sr. Belmiro.",
   "textB": "Ms. Verhoeven does my accounting; she's my accountant.",
   "valueA": "Sr. Belmiro",
-  "valueB": "Ms. Verhoeven"
+  "valueB": "Ms. Verhoeven",
+  "question": "What is my accountant? Give the name.",
+  "expected": "Ms. Verhoeven",
+  "notExpected": "Sr. Belmiro"
  },
  {
   "id": "update-en-15",
@@ -1570,7 +1900,10 @@
   "textA": "My cell service comes from Pinecall, my mobile carrier.",
   "textB": "I'm a Claro Sul customer; that's my mobile carrier.",
   "valueA": "Pinecall",
-  "valueB": "Claro Sul"
+  "valueB": "Claro Sul",
+  "question": "What is my mobile carrier? Give the name.",
+  "expected": "Claro Sul",
+  "notExpected": "Pinecall"
  },
  {
   "id": "update-en-16",
@@ -1581,7 +1914,10 @@
   "textA": "I'm covered by Marlowe Mutual for health insurance.",
   "textB": "My health insurer is Unimais, in case you need it.",
   "valueA": "Marlowe Mutual",
-  "valueB": "Unimais"
+  "valueB": "Unimais",
+  "question": "What is my health insurer? Give the name.",
+  "expected": "Unimais",
+  "notExpected": "Marlowe Mutual"
  },
  {
   "id": "update-of-relative-en-01",
@@ -1592,7 +1928,10 @@
   "textA": "Mr. Dunmore is my uncle Halvard's accountant.",
   "textB": "Dra. Anacleta is the accountant for my uncle Halvard.",
   "valueA": "Mr. Dunmore",
-  "valueB": "Dra. Anacleta"
+  "valueB": "Dra. Anacleta",
+  "question": "What is the accountant of my uncle Halvard? Give the name.",
+  "expected": "Dra. Anacleta",
+  "notExpected": "Mr. Dunmore"
  },
  {
   "id": "update-of-relative-en-02",
@@ -1603,7 +1942,10 @@
   "textA": "My niece Jurema is with Northbeam for her mobile.",
   "textB": "Onda Móvel is my niece Jurema's mobile carrier.",
   "valueA": "Northbeam",
-  "valueB": "Onda Móvel"
+  "valueB": "Onda Móvel",
+  "question": "What is the mobile carrier of my niece Jurema? Give the name.",
+  "expected": "Onda Móvel",
+  "notExpected": "Northbeam"
  },
  {
   "id": "update-of-relative-en-03",
@@ -1614,7 +1956,10 @@
   "textA": "Vida Plena is my grandmother Petronela's health insurer.",
   "textB": "My grandmother Petronela holds her health insurance with Saúde Íntegra.",
   "valueA": "Vida Plena",
-  "valueB": "Saúde Íntegra"
+  "valueB": "Saúde Íntegra",
+  "question": "What is the health insurer of my grandmother Petronela? Give the name.",
+  "expected": "Saúde Íntegra",
+  "notExpected": "Vida Plena"
  },
  {
   "id": "update-of-relative-en-04",
@@ -1625,7 +1970,10 @@
   "textA": "My godfather Ciro takes his pets to Dr. Pennington, his vet.",
   "textB": "Dr. Abernathy is the veterinarian my godfather Ciro uses.",
   "valueA": "Dr. Pennington",
-  "valueB": "Dr. Abernathy"
+  "valueB": "Dr. Abernathy",
+  "question": "What is the veterinarian of my godfather Ciro? Give the name.",
+  "expected": "Dr. Abernathy",
+  "notExpected": "Dr. Pennington"
  },
  {
   "id": "update-of-relative-en-05",
@@ -1636,7 +1984,10 @@
   "textA": "Seu Lindolfo is the mechanic for my stepbrother Wilhelmina's car.",
   "textB": "My stepbrother Wilhelmina brings his car to Ines at Apex Motors.",
   "valueA": "Seu Lindolfo",
-  "valueB": "Ines at Apex Motors"
+  "valueB": "Ines at Apex Motors",
+  "question": "What is the car mechanic of my stepbrother Wilhelmina? Give the name.",
+  "expected": "Ines at Apex Motors",
+  "notExpected": "Seu Lindolfo"
  },
  {
   "id": "update-of-relative-en-06",
@@ -1647,7 +1998,10 @@
   "textA": "Sr. Honório is the landlord of my mother-in-law Baltazar.",
   "textB": "My mother-in-law Baltazar's landlord is Dona Zuleica.",
   "valueA": "Sr. Honório",
-  "valueB": "Dona Zuleica"
+  "valueB": "Dona Zuleica",
+  "question": "What is the landlord of my mother-in-law Baltazar? Give the name.",
+  "expected": "Dona Zuleica",
+  "notExpected": "Sr. Honório"
  },
  {
   "id": "update-of-relative-en-07",
@@ -1658,7 +2012,10 @@
   "textA": "My uncle Anneliese has Sr. Tibúrcio as his accountant.",
   "textB": "Ms. Ferreira-Lang does the accounts for my uncle Anneliese.",
   "valueA": "Sr. Tibúrcio",
-  "valueB": "Ms. Ferreira-Lang"
+  "valueB": "Ms. Ferreira-Lang",
+  "question": "What is the accountant of my uncle Anneliese? Give the name.",
+  "expected": "Ms. Ferreira-Lang",
+  "notExpected": "Sr. Tibúrcio"
  },
  {
   "id": "update-of-relative-en-08",
@@ -1669,7 +2026,10 @@
   "textA": "Claro Sul is my niece Gervásio's mobile carrier.",
   "textB": "My niece Gervásio has her phone service through Northbeam.",
   "valueA": "Claro Sul",
-  "valueB": "Northbeam"
+  "valueB": "Northbeam",
+  "question": "What is the mobile carrier of my niece Gervásio? Give the name.",
+  "expected": "Northbeam",
+  "notExpected": "Claro Sul"
  },
  {
   "id": "update-of-relative-en-09",
@@ -1680,7 +2040,10 @@
   "textA": "My grandmother Thora's health insurer is Unimais.",
   "textB": "My grandmother Thora is insured for health with Marlowe Mutual.",
   "valueA": "Unimais",
-  "valueB": "Marlowe Mutual"
+  "valueB": "Marlowe Mutual",
+  "question": "What is the health insurer of my grandmother Thora? Give the name.",
+  "expected": "Marlowe Mutual",
+  "notExpected": "Unimais"
  },
  {
   "id": "update-of-relative-en-10",
@@ -1691,7 +2054,10 @@
   "textA": "My godfather Olímpio's veterinarian is Dr. Evaristo.",
   "textB": "Dr. Pennington is the vet who treats my godfather Olímpio's animals.",
   "valueA": "Dr. Evaristo",
-  "valueB": "Dr. Pennington"
+  "valueB": "Dr. Pennington",
+  "question": "What is the veterinarian of my godfather Olímpio? Give the name.",
+  "expected": "Dr. Pennington",
+  "notExpected": "Dr. Evaristo"
  },
  {
   "id": "update-of-relative-en-11",
@@ -1702,7 +2068,10 @@
   "textA": "My stepbrother Marguerite's car mechanic is Ines at Apex Motors.",
   "textB": "My stepbrother Marguerite has his car serviced by Raj at Kerbside Autos.",
   "valueA": "Ines at Apex Motors",
-  "valueB": "Raj at Kerbside Autos"
+  "valueB": "Raj at Kerbside Autos",
+  "question": "What is the car mechanic of my stepbrother Marguerite? Give the name.",
+  "expected": "Raj at Kerbside Autos",
+  "notExpected": "Ines at Apex Motors"
  },
  {
   "id": "update-of-relative-en-12",
@@ -1713,7 +2082,10 @@
   "textA": "My mother-in-law Januário's landlord is Dona Zuleica.",
   "textB": "Mr. Fairweather is the landlord my mother-in-law Januário rents from.",
   "valueA": "Dona Zuleica",
-  "valueB": "Mr. Fairweather"
+  "valueB": "Mr. Fairweather",
+  "question": "What is the landlord of my mother-in-law Januário? Give the name.",
+  "expected": "Mr. Fairweather",
+  "notExpected": "Dona Zuleica"
  },
  {
   "id": "update-of-relative-en-13",
@@ -1724,7 +2096,10 @@
   "textA": "The accountant my uncle Halvard uses is Mr. Dunmore.",
   "textB": "My uncle Halvard has Ms. Verhoeven doing his accounts.",
   "valueA": "Mr. Dunmore",
-  "valueB": "Ms. Verhoeven"
+  "valueB": "Ms. Verhoeven",
+  "question": "What is the accountant of my uncle Halvard? Give the name.",
+  "expected": "Ms. Verhoeven",
+  "notExpected": "Mr. Dunmore"
  },
  {
   "id": "update-of-relative-en-14",
@@ -1735,7 +2110,10 @@
   "textA": "Tellura is the mobile carrier of my niece Jurema.",
   "textB": "My niece Jurema's mobile plan is with Onda Móvel.",
   "valueA": "Tellura",
-  "valueB": "Onda Móvel"
+  "valueB": "Onda Móvel",
+  "question": "What is the mobile carrier of my niece Jurema? Give the name.",
+  "expected": "Onda Móvel",
+  "notExpected": "Tellura"
  },
  {
   "id": "update-of-relative-en-15",
@@ -1746,7 +2124,10 @@
   "textA": "My grandmother Petronela is covered by Vida Plena for health insurance.",
   "textB": "Castlegate Care is the health insurer of my grandmother Petronela.",
   "valueA": "Vida Plena",
-  "valueB": "Castlegate Care"
+  "valueB": "Castlegate Care",
+  "question": "What is the health insurer of my grandmother Petronela? Give the name.",
+  "expected": "Castlegate Care",
+  "notExpected": "Vida Plena"
  },
  {
   "id": "update-of-relative-en-16",
@@ -1757,7 +2138,10 @@
   "textA": "Dr. Lindgren looks after my godfather Ciro's animals as his vet.",
   "textB": "My godfather Ciro's veterinarian is Dra. Filomena.",
   "valueA": "Dr. Lindgren",
-  "valueB": "Dra. Filomena"
+  "valueB": "Dra. Filomena",
+  "question": "What is the veterinarian of my godfather Ciro? Give the name.",
+  "expected": "Dra. Filomena",
+  "notExpected": "Dr. Lindgren"
  },
  {
   "id": "update-of-relative-pt-01",
@@ -1768,7 +2152,10 @@
   "textA": "Meu tio Halvard tem o Mr. Dunmore como contador.",
   "textB": "O contador do meu tio Halvard é o Sr. Belmiro.",
   "valueA": "Mr. Dunmore",
-  "valueB": "Sr. Belmiro"
+  "valueB": "Sr. Belmiro",
+  "question": "Qual é o contador do meu tio Halvard? Dê o nome.",
+  "expected": "Sr. Belmiro",
+  "notExpected": "Mr. Dunmore"
  },
  {
   "id": "update-of-relative-pt-02",
@@ -1779,7 +2166,10 @@
   "textA": "Minha sobrinha Jurema usa a Claro Sul no celular.",
   "textB": "A operadora de celular da minha sobrinha Jurema é a Pinecall.",
   "valueA": "Claro Sul",
-  "valueB": "Pinecall"
+  "valueB": "Pinecall",
+  "question": "Qual é a operadora de celular da minha sobrinha Jurema? Dê o nome.",
+  "expected": "Pinecall",
+  "notExpected": "Claro Sul"
  },
  {
   "id": "update-of-relative-pt-03",
@@ -1790,7 +2180,10 @@
   "textA": "O plano de saúde da minha avó Petronela é o Alderney Health.",
   "textB": "Minha avó Petronela é atendida pelo plano de saúde Vida Plena.",
   "valueA": "Alderney Health",
-  "valueB": "Vida Plena"
+  "valueB": "Vida Plena",
+  "question": "Qual é o plano de saúde da minha avó Petronela? Dê o nome.",
+  "expected": "Vida Plena",
+  "notExpected": "Alderney Health"
  },
  {
   "id": "update-of-relative-pt-04",
@@ -1801,7 +2194,10 @@
   "textA": "A veterinária do meu padrinho Ciro é a Dra. Filomena.",
   "textB": "Meu padrinho Ciro leva os bichos dele ao Dr. Lindgren, o veterinário dele.",
   "valueA": "Dra. Filomena",
-  "valueB": "Dr. Lindgren"
+  "valueB": "Dr. Lindgren",
+  "question": "Qual é o veterinário do meu padrinho Ciro? Dê o nome.",
+  "expected": "Dr. Lindgren",
+  "notExpected": "Dra. Filomena"
  },
  {
   "id": "update-of-relative-pt-05",
@@ -1812,7 +2208,10 @@
   "textA": "Meu meio-irmão Wilhelmina leva o carro para Gus at Redline Garage.",
   "textB": "O Seu Nicanor é o mecânico do carro do meu meio-irmão Wilhelmina.",
   "valueA": "Gus at Redline Garage",
-  "valueB": "Seu Nicanor"
+  "valueB": "Seu Nicanor",
+  "question": "Qual é o mecânico do carro do meu meio-irmão Wilhelmina? Dê o nome.",
+  "expected": "Seu Nicanor",
+  "notExpected": "Gus at Redline Garage"
  },
  {
   "id": "update-of-relative-pt-06",
@@ -1823,7 +2222,10 @@
   "textA": "Minha sogra Baltazar mora de aluguel num imóvel da Dona Perpétua.",
   "textB": "O dono do imóvel onde minha sogra Baltazar mora é o Sr. Honório.",
   "valueA": "Dona Perpétua",
-  "valueB": "Sr. Honório"
+  "valueB": "Sr. Honório",
+  "question": "Qual é o proprietário do imóvel onde mora da minha sogra Baltazar? Dê o nome.",
+  "expected": "Sr. Honório",
+  "notExpected": "Dona Perpétua"
  },
  {
   "id": "update-of-relative-pt-07",
@@ -1834,7 +2236,10 @@
   "textA": "O contador do meu tio Anneliese é o Sr. Tibúrcio.",
   "textB": "Meu tio Anneliese faz a contabilidade dele com o Mr. Dunmore.",
   "valueA": "Sr. Tibúrcio",
-  "valueB": "Mr. Dunmore"
+  "valueB": "Mr. Dunmore",
+  "question": "Qual é o contador do meu tio Anneliese? Dê o nome.",
+  "expected": "Mr. Dunmore",
+  "notExpected": "Sr. Tibúrcio"
  },
  {
   "id": "update-of-relative-pt-08",
@@ -1845,7 +2250,10 @@
   "textA": "A operadora de celular da minha sobrinha Gervásio é a Vivaz Telecom.",
   "textB": "Minha sobrinha Gervásio usa a Tellura como operadora de celular.",
   "valueA": "Vivaz Telecom",
-  "valueB": "Tellura"
+  "valueB": "Tellura",
+  "question": "Qual é a operadora de celular da minha sobrinha Gervásio? Dê o nome.",
+  "expected": "Tellura",
+  "notExpected": "Vivaz Telecom"
  },
  {
   "id": "update-of-relative-pt-09",
@@ -1856,7 +2264,10 @@
   "textA": "Minha avó Thora é cliente da Saúde Íntegra, o plano de saúde dela.",
   "textB": "O plano de saúde da minha avó Thora é o Vida Plena.",
   "valueA": "Saúde Íntegra",
-  "valueB": "Vida Plena"
+  "valueB": "Vida Plena",
+  "question": "Qual é o plano de saúde da minha avó Thora? Dê o nome.",
+  "expected": "Vida Plena",
+  "notExpected": "Saúde Íntegra"
  },
  {
   "id": "update-of-relative-pt-10",
@@ -1867,7 +2278,10 @@
   "textA": "O Dr. Abernathy é o veterinário do meu padrinho Olímpio.",
   "textB": "Meu padrinho Olímpio tem a Dra. Calista como veterinária.",
   "valueA": "Dr. Abernathy",
-  "valueB": "Dra. Calista"
+  "valueB": "Dra. Calista",
+  "question": "Qual é o veterinário do meu padrinho Olímpio? Dê o nome.",
+  "expected": "Dra. Calista",
+  "notExpected": "Dr. Abernathy"
  },
  {
   "id": "update-of-relative-pt-11",
@@ -1878,7 +2292,10 @@
   "textA": "Meu meio-irmão Marguerite conserta o carro com o Seu Deoclécio.",
   "textB": "Quem cuida do carro do meu meio-irmão Marguerite é o mecânico Seu Nicanor.",
   "valueA": "Seu Deoclécio",
-  "valueB": "Seu Nicanor"
+  "valueB": "Seu Nicanor",
+  "question": "Qual é o mecânico do carro do meu meio-irmão Marguerite? Dê o nome.",
+  "expected": "Seu Nicanor",
+  "notExpected": "Seu Deoclécio"
  },
  {
   "id": "update-of-relative-pt-12",
@@ -1889,7 +2306,10 @@
   "textA": "Minha sogra Januário paga aluguel ao Mr. Okonjo, dono do imóvel onde ela mora.",
   "textB": "O Sr. Honório é o proprietário do imóvel onde mora minha sogra Januário.",
   "valueA": "Mr. Okonjo",
-  "valueB": "Sr. Honório"
+  "valueB": "Sr. Honório",
+  "question": "Qual é o proprietário do imóvel onde mora da minha sogra Januário? Dê o nome.",
+  "expected": "Sr. Honório",
+  "notExpected": "Mr. Okonjo"
  },
  {
   "id": "update-of-relative-pt-13",
@@ -1900,7 +2320,10 @@
   "textA": "O Sr. Tibúrcio faz a contabilidade do meu tio Halvard.",
   "textB": "Meu tio Halvard tem como contadora a Ms. Verhoeven.",
   "valueA": "Sr. Tibúrcio",
-  "valueB": "Ms. Verhoeven"
+  "valueB": "Ms. Verhoeven",
+  "question": "Qual é o contador do meu tio Halvard? Dê o nome.",
+  "expected": "Ms. Verhoeven",
+  "notExpected": "Sr. Tibúrcio"
  },
  {
   "id": "update-of-relative-pt-14",
@@ -1911,7 +2334,10 @@
   "textA": "A Pinecall é a operadora de celular da minha sobrinha Jurema.",
   "textB": "Minha sobrinha Jurema tem linha de celular na Northbeam.",
   "valueA": "Pinecall",
-  "valueB": "Northbeam"
+  "valueB": "Northbeam",
+  "question": "Qual é a operadora de celular da minha sobrinha Jurema? Dê o nome.",
+  "expected": "Northbeam",
+  "notExpected": "Pinecall"
  },
  {
   "id": "update-of-relative-pt-15",
@@ -1922,7 +2348,10 @@
   "textA": "O plano de saúde da minha avó Petronela é o Castlegate Care.",
   "textB": "Minha avó Petronela tem plano de saúde da Saúde Íntegra.",
   "valueA": "Castlegate Care",
-  "valueB": "Saúde Íntegra"
+  "valueB": "Saúde Íntegra",
+  "question": "Qual é o plano de saúde da minha avó Petronela? Dê o nome.",
+  "expected": "Saúde Íntegra",
+  "notExpected": "Castlegate Care"
  },
  {
   "id": "update-of-relative-pt-16",
@@ -1933,7 +2362,10 @@
   "textA": "Meu padrinho Ciro leva os animais dele no Dr. Pennington.",
   "textB": "O veterinário do meu padrinho Ciro é o Dr. Abernathy.",
   "valueA": "Dr. Pennington",
-  "valueB": "Dr. Abernathy"
+  "valueB": "Dr. Abernathy",
+  "question": "Qual é o veterinário do meu padrinho Ciro? Dê o nome.",
+  "expected": "Dr. Abernathy",
+  "notExpected": "Dr. Pennington"
  },
  {
   "id": "update-pt-01",
@@ -1944,7 +2376,10 @@
   "textA": "O dono do imóvel onde moro é o Mr. Okonjo.",
   "textB": "Moro num imóvel que pertence ao Mr. Fairweather, meu locador.",
   "valueA": "Mr. Okonjo",
-  "valueB": "Mr. Fairweather"
+  "valueB": "Mr. Fairweather",
+  "question": "Qual é o meu proprietário do imóvel onde moro? Dê o nome.",
+  "expected": "Mr. Fairweather",
+  "notExpected": "Mr. Okonjo"
  },
  {
   "id": "update-pt-02",
@@ -1955,7 +2390,10 @@
   "textA": "A Ms. Ferreira-Lang é minha contadora.",
   "textB": "Minhas contas ficam com o Sr. Tibúrcio, meu contador.",
   "valueA": "Ms. Ferreira-Lang",
-  "valueB": "Sr. Tibúrcio"
+  "valueB": "Sr. Tibúrcio",
+  "question": "Qual é o meu contador? Dê o nome.",
+  "expected": "Sr. Tibúrcio",
+  "notExpected": "Ms. Ferreira-Lang"
  },
  {
   "id": "update-pt-03",
@@ -1966,7 +2404,10 @@
   "textA": "Uso a Onda Móvel como operadora de celular.",
   "textB": "Minha operadora de celular é a Claro Sul.",
   "valueA": "Onda Móvel",
-  "valueB": "Claro Sul"
+  "valueB": "Claro Sul",
+  "question": "Qual é a minha operadora de celular? Dê o nome.",
+  "expected": "Claro Sul",
+  "notExpected": "Onda Móvel"
  },
  {
   "id": "update-pt-04",
@@ -1977,7 +2418,10 @@
   "textA": "Meu plano de saúde é o Castlegate Care.",
   "textB": "Tenho plano de saúde pela Saúde Íntegra.",
   "valueA": "Castlegate Care",
-  "valueB": "Saúde Íntegra"
+  "valueB": "Saúde Íntegra",
+  "question": "Qual é o meu plano de saúde? Dê o nome.",
+  "expected": "Saúde Íntegra",
+  "notExpected": "Castlegate Care"
  },
  {
   "id": "update-pt-05",
@@ -1988,7 +2432,10 @@
   "textA": "Levo meus bichos no Dr. Pennington, meu veterinário.",
   "textB": "Meu veterinário é o Dr. Lindgren, pode registrar.",
   "valueA": "Dr. Pennington",
-  "valueB": "Dr. Lindgren"
+  "valueB": "Dr. Lindgren",
+  "question": "Qual é o meu veterinário? Dê o nome.",
+  "expected": "Dr. Lindgren",
+  "notExpected": "Dr. Pennington"
  },
  {
   "id": "update-pt-06",
@@ -1999,7 +2446,10 @@
   "textA": "Meu carro fica aos cuidados de Raj at Kerbside Autos, meu mecânico.",
   "textB": "O mecânico do meu carro é Gus at Redline Garage.",
   "valueA": "Raj at Kerbside Autos",
-  "valueB": "Gus at Redline Garage"
+  "valueB": "Gus at Redline Garage",
+  "question": "Qual é o meu mecânico do carro? Dê o nome.",
+  "expected": "Gus at Redline Garage",
+  "notExpected": "Raj at Kerbside Autos"
  },
  {
   "id": "update-pt-07",
@@ -2010,7 +2460,10 @@
   "textA": "O Mr. Okonjo é o proprietário do imóvel onde moro.",
   "textB": "O imóvel onde moro é do Sr. Honório.",
   "valueA": "Mr. Okonjo",
-  "valueB": "Sr. Honório"
+  "valueB": "Sr. Honório",
+  "question": "Qual é o meu proprietário do imóvel onde moro? Dê o nome.",
+  "expected": "Sr. Honório",
+  "notExpected": "Mr. Okonjo"
  },
  {
   "id": "update-pt-08",
@@ -2021,7 +2474,10 @@
   "textA": "Meu contador é o Sr. Belmiro.",
   "textB": "A Ms. Verhoeven é quem faz minha contabilidade.",
   "valueA": "Sr. Belmiro",
-  "valueB": "Ms. Verhoeven"
+  "valueB": "Ms. Verhoeven",
+  "question": "Qual é o meu contador? Dê o nome.",
+  "expected": "Ms. Verhoeven",
+  "notExpected": "Sr. Belmiro"
  },
  {
   "id": "update-pt-09",
@@ -2032,7 +2488,10 @@
   "textA": "Minha operadora de celular é a Vivaz Telecom.",
   "textB": "Meu celular é da operadora Onda Móvel.",
   "valueA": "Vivaz Telecom",
-  "valueB": "Onda Móvel"
+  "valueB": "Onda Móvel",
+  "question": "Qual é a minha operadora de celular? Dê o nome.",
+  "expected": "Onda Móvel",
+  "notExpected": "Vivaz Telecom"
  },
  {
   "id": "update-pt-10",
@@ -2043,7 +2502,10 @@
   "textA": "Meu convênio médico é o Alderney Health.",
   "textB": "O plano de saúde que eu tenho é o Saúde Íntegra.",
   "valueA": "Alderney Health",
-  "valueB": "Saúde Íntegra"
+  "valueB": "Saúde Íntegra",
+  "question": "Qual é o meu plano de saúde? Dê o nome.",
+  "expected": "Saúde Íntegra",
+  "notExpected": "Alderney Health"
  },
  {
   "id": "update-pt-11",
@@ -2054,7 +2516,10 @@
   "textA": "A Dra. Filomena é minha veterinária.",
   "textB": "Quem atende meus animais é o Dr. Pennington, meu veterinário.",
   "valueA": "Dra. Filomena",
-  "valueB": "Dr. Pennington"
+  "valueB": "Dr. Pennington",
+  "question": "Qual é o meu veterinário? Dê o nome.",
+  "expected": "Dr. Pennington",
+  "notExpected": "Dra. Filomena"
  },
  {
   "id": "update-pt-12",
@@ -2065,7 +2530,10 @@
   "textA": "Levo meu carro no Seu Nicanor, meu mecânico de confiança.",
   "textB": "Meu carro é atendido por Ines at Apex Motors, meu mecânico.",
   "valueA": "Seu Nicanor",
-  "valueB": "Ines at Apex Motors"
+  "valueB": "Ines at Apex Motors",
+  "question": "Qual é o meu mecânico do carro? Dê o nome.",
+  "expected": "Ines at Apex Motors",
+  "notExpected": "Seu Nicanor"
  },
  {
   "id": "update-pt-13",
@@ -2076,7 +2544,10 @@
   "textA": "Moro de aluguel num imóvel da Dona Perpétua.",
   "textB": "A proprietária do imóvel onde moro é a Dona Zuleica.",
   "valueA": "Dona Perpétua",
-  "valueB": "Dona Zuleica"
+  "valueB": "Dona Zuleica",
+  "question": "Qual é o meu proprietário do imóvel onde moro? Dê o nome.",
+  "expected": "Dona Zuleica",
+  "notExpected": "Dona Perpétua"
  },
  {
   "id": "update-pt-14",
@@ -2087,7 +2558,10 @@
   "textA": "Faço minha contabilidade com o Sr. Tibúrcio.",
   "textB": "Minha contadora se chama Ms. Verhoeven.",
   "valueA": "Sr. Tibúrcio",
-  "valueB": "Ms. Verhoeven"
+  "valueB": "Ms. Verhoeven",
+  "question": "Qual é o meu contador? Dê o nome.",
+  "expected": "Ms. Verhoeven",
+  "notExpected": "Sr. Tibúrcio"
  },
  {
   "id": "update-pt-15",
@@ -2098,7 +2572,10 @@
   "textA": "Meu celular funciona pela Onda Móvel.",
   "textB": "Tenho linha de celular com a Claro Sul.",
   "valueA": "Onda Móvel",
-  "valueB": "Claro Sul"
+  "valueB": "Claro Sul",
+  "question": "Qual é a minha operadora de celular? Dê o nome.",
+  "expected": "Claro Sul",
+  "notExpected": "Onda Móvel"
  },
  {
   "id": "update-pt-16",
@@ -2109,6 +2586,9 @@
   "textA": "Sou cliente do plano de saúde Vida Plena.",
   "textB": "Meu plano de saúde é o Castlegate Care.",
   "valueA": "Vida Plena",
-  "valueB": "Castlegate Care"
+  "valueB": "Castlegate Care",
+  "question": "Qual é o meu plano de saúde? Dê o nome.",
+  "expected": "Castlegate Care",
+  "notExpected": "Vida Plena"
  }
 ]
