@@ -34,10 +34,12 @@ interface Row {
   /** The write threw because the extraction response was invalid. */
   readonly failed: boolean;
   readonly facts: readonly string[];
+  /** The stored facts that end with the day they were said. */
+  readonly expiring: readonly string[];
   readonly values: readonly ValueScore[];
 }
 
-async function write(fixture: ExtractionRecallCase): Promise<readonly string[]> {
+async function write(fixture: ExtractionRecallCase): Promise<{ facts: readonly string[]; expiring: readonly string[] }> {
   const memory = await createLocalMemory({
     vectorStore: new InMemoryVectorStore(),
     embedder: { embed: async () => [1, 0, 0], embedBatch: async (texts) => texts.map(() => [1, 0, 0]) },
@@ -47,7 +49,7 @@ async function write(fixture: ExtractionRecallCase): Promise<readonly string[]> 
   });
   try {
     const items = await memory.user('extraction-recall').rememberMessages([{ role: 'user', content: fixture.text }], { strictExtraction: true });
-    return items.map((item) => item.text);
+    return { facts: items.map((item) => item.text), expiring: items.filter((item) => item.expiresAt !== undefined && item.expiresAt !== null).map((item) => item.text) };
   } finally {
     await memory.dispose();
   }
@@ -59,12 +61,12 @@ for (let repetition = 0; repetition < REPETITIONS; repetition += 1) {
   const worker = async (): Promise<void> => {
     for (let fixture = queue.shift(); fixture !== undefined; fixture = queue.shift()) {
       let failed = false;
-      const facts = await write(fixture).catch((error: unknown) => {
+      const { facts, expiring } = await write(fixture).catch((error: unknown) => {
         if (!(error instanceof MemoryStoreError)) throw error;
         failed = true;
-        return [];
+        return { facts: [], expiring: [] };
       });
-      rows.push({ id: fixture.id, shape: fixture.shape, language: fixture.language, repetition, failed, facts, values: scoreExtractionRecallCase(fixture, facts) });
+      rows.push({ id: fixture.id, shape: fixture.shape, language: fixture.language, repetition, failed, facts, expiring, values: scoreExtractionRecallCase(fixture, facts) });
     }
   };
   await Promise.all(Array.from({ length: CONCURRENCY }, worker));
