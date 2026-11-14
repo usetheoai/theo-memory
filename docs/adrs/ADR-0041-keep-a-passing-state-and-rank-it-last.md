@@ -113,4 +113,8 @@ recall returns with it.
 Limits of this measurement: one reader model, top five, thirty days. The criterion on the old
 wish passed at p = 0.0625 with five people against none, so a larger set could show a
 difference this one could not. The question about an added statement was answered in about half
-of the runs on both sides, which this record does not explain.
+of the runs on both sides. The cause is in the case set and in the write path, not in recall: the
+added statements gave a favourite dish and, three messages later, said the person is a
+vegetarian. When the dish had meat or fish the update judge ended it (240 of 240 rows, against 2
+of 240 for the other dishes), and the question had nothing to find (#252). Both sides had the
+same split, so the comparison stands.
