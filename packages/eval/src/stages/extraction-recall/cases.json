@@ -1342,5 +1342,545 @@
       "Academia Bandeirantes",
       "Novak Foods"
     ]
+  },
+  {
+    "id": "question-without-fact-en-00",
+    "language": "en",
+    "shape": "question-without-fact",
+    "text": "Is Gorford a pleasant place to settle down, or is it too quiet for most people?",
+    "values": [
+      "Gorford"
+    ]
+  },
+  {
+    "id": "question-without-fact-en-01",
+    "language": "en",
+    "shape": "question-without-fact",
+    "text": "Does Academia Tamoio have a solid reputation among employers?",
+    "values": [
+      "Academia Tamoio"
+    ]
+  },
+  {
+    "id": "question-without-fact-en-02",
+    "language": "en",
+    "shape": "question-without-fact",
+    "text": "Would Novak Systems be a decent company to apply to, going by what is publicly known?",
+    "values": [
+      "Novak Systems"
+    ]
+  },
+  {
+    "id": "question-without-fact-en-03",
+    "language": "en",
+    "shape": "question-without-fact",
+    "text": "Is Tamsin Systems considered a good employer, or do people tend to leave quickly?",
+    "values": [
+      "Tamsin Systems"
+    ]
+  },
+  {
+    "id": "question-without-fact-en-04",
+    "language": "en",
+    "shape": "question-without-fact",
+    "text": "Would Maguila work well as a name for a big, clumsy dog?",
+    "values": [
+      "Maguila"
+    ]
+  },
+  {
+    "id": "question-without-fact-en-05",
+    "language": "en",
+    "shape": "question-without-fact",
+    "text": "How well regarded is Academia Alvorada compared with other schools of its kind?",
+    "values": [
+      "Academia Alvorada"
+    ]
+  },
+  {
+    "id": "question-without-fact-en-06",
+    "language": "en",
+    "shape": "question-without-fact",
+    "text": "Is Academia Kestrel known for strong teaching, or is its reputation mostly marketing?",
+    "values": [
+      "Academia Kestrel"
+    ]
+  },
+  {
+    "id": "question-without-fact-en-07",
+    "language": "en",
+    "shape": "question-without-fact",
+    "text": "How did União Tamoio do last season?",
+    "values": [
+      "União Tamoio"
+    ]
+  },
+  {
+    "id": "question-without-fact-en-08",
+    "language": "en",
+    "shape": "question-without-fact",
+    "text": "Where does the name Cosmin come from, and what does it mean?",
+    "values": [
+      "Cosmin"
+    ]
+  },
+  {
+    "id": "question-without-fact-en-09",
+    "language": "en",
+    "shape": "question-without-fact",
+    "text": "Is it worth sending an application to Novak Labs, or does it have a poor name as a workplace?",
+    "values": [
+      "Novak Labs"
+    ]
+  },
+  {
+    "id": "request-without-fact-en-00",
+    "language": "en",
+    "shape": "request-without-fact",
+    "text": "Please draft a neutral, three-sentence description of Academia Kestrel for a school directory.",
+    "values": [
+      "Academia Kestrel"
+    ]
+  },
+  {
+    "id": "request-without-fact-en-01",
+    "language": "en",
+    "shape": "request-without-fact",
+    "text": "Suggest a short, playful poem that includes the name Farofa.",
+    "values": [
+      "Farofa"
+    ]
+  },
+  {
+    "id": "request-without-fact-en-02",
+    "language": "en",
+    "shape": "request-without-fact",
+    "text": "Write a four-line rhyme that works the name Vasco into the last line.",
+    "values": [
+      "Vasco"
+    ]
+  },
+  {
+    "id": "request-without-fact-en-03",
+    "language": "en",
+    "shape": "request-without-fact",
+    "text": "Could you come up with a limerick featuring a dog called Kibe?",
+    "values": [
+      "Kibe"
+    ]
+  },
+  {
+    "id": "request-without-fact-en-04",
+    "language": "en",
+    "shape": "request-without-fact",
+    "text": "Write a short travel-guide paragraph about Marstead.",
+    "values": [
+      "Marstead"
+    ]
+  },
+  {
+    "id": "request-without-fact-en-05",
+    "language": "en",
+    "shape": "request-without-fact",
+    "text": "Draft a neutral two-paragraph profile of the football club União Brenwick.",
+    "values": [
+      "União Brenwick"
+    ]
+  },
+  {
+    "id": "request-without-fact-en-06",
+    "language": "en",
+    "shape": "request-without-fact",
+    "text": "Summarize what is known about Sorrel Systems in five bullet points.",
+    "values": [
+      "Sorrel Systems"
+    ]
+  },
+  {
+    "id": "request-without-fact-en-07",
+    "language": "en",
+    "shape": "request-without-fact",
+    "text": "Put together a brief, factual overview of Instituto Tamoio suitable for a brochure.",
+    "values": [
+      "Instituto Tamoio"
+    ]
+  },
+  {
+    "id": "request-without-fact-en-08",
+    "language": "en",
+    "shape": "request-without-fact",
+    "text": "Give me a concise summary of what Novak Labs does and how it is generally perceived.",
+    "values": [
+      "Novak Labs"
+    ]
+  },
+  {
+    "id": "request-without-fact-en-09",
+    "language": "en",
+    "shape": "request-without-fact",
+    "text": "Please write an impartial paragraph describing Academia Montserrat, with no promotional tone.",
+    "values": [
+      "Academia Montserrat"
+    ]
+  },
+  {
+    "id": "question-about-someone-else-en-00",
+    "language": "en",
+    "shape": "question-about-someone-else",
+    "text": "My cousin lives in Gormora; is it easy to get there by train?",
+    "values": [
+      "Gormora"
+    ]
+  },
+  {
+    "id": "question-about-someone-else-en-01",
+    "language": "en",
+    "shape": "question-about-someone-else",
+    "text": "A friend of mine works at Kestrel Energy; is it known for treating its staff well?",
+    "values": [
+      "Kestrel Energy"
+    ]
+  },
+  {
+    "id": "question-about-someone-else-en-02",
+    "language": "en",
+    "shape": "question-about-someone-else",
+    "text": "My neighbour studied at Instituto Halden; does that school carry much weight on a CV?",
+    "values": [
+      "Instituto Halden"
+    ]
+  },
+  {
+    "id": "question-about-someone-else-en-03",
+    "language": "en",
+    "shape": "question-about-someone-else",
+    "text": "My aunt lives in Brenstead; what is the weather usually like there in winter?",
+    "values": [
+      "Brenstead"
+    ]
+  },
+  {
+    "id": "question-about-someone-else-en-04",
+    "language": "en",
+    "shape": "question-about-someone-else",
+    "text": "An old friend lives in Torholm; are there any museums worth seeing on a visit?",
+    "values": [
+      "Torholm"
+    ]
+  },
+  {
+    "id": "question-about-someone-else-en-05",
+    "language": "en",
+    "shape": "question-about-someone-else",
+    "text": "A colleague is married to someone called Lucjan; how is that name pronounced?",
+    "values": [
+      "Lucjan"
+    ]
+  },
+  {
+    "id": "question-about-someone-else-en-06",
+    "language": "en",
+    "shape": "question-about-someone-else",
+    "text": "My nephew lives in Dunford; how long does a parcel typically take to arrive there?",
+    "values": [
+      "Dunford"
+    ]
+  },
+  {
+    "id": "question-about-someone-else-en-07",
+    "language": "en",
+    "shape": "question-about-someone-else",
+    "text": "My neighbour's daughter works at Kestrel Labs; what kind of work does that company do?",
+    "values": [
+      "Kestrel Labs"
+    ]
+  },
+  {
+    "id": "question-about-someone-else-en-08",
+    "language": "en",
+    "shape": "question-about-someone-else",
+    "text": "A friend lives in Gorwick; what would be a thoughtful housewarming gift to send there?",
+    "values": [
+      "Gorwick"
+    ]
+  },
+  {
+    "id": "question-about-someone-else-en-09",
+    "language": "en",
+    "shape": "question-about-someone-else",
+    "text": "My cousin is married to Hakon; which language does that name come from?",
+    "values": [
+      "Hakon"
+    ]
+  },
+  {
+    "id": "question-without-fact-pt-00",
+    "language": "pt",
+    "shape": "question-without-fact",
+    "text": "Como foi a campanha do Atlético Castead na última temporada?",
+    "values": [
+      "Atlético Castead"
+    ]
+  },
+  {
+    "id": "question-without-fact-pt-01",
+    "language": "pt",
+    "shape": "question-without-fact",
+    "text": "O Sporting Velmora terminou bem o campeonato passado ou ficou na parte de baixo da tabela?",
+    "values": [
+      "Sporting Velmora"
+    ]
+  },
+  {
+    "id": "question-without-fact-pt-02",
+    "language": "pt",
+    "shape": "question-without-fact",
+    "text": "A Halden Foods é uma boa empresa para trabalhar?",
+    "values": [
+      "Halden Foods"
+    ]
+  },
+  {
+    "id": "question-without-fact-pt-03",
+    "language": "pt",
+    "shape": "question-without-fact",
+    "text": "Vale a pena mandar currículo para a Tamsin Logistics?",
+    "values": [
+      "Tamsin Logistics"
+    ]
+  },
+  {
+    "id": "question-without-fact-pt-04",
+    "language": "pt",
+    "shape": "question-without-fact",
+    "text": "A Tamsin Labs tem fama de tratar bem os funcionários?",
+    "values": [
+      "Tamsin Labs"
+    ]
+  },
+  {
+    "id": "question-without-fact-pt-05",
+    "language": "pt",
+    "shape": "question-without-fact",
+    "text": "Qual é a origem do nome Hakon e o que ele significa?",
+    "values": [
+      "Hakon"
+    ]
+  },
+  {
+    "id": "question-without-fact-pt-06",
+    "language": "pt",
+    "shape": "question-without-fact",
+    "text": "Velby é um bom lugar para morar, pensando em custo de vida e segurança?",
+    "values": [
+      "Velby"
+    ]
+  },
+  {
+    "id": "question-without-fact-pt-07",
+    "language": "pt",
+    "shape": "question-without-fact",
+    "text": "O nome Vasco vem de onde?",
+    "values": [
+      "Vasco"
+    ]
+  },
+  {
+    "id": "question-without-fact-pt-08",
+    "language": "pt",
+    "shape": "question-without-fact",
+    "text": "Será que a Kestrel Labs é um lugar bom para construir carreira, ou a rotatividade lá é alta?",
+    "values": [
+      "Kestrel Labs"
+    ]
+  },
+  {
+    "id": "question-without-fact-pt-09",
+    "language": "pt",
+    "shape": "question-without-fact",
+    "text": "O que significa o nome Ilse e de que idioma ele vem?",
+    "values": [
+      "Ilse"
+    ]
+  },
+  {
+    "id": "request-without-fact-pt-00",
+    "language": "pt",
+    "shape": "request-without-fact",
+    "text": "Sugira um poema curto e divertido que inclua o nome Maguila.",
+    "values": [
+      "Maguila"
+    ]
+  },
+  {
+    "id": "request-without-fact-pt-01",
+    "language": "pt",
+    "shape": "request-without-fact",
+    "text": "Escreva uma quadrinha sobre um cachorro chamado Juniper.",
+    "values": [
+      "Juniper"
+    ]
+  },
+  {
+    "id": "request-without-fact-pt-02",
+    "language": "pt",
+    "shape": "request-without-fact",
+    "text": "Redija uma descrição neutra, de um parágrafo, da Academia Bandeirantes.",
+    "values": [
+      "Academia Bandeirantes"
+    ]
+  },
+  {
+    "id": "request-without-fact-pt-03",
+    "language": "pt",
+    "shape": "request-without-fact",
+    "text": "Monte um acróstico com o nome Vasco.",
+    "values": [
+      "Vasco"
+    ]
+  },
+  {
+    "id": "request-without-fact-pt-04",
+    "language": "pt",
+    "shape": "request-without-fact",
+    "text": "Faça um resumo imparcial sobre o Sporting Brenwick, como se fosse para um guia de clubes.",
+    "values": [
+      "Sporting Brenwick"
+    ]
+  },
+  {
+    "id": "request-without-fact-pt-05",
+    "language": "pt",
+    "shape": "request-without-fact",
+    "text": "Escreva um texto breve e objetivo apresentando o Colégio Halden.",
+    "values": [
+      "Colégio Halden"
+    ]
+  },
+  {
+    "id": "request-without-fact-pt-06",
+    "language": "pt",
+    "shape": "request-without-fact",
+    "text": "Crie uma rima infantil em que apareça um cachorrinho chamado Pipoca.",
+    "values": [
+      "Pipoca"
+    ]
+  },
+  {
+    "id": "request-without-fact-pt-07",
+    "language": "pt",
+    "shape": "request-without-fact",
+    "text": "Prepare uma descrição neutra do União Tamoio em até cinco linhas.",
+    "values": [
+      "União Tamoio"
+    ]
+  },
+  {
+    "id": "request-without-fact-pt-08",
+    "language": "pt",
+    "shape": "request-without-fact",
+    "text": "Por favor, resuma em tópicos o que se sabe sobre a Academia Tamoio.",
+    "values": [
+      "Academia Tamoio"
+    ]
+  },
+  {
+    "id": "request-without-fact-pt-09",
+    "language": "pt",
+    "shape": "request-without-fact",
+    "text": "Componha um haicai que contenha o nome Cosmin.",
+    "values": [
+      "Cosmin"
+    ]
+  },
+  {
+    "id": "question-about-someone-else-pt-00",
+    "language": "pt",
+    "shape": "question-about-someone-else",
+    "text": "Uma colega é casada com um rapaz chamado Lucjan; como se pronuncia esse nome?",
+    "values": [
+      "Lucjan"
+    ]
+  },
+  {
+    "id": "question-about-someone-else-pt-01",
+    "language": "pt",
+    "shape": "question-about-someone-else",
+    "text": "Meu vizinho torce para o Racing Tamoio; em que posição o time ficou na última temporada?",
+    "values": [
+      "Racing Tamoio"
+    ]
+  },
+  {
+    "id": "question-about-someone-else-pt-02",
+    "language": "pt",
+    "shape": "question-about-someone-else",
+    "text": "Minha prima é casada com o Cosmin; esse nome é de origem romena?",
+    "values": [
+      "Cosmin"
+    ]
+  },
+  {
+    "id": "question-about-someone-else-pt-03",
+    "language": "pt",
+    "shape": "question-about-someone-else",
+    "text": "Um amigo trabalha na Brillo Textiles; essa empresa costuma oferecer bons benefícios?",
+    "values": [
+      "Brillo Textiles"
+    ]
+  },
+  {
+    "id": "question-about-someone-else-pt-04",
+    "language": "pt",
+    "shape": "question-about-someone-else",
+    "text": "Minha tia mora em Marholm; dá para chegar lá de ônibus com facilidade?",
+    "values": [
+      "Marholm"
+    ]
+  },
+  {
+    "id": "question-about-someone-else-pt-05",
+    "language": "pt",
+    "shape": "question-about-someone-else",
+    "text": "Meu primo estudou na Academia Tamoio; o diploma de lá é bem aceito no mercado?",
+    "values": [
+      "Academia Tamoio"
+    ]
+  },
+  {
+    "id": "question-about-someone-else-pt-06",
+    "language": "pt",
+    "shape": "question-about-someone-else",
+    "text": "Um colega torce para o Atlético Halden; o clube conquistou algum título no ano passado?",
+    "values": [
+      "Atlético Halden"
+    ]
+  },
+  {
+    "id": "question-about-someone-else-pt-07",
+    "language": "pt",
+    "shape": "question-about-someone-else",
+    "text": "A filha da minha vizinha trabalha na Novak Systems; que tipo de produto essa empresa faz?",
+    "values": [
+      "Novak Systems"
+    ]
+  },
+  {
+    "id": "question-about-someone-else-pt-08",
+    "language": "pt",
+    "shape": "question-about-someone-else",
+    "text": "Meu cunhado trabalha na Sorrel Systems; é uma empresa grande?",
+    "values": [
+      "Sorrel Systems"
+    ]
+  },
+  {
+    "id": "question-about-someone-else-pt-09",
+    "language": "pt",
+    "shape": "question-about-someone-else",
+    "text": "Uma amiga mora em Brenwick; qual é a melhor época do ano para visitar a cidade?",
+    "values": [
+      "Brenwick"
+    ]
   }
 ]

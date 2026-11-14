@@ -2,13 +2,26 @@
  * Scoring for the extraction-recall evaluation: is a fact the author states about themself
  * stored, whatever the shape of the message that carries it?
  *
- * Every case but the control states one or three values about its author. The control is a
- * question that mentions a value without stating it about the author; nothing carrying that
- * value should be stored.
+ * Most cases state one or three values about their author. The controls mention a value that is
+ * not true of the author (a question that only considers it, a request that involves it, a
+ * question about someone else); nothing carrying that value should be stored.
  */
 import { z } from 'zod';
 
-export const SHAPES = ['plain', 'inside-request', 'aside-in-long-message', 'as-a-reason', 'inside-a-question', 'three-facts', 'question-without-fact'] as const;
+export const SHAPES = [
+  'plain',
+  'inside-request',
+  'aside-in-long-message',
+  'as-a-reason',
+  'inside-a-question',
+  'three-facts',
+  'question-without-fact',
+  'request-without-fact',
+  'question-about-someone-else',
+] as const;
+
+/** Shapes in which the value is mentioned and is not true of the author. */
+export const CONTROL_SHAPES: ReadonlySet<string> = new Set(['question-without-fact', 'request-without-fact', 'question-about-someone-else']);
 
 export const ExtractionRecallCaseSchema = z
   .object({
@@ -38,6 +51,6 @@ export function scoreExtractionRecallCase(fixture: ExtractionRecallCase, facts: 
     const carrying = facts.filter((fact) => fact.toLowerCase().includes(value.toLowerCase()));
     const stored = carrying.length > 0;
     const aboutUser = carrying.some((fact) => USER_WORD.test(fact));
-    return { stored, aboutUser, correct: fixture.shape === 'question-without-fact' ? !stored : aboutUser };
+    return { stored, aboutUser, correct: CONTROL_SHAPES.has(fixture.shape) ? !stored : aboutUser };
   });
 }

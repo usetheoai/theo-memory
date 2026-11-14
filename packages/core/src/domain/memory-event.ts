@@ -281,6 +281,10 @@ export const MEMORY_EVENTS = [
   'extraction_subject_restored',
   // A write carried only reference material, so nothing was extracted (ADR-0039).
   'extraction_reference_only',
+  // The second look at an empty extraction found facts the author states about themself (#282).
+  'extraction_stated_check_recovered',
+  // That second look failed or returned a malformed response; nothing was recovered.
+  'extraction_stated_check_failed',
   // A physical delete took the summaries derived from the memory with it (migration 0039).
   'forget_reached_derived',
   // A fact written about `user` got the name of the author the caller gave for its message (#244).

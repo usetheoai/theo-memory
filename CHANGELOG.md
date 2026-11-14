@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - The MCP `recall` tool returns each result's source messages by default; `includeSources: false` returns the facts alone. On a held-out set of 256 questions about a detail of something the user said, a reader answered 226 to 230 from the facts alone and 249 to 251 with the sources beside them, at 253 input tokens per question in place of 135. The SDK and REST defaults are unchanged. (ADR-0035, stage 4)
 
+### Fixed
+
+- A fact a person states about themself inside a question or a request is now stored. "As someone who lives in Velmora, which bank should I pick?" used to come back from the extractor with nothing in five writes of six. When extraction returns an empty list, the write path makes one more call that asks only what the author states about themself, and keeps a fact when its quote is found in the message. On a confirmation set, stated facts stored went from 480 to 539 of 576 (inside a question, from 12 to 52 of 72; inside a request, from 55 to 72 of 72), with nothing new stored from questions that only mention a thing. Costs one extra call per write that yields no fact. Events: `extraction_stated_check_recovered`, `extraction_stated_check_failed`. (#282, ADR-0040)
+
 ### Security
 
 - **BREAKING**: a hard forget now erases what was derived from the memory. A reflection summary that lists the memory in `derived_from` is deleted with it, and so is a summary of that summary; before, the summary stayed stored and recallable with the erased content in its text. The free-text `reason` of a `consolidation_history` row that names the memory becomes `[erased]`; the row, its ids and its policy name stay. Any physical delete does this (hard forget, expiry purge), through a trigger added by migration 0039, and the event `forget_reached_derived` reports how many memories went. A soft forget is unchanged. (ADR-0038)
